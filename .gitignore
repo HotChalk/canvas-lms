@@ -21,7 +21,6 @@
 /db/*.sqlite*
 /db/*sql
 /exports/
-/Gemfile.lock
 /log/
 /public/app/
 /public/assets/
