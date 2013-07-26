@@ -1,7 +1,7 @@
 require "bundler/capistrano"
 
-set :stages,        %w(production dev)
-set :default_stage, "production"
+set :stages,        %w(production qa)
+set :default_stage, "qa"
 require "capistrano/ext/multistage"
 
 set :application,   "Canvas"
@@ -12,12 +12,11 @@ set :branch,        "master"
 set :deploy_via,    :remote_cache
 set :deploy_to,     "/srv/canvas"
 set :use_sudo,      false
-set :deploy_env,    "production"
+set :rake,          "bundle exec rake"
 
-
-task :uname do
-  run 'uname -a'
-end
+set :ssh_options, {:forward_agent => true}
+ssh_options[:keys] = [File.join(ENV["HOME"], ".ssh", "hotchalk.pem")]
+set :git_enable_submodules, 1
 
 namespace :deploy do
   task :start do ; end
@@ -29,34 +28,6 @@ end
 
 # Canvas-specific task after a deploy
 namespace :canvas do
-  
-  # LOCAL COMMANDS
-  desc "Update the master branch of the local repo"
-  task :update do
-    check_user
-    stashResponse = run_locally "git stash"
-    puts stashResponse
-    puts run_locally "git checkout master"
-    puts run_locally "git fetch"
-    puts run_locally "git merge origin/master"
-    puts run_locally "git stash pop" unless stashResponse == "No local changes to save\n"
-    puts "\x1b[42m\x1b[1;37m Update successful. You should now run 'cap canvas:update_gems' \x1b[0m"
-  end
-  
-  desc "Install new gems from bundle and push updates"
-  task :update_gems do
-    check_user
-    stashResponse = run_locally "git stash"
-    puts stashResponse
-    puts run_locally "bundle install"  #--path path=~/gems"
-    puts run_locally "git add Gemfile.lock"
-    puts run_locally "git commit --allow-empty Gemfile.lock -m 'Add Gemfile.lock for deploy #{release_name}'"
-    puts run_locally "git push origin"
-    puts run_locally "git stash pop" unless stashResponse == "No local changes to save\n"
-    puts "\x1b[42m\x1b[1;37m Push successful. You should now run 'cap deploy' and 'cap canvas:update_remote' \x1b[0m"
-  end
-
-  # REMOTE COMMANDS
 
   # On every deploy
   desc "Create symlink for files folder to mount point"
@@ -72,6 +43,12 @@ namespace :canvas do
     run "cd #{latest_release} && chown -R canvasuser:canvas ."
   end
 
+  desc "Copy shared config files"
+  task :config_copy do
+    folder = 'config'
+    run "rm -rf #{latest_release}/#{folder}/*"
+    run "cp -R /srv/canvas/shared/config/* #{latest_release}/#{folder}"
+  end
 
   # Updates only
   desc "Post-update commands"
@@ -94,24 +71,9 @@ namespace :canvas do
     run "/etc/init.d/canvas_init restart"
   end
   
-  # UTILITY TASKS
-  desc "Make sure that only the deploy user can run certain tasks"
-  task :check_user do
-    transaction do 
-      do_check_user
-    end
-  end
-
-  desc "Make sure that only the deploy user can run certain tasks"
-  task :do_check_user do
-    on_rollback do
-      puts "\x1b[41m\x1b[1;37m Please run this command as 'deploy' user \x1b[0m"
-    end
-    run_locally "[ `whoami` == deploy ]"
-  end
 end
 
 after(:deploy, "deploy:cleanup")
-before(:deploy, "canvas:check_user")
 before("deploy:restart", "canvas:files_symlink")
+before("deploy:restart", "canvas:config_copy")
 before("deploy:restart", "canvas:compile_assets")
