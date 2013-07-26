@@ -1,4 +1,6 @@
-role :app, "localhost"
-role :db,  "localhost", :primary => true
+role :app,      "hotchalklearn.com"
+role :db,       "hotchalklearn.com", :primary => true
 
-set :rails_env, 	"production"
+set :bundle_without, [:sqlite]
+
+set :rails_env, "production"
