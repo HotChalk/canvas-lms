@@ -27,11 +27,13 @@ class AccountAuthorizationConfig < ActiveRecord::Base
                   :log_in_url, :log_out_url, :identifier_format,
                   :certificate_fingerprint, :entity_id, :change_password_url,
                   :login_handle_name, :ldap_filter, :auth_filter, :requested_authn_context,
-                  :login_attribute, :idp_entity_id
+                  :login_attribute, :idp_entity_id, :hmac_shared_secret, :hmac_timestamp_range
 
   before_validation :set_saml_defaults, :if => Proc.new { |aac| aac.saml_authentication? }
   validates_presence_of :account_id
   validates_presence_of :entity_id, :if => Proc.new{|aac| aac.saml_authentication?}
+  validates_presence_of :hmac_shared_secret, :if => Proc.new { |aac| aac.hmac_authentication? }
+  validates_presence_of :hmac_timestamp_range, :if => Proc.new { |aac| aac.hmac_authentication? }
   after_create :disable_open_registration_if_delegated
   after_destroy :enable_canvas_authentication
   # if the config changes, clear out last_timeout_failure so another attempt can be made immediately
@@ -49,6 +51,8 @@ class AccountAuthorizationConfig < ActiveRecord::Base
       [ :auth_type, :log_in_url, :log_out_url, :change_password_url, :requested_authn_context,
         :certificate_fingerprint, :identifier_format, :login_handle_name,
         :login_attribute, :idp_entity_id, :position]
+    when 'hmac'
+      [ :auth_type, :hmac_shared_secret, :hmac_timestamp_range ]
     else
       []
     end
@@ -211,7 +215,7 @@ class AccountAuthorizationConfig < ActiveRecord::Base
   end
   
   def password_authentication?
-    !['cas', 'ldap', 'saml'].member?(self.auth_type)
+    !['cas', 'ldap', 'saml', 'hmac'].member?(self.auth_type)
   end
 
   def delegated_authentication?
@@ -228,6 +232,10 @@ class AccountAuthorizationConfig < ActiveRecord::Base
   
   def saml_authentication?
     self.auth_type == 'saml'
+  end
+
+  def hmac_authentication?
+    self.auth_type == 'hmac'
   end
   
   def self.default_login_handle_name

@@ -76,6 +76,13 @@ en:
       login_handle_name_description: "The label used for unique login identifiers. Examples: Login, Username, Student ID, etc."
       save_button: "Save Authentication Settings"
     deprecated_fail: "Can't use both deprecated and current version of create at the same time."
+    hmac_settings:
+      labels:
+        shared_secret: "Shared Secret"
+        timestamp_range: "Timestamp Range"
+      shared_secret_description: "Shared Secret used for calculating Message Authentication Code."
+      timestamp_range_description: "Allowable difference in Timestamp (in milliseconds)."
+      save_button: "Save HMAC Settings"
     index: 
       add_auth_desc: "Add an identity provider to this account:"
       canvas_login_tip: |-
