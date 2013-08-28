@@ -13,14 +13,14 @@
 /.bundle/
 /.yardoc/
 /app/views/info/styleguide.html.erb
-#/config/*.yml
+/config/*.yml
 /config/build.js
 /config/environments/*-local.rb
 /db/schema.rb
 /db/*.sqlite*
 /db/*sql
 /exports/
-#/Gemfile.lock
+/Gemfile.lock
 /log/
 /public/app/
 /public/assets/
