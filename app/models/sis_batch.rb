@@ -43,6 +43,11 @@ class SisBatch < ActiveRecord::Base
             :name => lambda { t(:instructure_csv, "Instructure formatted CSV or zipfile of CSVs") },
             :callback => lambda {|batch| batch.process_instructure_csv_zip},
             :default => true
+        },
+        "banner_csv" => {
+            :name => lambda { t(:banner_csv, "Banner formatted CSV or zipfile of CSVs") },
+            :callback => lambda {|batch| batch.process_banner_csv_zip},
+            :default => false
           }
       }
   end
@@ -156,6 +161,13 @@ class SisBatch < ActiveRecord::Base
     require 'sis'
     download_zip
     importer = SIS::CSV::Import.process(self.account, :files => [ @data_file.path ], :batch => self, :override_sis_stickiness => options[:override_sis_stickiness], :add_sis_stickiness => options[:add_sis_stickiness], :clear_sis_stickiness => options[:clear_sis_stickiness])
+    finish importer.finished
+  end
+
+  def process_banner_csv_zip
+    require 'sis'
+    download_zip
+    importer = SIS::Banner::Import.process(self.account, :files => [ @data_file.path ], :batch => self, :override_sis_stickiness => options[:override_sis_stickiness], :add_sis_stickiness => options[:add_sis_stickiness], :clear_sis_stickiness => options[:clear_sis_stickiness])
     finish importer.finished
   end
 
