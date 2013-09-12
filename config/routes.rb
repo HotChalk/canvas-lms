@@ -390,6 +390,7 @@ routes.draw do
     resources :content_exports, :only => ["create", "index", "destroy", "show"]
     match 'modules/items/assignment_info' => 'context_modules#content_tag_assignment_data', :as => :context_modules_assignment_info, :via => :get
     match 'modules/items/:id' => 'context_modules#item_redirect', :as => :context_modules_item_redirect, :via => :get
+    match 'modules/items/:id/embedded' => 'context_modules#item_embedded', :as => :context_modules_item_embedded, :via => :get
     match 'modules/items/sequence/:id' => 'context_modules#item_details', :as => :context_modules_item_details, :via => :get
     match 'modules/items/:id' => 'context_modules#remove_item', :as => :context_modules_remove_item, :via => :delete
     match 'modules/items/:id' => 'context_modules#update_item', :as => :context_modules_update_item, :via => :put
