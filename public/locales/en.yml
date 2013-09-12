@@ -9173,6 +9173,9 @@ en:
         publish_endpoint: "Endpoint to publish to"
         success_timeout: "Success notification timeout (in seconds)"
         wait_for_success: "Wait for success notifications"
+    hotchalk_settings:
+      labels:
+        cl_base_url: "Course Library Base URL"
     ims_es_importer_settings: 
       labels: 
         course_long_name_selection: "Course long name selection"

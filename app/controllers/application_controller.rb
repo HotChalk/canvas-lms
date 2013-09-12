@@ -1003,10 +1003,17 @@ class ApplicationController < ActionController::Base
     elsif tag.content_type == 'DiscussionTopic'
       redirect_to named_context_url(context, :context_discussion_topic_url, tag.content_id, url_params)
     elsif tag.content_type == 'ExternalUrl'
+      require 'uri'
       @tag = tag
       @module = tag.context_module
       tag.context_module_action(@current_user, :read) unless tag.locked_for? @current_user
-      render :template => 'context_modules/url_show'
+      uri = URI::parse(@tag.url)
+      if Canvas::Plugin.find(:hotchalk).enabled? && uri.host == PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
+        @tag.url = @template.context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
+        render :template => 'context_modules/embedded_url_show'
+      else
+        render :template => 'context_modules/url_show'
+      end
     elsif tag.content_type == 'ContextExternalTool'
       @tag = tag
       if @tag.context.is_a?(Assignment)

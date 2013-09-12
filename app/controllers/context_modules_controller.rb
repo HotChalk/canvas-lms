@@ -47,7 +47,20 @@ class ContextModulesController < ApplicationController
       end
     end
   end
-  
+
+  def item_embedded
+    require 'net/http'
+    if authorized_action(@context, @current_user, :read)
+      @tag = @context.context_module_tags.not_deleted.find(params[:id])
+      if !(@tag.unpublished? || @tag.context_module.unpublished?) || authorized_action(@tag.context_module, @current_user, :update)
+        reevaluate_modules_if_locked(@tag)
+        uri = URI.parse(@tag.url)
+        content_response = Net::HTTP.get_response(uri)
+        render :text => content_response.body
+      end
+    end
+  end
+
   def module_redirect
     if authorized_action(@context, @current_user, :read)
       @module = @context.context_modules.not_deleted.find(params[:context_module_id])
