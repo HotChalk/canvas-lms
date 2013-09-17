@@ -1,0 +1,31 @@
+<%
+  content_for :page_title, @tag.title
+  add_crumb @tag.context_module.name, context_url(@context, :context_context_modules_url)
+  add_crumb @tag.title
+  js_bundle :file_inline
+%>
+<% js_block do %>
+  <script type="text/javascript">
+    function autoResize(id){
+      var newheight;
+//      var newwidth;
+      if(document.getElementById){
+        newheight = document.getElementById(id).contentWindow.document.body.scrollHeight;
+//        newwidth = document.getElementById(id).contentWindow.document.body.scrollWidth;
+      }
+      document.getElementById(id).height = (newheight) + "px";
+//      document.getElementById(id).width = (newwidth) + "px";
+    }
+  </script>
+<% end %>
+<% if @tag.locked_for? @current_user %>
+  <h2><%= @tag.title %></h2>
+  <%= lock_explanation({:context_module => @tag.context_module, :asset_string => "content_tag_#{@tag.id}"}, nil, @context) %>
+<% else %>
+    <span style="padding:0" class="ui-listview-text">
+      <%= iframe(@tag.url, :id => 'embedded_content', :style => "width:100%; float:left; border:none;", :seamless => "seamless", :onload => "autoResize('embedded_content');") %>
+      <!-- had to float then clear this because there was a space below the iframe I couldnt figure out how to get to go away -->
+      <div class="clear"></div>
+    </span>
+<% end %>
+<%= render :partial => 'shared/sequence_footer', :locals => {:asset => @tag} %>

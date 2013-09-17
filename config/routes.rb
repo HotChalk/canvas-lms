@@ -314,6 +314,7 @@ ActionController::Routing::Routes.draw do |map|
     course.resources :content_exports, :only => %w(create index destroy show)
     course.context_modules_assignment_info 'modules/items/assignment_info', :controller => 'context_modules', :action => 'content_tag_assignment_data', :conditions => {:method => :get}
     course.context_modules_item_redirect 'modules/items/:id', :controller => 'context_modules', :action => 'item_redirect', :conditions => {:method => :get}
+    course.context_modules_item_embedded 'modules/items/:id/embedded', :controller => 'context_modules', :action => 'item_embedded', :conditions => {:method => :get}
     course.context_modules_item_details 'modules/items/sequence/:id', :controller => 'context_modules', :action => 'item_details', :conditions => {:method => :get}
     course.context_modules_remove_item 'modules/items/:id', :controller => 'context_modules', :action => 'remove_item', :conditions => {:method => :delete}
     course.context_modules_update_item 'modules/items/:id', :controller => 'context_modules', :action => 'update_item', :conditions => {:method => :put}
@@ -510,6 +511,7 @@ ActionController::Routing::Routes.draw do |map|
   map.logout "logout", :controller => "pseudonym_sessions", :action => "destroy"
   map.cas_login "login/cas", :controller => "pseudonym_sessions", :action => "new", :conditions => {:method => :get}
   map.otp_login "login/otp", :controller => "pseudonym_sessions", :action => "otp_login", :conditions => { :method => [:get, :post] }
+  map.hmac_login "login/hmac", :controller => "pseudonym_sessions", :action => "hmac_login", :conditions => { :method => [:get, :post] }
   map.aac_login "login/:account_authorization_config_id", :controller => "pseudonym_sessions", :action => "new", :conditions => {:method => :get}
   map.disable_mfa "users/:user_id/mfa", :controller => "pseudonym_sessions", :action => "disable_otp_login", :conditions => { :method => :delete }
   map.clear_file_session "file_session/clear", :controller => "pseudonym_sessions", :action => "clear_file_session"

@@ -20,7 +20,7 @@
 /db/*.sqlite*
 /db/*sql
 /exports/
-/Gemfile.lock
+#/Gemfile.lock
 /log/
 /public/app/
 /public/assets/
@@ -34,7 +34,7 @@
 /spec/javascripts/
 /tmp/
 /vendor/plugins/rails_upgrade
-
+/.vagrant/
 # generated plugin stuff
 /app/coffeescripts/plugins/
 /app/stylesheets/plugins/

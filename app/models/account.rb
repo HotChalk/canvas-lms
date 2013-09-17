@@ -755,6 +755,10 @@ class Account < ActiveRecord::Base
     !!(self.account_authorization_config && self.account_authorization_config.saml_authentication?)
   end
 
+  def hmac_authentication?
+    !!(self.account_authorization_config && self.account_authorization_config.hmac_authentication?)
+  end
+
   def multi_auth?
     self.account_authorization_configs.count > 1
   end

@@ -651,4 +651,58 @@ class PseudonymSessionsController < ApplicationController
 
     session.delete(:oauth2)
   end
+
+  def hmac_login
+    unless @domain_root_account.account_authorization_config.hmac_authentication?
+      return render :status => 400, :json => {:message => "HMAC authentication not configured for account #{@domain_root_account.name}"}
+    end
+    unless [:auth, :userId, :timestamp].all? { |p| params.key? p }
+      return render :status => 400, :json => {:message => "invalid HMAC parameters"}
+    end
+    @hmac_shared_secret = @domain_root_account.account_authorization_config.hmac_shared_secret
+    @hmac_timestamp_range = @domain_root_account.account_authorization_config.hmac_timestamp_range
+    if validate_mac?
+      @pseudonym = @domain_root_account.pseudonyms.custom_find_by_unique_id(params[:userId])
+      if @pseudonym
+        # Reset the session
+        reset_session_for_login
+        # Successful login and we have a user
+        @domain_root_account.pseudonym_sessions.create!(@pseudonym, false)
+        @user = @pseudonym.login_assertions_for_user
+        successful_login(@user, @pseudonym)
+      else
+        logger.warn "Received HMAC login request for unknown user: #{params[:userId]}"
+        unsuccessful_login "Unknown user account: #{params[:userId]}"
+      end
+    else
+      unsuccessful_login "Unable to log in. Please contact your System Administrator."
+    end
+  end
+
+  def validate_mac?
+    valid_timestamp? && hash_match?
+  end
+
+  def valid_timestamp?
+    received_ts = params[:timestamp].to_i / 1000
+    actual_ts = Time.now.to_i
+    valid = (received_ts - actual_ts).abs <= @hmac_timestamp_range
+    logger.warn "Denying access for user ID [#{params[:userId]}]: expired timestamp; received [#{received_ts}] actual [#{actual_ts}]" unless valid
+    valid
+  end
+
+  def hash_match?
+    calculated_hash = calculate_hash()
+    match = (calculated_hash.casecmp(params[:auth]) == 0)
+    logger.debug "Supplied hash [#{params[:auth]}]; calculated hash [#{calculated_hash}]"
+    logger.warn "Denying access for user ID [#{params[:userId]}]: wrong hash" unless match
+    match
+  end
+
+  def calculate_hash
+    param_string = '' + params[:timestamp] + params[:userId] + @hmac_shared_secret
+    param_string = param_string.encode('UTF-8')
+    logger.debug "HMAC parameter string: #{param_string}"
+    Digest::MD5.hexdigest(param_string)
+  end
 end
