@@ -295,7 +295,8 @@ describe UsersController, :type => :integration do
     json = api_call(:get, "/api/v1/users/activity_stream.json",
                     { :controller => "users", :action => "activity_stream", :format => 'json' })
     @assignment.reload
-    assign_json = assignment_json(@assignment,@user,session,false)
+    assign_json = assignment_json(@assignment, @user, session,
+                                  include_discussion_topic: false)
     assign_json['title'] = @assignment.title
     json.should == [{
       'id' => StreamItem.last.id,
@@ -311,7 +312,7 @@ describe UsersController, :type => :integration do
       'score' => 12,
       'html_url' => "http://www.example.com/courses/#{@course.id}/assignments/#{@assignment.id}/submissions/#{@user.id}",
       'workflow_state' => 'graded',
-      'late' => nil,
+      'late' => false,
       'assignment' => assign_json,
       'assignment_id' => @assignment.id,
       'attempt' => nil,
@@ -365,6 +366,8 @@ describe UsersController, :type => :integration do
         'default_view' => 'feed',
         'workflow_state' => 'available',
         'public_syllabus' => false,
+        'storage_quota_mb' => @course.storage_quota_mb,
+        'apply_assignment_group_weights' => false
       },
 
       'user' => {
@@ -391,7 +394,8 @@ describe UsersController, :type => :integration do
     json = api_call(:get, "/api/v1/users/activity_stream.json",
                     { :controller => "users", :action => "activity_stream", :format => 'json' })
     @assignment.reload
-    assign_json = assignment_json(@assignment,@user,session,false)
+    assign_json = assignment_json(@assignment, @user, session,
+                                  include_discussion_topic: false)
     assign_json['title'] = @assignment.title
     json.should == [{
       'id' => StreamItem.last.id,
@@ -407,7 +411,7 @@ describe UsersController, :type => :integration do
       'score' => nil,
       'html_url' => "http://www.example.com/courses/#{@course.id}/assignments/#{@assignment.id}/submissions/#{@user.id}",
       'workflow_state' => 'unsubmitted',
-      'late' => nil,
+      'late' => false,
 
       'assignment' => assign_json,
       'assignment_id' => @assignment.id,
@@ -462,6 +466,8 @@ describe UsersController, :type => :integration do
         'default_view' => 'feed',
         'workflow_state' => 'available',
         'public_syllabus' => false,
+        'storage_quota_mb' => @course.storage_quota_mb,
+        'apply_assignment_group_weights' => false
       },
 
       'user' => {

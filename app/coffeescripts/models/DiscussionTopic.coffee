@@ -17,6 +17,9 @@ define [
       podcast_has_student_posts: false
       require_initial_post: false
       is_announcement: false
+      subscribed: false
+      user_can_see_posts: true
+      subscription_hold: null
 
     dateAttributes: [
       'last_reply_at'
@@ -32,7 +35,10 @@ define [
       @entries.participants = @participants
 
       @set 'set_assignment', @get('assignment')?
-      assign = new Assignment(@get('assignment') or {})
+      assign_attributes = @get('assignment') or {}
+      assign_attributes.assignment_overrides or= []
+      assign_attributes.turnitin_settings or= {}
+      assign = new Assignment(assign_attributes)
       assign.alreadyScoped = true
       @set 'assignment', assign
 
@@ -40,13 +46,32 @@ define [
     present: =>
       Backbone.Model::toJSON.call(this)
 
+    topicSubscribe: ->
+      baseUrl = _.result this, 'url'
+      @set 'subscribed', true
+      $.ajaxJSON "#{baseUrl}/subscribed", 'PUT'
+
+    topicUnsubscribe: ->
+      baseUrl = _.result this, 'url'
+      @set 'subscribed', false
+      $.ajaxJSON "#{baseUrl}/subscribed", 'DELETE'
+
     toJSON: ->
       json = super
       delete json.assignment unless json.set_assignment
+      assignment = if json.assignment
+        if typeof json.assignment.toJSON is 'function'
+          json.assignment.toJSON()
+        else
+          json.assignment
+      else
+        null
+
       _.extend json,
         summary: @summary(),
         unread_count_tooltip: @unreadTooltip(),
         reply_count_tooltip: @replyTooltip()
+        assignment: assignment
 
     unreadTooltip: ->
       I18n.t 'unread_count_tooltip', {

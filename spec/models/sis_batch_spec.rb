@@ -196,7 +196,7 @@ s2,test_1,section2,active},
       @e5.reload.should be_active
     end
 
-    it "should remove only from the specific term if it is given" do
+    def test_remove_specific_term
       @subacct = @account.sub_accounts.create(:name => 'sub1')
       @term1 = @account.enrollment_terms.first
       @term1.update_attribute(:sis_source_id, 'term1')
@@ -248,6 +248,8 @@ s2,test_1,section2,active},
         :batch_mode => true,
         :batch_mode_term => @term1)
 
+      @batch.data[:stack_trace].should be_nil
+
       @c1.reload.should be_deleted
       @c1.stuck_sis_fields.should_not be_include(:workflow_state)
       @c2.reload.should be_available
@@ -270,6 +272,21 @@ s2,test_1,section2,active},
       @e3.reload.should be_active
       @e4.reload.should be_deleted
       @e5.reload.should be_active
+
+    end
+
+    describe "with cursor based find_each" do
+      it "should remove only from the specific term if it is given" do
+        Course.transaction {
+          test_remove_specific_term
+        }
+      end
+    end
+
+    describe "without cursor based find_each" do
+      it "should remove only from the specific term if it is given" do
+        test_remove_specific_term
+      end
     end
 
     it "shouldn't do batch mode removals if not in batch mode" do
@@ -333,6 +350,9 @@ s2,test_1,section2,active},
           :batch_mode => true, :batch_mode_term => @term)
       @user.reload.should be_registered
       @section.reload.should be_deleted
+      @section.enrollments.not_fake.each do |e|
+        e.should be_deleted
+      end
       @course.reload.should be_claimed
 
       # only supply courses
@@ -341,5 +361,56 @@ s2,test_1,section2,active},
           :batch_mode => true, :batch_mode_term => @term)
       @course.reload.should be_deleted
     end
+
+    it "should treat crosslisted sections as belonging to their original course" do
+      @term1 = @account.enrollment_terms.first
+      @term2 = @account.enrollment_terms.create!(:name => 'term2')
+      @term2.sis_source_id = 'term2'; @term2.save!
+      @previous_batch = SisBatch.create!
+
+      @course1 = @account.courses.build
+      @course1.sis_source_id = 'c1'
+      @course1.save!
+      @course2 = @account.courses.build
+      @course2.sis_source_id = 'c2'
+      @course2.enrollment_term = @term2
+      @course2.save!
+      @section1 = @course1.course_sections.build
+      @section1.sis_source_id = 's1'
+      @section1.sis_batch_id = @previous_batch.id
+      @section1.save!
+      @section2 = @course2.course_sections.build
+      @section2.sis_source_id = 's2'
+      @section2.sis_batch_id = @previous_batch.id
+      @section2.save!
+      @section2.crosslist_to_course(@course1)
+
+      process_csv_data(
+          ['section_id,course_id,name,status}'],
+          :batch_mode => true, :batch_mode_term => @term1)
+      @section1.reload.should be_deleted
+      @section2.reload.should_not be_deleted
+    end
+  end
+
+  it "should limit the # of warnings/errors" do
+    Setting.set('sis_batch_max_messages', '3')
+    batch = SisBatch.create! # doesn't error when nil
+    batch.processing_warnings = [ ['testfile.csv', 'test warning'] ] * 3
+    batch.processing_errors = [ ['testfile.csv', 'test error'] ] * 3
+    batch.save!
+    batch.reload
+    batch.processing_warnings.size.should == 3
+    batch.processing_warnings.last.should == ['testfile.csv', 'test warning']
+    batch.processing_errors.size.should == 3
+    batch.processing_errors.last.should == ['testfile.csv', 'test error']
+    batch.processing_warnings = [ ['testfile.csv', 'test warning'] ] * 5
+    batch.processing_errors = [ ['testfile.csv', 'test error'] ] * 5
+    batch.save!
+    batch.reload
+    batch.processing_warnings.size.should == 3
+    batch.processing_warnings.last.should == ['', 'There were 3 more warnings']
+    batch.processing_errors.size.should == 3
+    batch.processing_errors.last.should == ['', 'There were 3 more errors']
   end
 end

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011 - 2013 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -32,35 +32,39 @@ module AuthenticationMethods
   end
 
   def load_pseudonym_from_policy
-    skip_session_save = false
-    if session.to_hash.empty? && # if there's already some session data, defer to normal auth
-        (policy_encoded = params['Policy']) &&
+    if (policy_encoded = params['Policy']) &&
         (signature = params['Signature']) &&
         signature == Base64.encode64(OpenSSL::HMAC.digest(OpenSSL::Digest::Digest.new('sha1'), Attachment.shared_secret, policy_encoded)).gsub(/\n/, '') &&
         (policy = JSON.parse(Base64.decode64(policy_encoded)) rescue nil) &&
         policy['conditions'] &&
         (credential = policy['conditions'].detect{ |cond| cond.is_a?(Hash) && cond.has_key?("pseudonym_id") })
-      skip_session_save = true
       @policy_pseudonym_id = credential['pseudonym_id']
       # so that we don't have to explicitly skip verify_authenticity_token
       params[self.class.request_forgery_protection_token] ||= form_authenticity_token
     end
     yield if block_given?
-    session.destroy if skip_session_save
   end
 
   class AccessTokenError < Exception
   end
 
+  def self.access_token(request, params_method = :params)
+    auth_header = CANVAS_RAILS3 ? request.authorization : ActionController::HttpAuthentication::Basic.authorization(request)
+    if auth_header.present? && (header_parts = auth_header.split(' ', 2)) && header_parts[0] == 'Bearer'
+      header_parts[1]
+    else
+      request.send(params_method)['access_token'].presence
+    end
+  end
+
+  def self.user_id(request)
+    request.session[:user_id]
+  end
+
   def load_pseudonym_from_access_token
     return unless api_request? || params[:action] == 'oauth2_logout'
 
-    auth_header = ActionController::HttpAuthentication::Basic.authorization(request)
-    token_string = if auth_header.present? && (header_parts = auth_header.split(' ', 2)) && header_parts[0] == 'Bearer'
-      header_parts[1]
-    elsif params[:access_token].present?
-      params[:access_token]
-    end
+    token_string = AuthenticationMethods.access_token(request)
 
     if token_string
       @access_token = AccessToken.authenticate(token_string)
@@ -112,7 +116,12 @@ module AuthenticationMethods
         if @pseudonym_session.try(:used_basic_auth?) && params[:api_key].present?
           Shard.birth.activate { @developer_key = DeveloperKey.find_by_api_key(params[:api_key]) }
         end
-        @developer_key || request.get? || !allow_forgery_protection || form_authenticity_token == form_authenticity_param || form_authenticity_token == request.headers['X-CSRF-Token'] || raise(AccessTokenError)
+        @developer_key ||
+          request.get? ||
+          !allow_forgery_protection ||
+          BreachMitigation::MaskingSecrets.valid_authenticity_token?(session, form_authenticity_param) ||
+          BreachMitigation::MaskingSecrets.valid_authenticity_token?(session, request.headers['X-CSRF-Token']) ||
+          raise(AccessTokenError)
       end
     end
 
@@ -120,6 +129,9 @@ module AuthenticationMethods
       @current_pseudonym = nil
       @current_user = nil
     end
+
+    # required by the user throttling middleware
+    session[:user_id] = @current_user.global_id if @current_user
 
     if @current_user && %w(become_user_id me become_teacher become_student).any? { |k| params.key?(k) }
       request_become_user = nil

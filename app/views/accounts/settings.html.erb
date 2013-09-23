@@ -9,6 +9,7 @@
       'id' => @context.id,
       'default_storage_quota_mb' => @context.default_storage_quota_mb,
       'default_user_storage_quota_mb' => @context.default_user_storage_quota_mb,
+      'default_group_storage_quota_mb' => @context.default_group_storage_quota_mb
     }
   end
 %>
@@ -49,7 +50,7 @@
       <li><a href="#tab-reports" id="tab-reports-link"><%= t(:tab_reports, "Reports") %></a></li>
     <% end %>
     <% if can_do(@context, @current_user, :manage_account_settings) %>
-      <li><a href="#tab-tools" id="tab-tools-link"><%= t(:tab_external_tools, "External Tools") %></a></li>
+      <li><a href="#tab-tools" id="tab-tools-link"><%= t(:tab_external_tools, "Apps") %></a></li>
     <% end %>
     <% if @context.root_account.settings[:enable_alerts] && can_do(@context, @current_user, :manage_interaction_alerts) %>
       <li><a href="#tab-alerts" id="tab-alerts-link"><%= t(:tab_alerts, "Alerts") %></a></li>
@@ -103,7 +104,7 @@ TEXT
                 </td>
               </tr>
               <% f.fields_for :settings do |settings| %>
-                <% if Account.site_admin.grants_right?(@current_user, :manage_site_settings) %>
+                <% if @account.grants_right?(@current_user, :manage_site_settings) %>
                   <tr>
                     <td><%= settings.blabel :mfa_settings, :en => "Multi-Factor Authentication" %></td>
                     <td><%= settings.select :mfa_settings, [[t('select.mfa.disabled', "Disabled"), :disabled],
@@ -184,7 +185,7 @@ TEXT
           <legend><%= t(:features_title, "Features") %></legend>
           <% f.fields_for :settings do |settings| %>
             <% if @account.root_account? %>
-              <% if Account.site_admin.grants_right?(@current_user, :manage_site_settings) %>
+              <% if @account.grants_right?(@current_user, :manage_site_settings) %>
                 <div>
                   <%= settings.check_box :admins_can_change_passwords, :checked => @account.settings[:admins_can_change_passwords] == true %>
                   <%= settings.label :admins_can_change_passwords, :en => "Password setting by admins" %>
@@ -240,6 +241,10 @@ TEXT
               <% end %>
               <% if @account.canvas_authentication? %>
                 <div>
+                  <%= settings.check_box :self_registration, :checked => @account.self_registration? %>
+                  <%= settings.label :self_registration, :en => "Self Registration" %>
+                </div>
+                <div>
                   <%= settings.check_box :open_registration, :checked => @account.open_registration? %>
                   <%= settings.label :open_registration, :en => "Open Registration" %>
                   <% if @account.delegated_authentication? %>
@@ -281,7 +286,7 @@ TEXT
              <% end %>
           <% end %>
           <% f.fields_for :services do |services| %>
-            <% Account.services_exposed_to_ui_hash(:setting).sort_by { |k,h| h[:name] }.each do |key, service| %>
+            <% Account.services_exposed_to_ui_hash(:setting, @current_user, @account).sort_by { |k,h| h[:name] }.each do |key, service| %>
               <div>
                 <%= services.check_box key, :checked => @account.service_enabled?(key) %>
                 <%= services.label key, service[:name] + " " %>
@@ -391,9 +396,15 @@ TEXT
                 <td><%= f.text_field :turnitin_shared_secret, :class => "turnitin_account_settings" %></td>
               </tr>
               <tr>
+                <td><%= f.blabel :turnitin_host, :en => "Turnitin Host" %></td>
+                <td><%= f.text_field :turnitin_host, :class => "turnitin_account_settings", :placeholder => "api.turnitin.com" %></td>
+              </tr>
+              <tr>
                 <td>&nbsp;</td>
                 <td>
-                  <a href="<%= account_turnitin_confirmation_path(@account.id, "{{ account_id }}", "{{ shared_secret }}") %>" class="confirm_turnitin_settings_link btn"><%= t(:confirm_turnitin_settings_link, "confirm Turnitin settings") %></a>
+                  <a href="<%= account_turnitin_confirmation_path(@account) %>" class="confirm_turnitin_settings_link btn">
+                    <%= t(:confirm_turnitin_settings_link, "confirm Turnitin settings") %>
+                  </a>
                 </td>
               </tr>
               <tr>
@@ -414,11 +425,11 @@ TEXT
           </fieldset>
         <% end %>
 
-        <% if @account.root_account? and not Account.services_exposed_to_ui_hash(:service).empty? %>
+        <% if @account.root_account? and not (exposed_services = Account.services_exposed_to_ui_hash(:service, @current_user)).empty? %>
           <fieldset>
             <legend><%= t(:enabled_web_serices_title, "Enabled Web Services") %></legend>
             <% f.fields_for :services do |services| %>
-              <% Account.services_exposed_to_ui_hash(:service).sort_by { |k,h| h[:name] }.each do |key, service| %>
+              <% exposed_services.sort_by { |k,h| h[:name] }.each do |key, service| %>
                 <div>
                   <%= services.check_box key, :checked => @account.service_enabled?(key) %>
                   <%= services.label key, service[:name] + " " %>
@@ -651,6 +662,16 @@ TEXT
               </span>&nbsp;&nbsp;
               <%= link_to(context_user_name(@account, announcement.user_id), user_path(announcement.user_id)) %>
             </div>
+            <% if announcement.required_account_service %>
+              <div>
+                <%= Account.allowable_services[announcement.required_account_service.to_sym].try(:[], :name) %>
+              </div>
+            <% end %>
+            <% if announcement.months_in_display_cycle %>
+              <div>
+                <%= t :announcement_sent_to_subset, "Sent to 1 / %{denominator} users each month", denominator: announcement.months_in_display_cycle %>
+              </div>
+            <% end %>
             <div class="message user_content">
               <%= user_content(announcement.message) %>
             </div>
@@ -681,7 +702,21 @@ TEXT
                   <option value="calendar" class="calendar"><%= t(:alert_icon_calendar_option, "calendar") %></option>
                 </select>
               </td>
-            </tr><tr>
+            </tr>
+            <% if @account.site_admin? %>
+              <tr id="confirm_global_announcement_field">
+                <td colspan=2><input type="checkbox" id="confirm_global_announcement" name="confirm_global_announcement"> <%= label_tag :confirm_global_announcement, t(:confirm_global_announcement, "This announcement will be shown to *all* Canvas users. Confirm that you want to create it.", :wrapper => '<b>\1</b>') %></td>
+              </tr>
+              <tr>
+                <td colspan=2>
+                  <div id="survey_announcement_field">
+                    <%# don't use the rails check_box helper here, because we don't want the extra hidden element when not checked %>
+                    <input type="checkbox" name="account_notification[required_account_service]" id="account_notification_required_account_service" value="account_survey_notifications" />
+                    <label><%= t :survey_announcement, "This is a survey announcement. It will be sent to 1 / %{denominator} of users in enabled accounts for each month that it's active.", denominator: f.text_field(:months_in_display_cycle, value: AccountNotification.default_months_in_display_cycle, disabled: true) %></label>
+                  </label>
+              </tr>
+            <% end %>
+            <tr>
               <td><%= f.blabel :message, :en => "Message" %></td>
             </tr>
           </table>
@@ -743,13 +778,12 @@ TEXT
               <% if parameters_partial %>
                 <div style="display: none">
                   <div class="report_dialog">
-                    <form id="<%= report %>_form" class="run_report_form" action="<%= account_run_report_path %>">
+                    <form id="<%= report %>_form" class="run_report_form" action="<%= api_v1_account_create_report_path(@account, report) %>">
                       <div class="report_parameters">
                         <%= render :partial => parameters_partial if parameters_partial %>
                       </div>
                       <br />
-                      <input type="hidden" name="report_type" value="<%= report %>" />
-                        <a href="#" id="run_<%= report %>" class="btn btn-primary btn-small run_report_link"><%= t 'links.run_report', 'Run Report' %></a>
+                      <a href="#" id="run_<%= report %>" class="btn btn-primary btn-small run_report_link"><%= t 'links.run_report', 'Run Report' %></a>
                     </form>
                   </div>
                 </div>
@@ -758,8 +792,7 @@ TEXT
                 </span>
                 <a href="#" id="configure_<%= report %>" style="<%= hidden if in_progress %>" class="btn btn-small configure_report_link"><%= t 'links.configure_report', 'Configure...' %></a>
               <% else %>
-                <form id="<%= report %>_form" class="run_report_form" action="<%= account_run_report_path %>">
-                  <input type="hidden" name="report_type" value="<%= report %>" />
+                <form id="<%= report %>_form" class="run_report_form" action="<%= api_v1_account_create_report_path(@account, report) %>">
                   <span class="running_report_message" style="<%= hidden unless in_progress %>">
                     <%= t('report_running', 'The report is running.*You\'ll receive an email when it is done.*', :wrapper => '<div>\1</div>') %>
                   </span>

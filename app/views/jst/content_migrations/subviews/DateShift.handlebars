@@ -1,30 +1,32 @@
-<div class="control-group">
-  <label class="control-label"><input type="checkbox" id="dateShiftCheckbox"></label>
-  <div class="controls controlMargin">
-     {{#t "checkbox_label"}}Adjust events and due dates{{/t}}
-  </div>
+<div class="controls">
+  <label class="checkbox">
+    {{checkbox "date_shift_options.shift_dates" id="dateShiftCheckbox"}}
+    {{#t "checkbox_label"}}Adjust events and due dates{{/t}}
+  </label>
 </div>
 
-<div class="dateShiftContent control-group" style="display:none">
-  <label class="control-label">Future course date range</label>
-  <div class="controls">
-    <div class="pull-left"> from <input type="text" id="oldStartDate"></div>
-    <div class="pull-left">&nbsp;to <input type="text" id="oldEndDate"></div>
+<div class="dateShiftContent" style="display:none">
+  <br />
+  <div class="control-group">
+    <label class="control-label"><strong>{{#t "beginning_date"}}Beginning date{{/t}}</strong></label>
+    <div class="controls">
+      <div class="pull-left"><input type="text" name="date_shift_options[old_start_date]" id="oldStartDate" class="span2" title="{{#t "old_start_date_title"}}Beginning date{{/t}}" aria-label="{{#t "old_start_date_label"}}Beginning date{{/t}}"></div>
+      <div class="pull-left">&nbsp; {{#t "beginning_change_to"}}change to{{/t}} <input type="text" name="date_shift_options[new_start_date]" id="newStartDate" class="span2" title="{{#t "new_start_date_title"}}Change beginning date to{{/t}}" aria-label="{{#t "new_start_date_label"}}Change beginning date to{{/t}}"></div>
+    </div>
   </div>
-</div>
 
-<div class="dateShiftContent control-group" style="display:none">
-  <label class="control-label">This course date range</label>
-  <div class="controls">
-    <div class="pull-left"> from <input type="text" id="newStartDate"></div>
-    <div class="pull-left">&nbsp;to <input type="text" id="newEndDate"></div>
+  <div class="control-group">
+    <label class="control-label"><strong>{{#t "ending_date"}}Ending date{{/t}}</strong></label>
+    <div class="controls">
+      <div class="pull-left"><input type="text" name="date_shift_options[old_end_date]" id="oldEndDate" class="span2" title="{{#t "old_end_date_title"}}Ending date{{/t}}" aria-label="{{#t "old_end_date_label"}}Ending date{{/t}}"></div>
+      <div class="pull-left">&nbsp; {{#t "ending_change_to"}}change to{{/t}} <input type="text" name="date_shift_options[new_end_date]" id="newEndDate" class="span2" title="{{#t "new_end_date_title"}}Change ending date to{{/t}}" aria-label="{{#t "new_end_date_label"}}Change ending date to{{/t}}"></div>
+    </div>
   </div>
-</div>
 
-<div class="dateShiftContent control-group" style="display:none">
-  <div class="controls">
-    <p>You can also explicitly define day substitutions to adjust for changing class schedules (i.e. move everything that was on Mondays to now happen on Tuesdays)</p>
-    <a href="#" id='addDaySubstitution' class="add_substitution_link add">Define a day substitution</a>
+  <div class="control-group">
     <div id="daySubstitution"></div>
+    <div class="controls">
+      <button aria-label="{{#t "add_day_sub_title"}}Add day substitution{{/t}}" href="#" id='addDaySubstitution' class="btn top-margin bottomMargin"><i class="icon-add"></i> {{#t "substitution"}}Substitution{{/t}}</button>
+    </div>
   </div>
 </div>

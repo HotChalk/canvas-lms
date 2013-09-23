@@ -17,6 +17,7 @@ define([
 
   $(document).ready(function() {
     $("#account_settings").submit(function() {
+      var $this = $(this);
       $(".ip_filter .value").each(function() {
         $(this).removeAttr('name');
       }).filter(":not(.blank)").each(function() {
@@ -25,6 +26,19 @@ define([
           $(this).attr('name', 'account[ip_filters][' + name + ']');
         }
       });
+      var validations = {
+        object_name: 'account',
+        required: ['name'],
+        property_validations: {
+          'name': function(value){
+            if (value && value.length > 255) { return I18n.t("account_name_too_long", "Account Name is too long")}
+          }
+        }
+      };
+      var result = $this.validateForm(validations);
+      if(!result) {
+        return false;
+      }
     });
     $(".datetime_field").datetime_field();
     $("#add_notification_form textarea").editorBox().width('100%');
@@ -36,14 +50,30 @@ define([
       $(this).val(date);
     });
     $("#add_notification_form").submit(function(event) {
-      var result = $(this).validateForm({
+      var $this = $(this);
+      var $confirmation = $this.find('#confirm_global_announcement:visible:not(:checked)');
+      if ($confirmation.length > 0) {
+        $confirmation.errorBox(I18n.t('confirms.global_announcement', "You must confirm the global announcement"));
+        return false;
+      }
+      var validations = {
         object_name: 'account_notification',
         required: ['start_at', 'end_at', 'subject', 'message'],
-        date_fields: ['start_at', 'end_at']
-      });
+        date_fields: ['start_at', 'end_at'],
+        numbers: []
+      };
+      if ($('#account_notification_months_in_display_cycle').length > 0) {
+        validations.numbers.push('months_in_display_cycle');
+      }
+      var result = $this.validateForm(validations);
       if(!result) {
         return false;
       }
+    });
+    $("#account_notification_required_account_service").click(function(event) {
+      $this = $(this);
+      $("#confirm_global_announcement_field").showIf(!$this.is(":checked"));
+      $("#account_notification_months_in_display_cycle").prop("disabled", !$this.is(":checked"));
     });
     $(".delete_notification_link").click(function(event) {
       event.preventDefault();
@@ -155,9 +185,13 @@ define([
       var $link = $(this);
       var url = $link.attr('href');
       var account = $("#account_settings").getFormData({object_name: 'account'});
-      url = $.replaceTags($.replaceTags(url, 'account_id', account.turnitin_account_id), 'shared_secret', account.turnitin_shared_secret);
+      var turnitin_data = {
+        turnitin_account_id: account.turnitin_account_id,
+        turnitin_shared_secret: account.turnitin_shared_secret,
+        turnitin_host: account.turnitin_host
+      }
       $link.text(I18n.t('notices.turnitin.checking_settings', "checking Turnitin settings..."));
-      $.ajaxJSON(url, 'GET', {}, function(data) {
+      $.getJSON(url, turnitin_data, function(data) {
         if(data && data.success) {
           $link.text(I18n.t('notices.turnitin.setings_confirmed', "Turnitin settings confirmed!"));
         } else {
@@ -200,7 +234,7 @@ define([
       },
       success: function(data) {
         $(this).loadingImage('remove');
-        var report = $(this).find('input[name="report_type"]').val();
+        var report = $(this).attr('id').replace('_form', '');
         $("#" + report).find('.run_report_link').hide()
           .end().find('.configure_report_link').hide()
           .end().find('.running_report_message').show();

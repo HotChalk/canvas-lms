@@ -259,11 +259,26 @@ describe Account do
 
     describe "services_exposed_to_ui_hash" do
       it "should return all ui services by default" do
-        Account.services_exposed_to_ui_hash.keys.should == Account.allowable_services.reject { |h,k| !k[:expose_to_ui] }.keys
+        Account.services_exposed_to_ui_hash.keys.should == Account.allowable_services.reject { |h,k| !k[:expose_to_ui] || (k[:expose_to_ui_proc] && !k[:expose_to_ui_proc].call(nil)) }.keys
       end
 
       it "should return services of a type if specified" do
-        Account.services_exposed_to_ui_hash(:setting).keys.should == Account.allowable_services.reject { |h,k| k[:expose_to_ui] != :setting }.keys
+        Account.services_exposed_to_ui_hash(:setting).keys.should == Account.allowable_services.reject { |h,k| k[:expose_to_ui] != :setting || (k[:expose_to_ui_proc] && !k[:expose_to_ui_proc].call(nil)) }.keys
+      end
+
+      it "should filter based on user and account if a proc is specified" do
+        user1 = User.create!
+        user2 = User.create!
+        Account.register_service(:myservice, {
+          name: "My Test Service",
+          description: "Nope",
+          expose_to_ui: :setting,
+          default: false,
+          expose_to_ui_proc: proc { |user, account| user == user2 && account == Account.default },
+        })
+        Account.services_exposed_to_ui_hash(:setting).keys.should_not be_include(:myservice)
+        Account.services_exposed_to_ui_hash(:setting, user1, Account.default).keys.should_not be_include(:myservice)
+        Account.services_exposed_to_ui_hash(:setting, user2, Account.default).keys.should be_include(:myservice)
       end
     end
 
@@ -961,6 +976,77 @@ describe Account do
       account.stubs(:grants_right?).returns(true)
       account_admin_user(:account => account)
       account.can_see_admin_tools_tab?(@admin).should be_true
+    end
+  end
+
+  describe "#update_account_associations" do
+    it "should update associations for all courses" do
+      account = Account.create!
+      c1 = account.courses.create!
+      c2 = account.courses.create!
+      account.course_account_associations.delete_all
+      account.associated_courses.should == []
+      account.update_account_associations
+      account.reload
+      account.associated_courses.sort_by(&:id).should == [c1, c2]
+    end
+  end
+
+  describe "#draft_state_enabled?" do
+    context "a root account" do
+      it "should return its own enable_draft setting" do
+        account = Account.create!
+        account.settings[:enable_draft] = true
+
+        account.should be_draft_state_enabled
+      end
+    end
+
+    context "a sub-account" do
+      it "should return its root account's enable_draft setting" do
+        root_account = Account.create!
+        sub_account  = Account.create!
+        sub_account.root_account_id          = root_account.id
+        root_account.settings[:enable_draft] = true
+        root_account.save!
+
+        sub_account.should be_draft_state_enabled
+      end
+    end
+  end
+
+  describe "#enable_quiz_regrade!" do
+
+    it "updates the enable_quiz_regrade setting and saves the account" do
+      account = Account.create!
+      account.enable_quiz_regrade!
+      account.root_account.enable_quiz_regrade?.should == true
+    end
+  end
+
+  describe ":enable_quiz_regrade setting" do
+
+    it "is false by default" do
+      account = Account.create!
+      account.enable_quiz_regrade?.should == false
+    end
+  end
+
+  describe "#disable_quiz_regrade!" do
+
+    it "updates the enable_quiz_regrade setting and saves the account" do
+      account = Account.create!
+      account.disable_quiz_regrade!
+      account.root_account.enable_quiz_regrade?.should == false
+    end
+  end
+
+  describe "#change_root_account_setting!" do
+
+    it "changes the given setting_name's value with the new_value passed" do
+      account = Account.create!
+      account.change_root_account_setting!(:enable_draft, false)
+      account.root_account.should_not be_draft_state_enabled
     end
   end
 end

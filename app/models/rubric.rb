@@ -113,12 +113,19 @@ class Rubric < ActiveRecord::Base
     end
   end
 
-  attr_accessor :alignments_changed
   def update_alignments
-    return unless @alignments_changed
-    outcome_ids = (self.data || []).map{|c| c[:learning_outcome_id] }.compact.map(&:to_i).uniq
-    LearningOutcome.update_alignments(self, context, outcome_ids)
+    if data_changed? || workflow_state_changed?
+      outcome_ids = []
+      unless deleted?
+        outcome_ids = data_outcome_ids
+      end
+      LearningOutcome.update_alignments(self, context, outcome_ids)
+    end
     true
+  end
+
+  def data_outcome_ids
+    (data || []).map{|c| c[:learning_outcome_id] }.compact.map(&:to_i).uniq
   end
   
   def criteria_object
@@ -149,26 +156,12 @@ class Rubric < ActiveRecord::Base
     self.rubric_associations.create(:association => association, :context => context, :use_for_grading => !!opts[:use_for_grading], :purpose => purpose)
   end
   
-  def clone_for_association(current_user, association, rubric_params, association_params, invitees="")
-    rubric = Rubric.new
-    self.attributes.delete_if{|k, v| false}.each do |key, value|
-      rubric.send("#{key}=", value) if rubric.respond_to?(key)
-    end
-    rubric.migration_id = "cloned_from_#{self.id}"
-    rubric.rubric_id = self.id
-    rubric.free_form_criterion_comments = rubric_params[:free_form_criterion_comments] == '1' if rubric_params[:free_form_criterion_comments]
-    rubric.user = current_user
-    rubric_params[:hide_score_total] ||= association_params[:hide_score_total]
-    rubric.update_criteria(rubric_params)
-    RubricAssociation.generate_with_invitees(current_user, rubric, context, association_params, invitees) if association_params[:association] || association_params[:url]
-  end
-  
-  def update_with_association(current_user, rubric_params, context, association_params, invitees="")
+  def update_with_association(current_user, rubric_params, context, association_params)
     self.free_form_criterion_comments = rubric_params[:free_form_criterion_comments] == '1' if rubric_params[:free_form_criterion_comments]
     self.user ||= current_user
     rubric_params[:hide_score_total] ||= association_params[:hide_score_total]
     self.update_criteria(rubric_params)
-    RubricAssociation.generate_with_invitees(current_user, self, context, association_params, invitees) if association_params[:association] || association_params[:url]
+    RubricAssociation.generate(current_user, self, context, association_params) if association_params[:association] || association_params[:url]
   end
   
   def unique_item_id(id=nil)
@@ -200,6 +193,7 @@ class Rubric < ActiveRecord::Base
     false
   end
   
+  CriteriaData = Struct.new(:criteria, :points_possible, :title)
   def generate_criteria(params)
     @used_ids = {}
     title = params[:title] || t('context_name_rubric', "%{course_name} Rubric", :course_name => context.name)
@@ -218,7 +212,6 @@ class Rubric < ActiveRecord::Base
       if criterion_data[:learning_outcome_id].present?
         outcome = LearningOutcome.find_by_id(criterion_data[:learning_outcome_id])
         if outcome
-          @alignments_changed = true
           criterion[:learning_outcome_id] = outcome.id
           criterion[:mastery_points] = ((criterion_data[:mastery_points] || outcome.data[:rubric_criterion][:mastery_points]).to_f rescue nil)
           criterion[:ignore_for_scoring] = criterion_data[:ignore_for_scoring] == '1'
@@ -239,8 +232,8 @@ class Rubric < ActiveRecord::Base
       points_possible += criterion[:points] unless criterion[:ignore_for_scoring]
       criteria[idx.to_i] = criterion
     end
-    criteria = criteria.select{|c| c}
-    OpenObject.new(:criteria => criteria, :points_possible => points_possible, :title => title)
+    criteria = criteria.compact
+    CriteriaData.new(criteria, points_possible, title)
   end
   
   def update_assessments_for_new_criteria(new_criteria)
@@ -265,51 +258,53 @@ class Rubric < ActiveRecord::Base
     context = migration.context
     hash = hash.with_indifferent_access
     return nil if hash[:migration_id] && hash[:rubrics_to_import] && !hash[:rubrics_to_import][hash[:migration_id]]
-    item ||= find_by_context_id_and_context_type_and_id(context.id, context.class.to_s, hash[:id])
-    item ||= find_by_context_id_and_context_type_and_migration_id(context.id, context.class.to_s, hash[:migration_id]) if hash[:migration_id]
-    item ||= self.new(:context => context)
-    item.migration_id = hash[:migration_id]
-    item.workflow_state = 'active' if item.deleted?
-    item.title = hash[:title]
-    item.description = hash[:description]
-    item.points_possible = hash[:points_possible].to_f
-    item.read_only = hash[:read_only] unless hash[:read_only].nil?
-    item.reusable = hash[:reusable] unless hash[:reusable].nil?
-    item.public = hash[:public] unless hash[:public].nil?
-    item.hide_score_total = hash[:hide_score_total] unless hash[:hide_score_total].nil?
-    item.free_form_criterion_comments = hash[:free_form_criterion_comments] unless hash[:free_form_criterion_comments].nil?
-    
-    item.data = hash[:data]
-    item.data.each do |crit|
-      if crit[:learning_outcome_migration_id]
-        item.alignments_changed = true
-        if migration.respond_to?(:outcome_to_id_map) && id = migration.outcome_to_id_map[crit[:learning_outcome_migration_id]]
-          crit[:learning_outcome_id] = id
-        elsif lo = context.created_learning_outcomes.find_by_migration_id(crit[:learning_outcome_migration_id])
-          crit[:learning_outcome_id] = lo.id
-        end
-        crit.delete :learning_outcome_migration_id
+
+    rubric = nil
+    if !item && hash[:external_identifier]
+      rubric = context.available_rubric(hash[:external_identifier])
+
+      if !rubric
+        migration.add_warning(t(:no_context_found, %{The external Rubric couldn't be found for "%{title}", creating a copy.}, :title => hash[:title]))
       end
     end
-    
-    context.imported_migration_items << item if context.imported_migration_items && item.new_record?
-    item.save!
-    
+
+    if rubric
+      item = rubric
+    else
+      item ||= find_by_context_id_and_context_type_and_id(context.id, context.class.to_s, hash[:id])
+      item ||= find_by_context_id_and_context_type_and_migration_id(context.id, context.class.to_s, hash[:migration_id]) if hash[:migration_id]
+      item ||= self.new(:context => context)
+      item.migration_id = hash[:migration_id]
+      item.workflow_state = 'active' if item.deleted?
+      item.title = hash[:title]
+      item.description = hash[:description]
+      item.points_possible = hash[:points_possible].to_f
+      item.read_only = hash[:read_only] unless hash[:read_only].nil?
+      item.reusable = hash[:reusable] unless hash[:reusable].nil?
+      item.public = hash[:public] unless hash[:public].nil?
+      item.hide_score_total = hash[:hide_score_total] unless hash[:hide_score_total].nil?
+      item.free_form_criterion_comments = hash[:free_form_criterion_comments] unless hash[:free_form_criterion_comments].nil?
+
+      item.data = hash[:data]
+      item.data.each do |crit|
+        if crit[:learning_outcome_migration_id]
+          if migration.respond_to?(:outcome_to_id_map) && id = migration.outcome_to_id_map[crit[:learning_outcome_migration_id]]
+            crit[:learning_outcome_id] = id
+          elsif lo = context.created_learning_outcomes.find_by_migration_id(crit[:learning_outcome_migration_id])
+            crit[:learning_outcome_id] = lo.id
+          end
+          crit.delete :learning_outcome_migration_id
+        end
+      end
+
+      context.imported_migration_items << item if context.imported_migration_items && item.new_record?
+      item.save!
+    end
+
     unless context.rubric_associations.find_by_rubric_id(item.id)
       item.associate_with(context, context)
     end
     
     item
   end
-  
-  def self.generate(opts={})
-    context = opts[:context]
-    raise "Context required for rubrics" unless context
-    rubric = context.rubrics.build(:user => opts[:user])
-    user = opts[:user]
-    params = opts[:data]
-    rubric.update_criteria(params)
-    rubric
-  end
-  
 end

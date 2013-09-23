@@ -50,7 +50,7 @@ class FilesController < ApplicationController
   before_filter :require_context, :except => [:full_index,:assessment_question_show,:image_thumbnail,:show_thumbnail,:preflight,:create_pending,:s3_success,:show,:api_create,:api_create_success,:api_show,:api_index,:destroy,:api_update,:api_file_status]
   before_filter :check_file_access_flags, :only => [:show_relative, :show]
   prepend_around_filter :load_pseudonym_from_policy, :only => :create
-  skip_before_filter :verify_authenticity_token, :only => [:api_create, :create]
+  skip_before_filter :verify_authenticity_token, :only => :api_create
 
   include Api::V1::Attachment
   include Api::V1::Avatar
@@ -75,8 +75,8 @@ class FilesController < ApplicationController
     if params[:user_id] && params[:ts] && params[:sf_verifier]
       user = User.find_by_id(params[:user_id]) if params[:user_id].present?
       if user && user.valid_access_verifier?(params[:ts], params[:sf_verifier])
-        # attachment.rb checks for this session attribute when determining
-        # permissions, but it should be ignored by the rest of the models'
+        # attachment.rb checks for this session attribute when determining 
+        # permissions, but it should be ignored by the rest of the models' 
         # permission checks
         session['file_access_user_id'] = user.id
         session['file_access_expiration'] = 1.hour.from_now.to_i
@@ -116,31 +116,63 @@ class FilesController < ApplicationController
   end
 
   # @API List files
-  # Returns the paginated list of files for the folder.
+  # Returns the paginated list of files for the folder or course.
+  #
+  # @argument content_types[] [Optional, String]
+  #   Filter results by content-type. You can specify type/subtype pairs (e.g.,
+  #   'image/jpeg'), or simply types (e.g., 'image', which will match
+  #   'image/gif', 'image/jpeg', etc.).
+  #
+  # @argument search_term [Optional, String]
+  #   The partial name of the files to match and return.
   #
   # @example_request
   #
-  #   curl 'https://<canvas>/api/v1/folders/<folder_id>/files' \
+  #   curl 'https://<canvas>/api/v1/folders/<folder_id>/files?content_types[]=image&content_types[]=text/plain \
   #         -H 'Authorization: Bearer <token>'
   #
   # @returns [File]
   def api_index
-    folder = Folder.find(params[:id])
+    get_context
+    if @context
+      folder = Folder.root_folders(@context).first
+      raise ActiveRecord::RecordNotFound unless folder
+      context_index = true
+    else
+      folder = Folder.find(params[:id])
+    end
+
     if authorized_action(folder, @current_user, :read_contents)
-      @context = folder.context
+      @context = folder.context unless context_index
       can_manage_files = @context.grants_right?(@current_user, session, :manage_files)
 
-      if can_manage_files
-        scope = folder.active_file_attachments
+      if context_index
+        if can_manage_files
+          scope = @context.attachments.not_deleted
+        else
+          scope = @context.attachments.visible.not_hidden.not_locked.where(
+              :folder_id => @context.active_folders.not_hidden.not_locked)
+        end
       else
-        scope = folder.visible_file_attachments.not_hidden.not_locked
+        if can_manage_files
+          scope = folder.active_file_attachments
+        else
+          scope = folder.visible_file_attachments.not_hidden.not_locked
+        end
       end
+      scope = Attachment.search_by_attribute(scope, :display_name, params[:search_term])
       if params[:sort_by] == 'position'
         scope = scope.by_position_then_display_name
       else
         scope = scope.by_display_name
       end
-      @files = Api.paginate(scope, self, api_v1_list_files_url(@folder))
+
+      if params[:content_types].present?
+        scope = scope.by_content_types(Array(params[:content_types]))
+      end
+
+      url = context_index ? context_files_url : api_v1_list_files_url(folder)
+      @files = Api.paginate(scope, self, url)
       render :json => attachments_json(@files, @current_user, {}, :can_manage_files => can_manage_files)
     end
   end
@@ -215,12 +247,12 @@ class FilesController < ApplicationController
     respond_to do |format|
       format.json do
         @attachment = Attachment.find(params[:id])
-        # if the attachment is part of a submisison, its 'context' will be the student that submmited the assignment.  so if  @current_user is a
-        # teacher authorized_action(@attachment, @current_user, :download) will be false, we need to actually check if they have perms to see the
+        # if the attachment is part of a submisison, its 'context' will be the student that submmited the assignment.  so if  @current_user is a 
+        # teacher authorized_action(@attachment, @current_user, :download) will be false, we need to actually check if they have perms to see the 
         # submission.
-        if params[:submission_id] && (@submission = Submission.find(params[:submission_id]))
-          @attachment ||= @submission.submission_history.map(&:versioned_attachments).flatten.find{|a| a.id == params[:download].to_i }
-        end
+        @submission = Submission.find(params[:submission_id]) if params[:submission_id]
+        # verify that the requested attachment belongs to the submission
+        return render_unauthorized_action(@attachment) if @submission && !@submission.attachments.where(:id => params[:id]).any?
         if @submission ? authorized_action(@submission, @current_user, :read) : authorized_action(@attachment, @current_user, :download)
           render :json  => { :public_url => @attachment.authenticated_s3_url(:secure => request.ssl?) }
         end
@@ -234,7 +266,7 @@ class FilesController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'https://<canvas>/api/v1/files/<file_id>' \
+  #   curl 'https://<canvas>/api/v1/files/<file_id>' \ 
   #         -H 'Authorization: Bearer <token>'
   #
   # @returns File
@@ -274,7 +306,9 @@ class FilesController < ApplicationController
       end
       return
     end
-    if (params[:download] && params[:verifier] && params[:verifier] == @attachment.uuid) || authorized_action(@attachment, @current_user, :read)
+    if (params[:download] && params[:verifier] && params[:verifier] == @attachment.uuid) ||
+        @attachment.attachment_associations.where(:context_type => 'Submission').any? { |aa| aa.context.grants_right?(@current_user, session, :read) } ||
+        authorized_action(@attachment, @current_user, :read)
       if params[:download]
         if (params[:verifier] && params[:verifier] == @attachment.uuid) || (@attachment.grants_right?(@current_user, session, :download))
           disable_page_views if params[:preview]
@@ -305,6 +339,18 @@ class FilesController < ApplicationController
     end
   end
 
+  def scribd_render
+    # ApplicationController#get_context doesn't support Assignment
+    if @context.is_a?(User) && params[:assignment_id].present?
+      @context = Assignment.find(params[:assignment_id])
+    end
+    @attachment = @context.attachments.find(params[:file_id])
+    if @attachment.attachment_associations.where(:context_type => 'Submission').any? { |aa| aa.context.grants_right?(@current_user, session, :read) } || authorized_action(@attachment, @current_user, :read)
+      @attachment.check_rerender_scribd_doc
+      render :json => {:ok => true}
+    end
+  end
+
   def render_attachment(attachment)
     respond_to do |format|
       if params[:preview] && attachment.mime_class == 'image'
@@ -318,32 +364,34 @@ class FilesController < ApplicationController
       end
       if request.format == :json
         options = {:permissions => {:user => @current_user}}
-        if @attachment.grants_right?(@current_user, session, :download)
+        if attachment.grants_right?(@current_user, session, :download)
           # Right now we assume if they ask for json data on the attachment
-          # which includes the scribd doc data, then that means they have
+          # which includes the scribd doc data, then that means they have 
           # viewed or are about to view the file in some form.
           if @current_user && ((feature_enabled?(:scribd) && attachment.scribd_doc) ||
              (service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url))
             attachment.context_module_action(@current_user, :read)
-            @attachment.record_inline_view
+            attachment.record_inline_view
           end
-          options[:methods] = :authenticated_s3_url if service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url
-          log_asset_access(@attachment, "files", "files")
+          options[:methods] = []
+          options[:methods] << :authenticated_s3_url if service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url
+          options[:methods] << :scribd_render_url if attachment.scribd_doc_missing?
+          log_asset_access(attachment, "files", "files")
         end
       end
-      format.json { render :json => @attachment.to_json(options) }
+      format.json { render :json => attachment.to_json(options) }
     end
   end
   protected :render_attachment
 
   def show_relative
     path = params[:file_path]
+    file_id = params[:file_id]
+    file_id = nil unless file_id.to_s =~ Api::ID_REGEX
 
     #if the relative path matches the given file id use that file
-    if params[:file_id].present? && @attachment = @context.attachments.find_by_id(params[:file_id])
-      if @attachment.matches_full_display_path?(path) || @attachment.matches_full_path?(path)
-        params[:id] = params[:file_id]
-      else
+    if file_id && @attachment = @context.attachments.find_by_id(file_id)
+      unless @attachment.matches_full_display_path?(path) || @attachment.matches_full_path?(path)
         @attachment = nil
       end
     end
@@ -359,7 +407,7 @@ class FilesController < ApplicationController
 
   # checks if for the current root account there's a 'files' domain
   # defined and tried to use that.  This way any files that we stream through
-  # a canvas URL are at least on a separate subdomain and the javascript
+  # a canvas URL are at least on a separate subdomain and the javascript 
   # won't be able to access or update data with AJAX requests.
   def safer_domain_available?
     if !@files_domain && request.host_with_port != HostUrl.file_host(@domain_root_account, request.host_with_port)
@@ -398,7 +446,7 @@ class FilesController < ApplicationController
       if params[:file_path] || !params[:wrap]
         send_stored_file(attachment)
       else
-        # If the file is inlineable then redirect to the 'show' action
+        # If the file is inlineable then redirect to the 'show' action 
         # so we can wrap it in all the Canvas header/footer stuff
         redirect_to(named_context_url(@context, :context_file_url, attachment.id))
       end
@@ -562,7 +610,7 @@ class FilesController < ApplicationController
     end
     @context = @attachment.context
     @attachment.workflow_state = nil
-    @attachment.uploaded_data = params[:file]
+    @attachment.uploaded_data = params[:file] || params[:attachment] && params[:attachment][:uploaded_data]
     if @attachment.save
       # for consistency with the s3 upload client flow, we redirect to the success url here to finish up
       redirect_to api_v1_files_create_success_url(@attachment, :uuid => @attachment.uuid, :on_duplicate => params[:on_duplicate], :quota_exemption => params[:quota_exemption])
@@ -614,7 +662,7 @@ class FilesController < ApplicationController
     end
     @folder ||= Folder.unfiled_folder(@context)
     params[:attachment][:uploaded_data] ||= params[:attachment_uploaded_data]
-    params[:attachment][:uploaded_data] ||= params[:file]
+    params[:attachment][:uploaded_data] ||= params[:file] 
     params[:attachment][:user] = @current_user
     params[:attachment].delete :context_id
     params[:attachment].delete :context_type
@@ -717,20 +765,31 @@ class FilesController < ApplicationController
   # @API Update file
   # Update some settings on the specified file
   #
-  # @argument name The new display name of the file
-  # @argument parent_folder_id The id of the folder to move this file into.
-  #   The new folder must be in the same context as the original parent folder.
+  # @argument name [String]
+  #   The new display name of the file
+  #
+  # @argument parent_folder_id [String]
+  #   The id of the folder to move this file into. 
+  #   The new folder must be in the same context as the original parent folder. 
   #   If the file is in a context without folders this does not apply.
-  # @argument lock_at The datetime to lock the file at
-  # @argument unlock_at The datetime to unlock the file at
-  # @argument locked Flag the file as locked
-  # @argument hidden Flag the file as hidden
+  #
+  # @argument lock_at [DateTime]
+  #   The datetime to lock the file at
+  #
+  # @argument unlock_at [DateTime]
+  #   The datetime to unlock the file at
+  #
+  # @argument locked [Boolean]
+  #   Flag the file as locked
+  #
+  # @argument hidden [Boolean]
+  #   Flag the file as hidden
   #
   # @example_request
   #
-  #   curl -XPUT 'https://<canvas>/api/v1/files/<file_id>' \
-  #        -F 'name=<new_name>' \
-  #        -F 'locked=true' \
+  #   curl -XPUT 'https://<canvas>/api/v1/files/<file_id>' \ 
+  #        -F 'name=<new_name>' \ 
+  #        -F 'locked=true' \ 
   #        -H 'Authorization: Bearer <token>'
   #
   # @returns File
@@ -770,8 +829,8 @@ class FilesController < ApplicationController
 
   # @API Delete file
   # Remove the specified file
-  #
-  #   curl -XDELETE 'https://<canvas>/api/v1/files/<file_id>' \
+  # 
+  #   curl -XDELETE 'https://<canvas>/api/v1/files/<file_id>' \ 
   #        -H 'Authorization: Bearer <token>'
   def destroy
     @attachment = Attachment.find(params[:id])
