@@ -58,9 +58,9 @@ describe AssignmentsApiController, :type => :integration do
       override.title = "I am overridden and being returned in the API!"
       override.set = @section
       override.set_type = 'CourseSection'
-      override.due_at = Time.now + 2.days
-      override.unlock_at = Time.now + 1.days
-      override.lock_at = Time.now + 3.days
+      override.due_at = Time.zone.now + 2.days
+      override.unlock_at = Time.zone.now + 1.days
+      override.lock_at = Time.zone.now + 3.days
       override.due_at_overridden = true
       override.lock_at_overridden = true
       override.unlock_at_overridden = true
@@ -116,6 +116,24 @@ describe AssignmentsApiController, :type => :integration do
                           assignment4)
     end
 
+    it "should search for assignments by title" do
+      course_with_teacher(:active_all => true)
+      2.times {|i| @course.assignments.create!(:title => "First_#{i}") }
+      ids = @course.assignments.map(&:id)
+      2.times {|i| @course.assignments.create!(:title => "second_#{i}") }
+
+      json = api_call(:get,
+                      "/api/v1/courses/#{@course.id}/assignments.json?search_term=fir",
+                      {
+                          :controller => 'assignments_api',
+                          :action => 'index',
+                          :format => 'json',
+                          :course_id => @course.id.to_s,
+                          :search_term => 'fir'
+                      })
+      json.map{|h| h['id']}.sort.should == ids.sort
+    end
+
     it "should return the assignments list with API-formatted Rubric data" do
       # the API changes the structure of the data quite a bit, to hide
       # implementation details and ease API use.
@@ -161,6 +179,42 @@ describe AssignmentsApiController, :type => :integration do
           ]
         }
       ]
+    end
+
+    it "should return learning outcome info with rubric criterions if available" do
+      course_with_teacher(:active_all => true)
+      @group = @course.assignment_groups.create!({:name => "some group"})
+      @assignment = @course.assignments.create!(:title => "some assignment",
+                                                :assignment_group => @group,
+                                                :points_possible => 12)
+      @assignment.update_attribute(:submission_types,
+                                   "online_upload,online_text_entry,online_url,media_recording")
+
+      criterion = valid_rubric_attributes[:data].first
+      @outcome = @course.created_learning_outcomes.build(
+          :title => "My Outcome",
+          :description => "Description of my outcome",
+          :vendor_guid => "vendorguid9000"
+      )
+      @outcome.rubric_criterion = criterion
+      @outcome.save!
+
+      rubric_data = [criterion.merge({:learning_outcome_id => @outcome.id})]
+
+      @rubric = rubric_model(:user => @user,
+                             :context => @course,
+                             :data => rubric_data,
+                             :points_possible => 12,
+                             :free_form_criterion_comments => true)
+
+      @assignment.create_rubric_association(:rubric => @rubric,
+                                            :context => @course,
+                                            :purpose => 'grading',
+                                            :use_for_grading => true)
+      json = api_get_assignments_index_from_course(@course)
+
+      json.first['rubric'].first["outcome_id"].should == @outcome.id
+      json.first['rubric'].first["vendor_guid"].should == "vendorguid9000"
     end
 
     it "should exclude deleted assignments in the list return" do
@@ -242,6 +296,37 @@ describe AssignmentsApiController, :type => :integration do
         json['lock_at'].should == override.lock_at.iso8601.to_s
     end
 
+    it "returns original assignment due dates" do
+      course_with_student(:active_all => true)
+      @user = @teacher
+      @student.enrollments.map(&:destroy!)
+      @assignment = @course.assignments.create!(
+        :title => "Test Assignment",
+        :description => "public stuff",
+        :due_at => Time.zone.now + 1.days,
+        :unlock_at => Time.zone.now,
+        :lock_at => Time.zone.now + 2.days
+      )
+      @section = @course.course_sections.create! :name => "afternoon delight"
+      @course.enroll_user(@student,'StudentEnrollment',
+                          :section => @section,
+                          :enrollment_state => :active)
+      create_override_for_assignment
+      json = api_call(:get,
+                      "/api/v1/courses/#{@course.id}/assignments.json",
+                      {
+                        :controller => 'assignments_api',
+                        :action => 'index',
+                        :format => 'json',
+                        :course_id => @course.id.to_s
+                      },
+                      :override_assignment_dates => 'false'
+      ).first
+      json['due_at'].should == @assignment.due_at.iso8601.to_s
+      json['unlock_at'].should == @assignment.unlock_at.iso8601.to_s
+      json['lock_at'].should == @assignment.lock_at.iso8601.to_s
+    end
+
     describe "draft state" do
 
       before do
@@ -305,7 +390,7 @@ describe AssignmentsApiController, :type => :integration do
       @group = @course.assignment_groups.create!({:name => "some group"})
       @course.assignment_groups.create!({:name => "last group",
         :position => 2})
-      @group_category = @course.group_categories.create!
+      @group_category = @course.group_categories.create!(name: "foo")
       @course.any_instantiation.expects(:turnitin_enabled?).
         at_least_once.returns true
       @json = api_create_assignment_in_course(@course,
@@ -585,7 +670,7 @@ describe AssignmentsApiController, :type => :integration do
                                                   :due_at => nil)
         @assignment.update_attribute(:muted, false)
         @assignment.assignment_group = @start_group
-        @assignment.group_category = @assignment.context.group_categories.create!
+        @assignment.group_category = @assignment.context.group_categories.create!(name: "foo")
         @assignment.save!
 
         @new_grading_standard = grading_standard_for(@course)
@@ -1002,9 +1087,12 @@ describe AssignmentsApiController, :type => :integration do
           'require_initial_post' => nil,
           'discussion_subentry_count' => 0,
           'assignment_id' => @assignment.id,
+          'published' => true,
           'delayed_post_at' => nil,
           'lock_at' => nil,
           'user_name' => @topic.user_name,
+          'pinned' => !!@topic.pinned,
+          'position' => @topic.position,
           'topic_children' => [],
           'locked' => false,
           'locked_for_user' => false,
@@ -1013,6 +1101,8 @@ describe AssignmentsApiController, :type => :integration do
           'podcast_has_student_posts' => nil,
           'read_state' => 'unread',
           'unread_count' => 0,
+          'user_can_see_posts' => @topic.user_can_see_posts?(@user),
+          'subscribed' => @topic.subscribed?(@user),
           'url' =>
             "http://www.example.com/courses/#{@course.id}/discussion_topics/#{@topic.id}",
           'html_url' =>
@@ -1068,6 +1158,33 @@ describe AssignmentsApiController, :type => :integration do
         json['due_at'].should == override.due_at.iso8601.to_s
         json['unlock_at'].should == override.unlock_at.iso8601.to_s
         json['lock_at'].should == override.lock_at.iso8601.to_s
+      end
+
+      it "returns original assignment due dates" do
+        course_with_student(:active_all => true)
+        @user = @student
+        @student.enrollments.map(&:destroy!)
+        @assignment = @course.assignments.create!(
+          :title => "Test Assignment",
+          :description => "public stuff",
+          :due_at => Time.zone.now + 1.days,
+          :unlock_at => Time.zone.now,
+          :lock_at => Time.zone.now + 2.days
+        )
+        @section = @course.course_sections.create! :name => "afternoon delight"
+        @course.enroll_user(@student,'StudentEnrollment',
+                            :section => @section,
+                            :enrollment_state => :active)
+        create_override_for_assignment
+        json = api_call(:get,
+                        "/api/v1/courses/#{@course.id}/assignments/#{@assignment.id}.json",
+                        { :controller => "assignments_api", :action => "show",
+                          :format => "json", :course_id => @course.id.to_s,
+                          :id => @assignment.id.to_s},
+                        {:override_assignment_dates => 'false'})
+        json['due_at'].should == @assignment.due_at.iso8601.to_s
+        json['unlock_at'].should == @assignment.unlock_at.iso8601.to_s
+        json['lock_at'].should == @assignment.lock_at.iso8601.to_s
       end
 
       it "does not fulfill requirements when description isn't returned" do
@@ -1288,8 +1405,9 @@ describe AssignmentsApiController, :type => :integration do
 
     context "when turnitin_enabled is true on the context" do
       before {
-        @course.any_instantiation.expects(:turnitin_enabled?).
-          at_least_once.returns true
+        @domain_root_account.update_attributes! turnitin_account_id: 1234,
+                                                turnitin_shared_secret: 'foo',
+                                                turnitin_host: 'example.com'
       }
 
       it "contains a turnitin_enabled key" do
@@ -1298,11 +1416,6 @@ describe AssignmentsApiController, :type => :integration do
     end
 
     context "when turnitin_enabled is false on the context" do
-      before {
-        @course.any_instantiation.expects(:turnitin_enabled?).
-          at_least_once.returns false
-      }
-
       it "does not contain a turnitin_enabled key" do
         result.has_key?('turnitin_enabled').should == false
       end

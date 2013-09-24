@@ -37,6 +37,10 @@ describe ExternalToolsController, :type => :integration do
       index_call(@course)
     end
 
+    it "should search for external tools by name" do
+      search_call(@course)
+    end
+
     it "should create an external tool" do
       create_call(@course)
     end
@@ -85,6 +89,10 @@ describe ExternalToolsController, :type => :integration do
 
     it "should return external tools" do
       index_call(@account, "account")
+    end
+
+    it "should search for external tools by name" do
+      search_call(@account, "account")
     end
 
     it "should create an external tool" do
@@ -142,6 +150,19 @@ describe ExternalToolsController, :type => :integration do
 
     json.size.should == 1
     json.first.diff(example_json(et)).should == {}
+  end
+
+  def search_call(context, type="course")
+    2.times { |i| context.context_external_tools.create!(:name => "first_#{i}", :consumer_key => "fakefake", :shared_secret => "sofakefake", :url => "http://www.example.com/ims/lti") }
+    ids = context.context_external_tools.map(&:id)
+
+    2.times { |i| context.context_external_tools.create!(:name => "second_#{i}", :consumer_key => "fakefake", :shared_secret => "sofakefake", :url => "http://www.example.com/ims/lti") }
+
+    json = api_call(:get, "/api/v1/#{type}s/#{context.id}/external_tools.json?search_term=fir",
+                    {:controller => 'external_tools', :action => 'index', :format => 'json',
+                     :"#{type}_id" => context.id.to_s, :search_term => 'fir'})
+
+    json.map{|h| h['id']}.sort.should == ids.sort
   end
 
   def create_call(context, type="course")
@@ -316,10 +337,25 @@ describe ExternalToolsController, :type => :integration do
      "custom_fields"=>{"key1"=>"val1", "key2"=>"val2"},
      "description"=>"For testing stuff",
      "user_navigation"=>
-             {"text"=>"User nav", "url"=>"http://www.example.com/ims/lti/user", "label"=>"User nav"},
+             {"text"=>"User nav",
+              "url"=>"http://www.example.com/ims/lti/user",
+              "label"=>"User nav",
+              "selection_height"=>400,
+              "selection_width"=>800},
      "course_navigation" =>
-             {"text"=>"Course nav", "url"=>"http://www.example.com/ims/lti/course", "visibility"=>"admins", "default"=> "disabled", "label"=>"Course nav"},
+             {"text"=>"Course nav",
+              "url"=>"http://www.example.com/ims/lti/course",
+              "visibility"=>"admins",
+              "default"=> "disabled",
+              "label"=>"Course nav",
+              "selection_height"=>400,
+              "selection_width"=>800},
      "account_navigation"=>
-             {"text"=>"Account nav", "url"=>"http://www.example.com/ims/lti/account", "custom_fields"=>{"key"=>"value"}, "label"=>"Account nav"}}
+             {"text"=>"Account nav",
+              "url"=>"http://www.example.com/ims/lti/account",
+              "custom_fields"=>{"key"=>"value"},
+              "label"=>"Account nav",
+              "selection_height"=>400,
+              "selection_width"=>800}}
   end
 end

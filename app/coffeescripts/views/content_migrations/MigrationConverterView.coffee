@@ -13,14 +13,19 @@ define [
     @optionProperty 'selectOptions'
 
     template: template
+
+    initialize: -> 
+      super
+      $.subscribe 'resetForm', @resetForm
     
     els: 
       '#converter'                : '$converter'
       '#chooseMigrationConverter' : '$chooseMigrationConverter'
-      '.form-actions'             : '$formActions'
+      '.form-container'           : '$formActions'
 
     events: _.extend({}, @::events,
       'change #chooseMigrationConverter' : 'selectConverter'
+      'click .cancelBtn'                 : 'resetForm'
     )
 
     toJSON: (json) -> 
@@ -35,21 +40,27 @@ define [
 
     renderConverter: (converter) -> 
       if converter
-        converter.setElement @$converter
-        converter.render()
+        # Set timeout ensures that all of the html is loaded at once. We need
+        # this for accessibility to work correct.
+        setTimeout => 
+          @$converter.html converter.render().$el
+          @trigger 'converterRendered'
+        , 0
       else
         @resetForm() 
+        @trigger 'converterReset'
 
     # This is the actual action for making the view swaps when selecting
     # a different converter view. Ensures that when you select a new view
     # you are resetting the models data to it's dynamic defaults and setting
-    # it's migration_type to the vie wbeing shown. 
+    # it's migration_type to the view being shown. 
     #
     # @api private
 
     selectConverter: (event) -> 
       @$formActions.show()
       @model.resetModel()
+      @$chooseMigrationConverter.attr "aria-activedescendant", @$chooseMigrationConverter.val() # This is purely for accessibility
       @model.set 'migration_type', @$chooseMigrationConverter.val()
       $.publish 'contentImportChange', {value: @$chooseMigrationConverter.val(), migrationConverter: this}
 
@@ -60,7 +71,6 @@ define [
     # of returning null. In that case, we don't want to do anything cause there were errors.
     #
     # @expects event
-    # @returns void
     # @api ValidatedFormView override
 
     submit: (event) -> 
@@ -76,7 +86,7 @@ define [
     #
     # @api private
 
-    resetForm: -> 
+    resetForm: => 
       @$formActions.hide()
       @$converter.empty()
       @$chooseMigrationConverter.val('none')

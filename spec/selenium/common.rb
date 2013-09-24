@@ -867,6 +867,15 @@ shared_examples_for "all selenium tests" do
     end
   end
 
+  def assert_error_box(selector)
+    box = driver.execute_script <<-JS, selector
+      var $result = $(arguments[0]).data('associated_error_box');
+      return $result ? $result.toArray() : []
+    JS
+    box.length.should == 1
+    box[0].should be_displayed
+  end
+
   ##
   # load the simulate plugin to simulate a drag events (among other things)
   # will only load it once even if its called multiple times
@@ -1060,20 +1069,25 @@ shared_examples_for "in-process server selenium tests" do
   before do
     if self.use_transactional_fixtures
       @db_connection = ActiveRecord::Base.connection
+      @dj_connection = Delayed::Backend::ActiveRecord::Job.connection
 
       # synchronize the execute method for a modicum of thread safety
-      if !@db_connection.respond_to?(:execute_without_synchronization)
-        @db_connection.class.class_eval do
-          def execute_with_synchronization(*args)
-            @mutex ||= Mutex.new
-            @mutex.synchronize { execute_without_synchronization(*args) }
-          end
+      [@db_connection, @dj_connection].each do |conn|
+        if !conn.respond_to?(:execute_without_synchronization)
+          conn.class.class_eval do
+            def execute_with_synchronization(*args)
+              @mutex ||= Mutex.new
+              @mutex.synchronize { execute_without_synchronization(*args) }
+            end
 
-          alias_method_chain :execute, :synchronization
+            alias_method_chain :execute, :synchronization
+          end
         end
       end
 
       ActiveRecord::ConnectionAdapters::ConnectionPool.any_instance.stubs(:connection).returns(@db_connection)
+      Delayed::Backend::ActiveRecord::Job.stubs(:connection).returns(@dj_connection)
+      Delayed::Backend::ActiveRecord::Job::Failed.stubs(:connection).returns(@dj_connection)
     end
   end
 end

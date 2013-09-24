@@ -1,0 +1,12 @@
+{{#ifAny count loading}}
+  <ul class="collectionViewItems unstyled"></ul>
+  <div class="paginatedLoadingIndicator"></div>
+{{else}}
+  <p>
+    {{#ifEqual ENV.group_user_type "student"}}
+      {{#t "no_students"}}No students{{/t}}
+    {{else}}
+      {{#t "no_users"}}No users{{/t}}
+    {{/ifEqual}}
+  </p>
+{{/ifAny}}

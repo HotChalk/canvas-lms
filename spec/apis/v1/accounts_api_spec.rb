@@ -22,9 +22,9 @@ describe "Accounts API", :type => :integration do
   before do
     Pseudonym.any_instance.stubs(:works_for_account?).returns(true)
     user_with_pseudonym(:active_all => true)
-    @a1 = account_model(:name => 'root', :default_time_zone => 'UTC', :default_storage_quota_mb => 123, :default_user_storage_quota_mb => 45)
+    @a1 = account_model(:name => 'root', :default_time_zone => 'UTC', :default_storage_quota_mb => 123, :default_user_storage_quota_mb => 45, :default_group_storage_quota_mb => 42)
     @a1.add_user(@user)
-    @a2 = account_model(:name => 'subby', :parent_account => @a1, :root_account => @a1, :sis_source_id => 'sis1', :default_time_zone => 'Alaska', :default_storage_quota_mb => 321, :default_user_storage_quota_mb => 54)
+    @a2 = account_model(:name => 'subby', :parent_account => @a1, :root_account => @a1, :sis_source_id => 'sis1', :default_time_zone => 'Alaska', :default_storage_quota_mb => 321, :default_user_storage_quota_mb => 54, :default_group_storage_quota_mb => 41)
     @a2.add_user(@user)
     @a3 = account_model(:name => 'no-access')
     # even if we have access to it implicitly, it's not listed
@@ -41,9 +41,10 @@ describe "Accounts API", :type => :integration do
           'name' => 'root',
           'root_account_id' => nil,
           'parent_account_id' => nil,
-          'default_time_zone' => 'UTC',
+          'default_time_zone' => 'Etc/UTC',
           'default_storage_quota_mb' => 123,
           'default_user_storage_quota_mb' => 45,
+          'default_group_storage_quota_mb' => 42,
         },
         {
           'id' => @a2.id,
@@ -51,9 +52,10 @@ describe "Accounts API", :type => :integration do
           'root_account_id' => @a1.id,
           'parent_account_id' => @a1.id,
           'sis_account_id' => 'sis1',
-          'default_time_zone' => 'Alaska',
+          'default_time_zone' => 'America/Juneau',
           'default_storage_quota_mb' => 321,
           'default_user_storage_quota_mb' => 54,
+          'default_group_storage_quota_mb' => 41,
         },
       ]
     end
@@ -81,15 +83,34 @@ describe "Accounts API", :type => :integration do
         'Account 1', 'Account 2']
     end
 
-    it "should return sub accounts recursively" do
-      json = api_call(:get,
-        "/api/v1/accounts/#{@a1.id}/sub_accounts?recursive=1",
-        {:controller => 'accounts', :action => 'sub_accounts',
-         :account_id => @a1.id.to_s, :recursive => "1", :format => 'json'})
+    describe "recursive" do
 
-      json.map { |j| j['name'] }.sort.should == ['subby', 'implicit-access',
-        'Account 1', 'Account 1.1', 'Account 1.2', 'Account 1.2.1',
-        'Account 2', 'Account 2.1', 'Account 2.2', 'Account 2.3'].sort
+      it "returns sub accounts recursively" do
+        json = api_call(:get,
+          "/api/v1/accounts/#{@a1.id}/sub_accounts?recursive=1",
+          {:controller => 'accounts', :action => 'sub_accounts',
+           :account_id => @a1.id.to_s, :recursive => "1", :format => 'json'})
+
+        json.map { |j| j['name'] }.sort.should == ['subby', 'implicit-access',
+          'Account 1', 'Account 1.1', 'Account 1.2', 'Account 1.2.1',
+          'Account 2', 'Account 2.1', 'Account 2.2', 'Account 2.3'].sort
+      end
+
+      it "ignores deleted accounts" do
+        @a1.sub_accounts.create!(:name => "Deleted Account").destroy
+        parent_account = @a1.sub_accounts.create!(:name => "Deleted Parent Account")
+        parent_account.sub_accounts.create!(:name => "Child Account")
+        parent_account.destroy
+
+        json = api_call(:get,
+                        "/api/v1/accounts/#{@a1.id}/sub_accounts?recursive=1",
+                        {:controller => 'accounts', :action => 'sub_accounts',
+                         :account_id => @a1.id.to_s, :recursive => "1", :format => 'json'})
+
+        json.map { |j| j['name'] }.sort.should == ['subby', 'implicit-access',
+                                                   'Account 1', 'Account 1.1', 'Account 1.2', 'Account 1.2.1',
+                                                   'Account 2', 'Account 2.1', 'Account 2.2', 'Account 2.3'].sort
+      end
     end
   end
   
@@ -104,9 +125,10 @@ describe "Accounts API", :type => :integration do
           'name' => 'root',
           'root_account_id' => nil,
           'parent_account_id' => nil,
-          'default_time_zone' => 'UTC',
+          'default_time_zone' => 'Etc/UTC',
           'default_storage_quota_mb' => 123,
           'default_user_storage_quota_mb' => 45,
+          'default_group_storage_quota_mb' => 42,
         }
     end
   end
@@ -146,8 +168,8 @@ describe "Accounts API", :type => :integration do
       @a1.name.should == "blah"
     end
 
-    it "should update the default_time_zone for an account" do
-      new_zone = 'Alaska'
+    it "should update the default_time_zone for an account with an IANA timezone name" do
+      new_zone = 'America/Juneau'
       json = api_call(:put, "/api/v1/accounts/#{@a1.id}",
                       { :controller => 'accounts', :action => 'update', :id => @a1.to_param, :format => 'json' },
                       { :account => {:default_time_zone => new_zone} })
@@ -158,7 +180,21 @@ describe "Accounts API", :type => :integration do
       })
 
       @a1.reload
-      @a1.default_time_zone.should == new_zone
+      @a1.default_time_zone.tzinfo.name.should == new_zone
+    end
+
+    it "should update the default_time_zone for an account with a Rails timezone name" do
+      json = api_call(:put, "/api/v1/accounts/#{@a1.id}",
+                      { :controller => 'accounts', :action => 'update', :id => @a1.to_param, :format => 'json' },
+                      { :account => {:default_time_zone => 'Alaska'} })
+
+      json.should include({
+                              'id' => @a1.id,
+                              'default_time_zone' => 'America/Juneau',
+                          })
+
+      @a1.reload
+      @a1.default_time_zone.name.should == 'Alaska'
     end
 
     it "should check for a valid time zone" do
@@ -218,6 +254,18 @@ describe "Accounts API", :type => :integration do
         @a1.reload
         @a1.default_user_storage_quota_mb.should == 678
       end
+
+      it 'should allow the default group quota to be set' do
+        json = api_call(:put, "/api/v1/accounts/#{@a1.id}", @params, {:account => {:default_group_storage_quota_mb => 678}})
+
+        json.should include({
+          'id' => @a1.id,
+          'default_group_storage_quota_mb' => 678,
+        })
+
+        @a1.reload
+        @a1.default_group_storage_quota_mb.should == 678
+      end
     end
 
     context 'without :manage_storage_quotas' do
@@ -246,6 +294,13 @@ describe "Accounts API", :type => :integration do
 
         @a1.reload
         @a1.default_user_storage_quota_mb.should == 45
+      end
+
+      it 'should not allow the default group quota to be set' do
+        json = api_call(:put, "/api/v1/accounts/#{@a1.id}", @params, {:account => {:default_group_storage_quota_mb => 678}}, {}, {:expected_status => 401})
+
+        @a1.reload
+        @a1.default_group_storage_quota_mb.should == 42
       end
     end
   end
@@ -316,6 +371,17 @@ describe "Accounts API", :type => :integration do
     json = api_call(:get, "/api/v1/accounts/#{@a1.id}/courses?state[]=deleted",
       { :controller => 'accounts', :action => 'courses_api', :account_id => @a1.to_param, :format => 'json', :state => %w[deleted] })
 
+    json.length.should eql 1
+    json.first['name'].should eql 'c2'
+  end
+
+  it "should return courses filtered by enrollment_term" do
+    term = @a1.enrollment_terms.create!(:name => 'term 2')
+    @a1.courses.create!(:name => 'c1')
+    @a1.courses.create!(:name => 'c2', :enrollment_term => term)
+
+    json = api_call(:get, "/api/v1/accounts/#{@a1.id}/courses?enrollment_term_id=#{term.id}",
+                    { :controller => 'accounts', :action => 'courses_api', :account_id => @a1.to_param, :format => 'json', :enrollment_term_id => term.to_param })
     json.length.should eql 1
     json.first['name'].should eql 'c2'
   end
