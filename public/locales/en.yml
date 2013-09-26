@@ -13033,7 +13033,7 @@ en:
       terms: "You must agree to the terms"
       too_long: "Can't exceed %{max} characters"
     registration: 
-      agree_to_terms_and_privacy_policy: "You agree to the *terms of use* and acknowledge the **privacy policy**."
+      agree_to_terms_and_privacy_policy: "You acknowledge the **privacy policy**."
       agree_to_terms_with_code_of_conduct: "You agree to the *terms of use* and the **code of conduct**."
   user_date_range_search: 
     cant_be_blank: "Canvas User ID can't be blank"
