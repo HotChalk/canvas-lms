@@ -123,16 +123,7 @@ Which is you?", :count => @merge_opportunities.length %>
           <%= time_zone_select :user, :time_zone, ActiveSupport::TimeZone.us_zones, {:default => @pseudonym.account.default_time_zone.name, :value => @user.time_zone} %>
         </div>
       </div>
-      <% if @pseudonym.account == Account.default %>
-      <div class="control-group">
-        <div class="controls">
-          <label for="user_subscribe_to_emails">
-            <%= check_box :user, :subscribe_to_emails, :checked => true %>
-            <%= t "labels.subscribe_to_emails", "I want to receive information, news and tips from Instructure" %>
-          </label>
-        </div>
-      </div>
-      <% end %>
+
       <div class="control-group">
         <div class="controls">
           <% if require_terms? %>
