@@ -103,10 +103,10 @@ $(document).ready(function() {
     }
   });
   $(".highlight_add_assignment_icon").hover(function() {
-    $link = $(".assignment_group:visible:first").find(".add_assignment_link");
-    if($link.length == 0) {
-      $(".no_groups_message").show();
-    }
+    var $link = $(".add_assignment_link:visible:first");
+    //if($link.length == 0) {
+    //  $(".no_groups_message").show();
+    //}
     $("html,body").scrollTo($link);
     $link.indicate();
   }, function() {
