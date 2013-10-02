@@ -36,8 +36,11 @@ class RubricsController < ApplicationController
     if (id = params[:id]) =~ /\A\d+\Z/
       js_env :ROOT_OUTCOME_GROUP => get_root_outcome
       @rubric_association = @context.rubric_associations.bookmarked.find_by_rubric_id(params[:id])
-      raise ActiveRecord::RecordNotFound unless @rubric_association
-      @actual_rubric = @rubric_association.rubric
+      if @rubric_association.nil?
+        redirect_to :action => "index"
+      else
+        @actual_rubric = @rubric_association.rubric
+      end
     else
       raise ActiveRecord::RecordNotFound
     end
