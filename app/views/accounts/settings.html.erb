@@ -850,8 +850,8 @@ TEXT
             <td class="title reports">
               <span class="title"><%= title %></span>
               <% if description || description_partial %>
-                <a href="#" class="open_report_description_link"><i class="icon-question standalone-icon"></i></a>
-                <div style="display: none" class="report_description">
+                <a href="#" class="open_report_description_link" data-report="<%= report %>"><i class="icon-question standalone-icon"></i></a>
+                <div style="display: none" class="report_description" id="<%= report %>_description">
                   <%= description_partial ? render(:partial => description_partial) : description %>
                 </div>
               <% end %>
