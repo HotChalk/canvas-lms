@@ -370,7 +370,7 @@ define([
         files.gettingFiles[key] = true;
 
         var url = $.replaceTags($("#file_context_links ." + original_folder.context_string + "_folder_url").attr('href'), 'id', original_folder.id);
-        $.ajaxJSON(url, 'GET', {}, function(data) {
+        $.ajaxJSON(url + '.json', 'GET', {}, function(data) {
           files.gettingFiles[key] = false;
           var folder = data.actual_folder.folder;
           folder.includes_files = true;
@@ -605,7 +605,7 @@ define([
         files.refreshContext.refreshing[context_string] = true;
 
         var url = $("#file_context_links ." + context_string + "_attachments_url").attr('href');
-        $.ajaxJSON(url, 'GET', {}, function(data) {
+        $.ajaxJSON(url + '.json', 'GET', {}, function(data) {
           files.clearDataCache();
           files.refreshContext.refreshing[context_string] = false;
           var scrollTop = $files_structure.scrollTop();
