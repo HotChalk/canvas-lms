@@ -45,3 +45,5 @@
 /public/plugins/
 /spec/coffeescripts/plugins/
 /spec/plugins/
+
+.ruby-version
