@@ -286,16 +286,19 @@ Canvas::Plugin.register('app_center', nil, {
     },
     :validator => 'AppCenterValidator'
 })
-Canvas::Plugin.register('hotchalk', :hotchalk, {
-    :name => lambda{ t :name, 'Hotchalk' },
-    :description => lambda{ t :description, 'Hotchalk integration' },
+Canvas::Plugin.register('hotchalk', :export_system, {
+    :name => 'Hotchalk',
+    :description => 'Hotchalk integration',
     :website => 'http://www.hotchalk.com',
     :author => 'Hotchalk',
     :author_website => 'http://www.hotchalk.com',
     :version => '1.0.0',
     :settings_partial => 'plugins/hotchalk_settings',
+    :select_text => 'Hotchalk Course Export Package',
     :settings => {
-        :cl_base_url => nil
+        :cl_base_url => nil,
+        :cl_integration_key => nil,
+        :worker => 'CCWorker'
     }
 })
 

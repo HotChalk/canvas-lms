@@ -1674,6 +1674,11 @@ class Attachment < ActiveRecord::Base
       self.file_state = 'available'
       self.save!
       handle_duplicates(duplicate_handling || 'overwrite')
+
+      # Manually trigger the file upload success callback, as it isn't getting called for URL attachments
+      if self.context.respond_to?(:file_upload_success_callback)
+        self.context.file_upload_success_callback(self)
+      end
     rescue Exception, Timeout::Error => e
       self.file_state = 'errored'
       case e

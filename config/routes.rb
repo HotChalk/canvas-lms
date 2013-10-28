@@ -1367,4 +1367,8 @@ FakeRails3Routes.draw do
 
   # in rails 2 this was Jammit::Routes.draw(map)
   match '/assets/:package.:extension' => 'jammit#package', :as => :jammit if defined?(Jammit)
+
+  # Hotchalk-specific routes
+  match 'hotchalk/packages' => 'hotchalk_package_imports#index', :as => :index, :via => :get
+
 end
