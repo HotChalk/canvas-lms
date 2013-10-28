@@ -11,6 +11,7 @@ require [
   'compiled/views/content_migrations/ConverterViewControl'
   'compiled/views/content_migrations/ZipFilesView'
   'compiled/views/content_migrations/CopyCourseView'
+  'compiled/views/content_migrations/HotchalkPackageView'
   'compiled/views/content_migrations/MoodleZipView'
   'compiled/views/content_migrations/CanvasExportView'
   'compiled/views/content_migrations/QTIZipView'
@@ -19,13 +20,14 @@ require [
   'compiled/views/content_migrations/subviews/SelectContentCheckboxView'
   'compiled/views/content_migrations/subviews/QuestionBankView'
   'compiled/views/content_migrations/subviews/CourseFindSelectView'
+  'compiled/views/content_migrations/subviews/HotchalkCourseSelectView'
   'compiled/views/content_migrations/subviews/DateShiftView'
   'compiled/views/content_migrations/subviews/DaySubstitutionView'
   'jst/content_migrations/ProgressingContentMigrationCollection'
   'vendor/jquery.ba-tinypubsub'
   'jst/content_migrations/subviews/DaySubstitutionCollection'
   'compiled/views/content_migrations/subviews/OverwriteAssessmentContentView'
-], ($, ProgressingContentMigrationCollection, ContentMigrationModel, DaySubstitutionCollection, CollectionView, PaginatedCollectionView, ProgressingContentMigrationView, MigrationConverterView, CommonCartridgeView, ConverterViewControl, ZipFilesView, CopyCourseView, MoodleZipView, CanvasExportView, QTIZipView, ChooseMigrationFileView, FolderPickerView, SelectContentCheckboxView, QuestionBankView, CourseFindSelectView, DateShiftView, DaySubView, progressingMigrationCollectionTemplate, pubsub, daySubCollectionTemplate, OverwriteAssessmentContentView) ->
+], ($, ProgressingContentMigrationCollection, ContentMigrationModel, DaySubstitutionCollection, CollectionView, PaginatedCollectionView, ProgressingContentMigrationView, MigrationConverterView, CommonCartridgeView, ConverterViewControl, ZipFilesView, CopyCourseView, HotchalkPackageView, MoodleZipView, CanvasExportView, QTIZipView, ChooseMigrationFileView, FolderPickerView, SelectContentCheckboxView, QuestionBankView, CourseFindSelectView, HotchalkCourseSelectView, DateShiftView, DaySubView, progressingMigrationCollectionTemplate, pubsub, daySubCollectionTemplate, OverwriteAssessmentContentView) ->
   ConverterViewControl.setModel new ContentMigrationModel 
                                  course_id: ENV.COURSE_ID
                                  daySubCollection: daySubCollection
@@ -95,6 +97,11 @@ require [
                                 oldStartDate: ENV.OLD_START_DATE
                                 oldEndDate: ENV.OLD_END_DATE
 
+  ConverterViewControl.register
+    key: 'hotchalk'
+    view: new HotchalkPackageView
+            hotchalkCourseSelect: new HotchalkCourseSelectView
+                                    model: ConverterViewControl.getModel()
 
   ConverterViewControl.register
     key: 'moodle_converter'
