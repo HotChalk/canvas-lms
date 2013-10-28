@@ -1480,4 +1480,8 @@ routes.draw do
   end
 
   match '/assets/:package.:extension' => 'jammit#package', :as => :jammit if defined?(Jammit)
+
+  # Hotchalk-specific routes
+  match 'hotchalk/packages' => 'hotchalk_package_imports#index', :as => :index, :via => :get
+
 end

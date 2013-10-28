@@ -249,6 +249,15 @@ class ContentMigrationsController < ApplicationController
       end
     end
 
+    # Special case: check for Hotchalk package imports and add URL
+    if params[:migration_type] == 'hotchalk' && @plugin.enabled?
+      source_package_id = params[:settings][:source_course_id]
+      base_url = PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
+      integration_key = PluginSetting.settings_for_plugin(:hotchalk)['cl_integration_key']
+      package_url = "https://#{base_url}/clws/integration/packages/#{source_package_id}/download?key=#{integration_key}"
+      params[:pre_attachment] = { :url => package_url, :name => "#{source_package_id}.imscc" }
+    end
+
     @content_migration = @context.content_migrations.build(:user => @current_user, :context => @context, :migration_type => params[:migration_type])
     @content_migration.workflow_state = 'created'
 
