@@ -36,9 +36,9 @@ define [
         fn: (model, term) ->
           return unless term
           regex = new RegExp(term, 'ig')
-          model.get('title').match(regex) or
-            model.get('user_name').match(regex) or
-            model.summary().match(regex)
+          regex.test(model.get('title')) or
+            regex.test(model.get('user_name')) or
+            regex.test(model.summary())
 
     collections: ->
       [
