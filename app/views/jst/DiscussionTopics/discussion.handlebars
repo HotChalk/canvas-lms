@@ -63,6 +63,7 @@
         </a>
 
         <ul class="al-options">
+          {{#if permissions.lock}}
           <li>
             <a href="#" class="icon-lock">
               {{#if locked}}
@@ -72,6 +73,7 @@
               {{/if}}
             </a>
           </li>
+          {{/if}}
           <li>
             <a href="#" class="icon-trash">{{#t "delete"}}Delete{{/t}}</a>
           </li>
