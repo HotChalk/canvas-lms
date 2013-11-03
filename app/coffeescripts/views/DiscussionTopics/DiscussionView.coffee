@@ -125,6 +125,9 @@ define [
       # handle a student locking their own discussion (they should lose permissions).
       if @model.get('locked') and !_.intersection(ENV.current_user_roles, ['teacher', 'ta', 'admin']).length
         base.permissions.delete = false
+      # check for permission to lock the discussion topic based on due date (see TL-219)
+      assignment = @model.get('assignment')
+      base.permissions.lock = @model.get('locked') || !(assignment && assignment.dueAt() && (new Date(assignment.dueAt()) > new Date()))
       base
 
     # Internal: Add event handlers to the model.
