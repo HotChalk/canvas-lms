@@ -12,14 +12,15 @@ define [
 
     el: '#content'
 
-    @child 'openDiscussionView', '.open.discussion-list'
+    @child 'openDiscussionView',   '.open.discussion-list'
     @child 'lockedDiscussionView', '.locked.discussion-list'
+    @child 'pinnedDiscussionView', '.pinned.discussion-list'
 
     events:
-      'click .ig-header .element_toggler':    'toggleDiscussionList'
-      'click #edit_discussions_settings':     'toggleSettingsView'
-      'change #onlyUnread, #onlyGraded':      'filterResults'
-      'keyup #searchTerm':                    'filterResults'
+      'click .ig-header .element_toggler': 'toggleDiscussionList'
+      'click #edit_discussions_settings':  'toggleSettingsView'
+      'change #onlyUnread, #onlyGraded':   'filterResults'
+      'keyup #searchTerm':                 'filterResults'
 
     filters:
       onlyGraded:
@@ -35,12 +36,16 @@ define [
         fn: (model, term) ->
           return unless term
           regex = new RegExp(term, 'ig')
-          model.get('title').match(regex) or
-            model.get('user_name').match(regex) or
-            model.summary().match(regex)
+          regex.test(model.get('title')) or
+            regex.test(model.get('user_name')) or
+            regex.test(model.summary())
 
     collections: ->
-      [@options.openDiscussionView.collection, @options.lockedDiscussionView.collection]
+      [
+        @options.openDiscussionView.collection
+        @options.lockedDiscussionView.collection
+        @options.pinnedDiscussionView.collection
+      ]
 
     afterRender: ->
       @$('#discussionsFilter').buttonset()
@@ -70,7 +75,7 @@ define [
       @settingsView().toggle()
 
     toggleDiscussionList: (e) ->
-      $(e.target).find('i')
+      $(e.currentTarget).find('i')
         .toggleClass('icon-mini-arrow-down')
         .toggleClass('icon-mini-arrow-right')
 

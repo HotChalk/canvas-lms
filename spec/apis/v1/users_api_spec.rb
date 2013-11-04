@@ -226,27 +226,51 @@ describe "Users API", :type => :integration do
   end
 
   shared_examples_for "page view api" do
-    it "should return page view history" do
-      page_view_model(:user => @student, :created_at => 2.days.ago)
-      page_view_model(:user => @student)
-      page_view_model(:user => @student, :created_at => 1.day.ago)
-      Setting.set('api_max_per_page', '2')
-      json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?per_page=1000",
-                         { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :per_page => '1000' })
-      json.size.should == 2
-      json.each { |j| j['url'].should == "http://www.example.com/courses/1" }
-      json[0]['created_at'].should be > json[1]['created_at']
-      response.headers['Link'].should match /next/
-      response.headers['Link'].should_not match /last/
-      response.headers['Link'].split(',').find { |l| l =~ /<([^>]+)>.+next/ }
-      url = $1
-      page = Rack::Utils.parse_nested_query(url)['page']
-      json = api_call(:get, url,
-                         { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :page => page, :per_page => Setting.get('api_max_per_page', '2') })
-      json.size.should == 1
-      json.each { |j| j['url'].should == "http://www.example.com/courses/1" }
-      response.headers['Link'].should_not match /next/
-      response.headers['Link'].should_not match /last/
+    describe "page view api" do
+      before do
+        @timestamp = Time.zone.at(1.day.ago.to_i)
+        page_view_model(:user => @student, :created_at => @timestamp - 1.day)
+        page_view_model(:user => @student, :created_at => @timestamp + 1.day)
+        page_view_model(:user => @student, :created_at => @timestamp)
+      end
+
+      it "should return page view history" do
+        Setting.set('api_max_per_page', '2')
+        json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?per_page=1000",
+                           { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :per_page => '1000' })
+        json.size.should == 2
+        json.each { |j| j['url'].should == "http://www.example.com/courses/1" }
+        json[0]['created_at'].should be > json[1]['created_at']
+        response.headers['Link'].should match /next/
+        response.headers['Link'].should_not match /last/
+        response.headers['Link'].split(',').find { |l| l =~ /<([^>]+)>.+next/ }
+        url = $1
+        page = Rack::Utils.parse_nested_query(url)['page']
+        json = api_call(:get, url,
+                           { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :page => page, :per_page => Setting.get('api_max_per_page', '2') })
+        json.size.should == 1
+        json.each { |j| j['url'].should == "http://www.example.com/courses/1" }
+        response.headers['Link'].should_not match /next/
+        response.headers['Link'].should_not match /last/
+      end
+
+      it "should recognize start_time parameter" do
+        Setting.set('api_max_per_page', '3')
+        start_time = @timestamp.iso8601
+        json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?start_time=#{start_time}",
+                           { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :start_time => start_time })
+        json.size.should == 2
+        json.each { |j| TimeHelper.try_parse(j['created_at']).to_i.should be >= @timestamp.to_i }
+      end
+
+      it "should recognize end_time parameter" do
+        Setting.set('api_max_per_page', '3')
+        end_time = @timestamp.iso8601
+        json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?end_time=#{end_time}",
+                           { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :end_time => end_time })
+        json.size.should == 2
+        json.each { |j| TimeHelper.try_parse(j['created_at']).to_i.should be <= @timestamp.to_i }
+      end
     end
   end
 
@@ -314,33 +338,37 @@ describe "Users API", :type => :integration do
       api_call(:get, "/api/v1/accounts/#{@account.id}/users?per_page=12", :controller => "users", :action => "index", :account_id => @account.id.to_param, :format => 'json', :per_page => '12').size.should == 5
     end
 
-    it "should allow query by name" do
-      @account = @user.account
-      user1 = user_with_pseudonym(:active_all => true, :account => @account, :name => "John St. Clair", :sortable_name => "St. Clair, John", :username => 'john@stclair.com')
-      @user.pseudonym.sis_user_id = "user_sis_id_01"
-      @user.pseudonym.save!
-      @user = @admin
-
-      json = api_call(:get, "/api/v1/accounts/#{@account.id}/users",
-                      { :controller => 'users', :action => "index", :format => 'json', :account_id => @account.id.to_param },
-                      { :user => {:name => "John"}})
-      json.length.should == 1
-      json.should == [{
-                        'name' => user1.name,
-                        'sortable_name' => user1.sortable_name,
-                        'sis_user_id' => user1.pseudonym.sis_user_id,
-                        'id' => user1.id,
-                        'short_name' => user1.short_name,
-                        'login_id' => user1.pseudonym.unique_id,
-                        'sis_login_id' => user1.pseudonym.unique_id
-                      }]
-    end
-
     it "should return unauthorized for users without permissions" do
       @account = @student.account
       @user    = @student
       raw_api_call(:get, "/api/v1/accounts/#{@account.id}/users", :controller => "users", :action => "index", :account_id => @account.id.to_param, :format => "json")
       response.code.should eql "401"
+    end
+
+    it "returns an error when search_term is fewer than 3 characters" do
+      @account = Account.default
+      json = api_call(:get, "/api/v1/accounts/#{@account.id}/users", { :controller => 'users', :action => "index", :format => 'json', :account_id => @account.id.to_param }, {:search_term => 'ab'}, {}, :expected_status => 400)
+      error = json["errors"].first
+      verify_json_error(error, "search_term", "invalid", "3 or more characters is required")
+    end
+
+    it "returns a list of users filtered by search_term" do
+      @account = Account.default
+      expected_keys = %w{id name sortable_name short_name}
+
+      users = []
+      [['Test User1', 'test@example.com'], ['Test User2', 'test2@example.com'], ['Test User3', 'test3@example.com']].each_with_index do |u, i|
+        users << User.create!(:name => u[0])
+        users[i].pseudonyms.create!(:unique_id => u[1], :account => @account) { |p| p.sis_user_id = u[1] }
+      end
+
+      json = api_call(:get, "/api/v1/accounts/#{@account.id}/users", { :controller => 'users', :action => "index", :format => 'json', :account_id => @account.id.to_param }, {:search_term => 'test3@example.com'})
+
+      json.count.should == 1
+      json.each do |user|
+        (user.keys & expected_keys).sort.should == expected_keys.sort
+        users.map(&:id).should include(user['id'])
+      end
     end
   end
 
@@ -353,7 +381,7 @@ describe "Users API", :type => :integration do
             :name          => "Test User",
             :short_name    => "Test",
             :sortable_name => "User, T.",
-            :time_zone     => "Mountain Time (United States & Canada)",
+            :time_zone     => "Mountain Time (US & Canada)",
             :locale        => 'en'
           },
           :pseudonym => {
@@ -370,7 +398,7 @@ describe "Users API", :type => :integration do
       user.name.should eql "Test User"
       user.short_name.should eql "Test"
       user.sortable_name.should eql "User, T."
-      user.time_zone.should eql "Mountain Time (United States & Canada)"
+      user.time_zone.name.should eql "Mountain Time (US & Canada)"
       user.locale.should eql 'en'
 
       user.pseudonyms.count.should eql 1
@@ -432,10 +460,42 @@ describe "Users API", :type => :integration do
       errors['pseudonym'].should be_present
       errors['pseudonym']['unique_id'].should be_present
     end
+
+    it "should set user's email address via communication_channel[address]" do
+      api_call(:post, "/api/v1/accounts/#{@admin.account.id}/users",
+        { :controller => 'users',
+          :action => 'create',
+          :format => 'json',
+          :account_id => @admin.account.id.to_s
+        },
+        {
+          :user => {
+            :name => "Test User"
+          },
+          :pseudonym => {
+            :unique_id         => "test",
+            :password          => "password123"
+          },
+          :communication_channel => {
+            :address           => "test@example.com"
+          }
+        }
+      )
+      response.status.should eql "200 OK"
+      users = User.find_all_by_name "Test User"
+      users.size.should == 1
+      users.first.pseudonyms.first.unique_id.should == "test"
+      email = users.first.communication_channels.email.first
+      email.path.should == "test@example.com"
+      email.path_type.should == 'email'
+    end
   end
 
   describe "user account updates" do
     before do
+      # an outer before sets this
+      @student.pseudonym.update_attribute(:sis_user_id, nil)
+
       @admin = account_admin_user
       course_with_student(:user => user_with_pseudonym(:name => 'Student', :username => 'student@example.com'))
       @student = @user
@@ -468,7 +528,7 @@ describe "Users API", :type => :integration do
           'sis_login_id' => 'student@example.com',
           'locale' => 'en'
         }
-        user.time_zone.should eql 'Tijuana'
+        user.time_zone.name.should eql 'Tijuana'
       end
 
       it "should allow updating without any params" do

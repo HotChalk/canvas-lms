@@ -36,22 +36,6 @@ describe SubmissionComment do
     SubmissionComment.create!(@valid_attributes)
   end
 
-  it "should not dispatch notification on create if assignment is not published" do
-    assignment_model
-    @assignment.workflow_state = 'available'
-    @assignment.save
-    @course.offer
-    te = @course.enroll_teacher(user)
-    se = @course.enroll_student(user)
-    @assignment.reload
-    @submission = @assignment.submit_homework(se.user, :body => 'some message')
-    @submission.created_at = Time.now - 60
-    @submission.save
-    Notification.create(:name => 'Submission Comment')
-    @comment = @submission.add_comment(:author => te.user, :comment => "some comment")
-    @comment.messages_sent.should_not be_include('Submission Comment')
-  end
-  
   it "should dispatch notifications on create regardless of how long ago the submission was created" do
     assignment_model
     @assignment.workflow_state = 'published'
@@ -219,6 +203,14 @@ This text has a http://www.google.com link in it...
         tc1.last_message_at.to_i.should eql c1.created_at.to_i
         tc1.messages.last.body.should eql c2.comment
         tc1.messages.last.author.should eql @teacher1
+      end
+
+      it "should set the root_account_ids" do
+        @submission1.add_comment(:author => @student1, :comment => "hello")
+        @teacher.conversations.where(:root_account_ids => nil).any?.should be_false
+        @submission1.add_comment(:author => @teacher1, :comment => "sup")
+        @teacher.conversations.where(:root_account_ids => nil).any?.should be_false
+        @student.conversations.where(:root_account_ids => nil).any?.should be_false
       end
 
       it "should not be visible to the student until an instructor comments" do

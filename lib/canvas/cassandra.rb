@@ -18,17 +18,22 @@
 #
 module Canvas::Cassandra
   class Database
-    def self.configured?(config_name)
+    def self.configured?(config_name, environment = :current)
       raise ArgumentError, "config name required" if config_name.blank?
-      config = Setting.from_config('cassandra').try(:[], config_name)
+      config = Setting.from_config('cassandra', environment).try(:[], config_name)
       config && config['servers'] && config['keyspace']
     end
 
-    def self.from_config(config_name)
+    def self.from_config(config_name, environment = :current)
       @connections ||= {}
-      @connections[config_name] ||= begin
-        config = Setting.from_config('cassandra').try(:[], config_name)
-        raise ArgumentError, "No configuration for Cassandra for: #{config_name.inspect}" unless config
+      environment = Rails.env if environment == :current
+      key = [config_name, environment]
+      @connections.fetch(key) do
+        config = Setting.from_config('cassandra', environment).try(:[], config_name)
+        unless config
+          @connections[key] = nil
+          return nil
+        end
         servers = Array(config['servers'])
         raise "No Cassandra servers defined for: #{config_name.inspect}" unless servers.present?
         keyspace = config['keyspace']
@@ -38,7 +43,7 @@ module Canvas::Cassandra
         thrift_opts[:retries] = config['retries'] if config['retries']
         thrift_opts[:connect_timeout] = config['connect_timeout'] if config['connect_timeout']
         thrift_opts[:timeout] = config['timeout'] if config['timeout']
-        self.new(servers, opts, thrift_opts)
+        @connections[key] = self.new(config_name, environment, servers, opts, thrift_opts)
       end
     end
 
@@ -46,9 +51,15 @@ module Canvas::Cassandra
       Setting.from_config('cassandra').try(:keys) || []
     end
 
-    def initialize(servers, opts, thrift_opts)
+    def initialize(cluster_name, environment, servers, opts, thrift_opts)
       Bundler.require 'cassandra'
       @db = CassandraCQL::Database.new(servers, opts, thrift_opts)
+      @cluster_name = cluster_name
+      @environment = environment
+    end
+
+    def fingerprint
+      "#@cluster_name:#@environment"
     end
 
     attr_reader :db
@@ -62,7 +73,7 @@ module Canvas::Cassandra
       ms = Benchmark.ms do
         result = @db.execute(query, *args)
       end
-      Rails.logger.debug("  #{"CQL (%.2fms)" % [ms]}  #{::CassandraCQL::Statement.sanitize(query, args)}")
+      Rails.logger.debug("  #{"CQL (%.2fms)" % [ms]}  #{::CassandraCQL::Statement.sanitize(query, args)} [#{fingerprint}]")
       result
     end
 
@@ -143,18 +154,18 @@ module Canvas::Cassandra
     # in other words, changes is a hash in either of these formats (mixing is ok):
     #   { "colname" => newvalue }
     #   { "colname" => [oldvalue, newvalue] }
-    def update_record(table_name, primary_key_attrs, changes)
+    def update_record(table_name, primary_key_attrs, changes, ttl_seconds=nil)
       batch do
-        do_update_record(table_name, primary_key_attrs, changes)
+        do_update_record(table_name, primary_key_attrs, changes, ttl_seconds)
       end
     end
 
     # same as update_record, but preferred when doing inserts -- it skips
     # updating columns with nil values, rather than creating tombstone delete
     # records for them
-    def insert_record(table_name, primary_key_attrs, changes)
+    def insert_record(table_name, primary_key_attrs, changes, ttl_seconds=nil)
       changes = changes.reject { |k,v| v.is_a?(Array) ? v.last.nil? : v.nil? }
-      update_record(table_name, primary_key_attrs, changes)
+      update_record(table_name, primary_key_attrs, changes, ttl_seconds)
     end
 
     def select_value(query, *args)
@@ -178,7 +189,7 @@ module Canvas::Cassandra
 
     protected
 
-    def do_update_record(table_name, primary_key_attrs, changes)
+    def do_update_record(table_name, primary_key_attrs, changes, ttl_seconds)
       primary_key_attrs = primary_key_attrs.with_indifferent_access
       changes = changes.with_indifferent_access
       where_clause, where_args = build_where_conditions(primary_key_attrs)
@@ -203,8 +214,13 @@ module Canvas::Cassandra
       # so no need to differentiate here
       if updates.present?
         args = []
+        statement = "UPDATE #{table_name}"
+        if ttl_seconds
+          args << ttl_seconds
+          statement << " USING TTL ?"
+        end
         update_cql = updates.map { |key,val| args << val; "#{key} = ?" }.join(", ")
-        statement = "UPDATE #{table_name} SET #{update_cql} WHERE #{where_clause}"
+        statement << " SET #{update_cql} WHERE #{where_clause}"
         args.concat where_args
         update(statement, *args)
       end

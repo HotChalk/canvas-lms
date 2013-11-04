@@ -11,6 +11,7 @@ require [
   'compiled/views/content_migrations/ConverterViewControl'
   'compiled/views/content_migrations/ZipFilesView'
   'compiled/views/content_migrations/CopyCourseView'
+  'compiled/views/content_migrations/HotchalkPackageView'
   'compiled/views/content_migrations/MoodleZipView'
   'compiled/views/content_migrations/CanvasExportView'
   'compiled/views/content_migrations/QTIZipView'
@@ -19,11 +20,14 @@ require [
   'compiled/views/content_migrations/subviews/SelectContentCheckboxView'
   'compiled/views/content_migrations/subviews/QuestionBankView'
   'compiled/views/content_migrations/subviews/CourseFindSelectView'
+  'compiled/views/content_migrations/subviews/HotchalkCourseSelectView'
   'compiled/views/content_migrations/subviews/DateShiftView'
   'compiled/views/content_migrations/subviews/DaySubstitutionView'
   'jst/content_migrations/ProgressingContentMigrationCollection'
   'vendor/jquery.ba-tinypubsub'
-], ($, ProgressingContentMigrationCollection, ContentMigrationModel, DaySubstitutionCollection, CollectionView, PaginatedCollectionView, ProgressingContentMigrationView, MigrationConverterView, CommonCartridgeView, ConverterViewControl, ZipFilesView, CopyCourseView, MoodleZipView, CanvasExportView, QTIZipView, ChooseMigrationFileView, FolderPickerView, SelectContentCheckboxView, QuestionBankView, CourseFindSelectView, DateShiftView, DaySubView, progressingMigrationCollectionTemplate, pubsub) ->
+  'jst/content_migrations/subviews/DaySubstitutionCollection'
+  'compiled/views/content_migrations/subviews/OverwriteAssessmentContentView'
+], ($, ProgressingContentMigrationCollection, ContentMigrationModel, DaySubstitutionCollection, CollectionView, PaginatedCollectionView, ProgressingContentMigrationView, MigrationConverterView, CommonCartridgeView, ConverterViewControl, ZipFilesView, CopyCourseView, HotchalkPackageView, MoodleZipView, CanvasExportView, QTIZipView, ChooseMigrationFileView, FolderPickerView, SelectContentCheckboxView, QuestionBankView, CourseFindSelectView, HotchalkCourseSelectView, DateShiftView, DaySubView, progressingMigrationCollectionTemplate, pubsub, daySubCollectionTemplate, OverwriteAssessmentContentView) ->
   ConverterViewControl.setModel new ContentMigrationModel 
                                  course_id: ENV.COURSE_ID
                                  daySubCollection: daySubCollection
@@ -33,6 +37,7 @@ require [
                                  collection: daySubCollection
                                  emptyTemplate: -> "No Day Substitutions Added"
                                  itemView: DaySubView
+                                 template: daySubCollectionTemplate
 
   progressingMigCollection  = new ProgressingContentMigrationCollection null,
                                  course_id: ENV.COURSE_ID
@@ -58,7 +63,6 @@ require [
   $.subscribe 'migrationCreated', (migrationModelData) -> 
     progressingMigCollection.add migrationModelData
 
-
   # Registers any subviews with any changes that happen 
   # when selecting a converter. Give it the value to
   # look for then the subview to insert. Works like 
@@ -81,7 +85,7 @@ require [
     key: 'course_copy_importer'
     view: new CopyCourseView
             courseFindSelect: new CourseFindSelectView 
-                                courses: ENV.COURSES
+                                current_user_id: ENV.current_user_id
                                 model: ConverterViewControl.getModel()
 
             selectContent:    new SelectContentCheckboxView(model: ConverterViewControl.getModel())
@@ -90,6 +94,14 @@ require [
                                 model: ConverterViewControl.getModel()
                                 collection: daySubCollection
                                 daySubstitution: daySubCollectionView
+                                oldStartDate: ENV.OLD_START_DATE
+                                oldEndDate: ENV.OLD_END_DATE
+
+  ConverterViewControl.register
+    key: 'hotchalk'
+    view: new HotchalkPackageView
+            hotchalkCourseSelect: new HotchalkCourseSelectView
+                                    model: ConverterViewControl.getModel()
 
   ConverterViewControl.register
     key: 'moodle_converter'
@@ -104,6 +116,13 @@ require [
                                    model: ConverterViewControl.getModel()
                                    questionBanks: ENV.QUESTION_BANKS
 
+            dateShift:        new DateShiftView
+                                model: ConverterViewControl.getModel()
+                                collection: daySubCollection
+                                daySubstitution: daySubCollectionView
+                                oldStartDate: ENV.OLD_START_DATE
+                                oldEndDate: ENV.OLD_END_DATE
+
   ConverterViewControl.register
     key: 'canvas_cartridge_importer'
     view: new CanvasExportView
@@ -112,6 +131,13 @@ require [
                                    fileSizeLimit: ENV.UPLOAD_LIMIT
 
             selectContent:       new SelectContentCheckboxView(model: ConverterViewControl.getModel())
+
+            dateShift:        new DateShiftView
+                                model: ConverterViewControl.getModel()
+                                collection: daySubCollection
+                                daySubstitution: daySubCollectionView
+                                oldStartDate: ENV.OLD_START_DATE
+                                oldEndDate: ENV.OLD_END_DATE
 
   ConverterViewControl.register
     key: 'common_cartridge_importer'
@@ -126,6 +152,13 @@ require [
                                    questionBanks: ENV.QUESTION_BANKS
                                    model: ConverterViewControl.getModel()
 
+            dateShift:        new DateShiftView
+                                model: ConverterViewControl.getModel()
+                                collection: daySubCollection
+                                daySubstitution: daySubCollectionView
+                                oldStartDate: ENV.OLD_START_DATE
+                                oldEndDate: ENV.OLD_END_DATE
+
   ConverterViewControl.register
     key: 'qti_converter'
     view: new QTIZipView
@@ -133,4 +166,6 @@ require [
                                    model: ConverterViewControl.getModel()
                                    fileSizeLimit: ENV.UPLOAD_LIMIT
 
+            overwriteAssessmentContent: new OverwriteAssessmentContentView(model: ConverterViewControl.getModel())
             questionBank:        new QuestionBankView(questionBanks: ENV.QUESTION_BANKS)
+

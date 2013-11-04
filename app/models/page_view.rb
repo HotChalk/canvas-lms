@@ -34,14 +34,21 @@ class PageView < ActiveRecord::Base
 
   attr_accessible :url, :user, :controller, :action, :session_id, :developer_key, :user_agent, :real_user, :context
 
+  # note that currently we never query page views from the perspective of the course;
+  # we simply don't record them for non-logged-in users in a public course
+  # if we ever do either of the above, we'll need to remove this, and figure out
+  # where such page views should belong (currently page views end up on the user's
+  # shard)
+  validates_presence_of :user_id
+
   def self.generate(request, attributes={})
     self.new(attributes).tap do |p|
-      p.url = request.url[0,255]
+      p.url = LoggingFilter.filter_uri(request.url)[0,255]
       p.http_method = request.method.to_s
       p.controller = request.path_parameters['controller']
       p.action = request.path_parameters['action']
-      p.session_id = request.session_options[:id]
-      p.user_agent = request.headers['User-Agent']
+      p.session_id = request.session_options[:id].to_s.force_encoding(Encoding::UTF_8).presence
+      p.user_agent = request.user_agent.try(:force_encoding, Encoding::UTF_8)
       p.interaction_seconds = 5
       p.created_at = Time.now
       p.updated_at = Time.now
@@ -55,6 +62,11 @@ class PageView < ActiveRecord::Base
     else
       new{ |p| p.request_id = request_id }
     end
+  end
+
+  def url
+    url = read_attribute(:url)
+    url && LoggingFilter.filter_uri(url)
   end
 
   def ensure_account
@@ -74,7 +86,7 @@ class PageView < ActiveRecord::Base
   end
 
   def self.page_view_method
-    enable_page_views = Shard.current.settings[:page_view_method] || Setting.get_cached('enable_page_views', 'false')
+    enable_page_views = Setting.get_cached('enable_page_views', 'false')
     return false if enable_page_views == 'false'
     enable_page_views = 'db' if enable_page_views == 'true' # backwards compat
     enable_page_views.to_sym
@@ -83,28 +95,21 @@ class PageView < ActiveRecord::Base
   def after_initialize
     # remember the page view method selected at the time of creation, so that
     # we use the right method when saving
-    @page_view_method = self.class.page_view_method
-    if cassandra? && new_record?
+    if PageView.cassandra? && new_record?
       self.shard = Shard.birth
     end
   end
 
-  def page_view_method
-    @page_view_method || self.class.page_view_method
-  end
-  attr_writer :page_view_method
-
   def self.redis_queue?
-    %w(cache cassandra).include?(page_view_method.to_s)
+    self.page_view_method == :cache || (cassandra? && cassandra_uses_redis?)
   end
 
-  # checks the class-level page_view_method
   def self.cassandra?
     self.page_view_method == :cassandra
   end
-  # checks the instance var page_view_method
-  def cassandra?
-    self.page_view_method == :cassandra
+
+  def self.cassandra_uses_redis?
+    Setting.get_cached('page_view_cassandra_uses_redis', 'false') == 'true'
   end
 
   EventStream = ::EventStream.new do
@@ -127,24 +132,24 @@ class PageView < ActiveRecord::Base
   end
 
   def self.find_one(id, options)
-    return super unless cassandra?
+    return super unless PageView.cassandra?
     find_some([id], options).first || raise(ActiveRecord::RecordNotFound, "Couldn't find PageView with ID=#{id}")
   end
 
   def self.find_some(ids, options)
-    return super unless cassandra?
+    return super unless PageView.cassandra?
     raise(NotImplementedError, "options not implemented: #{options.inspect}") if options.present?
     PageView::EventStream.fetch(ids)
   end
 
   def self.find_every(options)
-    return super unless cassandra?
+    return super unless PageView.cassandra?
     raise(NotImplementedError, "find_every not implemented")
   end
 
   def self.from_attributes(attrs, new_record=false)
     @blank_template ||= columns.inject({}) { |h,c| h[c.name] = nil; h }
-    shard = cassandra? ? Shard.birth : Shard.current
+    shard = PageView.cassandra? ? Shard.birth : Shard.current
     page_view = shard.activate do
       if new_record
         new{ |pv| pv.send(:attributes=, attrs, false) }
@@ -152,7 +157,6 @@ class PageView < ActiveRecord::Base
         instantiate(@blank_template.merge(attrs))
       end
     end
-    page_view.page_view_method = :cassandra if cassandra?
     page_view
   end
 
@@ -160,13 +164,17 @@ class PageView < ActiveRecord::Base
     self.created_at ||= Time.zone.now
     return false unless user
 
-    result = case page_view_method
+    result = case PageView.page_view_method
     when :log
       Rails.logger.info "PAGE VIEW: #{self.attributes.to_json}"
-    when :cache, :cassandra
-      json = self.attributes.as_json
-      json['is_update'] = true if self.is_update
-      Canvas.redis.rpush(PageView.cache_queue_name, json.to_json)
+    when :cache
+      self.save_to_redis
+    when :cassandra
+      if PageView.cassandra_uses_redis?
+        self.save_to_redis
+      else
+        self.save
+      end
     when :db
       self.save
     end
@@ -176,10 +184,16 @@ class PageView < ActiveRecord::Base
     result
   end
 
+  def save_to_redis
+    json = self.attributes.as_json
+    json['is_update'] = true if self.is_update
+    Canvas.redis.rpush(PageView.cache_queue_name, json.to_json)
+  end
+
   def do_update(params = {})
     # nothing currently in the block is shard-sensitive, but to prevent
     # accidents in the future, we'll add the correct shard activation now
-    shard = cassandra? ? Shard.default : Shard.current
+    shard = PageView.cassandra? ? Shard.default : Shard.current
     shard.activate do
       updated_at = params['updated_at'] || self.updated_at || Time.now
       updated_at = Time.parse(updated_at) if updated_at.is_a?(String)
@@ -198,17 +212,21 @@ class PageView < ActiveRecord::Base
   end
 
   def create_without_callbacks
-    return super unless cassandra?
-    self.created_at ||= Time.zone.now
-    PageView::EventStream.insert(self)
-    @new_record = false
-    self.id
+    user.shard.activate do
+      return super unless PageView.cassandra?
+      self.created_at ||= Time.zone.now
+      PageView::EventStream.insert(self)
+      @new_record = false
+      self.id
+    end
   end
 
   def update_without_callbacks
-    return super unless cassandra?
-    PageView::EventStream.update(self)
-    true
+    user.shard.activate do
+      return super unless PageView.cassandra?
+      PageView::EventStream.update(self)
+      true
+    end
   end
 
   scope :for_context, proc { |ctx| where(:context_type => ctx.class.name, :context_id => ctx) }
@@ -217,11 +235,16 @@ class PageView < ActiveRecord::Base
   # returns a collection with very limited functionality
   # basically, it responds to #paginate and returns a
   # WillPaginate::Collection-like object
-  def self.for_user(user)
-    if cassandra?
-      PageView::EventStream.for_user(user)
-    else
-      self.where(:user_id => user).order('created_at desc')
+  def self.for_user(user, options={})
+    user.shard.activate do
+      if PageView.cassandra?
+        PageView::EventStream.for_user(user, options)
+      else
+        scope = self.where(:user_id => user).order('created_at desc')
+        scope = scope.where("created_at >= ?", options[:oldest]) if options[:oldest]
+        scope = scope.where("created_at <= ?", options[:newest]) if options[:newest]
+        scope
+      end
     end
   end
 
@@ -279,12 +302,15 @@ class PageView < ActiveRecord::Base
       end
       page_view.save
     end
-  rescue ActiveRecord::StatementInvalid
+  rescue ActiveRecord::StatementInvalid => e
+    logger.error "[CRIT] Failed to record page view!"
+    logger.error "#{e.class}: #{e.message}"
+    e.backtrace.each{ |line| logger.error "\tfrom #{line}" }
   end
 
   class << self
     def transaction_with_cassandra_check(*args)
-      if self.cassandra?
+      if PageView.cassandra?
         yield
       else
         self.transaction_without_cassandra_check(*args) { yield }
@@ -410,7 +436,9 @@ class PageView < ActiveRecord::Base
     end
 
     def cassandra
-      PageView::EventStream.database
+      user.shard.activate do
+        PageView::EventStream.database
+      end
     end
 
     def run

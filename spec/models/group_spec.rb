@@ -430,8 +430,9 @@ describe Group do
   end
 
   it "as_json should include group_category" do
-    group_category = GroupCategory.create(:name => "Something")
-    group = Group.create(:group_category => group_category)
+    course()
+    gc = group_category(name: "Something")
+    group = Group.create(:group_category => gc)
     hash = ActiveSupport::JSON.decode(group.to_json)
     hash["group"]["group_category"].should == "Something"
   end
@@ -551,5 +552,55 @@ describe Group do
       @group.tabs_available(nil).map{|t|t[:id]}.should_not include Group::TAB_CONFERENCES
     end
   end
-  
+
+  describe "quota" do
+    it "should default to Group.default_storage_quota" do
+      @group.quota.should == Group.default_storage_quota
+    end
+
+    it "should be overridden by the account's default_group_storage_quota" do
+      a = @group.account
+      a.default_group_storage_quota = 10.megabytes
+      a.save!
+
+      @group.reload
+      @group.quota.should == 10.megabytes
+    end
+  end
+
+  describe "#draft_state_enabled?" do
+    before(:each) do
+      course_with_teacher(active_all: true)
+      @teacher = @user
+      @course.root_account = Account.create!
+      @course.root_account.settings[:allow_draft] = true
+      @course.root_account.save!
+      @course.save!
+    end
+
+    context "a course with draft_state_enabled" do
+      it "should pass its setting on to its groups" do
+        @course.enable_draft = true
+        @course.save!
+
+        group(group_context: @course).should be_draft_state_enabled
+      end
+    end
+
+    context "an account with draft_state_enabled" do
+      it "should pass its setting on to course groups" do
+        @course.root_account.settings[:enable_draft] = true
+        @course.root_account.save!
+
+        group(group_context: @course).should be_draft_state_enabled
+      end
+
+      it "should pass its setting on to account groups" do
+        @course.root_account.settings[:enable_draft] = true
+        @course.root_account.save!
+
+        group(group_context: @course.root_account).should be_draft_state_enabled
+      end
+    end
+  end
 end

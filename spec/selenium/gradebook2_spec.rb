@@ -461,13 +461,14 @@ describe "gradebook2" do
     end
 
     it "should not include non-graded group assignment in group total" do
+      gc = group_category
       graded_assignment = @course.assignments.create!({
                                                           :title => 'group assignment 1',
                                                           :due_at => (Time.now + 1.week),
                                                           :points_possible => 10,
                                                           :submission_types => 'online_text_entry',
                                                           :assignment_group => @group,
-                                                          :group_category => GroupCategory.create!(:name => 'groups', :context => @course),
+                                                          :group_category => gc,
                                                           :grade_group_students_individually => true
                                                       })
       group_assignment = @course.assignments.create!({
@@ -476,7 +477,7 @@ describe "gradebook2" do
                                                          :points_possible => 0,
                                                          :submission_types => 'not_graded',
                                                          :assignment_group => @group,
-                                                         :group_category => GroupCategory.create!(:name => 'groups', :context => @course),
+                                                         :group_category => gc,
                                                          :grade_group_students_individually => true
                                                      })
       project_group = group_assignment.group_category.groups.create!(:name => 'g1', :context => @course)
@@ -585,12 +586,12 @@ describe "gradebook2" do
       end
     end
 
-    it "should use the late attribute of the submission to determine lateness" do
+    it "should show late submissions" do
       get "/courses/#{@course.id}/gradebook2"
       wait_for_ajaximations
       ff('.late').count.should == 0
 
-      @student_3_submission.write_attribute(:late, true)
+      @student_3_submission.write_attribute(:cached_due_date, 1.week.ago)
       @student_3_submission.save!
       get "/courses/#{@course.id}/gradebook2"
       wait_for_ajaximations

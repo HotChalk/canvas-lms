@@ -76,41 +76,42 @@ module Api::V1::Submission
     hash
   end
 
-  SUBMISSION_JSON_FIELDS = %w(id user_id url score grade attempt submission_type submitted_at body assignment_id graded_at grade_matches_current_submission grader_id workflow_state late).freeze
+  SUBMISSION_JSON_FIELDS = %w(id user_id url score grade attempt submission_type submitted_at body assignment_id graded_at grade_matches_current_submission grader_id workflow_state).freeze
+  SUBMISSION_JSON_METHODS = %w(late).freeze
   SUBMISSION_OTHER_FIELDS = %w(attachments discussion_entries)
 
   def submission_attempt_json(attempt, assignment, user, session, version_idx = nil, context = nil)
     context ||= assignment.context
 
     json_fields = SUBMISSION_JSON_FIELDS
+    json_methods = SUBMISSION_JSON_METHODS.dup # dup because AR#to_json modifies the :methods param in-place
+    other_fields = SUBMISSION_OTHER_FIELDS
+
     if params[:response_fields]
       json_fields = json_fields & params[:response_fields]
-    end
-    if params[:exclude_response_fields]
-      json_fields -= params[:exclude_response_fields]
-    end
-
-    other_fields = SUBMISSION_OTHER_FIELDS
-    if params[:response_fields]
+      json_methods = json_methods & params[:response_fields]
       other_fields = other_fields & params[:response_fields]
     end
     if params[:exclude_response_fields]
+      json_fields -= params[:exclude_response_fields]
+      json_methods -= params[:exclude_response_fields]
       other_fields -= params[:exclude_response_fields]
     end
 
-    hash = api_json(attempt, user, session, :only => json_fields)
+    hash = api_json(attempt, user, session, :only => json_fields, :methods => json_methods)
     if hash['body'].present?
       hash['body'] = api_user_content(hash['body'], context, user)
     end
 
+    preview_args = { 'preview' => '1' }
+    preview_args['version'] = version_idx if version_idx
     hash['preview_url'] = course_assignment_submission_url(
-      context, assignment, attempt[:user_id], 'preview' => '1',
-      'version' => version_idx)
+      context, assignment, attempt[:user_id], preview_args)
 
     unless attempt.media_comment_id.blank?
       hash['media_comment'] = media_comment_json(:media_id => attempt.media_comment_id, :media_type => attempt.media_comment_type)
     end
-    
+
     if attempt.turnitin_data && attempt.grants_right?(@current_user, :view_turnitin_report)
       turnitin_hash = attempt.turnitin_data.dup
       turnitin_hash.delete(:last_processed_attempt)
@@ -121,7 +122,11 @@ module Api::V1::Submission
       attachments = attempt.versioned_attachments.dup
       attachments << attempt.attachment if attempt.attachment && attempt.attachment.context_type == 'Submission' && attempt.attachment.context_id == attempt.id
       hash['attachments'] = attachments.map do |attachment|
-        attachment_json(attachment, user)
+        attachment.skip_submission_attachment_lock_checks = true
+        atjson = attachment_json(attachment, user, {},
+                                 submission_attachment: true)
+        attachment.skip_submission_attachment_lock_checks = false
+        atjson
       end.compact unless attachments.blank?
     end
 

@@ -9,6 +9,7 @@
   <h2><%= @tag.title %></h2>
   <%= lock_explanation({:context_module => @tag.context_module, :asset_string => "content_tag_#{@tag.id}"}, nil, @context) %>
 <% else %>
+  <% if (URI.parse(@tag.url).scheme == 'https') %>
   <ul style="margin-top:0" class="ui-listview ui-listview-no-rounded-bottom">
     <li class="active">
       <span style="font-size:18px; text-align: center; padding: .2em" class="ui-listview-text">
@@ -23,5 +24,10 @@
       </span>
     </li>
   </ul>
+  <% else %>
+    <div style="padding: 3em">
+      <a href="<%= @tag.url %>" target="_blank">Please click here to view <%= @tag.title %></a>.
+    </div>
+  <% end %>
 <% end %>
 <%= render :partial => 'shared/sequence_footer', :locals => {:asset => @tag} %>

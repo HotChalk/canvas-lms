@@ -18,7 +18,7 @@
 
 class LearningOutcomeGroup < ActiveRecord::Base
   include Workflow
-  attr_accessible :context, :title, :description, :learning_outcome_group
+  attr_accessible :context, :title, :description, :learning_outcome_group, :vendor_guid
   belongs_to :learning_outcome_group
   has_many :child_outcome_groups, :class_name => 'LearningOutcomeGroup', :foreign_key => "learning_outcome_group_id"
   has_many :child_outcome_links, :class_name => 'ContentTag', :as => :associated_asset, :conditions => {:tag_type => 'learning_outcome_association', :content_type => 'LearningOutcome'}
@@ -161,6 +161,7 @@ class LearningOutcomeGroup < ActiveRecord::Base
     copy = child_outcome_groups.build
     copy.title = original.title
     copy.description = original.description
+    copy.vendor_guid = original.vendor_guid
     copy.context = self.context
     copy.save!
 
@@ -208,13 +209,21 @@ class LearningOutcomeGroup < ActiveRecord::Base
     group
   end
 
+  attr_accessor :skip_tag_touch
   alias_method :destroy!, :destroy
   def destroy
     transaction do
       # delete the children of the group, both links and subgroups, then delete
       # the group itself
-      self.child_outcome_links.active.includes(:content).each{ |outcome_link| outcome_link.destroy }
-      self.child_outcome_groups.active.each{ |outcome_group| outcome_group.destroy }
+      self.child_outcome_links.active.includes(:content).each do |outcome_link|
+        outcome_link.skip_touch = true if @skip_tag_touch
+        outcome_link.destroy
+      end
+      self.child_outcome_groups.active.each do |outcome_group|
+        outcome_group.skip_tag_touch = true if @skip_tag_touch
+        outcome_group.destroy
+      end
+
       self.workflow_state = 'deleted'
       save!
     end

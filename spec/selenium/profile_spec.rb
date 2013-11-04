@@ -87,7 +87,7 @@ describe "profile" do
       add_email_link
 
       f('#communication_channels a[href="#register_sms_number"]').click
-      replace_content(f('#register_sms_number #communication_channel_address'), 'test@example.com')
+      replace_content(f('#register_sms_number #communication_channel_sms_email'), 'test@example.com')
       f('#register_sms_number button[type="submit"]').should be_displayed
       f('#communication_channels a[href="#register_email_address"]').click
       form = f("#register_email_address")
@@ -296,6 +296,24 @@ describe "profile" do
         profile_pic.should have_attribue('src', image_src)
       end
       Attachment.last.folder.should == @user.profile_pics_folder
+    end
+
+    it "should allow users to choose an avatar from their profile page" do
+      course_with_teacher_logged_in
+
+      account = Account.default
+      account.enable_service('avatars')
+      account.settings[:enable_profiles] = true
+      account.save!
+
+      get "/about/#{@user.to_param}"
+      wait_for_ajaximations
+
+      f('.profile-link').click
+
+      wait_for_ajaximations
+
+      f('#profile_pic_dialog').should_not be_nil
     end
   end
 
