@@ -225,7 +225,7 @@ define([
       padZero(date.getUTCSeconds()) + 'Z'
   }
   $.dateToISO8601 = function(date) {
-    var padZero = function(n) { n < 10 ? '0' + n : n }
+    var padZero = function(n) { return n < 10 ? '0' + n : n; }
     return date.getFullYear() + '-' +
       padZero(date.getMonth() + 1) + '-' +
       padZero(date.getDate()) + 'T' +
