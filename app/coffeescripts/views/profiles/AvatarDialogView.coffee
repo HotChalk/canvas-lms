@@ -159,7 +159,6 @@ define [
           folder_id: ENV.folder_id
           formDataTarget: 'uploadDataUrl'
         object_name: 'attachment'
-        required: ['uploaded_data']
         beforeSubmit: =>
           @addFileButton().prop('disabled', true).text(@messages.addingFile)
           $span  = $('<span class="img"><img alt="" /></span>')
