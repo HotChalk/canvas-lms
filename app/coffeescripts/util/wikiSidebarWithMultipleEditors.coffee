@@ -1,7 +1,6 @@
 define [
   'wikiSidebar'
-  'tinymce.editor_box'
-  'compiled/tinymce'
+  'redactor.editor_box'
 ], (wikiSidebar) ->
 
   $.subscribe 'editorBox/focus', ($editor) ->
