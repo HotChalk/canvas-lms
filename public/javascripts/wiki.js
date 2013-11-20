@@ -24,7 +24,6 @@ define([
   'jquery.instructure_forms' /* formSubmit, formErrors */,
   'jquery.instructure_misc_plugins' /* confirmDelete, fragmentChange, showIf */,
   'jquery.templateData' /* fillTemplateData */,
-  'compiled/tinymce'
 ], function($, wikiSidebar) {
 
   // private variables & methods

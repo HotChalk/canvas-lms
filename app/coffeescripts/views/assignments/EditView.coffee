@@ -12,8 +12,7 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
-  'compiled/tinymce'
-  'tinymce.editor_box'
+  'redactor.editor_box'
   'jqueryui/dialog'
   'jquery.toJSON'
   'compiled/jquery.rails_flash_notifications',
