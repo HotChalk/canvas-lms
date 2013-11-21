@@ -1,11 +1,12 @@
 /*!
- * jQuery UI Selectable @VERSION
+ * jQuery UI Selectable 1.9.2
+ * http://jqueryui.com
  *
- * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
- * Dual licensed under the MIT or GPL Version 2 licenses.
+ * Copyright 2012 jQuery Foundation and other contributors
+ * Released under the MIT license.
  * http://jquery.org/license
  *
- * http://docs.jquery.com/UI/Selectables
+ * http://api.jqueryui.com/selectable/
  *
  * Depends:
  *	jquery.ui.core.js
@@ -20,7 +21,7 @@ define([
 ], function( $ ) {
 
 $.widget("ui.selectable", $.ui.mouse, {
-	version: "@VERSION",
+	version: "1.9.2",
 	options: {
 		appendTo: 'body',
 		autoRefresh: true,
