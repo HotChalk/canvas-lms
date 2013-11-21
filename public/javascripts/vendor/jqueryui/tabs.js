@@ -1,11 +1,12 @@
 /*!
- * jQuery UI Tabs @VERSION
+ * jQuery UI Tabs 1.9.2
+ * http://jqueryui.com
  *
- * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
- * Dual licensed under the MIT or GPL Version 2 licenses.
+ * Copyright 2012 jQuery Foundation and other contributors
+ * Released under the MIT license.
  * http://jquery.org/license
  *
- * http://docs.jquery.com/UI/Tabs
+ * http://api.jqueryui.com/tabs/
  *
  * Depends:
  *	jquery.ui.core.js
@@ -16,7 +17,7 @@ define([
   'jqueryui/core',
   'jqueryui/widget'
 ], function( $ ) {
-  
+
 var tabId = 0,
 	rhash = /#.*$/;
 
@@ -25,15 +26,17 @@ function getNextTabId() {
 }
 
 function isLocal( anchor ) {
-	// clone the node to work around IE 6 not normalizing the href property
-	// if it's manually set, i.e., a.href = "#foo" kills the normalization
-	anchor = anchor.cloneNode( false );
 	return anchor.hash.length > 1 &&
-		anchor.href.replace( rhash, "" ) === location.href.replace( rhash, "" );
+		anchor.href.replace( rhash, "" ) ===
+			location.href.replace( rhash, "" )
+				// support: Safari 5.1
+				// Safari 5.1 doesn't encode spaces in window.location
+				// but it does encode spaces from anchors (#8777)
+				.replace( /\s/g, "%20" );
 }
 
 $.widget( "ui.tabs", {
-	version: "@VERSION",
+	version: "1.9.2",
 	delay: 300,
 	options: {
 		active: null,
@@ -51,10 +54,10 @@ $.widget( "ui.tabs", {
 	},
 
 	_create: function() {
-		var panel,
-			that = this,
+		var that = this,
 			options = this.options,
-			active = options.active;
+			active = options.active,
+			locationHash = location.hash.substring( 1 );
 
 		this.running = false;
 
@@ -83,9 +86,9 @@ $.widget( "ui.tabs", {
 
 		if ( active === null ) {
 			// check the fragment identifier in the URL
-			if ( location.hash ) {
-				this.anchors.each(function( i, anchor ) {
-					if ( anchor.hash === location.hash ) {
+			if ( locationHash ) {
+				this.tabs.each(function( i, tab ) {
+					if ( $( tab ).attr( "aria-controls" ) === locationHash ) {
 						active = i;
 						return false;
 					}
@@ -94,7 +97,7 @@ $.widget( "ui.tabs", {
 
 			// check for a tab marked active via a class
 			if ( active === null ) {
-				active = this.tabs.filter( ".ui-tabs-active" ).index();
+				active = this.tabs.index( this.tabs.filter( ".ui-tabs-active" ) );
 			}
 
 			// no active tab, set to false
@@ -105,7 +108,7 @@ $.widget( "ui.tabs", {
 
 		// handle numbers: negative, out of range
 		if ( active !== false ) {
-			active = this.tabs.eq( active ).index();
+			active = this.tabs.index( this.tabs.eq( active ) );
 			if ( active === -1 ) {
 				active = options.collapsible ? false : 0;
 			}
@@ -300,8 +303,7 @@ $.widget( "ui.tabs", {
 	},
 
 	refresh: function() {
-		var next,
-			options = this.options,
+		var options = this.options,
 			lis = this.tablist.children( ":has(a[href])" );
 
 		// get disabled tabs from class attribute from HTML
@@ -729,6 +731,8 @@ $.widget( "ui.tabs", {
 			}
 		});
 
+		this.panels.show();
+
 		if ( this.options.heightStyle !== "content" ) {
 			this.panels.css( "height", "" );
 		}
@@ -795,13 +799,7 @@ $.widget( "ui.tabs", {
 			return;
 		}
 
-		this.xhr = $.ajax({
-			url: anchor.attr( "href" ),
-			beforeSend: function( jqXHR, settings ) {
-				return that._trigger( "beforeLoad", event,
-					$.extend( { jqXHR : jqXHR, ajaxSettings: settings }, eventData ) );
-			}
-		});
+		this.xhr = $.ajax( this._ajaxSettings( anchor, event, eventData ) );
 
 		// support: jQuery <1.8
 		// jQuery <1.8 returns false if the request is canceled in beforeSend,
@@ -838,6 +836,18 @@ $.widget( "ui.tabs", {
 		}
 	},
 
+	// TODO: Remove this function in 1.10 when ajaxOptions is removed
+	_ajaxSettings: function( anchor, event, eventData ) {
+		var that = this;
+		return {
+			url: anchor.attr( "href" ),
+			beforeSend: function( jqXHR, settings ) {
+				return that._trigger( "beforeLoad", event,
+					$.extend( { jqXHR : jqXHR, ajaxSettings: settings }, eventData ) );
+			}
+		};
+	},
+
 	_getPanelForTab: function( tab ) {
 		var id = $( tab ).attr( "aria-controls" );
 		return this.element.find( this._sanitizeSelector( "#" + id ) );
@@ -863,6 +873,7 @@ if ( $.uiBackCompat !== false ) {
 		}
 	});
 
+	// TODO: Remove _ajaxSettings() method when removing this extension
 	// ajaxOptions and cache options
 	$.widget( "ui.tabs", $.ui.tabs, {
 		options: {
@@ -882,25 +893,29 @@ if ( $.uiBackCompat !== false ) {
 					return;
 				}
 
-				$.extend( ui.ajaxSettings, that.options.ajaxOptions, {
-					error: function( xhr, s, e ) {
-						try {
-							// Passing index avoid a race condition when this method is
-							// called after the user has selected another tab.
-							// Pass the anchor that initiated this request allows
-							// loadError to manipulate the tab content panel via $(a.hash)
-							that.options.ajaxOptions.error( xhr, s, ui.tab.closest( "li" ).index(), ui.tab[ 0 ] );
-						}
-						catch ( e ) {}
-					}
-				});
-
 				ui.jqXHR.success(function() {
 					if ( that.options.cache ) {
 						$.data( ui.tab[ 0 ], "cache.tabs", true );
 					}
 				});
 			}});
+		},
+
+		_ajaxSettings: function( anchor, event, ui ) {
+			var ajaxOptions = this.options.ajaxOptions;
+			return $.extend( {}, ajaxOptions, {
+				error: function( xhr, status ) {
+					try {
+						// Passing index avoid a race condition when this method is
+						// called after the user has selected another tab.
+						// Pass the anchor that initiated this request allows
+						// loadError to manipulate the tab content panel via $(a.hash)
+						ajaxOptions.error(
+							xhr, status, ui.tab.closest( "li" ).index(), ui.tab[ 0 ] );
+					}
+					catch ( error ) {}
+				}
+			}, this._superApply( arguments ) );
 		},
 
 		_setOption: function( key, value ) {
@@ -916,7 +931,7 @@ if ( $.uiBackCompat !== false ) {
 			this._super();
 		},
 
-		url: function( index, url ){
+		url: function( index ){
 			this.anchors.eq( index ).removeData( "cache.tabs" );
 			this._superApply( arguments );
 		}
@@ -940,7 +955,9 @@ if ( $.uiBackCompat !== false ) {
 			this._super();
 			this._on({
 				tabsbeforeload: function( event, ui ) {
-					if ( !this.options.spinner ) {
+					// Don't react to nested tabs or tabs that don't use a spinner
+					if ( event.target !== this.element[ 0 ] ||
+							!this.options.spinner ) {
 						return;
 					}
 
@@ -1150,7 +1167,7 @@ if ( $.uiBackCompat !== false ) {
 			}
 		},
 
-		_eventHandler: function( event ) {
+		_eventHandler: function() {
 			this._superApply( arguments );
 			this.options.selected = this.options.active;
 			if ( this.options.selected === false ) {
@@ -1174,15 +1191,20 @@ if ( $.uiBackCompat !== false ) {
 			}
 		},
 		_trigger: function( type, event, data ) {
-			var ret = this._superApply( arguments );
+			var tab, panel,
+				ret = this._superApply( arguments );
+
 			if ( !ret ) {
 				return false;
 			}
-			if ( type === "beforeActivate" && data.newTab.length ) {
+
+			if ( type === "beforeActivate" ) {
+				tab = data.newTab.length ? data.newTab : data.oldTab;
+				panel = data.newPanel.length ? data.newPanel : data.oldPanel;
 				ret = this._super( "select", event, {
-					tab: data.newTab.find( ".ui-tabs-anchor" )[ 0],
-					panel: data.newPanel[ 0 ],
-					index: data.newTab.closest( "li" ).index()
+					tab: tab.find( ".ui-tabs-anchor" )[ 0],
+					panel: panel[ 0 ],
+					index: tab.closest( "li" ).index()
 				});
 			} else if ( type === "activate" && data.newTab.length ) {
 				ret = this._super( "show", event, {
@@ -1246,7 +1268,7 @@ if ( $.uiBackCompat !== false ) {
 				this._cookie( this.options.active, this.options.cookie );
 			}
 		},
-		_eventHandler: function( event ) {
+		_eventHandler: function() {
 			this._superApply( arguments );
 			if ( this.options.cookie ) {
 				this._cookie( this.options.active, this.options.cookie );
