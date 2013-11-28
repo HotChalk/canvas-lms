@@ -27,12 +27,19 @@ class EnrollmentTerm < ActiveRecord::Base
   has_many :courses
   has_many :enrollments, :through => :courses
   has_many :course_sections
+  validate :end_at_date_cannot_be_before_start_at_date
   validates_presence_of :root_account_id, :workflow_state
   before_validation :verify_unique_sis_source_id
   before_save :update_courses_later_if_necessary
 
   include StickySisFields
   are_sis_sticky :name, :start_at, :end_at
+
+  def end_at_date_cannot_be_before_start_at_date
+    if self.end_at && self.start_at && (self.end_at < self.start_at)
+      errors.add(:end_at, "To date can't be before the from date")
+    end
+  end
 
   def update_courses_later_if_necessary
     self.update_courses_later if !self.new_record? && (self.start_at_changed? || self.end_at_changed?)
