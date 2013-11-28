@@ -43,6 +43,11 @@ define([
   'compiled/bundles/redactor'
 ], function(I18nObj, $) {
 
+  var enableBookmarking = $("body").hasClass('ie');
+  $(document).ready(function() {
+    enableBookmarking = $("body").hasClass('ie');
+  });
+
   function EditorBoxList() {
     this._textareas = {};
     this._editors = {};
@@ -80,9 +85,18 @@ define([
 
   var $instructureEditorBoxList = new EditorBoxList();
 
+  var _imageCallback = function(buttonName, buttonDOM, buttonObject) {
+    var editor = this;
+    var selectedNode = this.getCurrent();
+    require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
+      new InsertUpdateImageView(editor, selectedNode);
+    });
+  };
+
   function EditorBox(id, search_url, submit_url, content_url, options) {
     options = $.extend({}, options);
     var $textarea = $("#" + id);
+    $textarea.data('enable_bookmarking', enableBookmarking);
     this._id = id;
     this._searchURL = search_url;
     this._submitURL = submit_url;
@@ -90,6 +104,19 @@ define([
 
     var redactorOptions = $.extend({
       autoresize: false,
+      buttons: ['html', '|', 'formatting', '|',
+          'bold', 'italic', 'underline', 'deleted', '|',
+          'alignleft', 'aligncenter', 'alignright', '|',
+          'unorderedlist', 'orderedlist', 'outdent', 'indent', '|',
+          'image', 'video', 'file', 'table', 'link', '|',
+          'horizontalrule'],
+      buttonsCustom: {
+        image: {
+          title: 'Insert Image',
+          callback: _imageCallback
+        }
+      },
+      formattingTags: ['p', 'blockquote', 'pre', 'h2', 'h3', 'h4'],
       minHeight: 150
     }, options.redactorOptions || {});
 
@@ -427,17 +454,17 @@ define([
     }
     classes = $.unique(classes.split(/\s+/)).join(" ");
     var selectionText = "";
+    var editor = $instructureEditorBoxList._getEditor(id);
     if(enableBookmarking && this.data('last_bookmark')) {
       tinyMCE.get(id).selection.moveToBookmark(this.data('last_bookmark'));
     }
-    var selection = tinyMCE.get(id).selection;
-    var anchor = selection.getNode();
+    var anchor = editor.getCurrent();
     while(anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
       anchor = anchor.parentNode;
     }
     if(anchor.nodeName != 'A') { anchor = null; }
 
-    var selectedContent = selection.getContent();
+    var selectedContent = editor.getSelectionText();
     if(!$instructureEditorBoxList._getEditor(id)) {
       selectionText = defaultText;
       var $div = $("<div><a/></div>");
