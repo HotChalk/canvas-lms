@@ -1,11 +1,12 @@
 /*!
- * jQuery UI Autocomplete @VERSION
+ * jQuery UI Autocomplete 1.9.2
+ * http://jqueryui.com
  *
- * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
- * Dual licensed under the MIT or GPL Version 2 licenses.
+ * Copyright 2012 jQuery Foundation and other contributors
+ * Released under the MIT license.
  * http://jquery.org/license
  *
- * http://docs.jquery.com/UI/Autocomplete
+ * http://api.jqueryui.com/autocomplete/
  *
  * Depends:
  *	jquery.ui.core.js
@@ -25,7 +26,7 @@ define([
 var requestIndex = 0;
 
 $.widget( "ui.autocomplete", {
-	version: "@VERSION",
+	version: "1.9.2",
 	defaultElement: "<input>",
 	options: {
 		appendTo: "body",
@@ -69,7 +70,7 @@ $.widget( "ui.autocomplete", {
 			.addClass( "ui-autocomplete-input" )
 			.attr( "autocomplete", "off" );
 
-		this._on({
+		this._on( this.element, {
 			keydown: function( event ) {
 				if ( this.element.prop( "readOnly" ) ) {
 					suppressKeyPress = true;
@@ -159,7 +160,7 @@ $.widget( "ui.autocomplete", {
 					break;
 				}
 			},
-			input: function( event ) {
+			input: function( event ) {
 				if ( suppressInput ) {
 					suppressInput = false;
 					event.preventDefault();
@@ -196,6 +197,7 @@ $.widget( "ui.autocomplete", {
 			.zIndex( this.element.zIndex() + 1 )
 			.hide()
 			.data( "menu" );
+
 		this._on( this.menu.element, {
 			mousedown: function( event ) {
 				// prevent moving focus out of the text field
@@ -297,7 +299,7 @@ $.widget( "ui.autocomplete", {
 			.insertAfter( this.element );
 
 		if ( $.fn.bgiframe ) {
-			 this.menu.element.bgiframe();
+			this.menu.element.bgiframe();
 		}
 
 		// turning off autocomplete prevents the browser from remembering the
@@ -364,7 +366,7 @@ $.widget( "ui.autocomplete", {
 					url: url,
 					data: request,
 					dataType: "json",
-					success: function( data, status ) {
+					success: function( data ) {
 						response( data );
 					},
 					error: function() {
@@ -487,8 +489,6 @@ $.widget( "ui.autocomplete", {
 			.empty()
 			.zIndex( this.element.zIndex() + 1 );
 		this._renderMenu( ul, items );
-		// TODO refresh should check if the active item is still in the dom, removing the need for a manual blur
-		this.menu.blur();
 		this.menu.refresh();
 
 		// size and position menu
@@ -548,7 +548,7 @@ $.widget( "ui.autocomplete", {
 		return this.menu.element;
 	},
 
-	_value: function( value ) {
+	_value: function() {
 		return this.valueMethod.apply( this.element, arguments );
 	},
 
@@ -582,7 +582,7 @@ $.widget( "ui.autocomplete", $.ui.autocomplete, {
 	options: {
 		messages: {
 			noResults: "No search results.",
-			results: function(amount) {
+			results: function( amount ) {
 				return amount + ( amount > 1 ? " results are" : " result is" ) +
 					" available, use up and down arrow keys to navigate.";
 			}
@@ -592,7 +592,7 @@ $.widget( "ui.autocomplete", $.ui.autocomplete, {
 	__response: function( content ) {
 		var message;
 		this._superApply( arguments );
-		if ( this.options.disabled || this.cancelSearch) {
+		if ( this.options.disabled || this.cancelSearch ) {
 			return;
 		}
 		if ( content && content.length ) {

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-define(['vendor/jquery-1.7.2'], function($) {
+define(['vendor/jquery-1.8.3'], function($) {
 
   // This is so that if you disable an element, that it also gives it the class disabled.
   // that way you can add css classes for our friend IE6. so rather than using selector:disabled,
