@@ -18,23 +18,24 @@
 
 class TermsController < ApplicationController
   before_filter :require_context, :require_root_account_management
+
   def index
     @root_account = @context.root_account
     @context.default_enrollment_term
-    @terms = @context.enrollment_terms.active.sort_by{|t| t.start_at || t.created_at }.reverse
+    @terms = @context.enrollment_terms.active.sort_by { |t| t.start_at || t.created_at }.reverse
   end
-  
+
   def create
     overrides = params[:enrollment_term].delete(:overrides) rescue nil
     @term = @context.enrollment_terms.active.build(params[:enrollment_term])
-    if @term.save
-      @term.set_overrides(@context, overrides)
+    @term.set_overrides(@context, overrides)
+    if @term.errors.empty? && @term.save
       render :json => @term.as_json(:include => :enrollment_dates_overrides)
     else
       render :json => @term.errors, :status => :bad_request
     end
   end
-  
+
   def update
     overrides = params[:enrollment_term].delete(:overrides) rescue nil
     @term = @context.enrollment_terms.active.find(params[:id])
@@ -48,14 +49,14 @@ class TermsController < ApplicationController
         end
       end
     end
-    if @term.update_attributes(params[:enrollment_term])
-      @term.set_overrides(@context, overrides)
+    @term.set_overrides(@context, overrides)
+    if @term.errors.empty? && @term.update_attributes(params[:enrollment_term])
       render :json => @term.as_json(:include => :enrollment_dates_overrides)
     else
       render :json => @term.errors, :status => :bad_request
     end
   end
-  
+
   def destroy
     @term = @context.enrollment_terms.find(params[:id])
     @term.destroy
