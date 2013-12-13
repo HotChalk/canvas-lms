@@ -361,7 +361,16 @@ module ApplicationHelper
           class_name += ' active' if @active_tab == tab[:css_class]
           html << "<li class='section #{"section-tab-hidden" if hide }'>" + link_to(tab[:label], path, :class => class_name) + "</li>" if tab[:href]
         end
-        html << "</ul></nav>"
+        html << '</ul>'
+        tabs = []
+        if @context.respond_to?(:dynamic_tabs)
+          tabs = @context.dynamic_tabs() || []
+        end
+        html << '<ul id="dynamic-tabs">'
+        tabs.each do |tab|
+          html << "<li class='section'>" + link_to(tab[:label], tab[:href]) + "</li>" if tab[:href]
+        end
+        html << '</ul></nav>'
         html.join("")
       end
     end
@@ -379,6 +388,10 @@ module ApplicationHelper
         tab[:id] != (@context.class::TAB_SETTINGS rescue nil)
       end
     end
+  end
+
+  def dynamic_tabs
+    @context.dynamic_tabs()
   end
 
   def embedded_chat_quicklaunch_params

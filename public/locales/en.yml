@@ -12396,6 +12396,13 @@ en:
       add_item_to_module: "Add Item to Module"
       find_links_using_service: "Find links using %{service}"
   selected_answer: "You selected this answer."
+  link_content_dialog:
+    buttons:
+      add_link: "Add Link"
+    errors:
+      loading_failed: "Loading Failed"
+    titles:
+      add_link: "Add Link"
   self_enrollments: 
     already_enrolled: 
       already_enrolled: "You are already enrolled in **%{course}**."
