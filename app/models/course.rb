@@ -64,6 +64,7 @@ class Course < ActiveRecord::Base
                   :public_syllabus
 
   serialize :tab_configuration
+  serialize :dynamic_tab_configuration
   serialize :settings, Hash
   belongs_to :root_account, :class_name => 'Account'
   belongs_to :abstract_course
@@ -645,6 +646,7 @@ class Course < ActiveRecord::Base
 
   def assert_defaults
     self.tab_configuration ||= [] unless self.tab_configuration == []
+    self.dynamic_tab_configuration ||= [] unless self.dynamic_tab_configuration == []
     self.name = nil if self.name && self.name.strip.empty?
     self.name ||= t('missing_name', "Unnamed Course")
     self.course_code = nil if self.course_code == "" || (self.name_changed? && self.course_code && self.name_was && self.name_was.start_with?(self.course_code))
@@ -2690,6 +2692,10 @@ class Course < ActiveRecord::Base
     super.map {|h| h.with_indifferent_access } rescue []
   end
 
+  def dynamic_tab_configuration
+    super.map {|h| h.with_indifferent_access } rescue []
+  end
+
   TAB_HOME = 0
   TAB_SYLLABUS = 1
   TAB_PAGES = 2
@@ -2749,6 +2755,36 @@ class Course < ActiveRecord::Base
         :hidden => tool.course_navigation(:default) == 'disabled',
         :args => [self.id, tool.id]
      }
+    end
+  end
+
+  def dynamic_tab_url(context_type, context_id)
+    base_path = "/courses/#{self.id}"
+    case context_type
+      when 'assignment'
+        return "#{base_path}/assignments/#{context_id}"
+      when 'quiz'
+        return "#{base_path}/quizzes/#{context_id}"
+      when 'discussion_topic'
+        return "#{base_path}/discussion_topics/#{context_id}"
+      when 'wiki_page'
+        wiki_page = self.wiki.wiki_pages.find_by_id(context_id)
+        return "#{base_path}/wiki/#{wiki_page.url}"
+      when 'module_item'
+        return "#{base_path}/modules/items/#{context_id}"
+      else
+        return nil
+    end
+  end
+
+  def dynamic_tabs()
+    self.dynamic_tab_configuration.map do |link|
+      {
+        :context_type => link[:context_type],
+        :context_id => link[:context_id],
+        :label => link[:label],
+        :href => dynamic_tab_url(link[:context_type], link[:context_id])
+      }
     end
   end
 

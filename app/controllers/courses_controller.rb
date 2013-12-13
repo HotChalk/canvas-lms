@@ -763,6 +763,7 @@ class CoursesController < ApplicationController
     get_context
     if authorized_action(@context, @current_user, :update)
       @context.tab_configuration = JSON.parse(params[:tabs_json])
+      @context.dynamic_tab_configuration = JSON.parse(params[:dynamic_tabs_json])
       @context.save
       respond_to do |format|
         format.html { redirect_to named_context_url(@context, :context_details_url) }

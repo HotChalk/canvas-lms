@@ -406,6 +406,7 @@ Unpublished content may not be available if Draft State is disabled.
 
     <% form_tag context_url(@context, :context_update_nav_url), {:id => "nav_form", :title => t('titles.edit_navigation', "Edit Course Navigation") } do %>
       <input type="hidden" name="tabs_json" id="tabs_json" value="[]" />
+      <input type="hidden" name="dynamic_tabs_json" id="dynamic_tabs_json" value="[]" />
       <% tabs = sortable_tabs %>
       <p style="margin-bottom: 4px; padding-top: 10px">
         <%= t('help.edit_navigation', %{Drag and drop items to reorder them in the course navigation.}) %>
@@ -431,7 +432,21 @@ Unpublished content may not be available if Draft State is disabled.
           <li aria-label="<%= tab[:label] %>" class="navitem enabled" id="nav_edit_tab_id_<%= tab[:id] %>" tabindex="0"><%= tab[:label] %><span class="disabled_message"><%= tab[:disabled_message] %></span></li>
         <% end %>
       </ul>
-
+      <% tabs = dynamic_tabs %>
+      <%= render :partial => "shared/link_content_dialog", :only => [:assignments, :quizzes, :discussion_topics, :wiki_pages] %>
+      <p style="margin-bottom: 4px; padding-top: 10px">
+        Add extra navigation links for items in this course.
+      </p>
+      <button class="btn btn-small add_page_link">Add Navigation Link</button>
+      <ul id="nav_dynamic_list" aria-label="Dynamic Links" class="nav_list connectedSortable">
+        <% tabs.each do |tab|  %>
+          <li aria-label="<%= tab[:label] %>" class="navitem enabled links" id="nav_dynamic_tab_id_<%= tab[:context_type] %>_<%= tab[:context_id] %>" tabindex="0"><%= tab[:label] %>
+            <div class='links'>
+              <a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screen-reader-text'>Delete</span></a>
+            </div>
+          </li>
+        <% end %>
+      </ul>
       <p>
         <button type="submit" class="btn btn-primary"><%= t('#buttons.save', %{Save}) %></button>
       </p>
