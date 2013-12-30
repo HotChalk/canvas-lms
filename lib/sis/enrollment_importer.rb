@@ -244,7 +244,7 @@ module SIS
               courses_to_recache_due_dates << enrollment.course_id if enrollment.workflow_state_changed?
               enrollment.sis_batch_id = @batch_id if @batch_id
               begin
-                enrollment.save_without_broadcasting!
+                enrollment.save!
               rescue ActiveRecord::RecordInvalid
                 msg = "An enrollment did not pass validation "
                 msg += "(" + "course: #{course_id}, section: #{section_id}, "
