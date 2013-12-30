@@ -128,8 +128,8 @@ class Enrollment < ActiveRecord::Base
     p.whenever { |record|
       !record.self_enrolled and
       record.course &&
-      !record.course.created? &&
-      record.just_created && record.active?
+      record.course.available? &&
+      record.active?
     }
 
     p.dispatch :enrollment_accepted

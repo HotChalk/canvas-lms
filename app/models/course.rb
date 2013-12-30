@@ -822,7 +822,14 @@ class Course < ActiveRecord::Base
 
   def do_offer
     self.start_at ||= Time.now
+    send_later_if_production(:touch_enrollments)
     send_later_if_production(:invite_uninvited_students)
+  end
+
+  def touch_enrollments
+    self.enrollments.each do |e|
+      e.touch
+    end
   end
 
   def invite_uninvited_students
