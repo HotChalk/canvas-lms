@@ -40,6 +40,12 @@ class ProfileController < ApplicationController
     end
 
     @user ||= @current_user
+    @channels = @user.communication_channels.unretired
+    @email_channels = @channels.select{|c| c.path_type == "email"}
+    @sms_channels = @channels.select{|c| c.path_type == 'sms'}
+    @other_channels = @channels.select{|c| c.path_type != "email"}
+    @default_email_channel = @email_channels.first
+
     @active_tab = "profile"
     @context = @user.profile if @user == @current_user
 

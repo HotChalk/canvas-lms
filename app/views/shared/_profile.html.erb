@@ -1,6 +1,6 @@
 <%
   jammit_css :profile_show, :redactor
-  js_bundle :profile_show
+  js_bundle :profile_show, :profile
   @body_classes << 'not-editing'
   js_env PROFILE: @user_data
   js_env(folder_id: @user.profile_pics_folder.id) if @user == @current_user
