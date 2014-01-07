@@ -4,7 +4,9 @@
 
 <% content_for :right_side do %>
   <% if @current_user.registered? %>
-  <%= render :partial => "ways_to_contact" %>
+  <% unless @domain_root_account.enable_profiles? %>
+    <%= render :partial => "ways_to_contact" %>
+  <% end %>
   <div class="rs-margin-lr">
     <hr />
     <a href="#" class="edit_settings_link btn button-sidebar-wide"><i class="icon-edit"></i> <%= t('links.edit_settings', "Edit Settings") %></a>
