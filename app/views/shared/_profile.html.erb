@@ -25,6 +25,18 @@
         <label class="show-if-editing"><%= t('name', 'Name') %>: <br><input type="text" name="user[short_name]" value="<%= @user_data[:short_name] %>" required></label>
       <% end %>
       <p>
+        <span class="hide-if-editing"><%= @user_data[:short_name] %></span>
+        <% if @user_data[:can_edit] %>
+            <label class="show-if-editing"><%= t('short_name', 'Short Name') %>: <br><input type="text" name="user_profile[short_name]" value="<%= @user_data[:short_name] %>"></label>
+        <% end %>
+      </p>
+      <p>
+        <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
+        <% if @user_data[:can_edit] %>
+            <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>"></label>
+        <% end %>
+      </p>
+      <p>
         <span class="hide-if-editing"><%= @user_data[:title] %></span>
         <% if @user_data[:can_edit] %>
           <label class="show-if-editing"><%= t('title', 'Title') %>: <br><input type="text" name="user_profile[title]" value="<%= @user_data[:title] %>"></label>
