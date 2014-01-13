@@ -172,9 +172,23 @@ class Assignment < ActiveRecord::Base
               :validate_assignment_overrides,
               :update_cached_due_dates
 
+  after_create :create_submissions_for_complete_incomplete_type
+
   has_a_broadcast_policy
 
   after_save :remove_assignment_updated_flag # this needs to be after has_a_broadcast_policy for the message to be sent
+
+  def create_submissions_for_complete_incomplete_type
+    #Check if assignment is complete/incomplete (pass_fail) type
+    if self.grading_type == 'pass_fail' && self.points_possible == 0.0 && self.context_type == 'Course'
+      StudentEnrollment.where(:course_id => self.context_id).each do |se|
+        submission = self.find_or_create_submission(se.user_id)
+        submission.grade = 'complete'
+        submission.score = 0.0
+        submission.save
+      end
+    end
+  end
 
   def validate_assignment_overrides
     if group_category_id_changed?
