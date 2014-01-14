@@ -110,7 +110,7 @@ define([
           var $module = $(this);
           var id = $module.find(".header").getTemplateData({textValues: ['id']});
           var data = {progression_complete_count: 0, progression_started_count: 0};
-          $("#progression_list .progression_" + id).each(function() {
+          $("#progression_list .progression_" + id.id).each(function() {
             var state = $(this).getTemplateData({textValues: ['workflow_state']}).workflow_state;
             if(state == 'completed') {
               data.progression_complete_count++;
@@ -222,7 +222,11 @@ define([
             $context_module_item = $("#context_module_item_" + id);
             var data = {};
             if (info["points_possible"] != null) {
-              data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "<span class='points_possible_block'>" + info["points_possible"] + "</span>" });
+                if(info["actual_points"] != null) {
+                    data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "<span class='points_possible_block'>" + info["actual_points"] + "/" + info["points_possible"] + "</span>" });
+                } else {
+                    data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "<span class='points_possible_block'>" + info["points_possible"] + "</span>" });
+                }
             }
             if (info["due_date"] != null) {
               data["due_date_display"] = $.parseFromISO(info["due_date"]).date_formatted
