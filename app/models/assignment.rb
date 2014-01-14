@@ -421,6 +421,20 @@ class Assignment < ActiveRecord::Base
 
   def context_module_tag_info(user)
     tag_info = {:points_possible => self.points_possible}
+    submission = Submission.find_by_user_id_and_assignment_id(user.id, self.id)
+    if submission
+      if self.grading_type == 'points'
+        tag_info[:actual_points] = submission.score
+      elsif self.grading_type == 'pass_fail'
+        if submission.grade == 'complete'
+          tag_info[:actual_points] = self.points_possible
+        else
+          tag_info[:actual_points] = 0
+        end
+      end
+    else
+      tag_info[:actual_points] = nil
+    end
     if self.multiple_due_dates_apply_to?(user)
       tag_info[:vdd_tooltip] = OverrideTooltipPresenter.new(self, user).as_json
     else
