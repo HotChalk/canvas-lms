@@ -29,7 +29,8 @@ class DiscussionTopic < ActiveRecord::Base
 
   attr_accessible :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
-    :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked
+    :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked,
+    :grade_replies_separately, :reply_assignment
 
   module DiscussionTypes
     SIDE_COMMENT = 'side_comment'
@@ -49,6 +50,7 @@ class DiscussionTopic < ActiveRecord::Base
   belongs_to :assignment
   belongs_to :editor, :class_name => 'User'
   belongs_to :old_assignment, :class_name => 'Assignment'
+  belongs_to :reply_assignment, :class_name => 'Assignment'
   belongs_to :root_topic, :class_name => 'DiscussionTopic'
   has_many :child_topics, :class_name => 'DiscussionTopic', :foreign_key => :root_topic_id, :dependent => :destroy
   has_many :discussion_topic_participants, :dependent => :destroy
@@ -68,6 +70,7 @@ class DiscussionTopic < ActiveRecord::Base
   before_save :default_values
   before_save :set_schedule_delayed_transitions
   after_save :update_assignment
+  after_save :update_reply_assignment
   after_save :update_subtopics
   after_save :touch_context
   after_save :schedule_delayed_transitions
@@ -192,6 +195,19 @@ class DiscussionTopic < ActiveRecord::Base
     end
   end
   protected :update_assignment
+
+  def update_reply_assignment
+    return if self.deleted?
+    if self.grade_replies_separately && self.reply_assignment && @saved_by != :assignment && !self.root_topic_id
+      self.reply_assignment.title = "Reply To: #{self.title}"
+      self.reply_assignment.description = self.message
+      self.reply_assignment.submission_types = "discussion_topic"
+      self.reply_assignment.saved_by = :discussion_topic
+      self.reply_assignment.workflow_state = 'published' if self.reply_assignment.deleted?
+      self.reply_assignment.save
+    end
+  end
+  protected :update_reply_assignment
 
   def restore_old_assignment
     return nil unless self.old_assignment && self.old_assignment.deleted?
@@ -781,6 +797,13 @@ class DiscussionTopic < ActiveRecord::Base
     submission = Submission.find_by_assignment_id_and_user_id(self.assignment_id, user.id)
     return if submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
     self.assignment.submit_homework(user, :submission_type => 'discussion_topic')
+  end
+
+  def ensure_submission_for_reply(user)
+    return unless assignment.grants_right?(user, :submit)
+    submission = Submission.find_by_assignment_id_and_user_id(self.reply_assignment_id, user.id)
+    return if submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
+    self.reply_assignment.submit_homework(user, :submission_type => 'discussion_topic')
   end
 
   has_a_broadcast_policy

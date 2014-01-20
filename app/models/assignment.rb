@@ -388,7 +388,7 @@ class Assignment < ActiveRecord::Base
         quiz.workflow_state = published? ? 'available' : 'unpublished'
       end
       quiz.save if quiz.changed?
-    elsif self.submission_types == "discussion_topic" && @saved_by != :discussion_topic
+    elsif self.submission_types == "discussion_topic" && @saved_by != :discussion_topic && !reply_assignment?
       topic = self.discussion_topic || self.context.discussion_topics.build(:user => @updating_user)
       topic.assignment_id = self.id
       topic.title = self.title
@@ -1900,6 +1900,10 @@ class Assignment < ActiveRecord::Base
     else
       raise "Assignment#available? is deprecated. Use #published?"
     end
+  end
+  
+  def reply_assignment?
+    self.submission_types == "discussion_topic" && DiscussionTopic.find_by_reply_assignment_id(self.id)
   end
 
   def has_student_submissions?

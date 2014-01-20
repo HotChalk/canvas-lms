@@ -1,25 +1,73 @@
 <div class="discussion-section discussion-assignment-section alert alert-info">
   <div class="row-fluid">
-    <div class="span6">
+    <div class="span9">
       <p class="discussion-title">
-        <%= t('graded_discussion_and_points',
-              { :one => 'This is a graded discussion: *1 point possible*',
-                :other => 'This is a graded discussion: *%{count} points possible*' },
-              :count => @assignment.points_possible || 0,
-              :wrapper => "<span class='discussion-points'>\\1</span>") %>
+        <% if @topic.grade_replies_separately %>
+          <% if is_reply_assignment %>
+            <%= t('reply_post',
+                  'Reply Posts: *%{count} points possible*',
+                  :count => current_assignment.points_possible || 0,
+                  :wrapper => "<span class='discussion-points'>\\1</span>") %>
+          <% else %>
+            <%= t('initial_post',
+                  'Initial Post: *%{count} points possible*',
+                  :count => current_assignment.points_possible || 0,
+                  :wrapper => "<span class='discussion-points'>\\1</span>") %>
+          <% end %>
+        <% else %>
+          <%= t('graded_discussion_and_points',
+                { :one => 'This is a graded discussion: *1 point possible*',
+                  :other => 'This is a graded discussion: *%{count} points possible*' },
+                :count => current_assignment.points_possible || 0,
+                :wrapper => "<span class='discussion-points'>\\1</span>") %>
+        <% end %>
       </p>
     </div>
 
-    <div class="span6 right-align">
+    <div class="span2">
       <div class="discussion-pubdate">
-        <% if @assignment.has_active_overrides? && @presenter.can_grade?  %>
+        <% if current_assignment.has_active_overrides? && @presenter.can_grade?  %>
           <a href="#" class="toggle_due_dates"><%= t(:show_due_dates, 'Show Due Dates') %></a>
 
         <% else %>
           <b><%= t(:due_date, 'due %{date}',
-                   :date => OverrideListPresenter.new.due_at(@assignment)) %></b>
+                   :date => OverrideListPresenter.new.due_at(current_assignment)) %></b>
         <% end %>
       </div>
+    </div>
+
+    <div class="span1 right-align">
+      <% if @current_user.present? %>
+        <div class="admin-links">
+          <a class="al-trigger detail btn" href="#" aria-label="<%= t :manage_discussion, 'Manage Discussion' %>">
+              <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>
+          </a>
+          <ul class="al-options">
+            <% if @presenter.can_grade?(@current_user) && @presenter.allows_speed_grader? %>
+              <li><a href="<%= context_url(current_assignment.context,
+                                           :speed_grader_context_gradebook_url,
+                                           :assignment_id => current_assignment.id) %>">
+                <i class="icon-speed-grader" aria-hidden="hidden"></i>
+                <%= t :speed_grader, "Speed Grader" %>
+              </a></li>
+            <% end %>
+
+            <% if @presenter.should_show_rubric?(@current_user) %>
+              <li>
+                <%# HACK! this is here because edit_rubric.js expects there to be a #add_rubric_url on the page and sets it's <form action="..."> to it %>
+                <% if can_do(current_assignment, @current_user, :update) %>
+                  <a href="<%= context_url(current_assignment.context, :context_rubrics_url) %>" id="add_rubric_url" style="display: none;"></a>
+                <% end %>
+
+                <a class="rubric_dialog_trigger" href="#" data-no-rubric-exists="<%= !@presenter.has_attached_rubric? %>" data-url="<%= context_url(current_assignment.context, :context_assignment_rubric_url, current_assignment.id) %>">
+                  <i class="icon-rubric" aria-hidden="hidden"></i>
+                  <%= @presenter.has_attached_rubric? ? t(:show_rubric, "Show Rubric") : t(:add_rubric, "Add Rubric") %>
+                </a>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
     </div>
   </div>
 
@@ -52,7 +100,7 @@
             </tr>
           </thead>
 
-          <%= render 'shared/override_list', :assignment => @assignment, 
+          <%= render 'shared/override_list', :assignment => current_assignment,
             :user => @current_user %>
 
         </table>

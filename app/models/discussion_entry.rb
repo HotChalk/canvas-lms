@@ -307,6 +307,8 @@ class DiscussionEntry < ActiveRecord::Base
   scope :top_level_for_topics, lambda {|topics| where(:root_entry_id => nil, :discussion_topic_id => topics) }
   scope :all_for_topics, lambda { |topics| where(:discussion_topic_id => topics) }
   scope :newest_first, order("discussion_entries.created_at DESC, discussion_entries.id DESC")
+  scope :initial_posts, where("root_entry_id IS NULL")
+  scope :reply_posts, where("parent_id IS NOT NULL")
 
   def to_atom(opts={})
     author_name = self.user.present? ? self.user.name : t('atom_no_author', "No Author")
@@ -352,6 +354,9 @@ class DiscussionEntry < ActiveRecord::Base
   def context_module_action
     if self.discussion_topic && self.user
       self.discussion_topic.context_module_action(user, :contributed)
+      if self.parent_entry
+        self.discussion_topic.ensure_submission_for_reply(user)
+      end
     end
   end
 

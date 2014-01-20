@@ -39,7 +39,8 @@ define [
 
     validateBeforeSave: (data, errors) =>
       for override in (data.assignment_overrides || [] )
-        @dueDateViews[0].validateBeforeSave(override,errors)
+        if @dueDateViews.length > 0
+          @dueDateViews[0].validateBeforeSave(override,errors)
       errors
 
     afterRender: =>

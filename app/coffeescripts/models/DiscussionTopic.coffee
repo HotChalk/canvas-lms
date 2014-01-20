@@ -46,6 +46,14 @@ define [
       @set 'publishable',  @get('can_unpublish')
       @set 'unpublishable', @get('can_unpublish')
 
+      @set 'set_reply_assignment', @get('reply_assignment')?
+      reply_assign_attributes = @get('reply_assignment') or {}
+      reply_assign_attributes.assignment_overrides or= []
+      reply_assign_attributes.turnitin_settings or= {}
+      reply_assign = new Assignment(reply_assign_attributes)
+      reply_assign.alreadyScoped = true
+      @set 'reply_assignment', reply_assign
+
     # always include assignment in view presentation
     present: =>
       Backbone.Model::toJSON.call(this)
@@ -78,12 +86,21 @@ define [
           json.assignment
       else
         null
+      delete json.reply_assignment unless json.set_reply_assignment
+      reply_assignment = if json.reply_assignment
+        if typeof json.reply_assignment.toJSON is 'function'
+          json.reply_assignment.toJSON()
+        else
+          json.reply_assignment
+      else
+        null
 
       _.extend json,
         summary: @summary(),
         unread_count_tooltip: @unreadTooltip(),
         reply_count_tooltip: @replyTooltip()
         assignment: assignment
+        reply_assignment: reply_assignment
 
     unreadTooltip: ->
       I18n.t 'unread_count_tooltip', {

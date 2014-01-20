@@ -70,6 +70,9 @@ module Api::V1::DiscussionTopics
     if include_assignment && topic.assignment
       json[:assignment] = assignment_json(topic.assignment, user, session, include_discussion_topic: false, override_dates: false)
     end
+    if include_assignment && topic.reply_assignment
+      json[:reply_assignment] = assignment_json(topic.reply_assignment, user, session, include_discussion_topic: false, override_dates: false)
+    end
 
     json
   end

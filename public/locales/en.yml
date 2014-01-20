@@ -5203,6 +5203,8 @@ en:
       graded_discussion_and_points: 
         one: "This is a graded discussion: *1 point possible*"
         other: "This is a graded discussion: *%{count} points possible*"
+      initial_post: "Initial Post"
+      reply_posts: "Reply Posts"
       separated_conversation_notice: "Since this is a group assignment, each group has its own conversation for this topic. Here are the ones you have access to:"
       show_due_dates: "Show Due Dates"
       until: Until
