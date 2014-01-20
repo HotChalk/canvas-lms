@@ -26,6 +26,7 @@ define [
     @optionProperty 'parentModel'
     @optionProperty 'assignmentGroups'
     @optionProperty 'nested'
+    @optionProperty 'basePrefix'
 
     showAssignmentGroupCreateDialog: =>
       if @$assignmentGroupId.val() is 'new'
@@ -44,6 +45,7 @@ define [
       assignmentGroupId: @parentModel.assignmentGroupId()
       frozenAttributes: @parentModel.frozenAttributes()
       nested: @nested
+      basePrefix: @basePrefix || 'assignment'
 
     fieldSelectors:
       assignmentGroupSelector: '#assignment_group_id'

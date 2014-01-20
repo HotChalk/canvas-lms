@@ -524,10 +524,28 @@ body.with-right-side.with-left-side {
   .al-trigger {
     background: none;
     border-color: white;
+    &.detail {
+      @include buttonBackground($btnBackground, $btnBackgroundHighlight, $grayDark, 0 1px 1px rgba(255,255,255,.75));
+      border: 1px solid $btnBorder;
+      *border: 0; // Remove the border to prevent IE7's black border on input:focus
+      border-bottom-color: darken($btnBorder, 10%);
+      @include border-radius($baseBorderRadius);
+      @include box-shadow(inset 0 1px 0 rgba(255,255,255,.2), 0 1px 2px rgba(0,0,0,.05));
+    }
   }
   .al-trigger:hover, .al-trigger.ui-state-active {
     border-color: #c2c2c2;
     border-bottom-color: #bfbfbf;
+    &.detail {
+      color: $grayDark;
+      background-color: darken($white, 10%);
+      *background-color: darken($white, 15%); /* Buttons in IE7 don't get borders, so darken on hover */
+      background-position: 0 -15px;
+
+      // transition is only when going to hover, otherwise the background
+      // behind the gradient (there for IE<=9 fallback) gets mismatched
+      @include transition(background-position .1s linear);
+    }
   }
 }
 

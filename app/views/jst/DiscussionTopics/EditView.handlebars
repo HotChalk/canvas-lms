@@ -163,16 +163,62 @@
       <div id="assignment_group_options" class="control-group"></div>
 
       {{#unless isLargeRoster}}
-        <div id="group_category_options" class="control-group"></div>
+        <!--<div id="group_category_options" class="control-group"></div>-->
       {{/unless}}
 
       {{#unless isLargeRoster}}
-        <div id="peer_review_options" class="control-group"></div>
+        <!--<div id="peer_review_options" class="control-group"></div>-->
       {{/unless}}
     </fieldset>
 
+    <!--<div class='js-assignment-overrides'></div>-->
+  </div>
+
+  <div id="reply_grading_options" style="{{hiddenUnless set_reply_assignment}}">
+    <fieldset>
+
+      <div class="control-group">
+        <label class="control-label"></label>
+        <div class="controls">
+          <label class="checkbox">
+            {{checkbox "assignment.set_reply_assignment"
+              id="use_for_grading_replies"
+              class="element_toggler"
+              aria-controls="assignment_options"
+              checked=set_reply_assignment}}
+            {{#t "use_for_grading_replies"}}Grade replies separately{{/t}}
+          </label>
+        </div>
+      </div>
+
+    </fieldset>
+
+    {{#if showReplyAssignment}}
+      <div id="reply_assignment_options" style="{{hiddenUnless set_reply_assignment}}">
+        <fieldset>
+          <div class="control-group">
+            <label class="control-label" for="discussion_topic_reply_assignment_points_possible">{{#t "points_possible"}}Points Possible{{/t}}</label>
+            <div class="controls">
+              <input type="number"
+                     id="discussion_topic_reply_assignment_points_possible"
+                     name="reply_assignment[points_possible]"
+                     class="input-small"
+                     value="{{reply_assignment.pointsPossible}}" />
+            </div>
+          </div>
+
+          <div id="reply_grading_type_options" class="control-group"></div>
+
+          <div id="reply_assignment_group_options" class="control-group"></div>
+        </fieldset>
+      </div>
+    {{/if}}
+  </div>
+
+  <div style="{{hiddenUnless set_assignment}}">
     <div class='js-assignment-overrides'></div>
   </div>
+
 {{/if}}
 
 <div class="form-actions flush">
