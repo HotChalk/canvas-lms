@@ -26,7 +26,7 @@
 
     <div class="span2">
       <div class="discussion-pubdate">
-        <% if current_assignment.has_active_overrides? && @presenter.can_grade?  %>
+        <% if current_assignment.has_active_overrides? && presenter.can_grade?  %>
           <a href="#" class="toggle_due_dates"><%= t(:show_due_dates, 'Show Due Dates') %></a>
 
         <% else %>
@@ -43,7 +43,7 @@
               <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>
           </a>
           <ul class="al-options">
-            <% if @presenter.can_grade?(@current_user) && @presenter.allows_speed_grader? %>
+            <% if presenter.can_grade?(@current_user) && presenter.allows_speed_grader? %>
               <li><a href="<%= context_url(current_assignment.context,
                                            :speed_grader_context_gradebook_url,
                                            :assignment_id => current_assignment.id) %>">
@@ -52,16 +52,16 @@
               </a></li>
             <% end %>
 
-            <% if @presenter.should_show_rubric?(@current_user) %>
+            <% if presenter.should_show_rubric?(@current_user) %>
               <li>
                 <%# HACK! this is here because edit_rubric.js expects there to be a #add_rubric_url on the page and sets it's <form action="..."> to it %>
                 <% if can_do(current_assignment, @current_user, :update) %>
                   <a href="<%= context_url(current_assignment.context, :context_rubrics_url) %>" id="add_rubric_url" style="display: none;"></a>
                 <% end %>
 
-                <a class="rubric_dialog_trigger" href="#" data-no-rubric-exists="<%= !@presenter.has_attached_rubric? %>" data-url="<%= context_url(current_assignment.context, :context_assignment_rubric_url, current_assignment.id) %>">
+                <a class="rubric_dialog_trigger" href="#" data-no-rubric-exists="<%= !presenter.has_attached_rubric? %>" data-url="<%= context_url(current_assignment.context, :context_assignment_rubric_url, current_assignment.id) %>">
                   <i class="icon-rubric" aria-hidden="hidden"></i>
-                  <%= @presenter.has_attached_rubric? ? t(:show_rubric, "Show Rubric") : t(:add_rubric, "Add Rubric") %>
+                  <%= presenter.has_attached_rubric? ? t(:show_rubric, "Show Rubric") : t(:add_rubric, "Add Rubric") %>
                 </a>
               </li>
             <% end %>
@@ -87,7 +87,7 @@
     </p>
   <% end %>
 
-  <% if @presenter.can_grade? %>
+  <% if presenter.can_grade? %>
     <div class="row-fluid">
       <div class="span12 hidden due_date_wrapper">
         <table class="discussion-topic-due-dates">

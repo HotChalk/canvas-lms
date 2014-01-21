@@ -143,10 +143,13 @@
   <article id="discussion_topic" class="admin-link-hover-area topic discussion_entry <%= @topic.class.to_s.underscore %> <%= 'has_podcast' if @topic.podcast_enabled %> <%= 'has_unread_entries' if @topic.unread_count(@current_user) > 0 %> can_be_marked_as_read <%= @topic.read_state(@current_user) %>" data-mark-read-url="<%= context_url(@topic.context, :api_v1_context_discussion_topic_mark_read_url, @topic) %>">
     <div class="entry_content">
       <% if @topic.for_assignment? %>
-        <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.assignment, :is_reply_assignment => false } %>
+        <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.assignment, :presenter => @presenter, :is_reply_assignment => false } %>
       <% end %>
       <% if @topic.grade_replies_separately? %>
-        <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.reply_assignment, :is_reply_assignment => true } %>
+        <%
+          @reply_presenter = DiscussionTopicPresenter.new(@topic, @current_user, true)
+        %>
+        <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.reply_assignment, :presenter => @reply_presenter, :is_reply_assignment => true } %>
       <% end %>
       <header class="discussion-section clearfix">
         <%= avatar((@topic.user), @context.asset_string, 50, image_class: 'img-circle') %>
