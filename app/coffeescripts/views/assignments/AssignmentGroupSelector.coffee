@@ -14,19 +14,22 @@ define [
     ASSIGNMENT_GROUP_ID = '#assignment_group_id'
 
     els: do ->
-      els = {}
-      els["#{ASSIGNMENT_GROUP_ID}"] = '$assignmentGroupId'
-      els
+      {}
 
     events: do ->
-      events = {}
-      events["change #{ASSIGNMENT_GROUP_ID}"] = 'showAssignmentGroupCreateDialog'
-      events
+      {}
 
     @optionProperty 'parentModel'
     @optionProperty 'assignmentGroups'
     @optionProperty 'nested'
     @optionProperty 'basePrefix'
+
+    initialize: (options) ->
+      assignmentGroupId = "##{options.basePrefix}_group_id"
+      @els[assignmentGroupId] = '$assignmentGroupId'
+      @events["change #{assignmentGroupId}"] = 'showAssignmentGroupCreateDialog'
+      @fieldSelectors.assignmentGroupSelector = assignmentGroupId
+      super
 
     showAssignmentGroupCreateDialog: =>
       if @$assignmentGroupId.val() is 'new'
