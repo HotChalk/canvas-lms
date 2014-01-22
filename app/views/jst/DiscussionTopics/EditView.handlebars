@@ -99,7 +99,7 @@
           {{checkbox "assignment.set_assignment"
             id="use_for_grading"
             class="element_toggler"
-            aria-controls="assignment_options"
+            aria-controls="assignment_options assignment_overrides"
             checked=set_assignment}}
           {{#t "use_for_grading"}}Graded{{/t}}
         </label>
@@ -184,7 +184,6 @@
             {{checkbox "assignment.set_reply_assignment"
               id="use_for_grading_replies"
               class="element_toggler"
-              aria-controls="assignment_options"
               checked=set_reply_assignment}}
             {{#t "use_for_grading_replies"}}Grade replies separately{{/t}}
           </label>
@@ -215,7 +214,7 @@
     {{/if}}
   </div>
 
-  <div style="{{hiddenUnless set_assignment}}">
+  <div id="assignment_overrides" style="{{hiddenUnless set_assignment}}">
     <div class='js-assignment-overrides'></div>
   </div>
 

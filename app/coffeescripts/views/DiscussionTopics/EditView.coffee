@@ -111,7 +111,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         assignmentGroups: @assignmentGroupCollection.toJSON()
         parentModel: parentModel || @assignment
         nested: true
-        basePrefix: basePrefix
+        basePrefix: basePrefix || 'assignment'
 
       @assignmentGroupSelector.render()
 
@@ -121,7 +121,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         parentModel: @assignment
         nested: true
         preventNotGraded: true
-        basePrefix: basePrefix
+        basePrefix: basePrefix || 'assignment'
 
       @gradingTypeSelector.render()
 
