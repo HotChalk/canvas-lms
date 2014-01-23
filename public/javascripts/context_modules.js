@@ -109,6 +109,7 @@ define([
         $("#context_modules .context_module:visible").each(function() {
           var $module = $(this);
           var id = $module.find(".header").getTemplateData({textValues: ['id']});
+          if (typeof id === 'object') id = id.id; // Fixes syntax error when id is an object
           var data = {progression_complete_count: 0, progression_started_count: 0};
           $("#progression_list .progression_" + id).each(function() {
             var state = $(this).getTemplateData({textValues: ['workflow_state']}).workflow_state;
