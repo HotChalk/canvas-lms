@@ -580,6 +580,7 @@ class DiscussionTopicsController < ApplicationController
       apply_positioning_parameters
       apply_attachment_parameters
       apply_assignment_parameters
+      apply_reply_assignment_parameters
 
       render :json => discussion_topic_api_json(@topic, @context, @current_user, session)
     else
@@ -715,6 +716,26 @@ class DiscussionTopicsController < ApplicationController
     end
   end
 
+  def apply_reply_assignment_parameters
+    # handle creating/deleting assignment
+    if params[:reply_assignment] && !@topic.root_topic_id?
+      if params[:assignment].has_key?(:set_reply_assignment) && !value_to_boolean(params[:assignment][:set_reply_assignment])
+        if @topic.assignment && @topic.assignment.grants_right?(@current_user, session, :update)
+          @topic.grade_replies_separately = false
+          @topic.save!
+        end
+      elsif (@reply_assignment = @topic.reply_assignment || (@topic.reply_assignment = @context.assignments.build)) &&
+             @reply_assignment.grants_right?(@current_user, session, :update)
+        update_api_assignment(@reply_assignment, params[:reply_assignment])
+        @reply_assignment.submission_types = 'discussion_topic'
+        @reply_assignment.saved_by = :discussion_topic
+        @topic.reply_assignment = @reply_assignment
+        @topic.grade_replies_separately = true
+        @topic.save!
+      end
+    end
+  end
+
   def child_topic
     extra_params = {:headless => 1} if params[:headless]
     @root_topic = @context.context.discussion_topics.find(params[:root_discussion_topic_id])
@@ -741,6 +762,14 @@ class DiscussionTopicsController < ApplicationController
         hash[:assignment][:due_at] = params[:due_at].to_date if params[:due_at]
         hash[:assignment][:points_possible] = params[:points_possible] if params[:points_possible]
         hash[:assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
+      end
+      if hash[:reply_assignment].nil? && @context.respond_to?(:assignments) && @context.assignments.new.grants_right?(@current_user, session, :create)
+        hash[:reply_assignment] ||= {}
+      end
+      if !hash[:reply_assignment].nil?
+        hash[:reply_assignment][:due_at] = params[:due_at].to_date if params[:due_at]
+        hash[:reply_assignment][:points_possible] = params[:points_possible] if params[:points_possible]
+        hash[:reply_assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
       end
     end
   end
