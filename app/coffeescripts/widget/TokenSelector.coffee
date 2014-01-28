@@ -191,7 +191,7 @@ define [
     blur: ->
       # It seems we can't check focus while it is being changed, so check it later.
       setTimeout =>
-        unless @input.hasFocus() || @$container.find(':focus').length > 0
+        unless @input.hasFocus() || @$container.find(':focus').length > 0 || $(document.activeElement).parents('.autocomplete_menu').length > 0
           @close()
       , 0
 
