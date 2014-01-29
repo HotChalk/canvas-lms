@@ -22,7 +22,7 @@ define [
         baseUrl: '/conversations?include_all_conversation_ids=1&include_beta=1'
         noAutoLoad: true
 
-      $('#menu-wrapper').on('click', 'a.standard_action', @triggerConversationAction)
+      $('#conversations').on('click', 'a.standard_action', @triggerConversationAction)
       @$list.on('click', 'li[data-id] > a.standard_action', @triggerConversationAction)
       @$list.on('mousedown keydown', 'button.al-trigger', @pane.filterMenu.bind(@pane))
 
