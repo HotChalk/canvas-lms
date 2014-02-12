@@ -3,9 +3,10 @@ define [
   'compiled/views/CollectionView'
   'jst/DiscussionTopics/discussionList'
   'compiled/views/DiscussionTopics/DiscussionView'
+  'compiled/collections/DiscussionTopicsCollection'
   'jqueryui/draggable'
   'jqueryui/sortable'
-], (_, CollectionView, template, itemView) ->
+], (_, CollectionView, template, itemView, DiscussionTopicsCollection) ->
 
   class DiscussionListView extends CollectionView
     # Public: Template function (discussionList)
@@ -67,6 +68,7 @@ define [
 
     events:
       'click .al-trigger': 'onAdminClick'
+      'change .ordered_by': 'onOrderedByChange'
 
     # Public: Render this view.
     #
@@ -214,3 +216,14 @@ define [
       pinned = !!newGroup.options.pinned
       locked = !!newGroup.options.locked
       model.save(pinned: pinned, locked: locked)
+
+    # Internal: Handle change events for the Ordered By dropdown.
+    #
+    # e - Event object.
+    # ui - jQuery UI object.
+    #
+    # Returns nothing.
+    onOrderedByChange: (e) =>
+      val = e.target.value
+      @collection.comparator = DiscussionTopicsCollection[val]
+      @reorder()
