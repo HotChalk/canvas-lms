@@ -5117,8 +5117,10 @@ en:
       try_different_more_general_or_fewer_keywords: "Try different, more general, or fewer keywords."
       try_disabling_the_unread_filter: "Try disabling the \"Unread\" filter."
       your_search_did_not_match_any_entries: "Your search did not match any entries."
-    ordered_by_recent_activity: "Ordered by Recent Activity"
-    participant: 
+    ordered_by: "Ordered by"
+    recent_activity: "Recent Activity"
+    due_date: "Due Date"
+    participant:
       anonymous_user: Anonymous
     pin: Pin
     pinned_discussions: "Pinned Discussions"

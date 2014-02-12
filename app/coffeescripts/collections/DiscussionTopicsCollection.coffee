@@ -20,6 +20,17 @@ define [
       else
         -1
 
+    @dueDateComparator: (a, b) ->
+      aDate = new Date(a.get('assignment').dueAt()).getTime()
+      bDate = new Date(b.get('assignment').dueAt()).getTime()
+
+      if aDate > bDate
+        1
+      else if aDate is bDate
+        0
+      else
+        -1
+
     @positionComparator: (a, b) ->
       aPosition = a.get('position')
       bPosition = b.get('position')

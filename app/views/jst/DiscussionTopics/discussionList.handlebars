@@ -8,8 +8,14 @@
     {{title}}
   </h2>
 
-  {{#if titleHelp}}
-    <span class="pull-right title-help">{{titleHelp}}</span>
+  {{#if orderedBy}}
+    <span class="pull-right title-help">
+        {{orderedBy}}
+        <select class="ordered_by">
+            <option value="dateComparator">{{recentActivity}}</option>
+            <option value="dueDateComparator">{{dueDate}}</option>
+        </select>
+    </span>
   {{/if}}
 </div>
 

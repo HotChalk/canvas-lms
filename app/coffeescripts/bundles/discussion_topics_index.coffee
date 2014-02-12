@@ -16,7 +16,9 @@ require [
         locked: I18n.t('closed_for_comments', 'Closed for Comments')
         pinned: I18n.t('pinned_discussions',  'Pinned Discussions')
       help:
-        title: I18n.t('ordered_by_recent_activity', 'Ordered by Recent Activity')
+        orderedBy: I18n.t('ordered_by', 'Ordered by')
+        recentActivity: I18n.t('recent_activity', 'Recent Activity')
+        dueDate: I18n.t('due_date', 'Due Date')
       toggleMessage: I18n.t('toggle_message', 'toggle discussion visibility')
 
     # Public: Routes to respond to.
@@ -83,7 +85,9 @@ require [
         pinned: !!options.pinned
         sortable: !!options.sortable
         title: @messages.lists[type]
-        titleHelp: (if _.include(['open', 'locked'], type) then @messages.help.title else null)
+        orderedBy: (if _.include(['open', 'locked'], type) then @messages.help.orderedBy else null)
+        recentActivity: @messages.help.recentActivity
+        dueDate: @messages.help.dueDate
         toggleMessage: @messages.toggleMessage
 
     # Internal: Attach events to the discussion topic collections.
