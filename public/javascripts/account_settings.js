@@ -306,6 +306,10 @@ define([
     displayCustomEmailFromName();
     $('.notification_from_name_option').trigger('change');
 
+    $("#account_settings_enable_resources_link").change(function() {
+      $("#show_resources_link_input").toggle(!!$("#account_settings_enable_resources_link").attr('checked'));
+    }).trigger('change');
+
   });
 
 });
