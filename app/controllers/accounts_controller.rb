@@ -328,6 +328,8 @@ class AccountsController < ApplicationController
             :enable_profiles,
             :enable_scheduler,
             :show_scheduler,
+            :enable_resources_link,
+            :show_resources_link,
             :global_includes,
           ].each do |key|
             params[:account][:settings].try(:delete, key)

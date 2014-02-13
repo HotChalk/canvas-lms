@@ -156,6 +156,8 @@ class Account < ActiveRecord::Base
   add_setting :calendar2_only, :boolean => true, :root_only => true, :default => false
   add_setting :show_scheduler, :boolean => true, :root_only => true, :default => false
   add_setting :enable_profiles, :boolean => true, :root_only => true, :default => false
+  add_setting :enable_resources_link, :boolean => true, :root_only => true, :default => false
+  add_setting :show_resources_link, :condition => :enable_resources_link
   add_setting :enable_manage_groups2, :boolean => true, :root_only => true, :default => false
   add_setting :mfa_settings, :root_only => true
   add_setting :canvas_authentication, :boolean => true, :root_only => true
