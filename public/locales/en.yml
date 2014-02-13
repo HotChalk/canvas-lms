@@ -12052,6 +12052,7 @@ en:
       student_mute_notification: "Instructor is working on grades"
       submitted_and_graded_count: "%{submitted_count} Submitted, %{graded_count} Graded"
       submitted_count: "%{submitted_count} Submitted"
+      complete_incomplete: "Complete/Incomplete
       tiles: 
         sort_or_move: "Sort Assignments or Move to Another Group"
     assignment_group: 
