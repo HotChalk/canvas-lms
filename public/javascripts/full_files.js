@@ -604,7 +604,7 @@ define([
         files.refreshContext.refreshing[context_string] = true;
 
         var url = $("#file_context_links ." + context_string + "_attachments_url").attr('href');
-        $.ajaxJSON(url + '.json', 'GET', {}, function(data) {
+        $.ajaxJSON(url, 'GET', {}, function(data) {
           files.clearDataCache();
           files.refreshContext.refreshing[context_string] = false;
           var scrollTop = $files_structure.scrollTop();
