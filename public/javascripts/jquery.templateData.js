@@ -55,7 +55,7 @@ define([
             this.data(item, options.data[item].toString());
           }
           // HOTCHALK: ".scribdable?" is not a valid CSS class selector
-          if (item.indexOf("?") > 0) continue;
+          if (/[\?\[\]]/.test(item)) continue;
           var $found_all = this.find("." + item);
           var avoid = options.avoid || "";
           $found_all.each(function() {
