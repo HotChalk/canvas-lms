@@ -313,7 +313,7 @@ define [
       clearTimeout @timeout
       @select(null)
       @timeout = setTimeout =>
-        if @lastFetch and !@lastFetch.isResolved()
+        if @lastFetch and @lastFetch.state() != 'resolved'
           @nextRequest = true
           return
         list = @listForQuery(@preparePost())
