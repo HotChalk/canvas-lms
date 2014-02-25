@@ -75,7 +75,7 @@
       <div class="data assignment_points">
         <div class="points_text" style="<%= hidden unless assignment && assignment.points_possible %>">
           <% if assignment.grading_type == "pass_fail" && assignment.points_possible == 0 %>
-            <% score = assignment.find_submission(@current_user) %>
+            <% score = Submission.find_by_assignment_id_and_user_id(assignment.id, @current_user.id) %>
             <% if score %>
               <% if score.grade == "complete" && !score.unsubmitted? %>
                 <%= image_tag "pass.png", :alt => t('#gradebooks.grades.complete', "Complete"), :class => "graded_icon" %>
