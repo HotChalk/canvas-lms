@@ -375,6 +375,7 @@ class ContentMigrationsController < ApplicationController
       end
     elsif params[:copy]
       copy_options = ContentMigration.process_copy_params(params[:copy])
+      copy_options.merge!({ 'all_learning_outcome_groups' => '1' }) if copy_options['all_learning_outcomes'] == '1'
       @content_migration.migration_settings[:migration_ids_to_import] ||= {}
       @content_migration.migration_settings[:migration_ids_to_import][:copy] = copy_options
       @content_migration.copy_options = copy_options
