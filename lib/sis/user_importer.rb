@@ -237,7 +237,7 @@ module SIS
             if pseudo.changed?
               pseudo.sis_batch_id = @batch_id if @batch_id
               if pseudo.valid?
-                pseudo.save_without_broadcasting
+                pseudo.send_sis_import_notification
                 @success_count += 1
               else
                 msg = "A user did not pass validation "
