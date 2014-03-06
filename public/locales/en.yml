@@ -10284,7 +10284,8 @@ en:
     hotchalk_settings:
       labels:
         cl_base_url: "Course Library Base URL"
-    ims_es_importer_settings: 
+        cl_proxy_url: "Course Library Proxy URL"
+    ims_es_importer_settings:
       labels: 
         course_long_name_selection: "Course long name selection"
         course_short_name_selection: "Course short name selection"

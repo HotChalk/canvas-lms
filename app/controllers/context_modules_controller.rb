@@ -55,7 +55,10 @@ class ContextModulesController < ApplicationController
       if !(@tag.unpublished? || @tag.context_module.unpublished?) || authorized_action(@tag.context_module, @current_user, :update)
         reevaluate_modules_if_locked(@tag)
         uri = URI.parse(@tag.url)
-        content_response = Net::HTTP.get_response(uri)
+        req = Net::HTTP::Get.new(uri.request_uri)
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = (uri.scheme == "https")
+        content_response = http.request(req)
         render :text => content_response.body
       end
     end
