@@ -3,7 +3,7 @@
 */
 @font-face {
   font-family: 'RedactorFont';
-  src: url('redactor-font.eot');
+  src: url('/font/redactor/redactor-font.eot');  /* HOTCHALK modified font file location */
 }
 @font-face {
   font-family: 'RedactorFont';
