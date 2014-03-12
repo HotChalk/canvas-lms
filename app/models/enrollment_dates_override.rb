@@ -22,8 +22,15 @@ class EnrollmentDatesOverride < ActiveRecord::Base
 
   attr_accessible :context, :enrollment_type, :enrollment_term, :start_at, :end_at
   before_save :touch_all_courses
+  validate :end_at_date_cannot_be_before_start_at_date
 
   def touch_all_courses
     self.enrollment_term.update_courses_later if self.changed?
+  end
+
+  def end_at_date_cannot_be_before_start_at_date
+    if self.end_at && self.start_at && (self.end_at < self.start_at)
+      errors.add(:start_at, "To date can't be before the from date")
+    end
   end
 end

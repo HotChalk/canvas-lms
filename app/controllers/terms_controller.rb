@@ -28,7 +28,12 @@ class TermsController < ApplicationController
   def create
     overrides = params[:enrollment_term].delete(:overrides) rescue nil
     @term = @context.enrollment_terms.active.build(params[:enrollment_term])
-    @term.set_overrides(@context, overrides)
+    begin
+      @term.set_overrides(@context, overrides)
+    rescue RuntimeError
+      # date validation may fail here, so we make sure that the object is marked as having errors
+      @term.errors.add(:base, 'Invalid dates') if @term.errors.empty?
+    end
     if @term.errors.empty? && @term.save
       render :json => @term.as_json(:include => :enrollment_dates_overrides)
     else
