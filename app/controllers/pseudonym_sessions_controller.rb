@@ -167,7 +167,8 @@ class PseudonymSessionsController < ApplicationController
     end
 
     if !found && params[:pseudonym_session]
-      pseudonym = Pseudonym.authenticate(params[:pseudonym_session], @domain_root_account.trusted_account_ids, request.remote_ip)
+      search_account_ids = Account.all(:select => :id).collect(&:id)
+      pseudonym = Pseudonym.authenticate(params[:pseudonym_session], search_account_ids, request.remote_ip)
       if pseudonym && pseudonym != :too_many_attempts
         @pseudonym_session = PseudonymSession.new(pseudonym, params[:pseudonym_session][:remember_me] == "1")
         found = @pseudonym_session.save
