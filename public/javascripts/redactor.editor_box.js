@@ -56,7 +56,6 @@ define([
 
   function EditorBoxList() {
     this._textareas = {};
-    this._editors = {};
     this._editor_boxes = {};
   }
 
@@ -65,24 +64,20 @@ define([
       $.publish('editorBox/add', id, box);
       var textArea = $("textarea#" + id);
       this._editor_boxes[id] = box;
-      this._editors[id] = textArea.redactor('getObject');
       this._textareas[id] = textArea;
     },
     _removeEditorBox: function(id) {
       delete this._editor_boxes[id];
-      delete this._editors[id];
       delete this._textareas[id];
       $.publish('editorBox/remove', id);
-      if ($.isEmptyObject(this._editors)) $.publish('editorBox/removeAll');
+      if ($.isEmptyObject(this._editor_boxes)) $.publish('editorBox/removeAll');
     },
     _getTextArea: function(id) {
-      if(!this._textareas[id]) {
-        this._textareas[id] = $("textarea#" + id);
-      }
       return this._textareas[id];
     },
     _getEditor: function(id) {
-      return this._editors[id];
+      var textArea = this._getTextArea(id);
+      return textArea ? textArea.redactor('getObject') : null;
     },
     _getEditorBox: function(id) {
       return this._editor_boxes[id];
@@ -91,17 +86,9 @@ define([
 
   var $instructureEditorBoxList = new EditorBoxList();
 
-  var _imageCallback = function(buttonName, buttonDOM, buttonObject) {
-    var editor = this;
-    var selectedNode = this.getCurrent();
-    require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
-      new InsertUpdateImageView(editor, selectedNode);
-    });
-  };
-
   var $dialog = null;
 
-  var _externalButtonCallback = function(buttonName, buttonDOM, buttonObject) {
+  var _externalToolCallback = function(toolId, toolTitle, toolWidth, toolHeight) {
     var frameHeight = Math.max(Math.min($(window).height() - 100, 550), 100);
     if(!$dialog) {
       $dialog = $('<div id="external_tool_button_dialog" style="padding: 0; overflow-y: hidden;"/>')
@@ -190,19 +177,19 @@ define([
           $("#external_tool_button_dialog").dialog('close');
         });
     }
-    $dialog.dialog('option', 'title', 'Embed content from ' + buttonObject.title);
+    $dialog.dialog('option', 'title', 'Embed content from ' + toolTitle);
     $dialog.dialog('close')
-      .dialog('option', 'width', buttonObject.width || 800)
-      .dialog('option', 'height', buttonObject.height || frameHeight || 400)
+      .dialog('option', 'width', toolWidth || 800)
+      .dialog('option', 'height', toolHeight || frameHeight || 400)
       .dialog('open');
     $dialog.triggerHandler('dialogresize');
     $dialog.data('editor', this.$element);
-    var url = $.replaceTags($("#context_external_tool_resource_selection_url").attr('href'), 'id', buttonObject.id);
+    var url = $.replaceTags($("#context_external_tool_resource_selection_url").attr('href'), 'id', toolId);
     if (url === null || typeof url === 'undefined') {
       // if we don't have a url on the page, build one using the current context.
       // url should look like: /courses/2/external_tools/15/resoruce_selection?editor=1
       var asset = ENV.context_asset_string.split('_');
-      url = '/' + asset[0] + 's/' + asset[1] + '/external_tools/' + buttonObject.id + '/resource_selection?editor=1'
+      url = '/' + asset[0] + 's/' + asset[1] + '/external_tools/' + toolId + '/resource_selection?editor=1'
     }
     $dialog.find("iframe").attr('src', url);
   };
@@ -216,6 +203,24 @@ define([
     this._submitURL = submit_url;
     this._contentURL = content_url;
 
+    // Add custom image button
+    var pluginsList = ['image'];
+    if (typeof RedactorPlugins === 'undefined') {
+      RedactorPlugins = {};
+      RedactorPlugins.image = {
+        init: function() {
+          this.buttonAddBefore('video', 'image', 'Insert Image', this.imageCallback);
+        },
+        imageCallback: function(buttonName, buttonDOM, buttonObj, e) {
+          var editor = this;
+          var selectedNode = this.getCurrent();
+          require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
+            new InsertUpdateImageView(editor, selectedNode);
+          });
+        }
+      };
+    }
+
     var redactorOptions = $.extend({
       autoresize: false,
       iframe: true,
@@ -224,15 +229,10 @@ define([
           'bold', 'italic', 'underline', 'deleted', '|',
           'alignleft', 'aligncenter', 'alignright', '|',
           'unorderedlist', 'orderedlist', 'outdent', 'indent', '|',
-          'image', 'video', 'file', 'table', 'link', '|',
+          'video', 'file', 'table', 'link', '|',
           'horizontalrule'],
-      buttonsCustom: {
-        image: {
-          title: 'Insert Image',
-          callback: _imageCallback
-        }
-      },
       formattingTags: ['p', 'blockquote', 'pre', 'h2', 'h3', 'h4'],
+      plugins: pluginsList,
       minHeight: 150
     }, options.redactorOptions || {});
 
@@ -242,14 +242,15 @@ define([
       for (var btnIndex = 0; btnIndex < INST.editorButtons.length; btnIndex++) {
         var btn = INST.editorButtons[btnIndex];
         var btnId = 'extbtn' + btn.id;
-        redactorOptions.buttons.push(btnId);
-        redactorOptions.buttonsCustom[btnId] = {
-          id: btn.id,
-          title: btn.name,
-          height: btn.height,
-          width: btn.width,
-          callback: _externalButtonCallback
+        RedactorPlugins[btnId] = {
+          init: function() {
+            this.buttonAdd(btnId, btn.name, this.invoke);
+          },
+          invoke: function(buttonName, buttonDOM, buttonObject, e) {
+            _externalToolCallback(btn.id, btn.name, btn.width, btn.height)
+          }
         };
+        pluginsList.push(btnId);
       }
     }
 
@@ -262,16 +263,21 @@ define([
     });
 
     // Create CSS styling for custom buttons
-    if (INST && INST.editorButtons) {
+    if (INST && INST.editorButtons && INST.editorButtons.length) {
+      var cssContent = '';
       for (btnIndex = 0; btnIndex < INST.editorButtons.length; btnIndex++) {
         btn = INST.editorButtons[btnIndex];
-        var className = '.redactor_btn_extbtn' + btn.id;
-        $(className).css({
-          'background': 'url(' + btn.icon_url + ')',
-          'background-position': 'center',
-          'background-repeat': 'no-repeat'
-        });
+        var className = '.redactor_toolbar li a.re-extbtn' + btn.id;
+        cssContent += className + " {\
+          background: url('" + btn.icon_url + "');\
+          background-position: center;\
+          background-repeat: no-repeat;\
+        } " + className + ":hover {\
+          outline: none;\
+          background-color: #1f78d8;\
+        }";
       }
+      $("<style>").prop("type", "text/css").html(cssContent).appendTo("head");
     }
   }
 
@@ -425,7 +431,7 @@ define([
     var content = '';
     try {
       if(!$instructureEditorBoxList._getEditor(id)) {
-        content = $instructureEditorBoxList._getTextArea(id).val();
+        content = $("textarea#" + id).val();
       } else {
         content = $instructureEditorBoxList._getEditor(id).get();
       }
@@ -546,7 +552,7 @@ define([
       return false;
     }
     if(!$instructureEditorBoxList._getEditor(id)) {
-      $instructureEditorBoxList._getTextArea(id).focus().select();
+      $("textarea#" + id).focus().select();
     } else {
       $instructureEditorBoxList._getEditor(id).focus();
       $.publish('editorBox/focus', $element);
