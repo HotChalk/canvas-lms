@@ -9,6 +9,12 @@
 
 	Usage: $('#content').redactor();
 */
+/*
+	Patches by Edify
+
+	Index:
+	- 01: added imageEdit callback option
+ */
 
 (function($)
 {
@@ -6491,7 +6497,15 @@
 			this.imageEditter.attr('contenteditable', false);
 			this.imageEditter.on('click', $.proxy(function()
 			{
-				this.imageEdit($image);
+                // - 01: added imageEdit callback option
+                if (this.opts.imageEditCallback)
+                {
+                    this.callback('imageEdit', false, $image);
+                }
+                else
+                {
+				    this.imageEdit($image);
+                }
 			}, this));
 			imageBox.append(this.imageEditter);
 

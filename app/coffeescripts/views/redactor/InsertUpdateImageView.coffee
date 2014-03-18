@@ -137,6 +137,15 @@ define [
     update: =>
       if @editor.selection
         @editor.selection.moveToBookmark(@prevSelection)
-      @$editor.editorBox 'insert_code', @generateImageHtml()
+      if @$selectedNode.prop('nodeName') is 'IMG'
+        new_attr = this.getAttributes()
+        if @$selectedNode.parent().prop('nodeName') is 'A' &&
+           @$selectedNode.parent().attr('href') == this.$selectedNode.attr('src')
+          @$selectedNode.parent().attr('href', new_attr.src)
+        @$selectedNode.attr('style', '')
+        @$selectedNode.attr(new_attr)
+        @$editor.editorBox 'sync'
+      else
+        @$editor.editorBox 'insert_code', @generateImageHtml()
       @editor.focus()
       @close()

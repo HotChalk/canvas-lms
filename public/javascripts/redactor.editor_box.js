@@ -233,7 +233,13 @@ define([
           'horizontalrule'],
       formattingTags: ['p', 'blockquote', 'pre', 'h2', 'h3', 'h4'],
       plugins: pluginsList,
-      minHeight: 150
+      minHeight: 150,
+      imageEditCallback: function(el) {
+        var editor = $textarea.redactor('getObject');
+        require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
+          new InsertUpdateImageView(editor, el);
+        });
+      }
     }, options.redactorOptions || {});
 
     // Add custom editor buttons
@@ -397,6 +403,8 @@ define([
         this._removeEditor(more_options);
       } else if(options == "is_dirty") {
         return $instructureEditorBoxList._getEditor(id).isDirty();
+      } else if(options == "sync") {
+        return $instructureEditorBoxList._getEditor(id).sync();
       }
       return this;
     }
