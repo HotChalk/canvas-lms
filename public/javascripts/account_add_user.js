@@ -22,7 +22,7 @@ require([
   });
   $("#add_user_form").formSubmit({
     formErrors: false,
-    required: ['user[name]'],
+    required: ['user[name]', 'pseudonym[unique_id]'],
     beforeSubmit: function(data) {
       $(this).find("button").attr('disabled', true)
         .filter(".submit_button").text(I18n.t('adding_user_message', "Adding User..."));
