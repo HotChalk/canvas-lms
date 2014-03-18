@@ -625,11 +625,12 @@ TEXT
             </table>
 
           <% end %>
+          <div class="button-container">
+              <button type="submit" class="btn btn-primary"><%= t(:update_settings_button, "Update Settings") %></button>
+          </div>
+        <% else %>
+          <b>Notification settings are not editable for this account.</b>
         <% end %>
-
-        <div class="button-container">
-          <button type="submit" class="btn btn-primary"><%= t(:update_settings_button, "Update Settings") %></button>
-        </div>
       <% end %>
     </div>
   <% end %>
