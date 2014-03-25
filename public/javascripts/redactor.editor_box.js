@@ -204,12 +204,54 @@ define([
     this._contentURL = content_url;
 
     // Add custom image button
-    var pluginsList = ['image'];
+    var pluginsList = ['image', 'video'];
     if (typeof RedactorPlugins === 'undefined') {
       RedactorPlugins = {};
+      RedactorPlugins.video = {
+        init: function() {
+          this.buttonAddBefore('table', 'video', 'Insert Video', this.videoCallback);
+        },
+        videoCallback: function() {
+          // Copied from redactor.js#videoShow() function
+          this.selectionSave();
+          var modalVideo =
+            '<section>' +
+			  '<form id="redactorInsertVideoForm">' +
+			    '<label>Enter the video embed code in the box below.</label>' +
+			    '<textarea id="redactor_insert_video_area" style="width: 99%; height: 160px;"></textarea>' +
+			  '</form>' +
+		    '</section>' +
+			'<footer>' +
+			    '<div style="width: 50%;"><button class="redactor_btn_modal_close">' + this.opts.curLang.cancel + '</button></div>' +
+				'<div style="width: 50%;"><button class="redactor_modal_action_btn" id="redactor_insert_video_btn">' + this.opts.curLang.insert + '</button></div>' +
+			'</footer>';
+          this.modalInit(this.opts.curLang.video, modalVideo, 600, $.proxy(function() {
+            var isSecure = location.protocol == 'https:';
+            if (isSecure) {
+              $('#redactor_insert_video_area').before('<label>All links to video content will need to use secure HTTPS.<br/>For Example:  <i><b>https</b>://www.example.com/videofile.mov</i></label>');
+            }
+            var videoClick = function() {
+              var area = $('#redactor_insert_video_area');
+              var data = area.val();
+              // Check for invalid URLs, filtering out plain HTTP
+              var urlRegex = /http:/i;
+              var valid = !isSecure || !urlRegex.test(data);
+              if (!valid) {
+                area.after('<label style="color: red;">Invalid video embed code</label>');
+              } else {
+                this.videoInsert();
+              }
+            };
+            $('#redactor_insert_video_btn').click($.proxy(videoClick, this));
+         	setTimeout(function() {
+              $('#redactor_insert_video_area').focus();
+            }, 200);
+          }, this));
+        }
+      };
       RedactorPlugins.image = {
         init: function() {
-          this.buttonAddBefore('video', 'image', 'Insert Image', this.imageCallback);
+          this.buttonAddAfter('indent', 'image', 'Insert Image', this.imageCallback);
         },
         imageCallback: function(buttonName, buttonDOM, buttonObj, e) {
           var editor = this;
@@ -225,12 +267,11 @@ define([
       autoresize: false,
       iframe: true,
       css: '/assets/redactor-iframe.css',
-      buttons: ['html', '|', 'formatting', '|',
-          'bold', 'italic', 'underline', 'deleted', '|',
-          'alignleft', 'aligncenter', 'alignright', '|',
-          'unorderedlist', 'orderedlist', 'outdent', 'indent', '|',
-          'video', 'file', 'table', 'link', '|',
-          'horizontalrule'],
+      buttons: ['html', 'formatting',
+          'bold', 'italic', 'underline', 'deleted',
+          'alignleft', 'aligncenter', 'alignright',
+          'unorderedlist', 'orderedlist', 'outdent', 'indent',
+          'table', 'link', 'horizontalrule'],
       formattingTags: ['p', 'blockquote', 'pre', 'h2', 'h3', 'h4'],
       plugins: pluginsList,
       minHeight: 150,
