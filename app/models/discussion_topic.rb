@@ -800,7 +800,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def ensure_submission_for_reply(user)
-    return unless self.for_assignment? && assignment.grants_right?(user, :submit)
+    return unless self.for_assignment? && assignment.grants_right?(user, :submit) && self.reply_assignment.present?
     submission = Submission.find_by_assignment_id_and_user_id(self.reply_assignment_id, user.id)
     return if submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
     self.reply_assignment.submit_homework(user, :submission_type => 'discussion_topic')
