@@ -424,10 +424,6 @@ define([
         this._setContentCode(more_options);
       } else if(options == "insert_code") {
         this._insertHTML(more_options);
-      } else if(options == "selection_offset") {
-        return this._getSelectionOffset();
-      } else if(options == "selection_link") {
-        return this._getSelectionLink();
       } else if(options == "create_link") {
         this._linkSelection(more_options);
       } else if(options == "focus") {
@@ -508,50 +504,6 @@ define([
 
   $.fn._getContentURL = function() {
     return $instructureEditorBoxList._getEditorBox(this.attr('id'))._contentURL;
-  };
-
-    // NEED TO TEST
-  $.fn._getSelectionOffset = function() {
-    var id = this.attr('id');
-    var box = $instructureEditorBoxList._getEditor(id).$box;
-    var boxOffset = $(box).find('iframe').offset();
-    var node = $instructureEditorBoxList._getEditor(id).selection.getNode();
-    var nodeOffset = $(node).offset();
-    var scrollTop = $(box).scrollTop();
-    var offset = {
-      left: boxOffset.left + nodeOffset.left + 10,
-      top: boxOffset.top + nodeOffset.top + 10 - scrollTop
-    };
-    return offset;
-  };
-
-    // NEED TO TEST
-  $.fn._getSelectionNode = function() {
-    var id = this.attr('id');
-    var node = $instructureEditorBoxList._getEditor(id).getNodes();
-    return node;
-  };
-
-    // NEED TO TEST
-  $.fn._getSelectionLink = function() {
-    var id = this.attr('id');
-    var node = $instructureEditorBoxList._getEditor(id).getNodes();
-    while(node.nodeName != 'A' && node.nodeName != 'BODY' && node.parentNode) {
-      node = node.parentNode;
-    }
-    if(node.nodeName == 'A') {
-      var href = $(node).attr('href');
-      var title = $(node).attr('title');
-      if(!title || title == '') {
-        title = href;
-      }
-      var result = {
-        url: href,
-        title: title
-      };
-      return result;
-    }
-    return null;
   };
 
   $.fn._toggleView = function() {
@@ -659,15 +611,15 @@ define([
     if(enableBookmarking && this.data('last_bookmark')) {
       tinyMCE.get(id).selection.moveToBookmark(this.data('last_bookmark'));
     }
-    var anchor = editor.getCurrent();
+    var anchor = editor.getSelection().anchorNode;
     while(anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
       anchor = anchor.parentNode;
     }
     if(anchor.nodeName != 'A') { anchor = null; }
 
-    var selectedContent = editor.getSelectionText();
-    if(!$instructureEditorBoxList._getEditor(id)) {
-      selectionText = defaultText;
+    var sel = editor.getSelection();
+    if(sel && sel.toString() !== '') {
+      selectionText = editor.getSelectionText();
       var $div = $("<div><a/></div>");
       $div.find("a")
         [link_id ? 'attr' : 'removeAttr']('id', link_id).attr({
@@ -678,12 +630,16 @@ define([
         [classes ? 'attr' : 'removeAttr']('class', classes)
         .text(selectionText);
       var link_html = $div.html();
-      $(this).replaceSelection(link_html);
-    } else if(!selectedContent || selectedContent == "") {
+      if (sel.getRangeAt && sel.rangeCount) {
+        // Get the first Range (only Firefox supports more than one)
+        var range = sel.getRangeAt(0);
+        range.deleteContents();
+        editor.insertHtml(link_html);
+      }
+    } else {
       if(anchor) {
         $(anchor).attr({
           href: url,
-          '_mce_href': url,
           title: title || '',
           id: link_id,
           'class': classes,
@@ -693,15 +649,13 @@ define([
         selectionText = defaultText;
         var $div = $("<div/>");
         $div.append($("<a/>", {id: link_id, target: target, title: title, href: url, 'class': classes}).text(selectionText));
-        $instructureEditorBoxList._getEditor(id).insertHtml($div.html());
+        editor.insertHtml($div.html());
       }
-    } else {
-      var $a = $("<a/>", {target: (target || ''), title: (title || ''), href: url, 'class': classes, 'id': link_id});
-      $instructureEditorBoxList._getEditor(id).insertNode($a);
     }
-
+    editor.sync();
+    /*
     var ed = $instructureEditorBoxList._getEditor(id);
-    var e = ed.getNodes();
+    var e = ed.getCurrent();
     if(e.nodeName != 'A') {
       e = $(e).children("a:last")[0];
     }
@@ -726,6 +680,7 @@ define([
       };
       $(e).indicate({offset: offset, singleFlash: true, scroll: true, container: $(box).find('iframe')});
     }
+    */
   };
 
 });
