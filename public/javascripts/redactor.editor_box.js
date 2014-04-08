@@ -272,6 +272,7 @@ define([
           'alignleft', 'aligncenter', 'alignright',
           'unorderedlist', 'orderedlist', 'outdent', 'indent',
           'table', 'link', 'horizontalrule'],
+      focus: !!options.focus,
       formattingTags: ['p', 'blockquote', 'pre', 'h2', 'h3', 'h4'],
       plugins: pluginsList,
       minHeight: 150,
