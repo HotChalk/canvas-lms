@@ -286,20 +286,17 @@ define([
 
     // Add custom editor buttons
     if (INST && INST.editorButtons) {
-      redactorOptions.buttons.push('|');
-      for (var btnIndex = 0; btnIndex < INST.editorButtons.length; btnIndex++) {
-        var btn = INST.editorButtons[btnIndex];
-        var btnId = 'extbtn' + btn.id;
-        RedactorPlugins[btnId] = {
+      $.each(INST.editorButtons, function (i, button) {
+        RedactorPlugins['extbtn' + button.id] = {
           init: function() {
-            this.buttonAdd(btnId, btn.name, this.invoke);
+            this.buttonAdd('extbtn' + button.id, button.name, this.invoke);
           },
           invoke: function(buttonName, buttonDOM, buttonObject, e) {
-            _externalToolCallback(btn.id, btn.name, btn.width, btn.height)
+            _externalToolCallback(button.id, button.name, button.width, button.height)
           }
         };
-        pluginsList.push(btnId);
-      }
+        pluginsList.push('extbtn' + button.id);
+      });
     }
 
     $textarea.redactor(redactorOptions);
