@@ -244,5 +244,5 @@ Dir[File.join(File.dirname(__FILE__), 'vendor/plugins/*/Gemfile')].each do |g|
 end
 
 #New Relic Monitoring
-gem 'newrelic_rpm', '3.6.8.168'
+gem 'newrelic_rpm', '3.7.3.204'
 
