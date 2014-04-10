@@ -182,7 +182,10 @@ define [
       $course_syllabus.hide()
       $course_syllabus_details.hide()
       $course_syllabus_body.editorBox()
-      $course_syllabus_body.editorBox 'set_code', $course_syllabus.data('syllabus_body')
+      setTimeout (=>
+        $course_syllabus_body.editorBox 'set_code', $course_syllabus.data('syllabus_body')
+        $course_syllabus_body.editorBox 'focus', true
+      ), 100
       if wikiSidebar
         wikiSidebar.attachToEditor $course_syllabus_body
         wikiSidebar.show()
