@@ -12,6 +12,7 @@ define [
   class DueDateList extends Backbone.View
 
     initialize: (options) ->
+      super
       @dueDateList = @model
       @dueDateViews = []
       @dueDateList.overrides.forEach (override) =>
@@ -38,7 +39,8 @@ define [
 
     validateBeforeSave: (data, errors) =>
       for override in (data.assignment_overrides || [] )
-        @dueDateViews[0].validateBeforeSave(override,errors)
+        if @dueDateViews.length > 0
+          @dueDateViews[0].validateBeforeSave(override,errors)
       errors
 
     afterRender: =>
@@ -71,5 +73,7 @@ define [
       @dueDateViews.push dueDateView
       @hideOrShowRemoveButtons()
       if render
-        @$el.append dueDateView.render().el
+        row = dueDateView.render().$el
+        @$el.append row
         @reRenderSections()
+        row.find(".section-list").focus()

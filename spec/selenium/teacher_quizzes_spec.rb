@@ -37,7 +37,7 @@ describe "quizzes" do
       get "/courses/#{@course.id}/quizzes"
       f('.quiz_list .description').should include_text "Multiple Dates"
       driver.mouse.move_to f('.quiz_list .description a')
-      wait_for_animations
+      wait_for_ajaximations
       tooltip = fj('.vdd_tooltip_content:visible')
       tooltip.should include_text 'New Section'
       tooltip.should include_text 'Everyone else'
@@ -162,8 +162,7 @@ describe "quizzes" do
     end
 
     it "should republish on save" do
-      Account.default.settings[:enable_draft] = true
-      Account.default.save!
+      Account.default.enable_feature!(:draft_state)
       get "/courses/#{@course.id}/quizzes"
       expect_new_page_load { f(".new-quiz-link").click }
       quiz = Quiz.last
@@ -171,6 +170,9 @@ describe "quizzes" do
         click_save_settings_button
         wait_for_ajax_requests
       end
+
+      # Hides SpeedGrader link when unpublished
+      f('.icon-speed-grader').should be_nil
 
       f('#quiz-publish-link').should_not include_text("Published")
       f('#quiz-publish-link').should include_text("Publish")
@@ -182,14 +184,17 @@ describe "quizzes" do
       quiz.versions.length.should == 2
       get "/courses/#{@course.id}/quizzes/#{quiz.id}/edit"
       expect_new_page_load {
-        f('#quiz-draft-state').text.strip.should == 'Published'
+        f('#quiz-draft-state').text.strip.should match accessible_variant_of 'Published'
         expect_new_page_load do
           click_save_settings_button
           wait_for_ajax_requests
         end
-        quiz.reload
-        quiz.versions.length.should == 3
       }
+      quiz.reload
+      quiz.versions.length.should == 3
+
+      # Shows speedgrader when published
+      f('.icon-speed-grader').should_not be_nil
     end
 
     it "should create a new question group" do
@@ -266,17 +271,24 @@ describe "quizzes" do
       @course.enroll_user(student, "StudentEnrollment", :enrollment_state => 'active')
       @context = @course
       q = quiz_model
+      q.time_limit = 20
       q.generate_quiz_data
       q.save!
 
       get "/courses/#{@course.id}/quizzes/#{q.id}/moderate"
-
       f('.moderate_student_link').click
+
+      # validates data
+      f('#extension_extra_attempts').send_keys('asdf')
+      submit_form('#moderate_student_form')
+      f('.attempts_left').text.should == '1'
+
+      # valid values
+      f('#extension_extra_attempts').clear()
       f('#extension_extra_attempts').send_keys('2')
       submit_form('#moderate_student_form')
       wait_for_ajax_requests
       f('.attempts_left').text.should == '3'
-
     end
 
     it "should flag a quiz question while taking a quiz as a teacher" do
@@ -285,7 +297,7 @@ describe "quizzes" do
       get "/courses/#{@course.id}/quizzes/#{@q.id}"
 
       expect_new_page_load do
-        driver.find_element(:link, 'Take the Quiz').click
+        f("#take_quiz_link").click
         wait_for_ajaximations
       end
 
@@ -322,8 +334,7 @@ describe "quizzes" do
 
     it "should validate numerical input data" do
       @quiz = quiz_with_new_questions do |bank, quiz|
-        aq = AssessmentQuestion.create!
-        bank.assessment_questions << aq
+        aq = bank.assessment_questions.create!
         quiz.quiz_questions.create!(:question_data => {:name => "numerical", 'question_type' => 'numerical_question', 'answers' => [], :points_possible => 1}, :assessment_question => aq)
       end
       take_quiz do
@@ -334,6 +345,7 @@ describe "quizzes" do
         wait_for_ajaximations
         error_displayed?.should be_true
         input.send_keys(:tab)
+        wait_for_ajaximations
         input[:value].should be_blank
 
         input.click
@@ -347,10 +359,8 @@ describe "quizzes" do
 
     it "should mark questions as answered when the window loses focus" do
       @quiz = quiz_with_new_questions do |bank, quiz|
-        aq1 = AssessmentQuestion.create!
-        aq2 = AssessmentQuestion.create!
-        bank.assessment_questions << aq1
-        bank.assessment_questions << aq2
+        aq1 = bank.assessment_questions.create!
+        aq2 = bank.assessment_questions.create!
         quiz.quiz_questions.create!(:question_data => {:name => "numerical", 'question_type' => 'numerical_question', 'answers' => [], :points_possible => 1}, :assessment_question => aq1)
         quiz.quiz_questions.create!(:question_data => {:name => "essay", 'question_type' => 'essay_question', 'answers' => [], :points_possible => 1}, :assessment_question => aq2)
       end
@@ -362,7 +372,7 @@ describe "quizzes" do
         in_frame f('.essay_question iframe')[:id] do
           f('#tinymce').send_keys :shift # no content, but it gives the iframe focus
         end
-        wait_for_ajax_requests
+        wait_for_ajaximations
         ff('#question_list .answered').size.should == 1
         input.should have_attribute(:value, "1.0000")
       end
@@ -433,11 +443,9 @@ describe "quizzes" do
       @context = @course
       bank = @course.assessment_question_banks.create!(:title => 'Test Bank')
       q = quiz_model
-      a = AssessmentQuestion.create!
-      b = AssessmentQuestion.create!
-      bank.assessment_questions << a
-      bank.assessment_questions << b
-      answers = {'answer_0' => {'id' => 1}, 'answer_1' => {'id' => 2}}
+      a = bank.assessment_questions.create!
+      b = bank.assessment_questions.create!
+      answers = [{id: 1, answer_text: 'A', weight: 100}, {id: 2, answer_text: 'B', weight: 0}]
       question = q.quiz_questions.create!(:question_data => {
           :name => "first question",
           'question_type' => 'multiple_choice_question',
@@ -450,30 +458,27 @@ describe "quizzes" do
       q.save!
 
       get "/courses/#{@course.id}/quizzes/#{q.id}/take?user_id=#{@user.id}"
-      driver.find_element(:link_text, 'Take the Quiz').click
+      f("#take_quiz_link").click
 
       answer_one = f("#question_#{question.id}_answer_1")
       answer_two = f("#question_#{question.id}_answer_2")
 
       # force a save to create a submission
       answer_one.click
-      wait_for_ajax_requests
+      wait_for_ajaximations
 
-      # increase the time limit on the quiz
-      q.update_attribute(:time_limit, 20)
-      q.update_quiz_submission_end_at_times
+      # add time as a the moderator. this code replicates what happens in
+      # QuizSubmissions#extensions when a moderator extends a student's
+      # quiz time.
 
-      assert_flash_notice_message /You have been given extra time on this attempt/
-
-
+      quiz_original_end_time = QuizSubmission.last.end_at
       keep_trying_until do
+        submission = QuizSubmission.last
+        submission.end_at = Time.now + 20.minutes
+        submission.save!
+        quiz_original_end_time < QuizSubmission.last.end_at
         f('.time_running').text.should match /19 Minutes/
       end
-
-      #This step is to prevent selenium from freezing when the dialog appears when leaving the page
-      driver.find_element(:link, I18n.t('links_to.quizzes', 'Quizzes')).click
-      confirm_dialog = driver.switch_to.alert
-      confirm_dialog.accept
     end
 
     def upload_attachment_answer
@@ -501,10 +506,8 @@ describe "quizzes" do
       @context = @course
       bank = @course.assessment_question_banks.create!(:title => 'Test Bank')
       q = quiz_model
-      a = AssessmentQuestion.create!
-      b = AssessmentQuestion.create!
-      bank.assessment_questions << a
-      bank.assessment_questions << b
+      a = bank.assessment_questions.create!
+      b = bank.assessment_questions.create!
       answers = {'answer_0' => {'id' => 1}, 'answer_1' => {'id' => 2}}
       @question = q.quiz_questions.create!(:question_data => {
           :name => "first question",
@@ -518,9 +521,9 @@ describe "quizzes" do
       filename, @fullpath, data = get_file "testfile1.txt"
       get "/courses/#{@course.id}/quizzes/#{q.id}/take?user_id=#{@user.id}"
       expect_new_page_load do
-        driver.find_element(:link_text, 'Take the Quiz').click
+        f("#take_quiz_link").click
       end
-      wait_for_animations
+      wait_for_ajaximations
       # so we can .send_keys to the input, can't if it's invisible to
       # the browser
       driver.execute_script "$('.file-upload').removeClass('hidden')"
@@ -541,7 +544,7 @@ describe "quizzes" do
         driver.get driver.current_url
         driver.switch_to.alert.accept
       end
-      wait_for_animations
+      wait_for_ajaximations
       attachment = file_upload_attachment
       fj('.file-upload-box').text.should include attachment.display_name
       f('#submit_quiz_button').click
@@ -551,13 +554,12 @@ describe "quizzes" do
     end
 
     it "should notify a student of extra time given by a moderator" do
+      pending('broken')
       @context = @course
       bank = @course.assessment_question_banks.create!(:title => 'Test Bank')
       q = quiz_model
-      a = AssessmentQuestion.create!
-      b = AssessmentQuestion.create!
-      bank.assessment_questions << a
-      bank.assessment_questions << b
+      a = bank.assessment_questions.create!
+      b = bank.assessment_questions.create!
       answers = {'answer_0' => {'id' => 1}, 'answer_1' => {'id' => 2}}
       question = q.quiz_questions.create!(:question_data => {
           :name => "first question",
@@ -571,7 +573,7 @@ describe "quizzes" do
       q.save!
 
       get "/courses/#{@course.id}/quizzes/#{q.id}/take?user_id=#{@user.id}"
-      driver.find_element(:link_text, 'Take the Quiz').click
+      f("#take_quiz_link").click
 
       answer_one = f("#question_#{question.id}_answer_1")
       answer_two = f("#question_#{question.id}_answer_2")
@@ -583,20 +585,17 @@ describe "quizzes" do
       # add time as a the moderator. this code replicates what happens in
       # QuizSubmissions#extensions when a moderator extends a student's
       # quiz time.
+
+
+      quiz_original_end_time = QuizSubmission.last.end_at
+
+
       submission = QuizSubmission.last
       submission.end_at = Time.now + 20.minutes
       submission.save!
-
+      quiz_original_end_time < QuizSubmission.last.end_at
       assert_flash_notice_message /You have been given extra time on this attempt/
-
-      keep_trying_until do
-        f('.time_running').text.should match /19 Minutes/
-      end
-
-      #This step is to prevent selenium from freezing when the dialog appears when leaving the page
-      driver.find_element(:link, I18n.t('links_to.quizzes', 'Quizzes')).click
-      confirm_dialog = driver.switch_to.alert
-      confirm_dialog.accept
+      f('.time_running').text.should match /19 Minutes/
     end
 
 
@@ -604,7 +603,7 @@ describe "quizzes" do
       quiz_with_submission
       get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
 
-      driver.find_element(:link, "Quiz Statistics").click
+      click_quiz_statistics_button
 
       f('#content .question_name').should include_text("Question 1")
     end
@@ -700,8 +699,7 @@ describe "quizzes" do
 
     context "with draft state" do
       before(:each) do
-        Account.default.settings[:enable_draft] = true
-        Account.default.save!
+        Account.default.enable_feature!(:draft_state)
       end
 
       it "should click the publish button to publish a quiz" do
@@ -747,14 +745,23 @@ describe "quizzes" do
       it "should show a summary of due dates if there are multiple" do
         create_quiz_with_default_due_dates
         get "/courses/#{@course.id}/quizzes"
-        f('.ig-details .description').should_not include_text "Multiple Dates"
+        f('.ig-details .date-due').should_not include_text "Multiple Dates"
+        f('.ig-details .date-available').should_not include_text "Multiple Dates"
+
         add_due_date_override(@quiz)
 
         get "/courses/#{@course.id}/quizzes"
-        f('.ig-details .description').should include_text "Multiple Dates"
-        driver.mouse.move_to f('.ig-details .description a')
-        wait_for_animations
-        tooltip = fj('.vdd_tooltip_content:visible')
+        f('.ig-details .date-due').should include_text "Multiple Dates"
+        driver.mouse.move_to f('.ig-details .date-due a')
+        wait_for_ajaximations
+        tooltip = fj('.ui-tooltip:visible')
+        tooltip.should include_text 'New Section'
+        tooltip.should include_text 'Everyone else'
+
+        f('.ig-details .date-available').should include_text "Multiple Dates"
+        driver.mouse.move_to f('.ig-details .date-available a')
+        wait_for_ajaximations
+        tooltip = fj('.ui-tooltip:visible')
         tooltip.should include_text 'New Section'
         tooltip.should include_text 'Everyone else'
       end

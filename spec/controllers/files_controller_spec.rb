@@ -17,15 +17,14 @@
 #
 
 require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
 describe FilesController do
   def course_folder
     @folder = @course.folders.create!(:name => "a folder", :workflow_state => "visible")
   end
   def io
-    require 'action_controller'
-    require 'action_controller/test_process.rb'
-    ActionController::TestUploadedFile.new(File.expand_path(File.dirname(__FILE__) + '/../fixtures/scribd_docs/doc.doc'), 'application/msword', true)
+    fixture_file_upload('scribd_docs/doc.doc', 'application/msword', true)
   end
   def course_file
     @file = factory_with_protected_attributes(@course.attachments, :uploaded_data => io)
@@ -343,14 +342,23 @@ describe FilesController do
       @file.reload.last_inline_view.should be_nil
     end
 
-    it "should redirect to an existing attachment with the same path as a deleted attachment" do
+    it "should redirect to the user's files URL when browsing to an attachment with the same path as a deleted attachment" do
       course_with_student_logged_in(:active_all => true)
-      old_file = course_file
-      old_file.display_name = 'holla'
-      old_file.save
-      old_file.destroy
+      unowned_file = course_file
+      unowned_file.display_name = 'holla'
+      unowned_file.save
+      unowned_file.destroy
 
-      get 'show', :course_id => @course.id, :id => old_file.id
+      get 'show', :course_id => @course.id, :id => unowned_file.id
+      assert_unauthorized
+
+      owned_file = course_file
+      owned_file.display_name = 'holla'
+      owned_file.user_id = @user.id
+      owned_file.save
+      owned_file.destroy
+
+      get 'show', :course_id => @course.id, :id => owned_file.id
       response.should be_redirect
       flash[:notice].should match(/has been deleted/)
       URI.parse(response['Location']).path.should == "/courses/#{@course.id}/files"
@@ -359,7 +367,7 @@ describe FilesController do
       new_file.display_name = 'holla'
       new_file.save
 
-      get 'show', :course_id => @course.id, :id => old_file.id
+      get 'show', :course_id => @course.id, :id => new_file.id
       response.should be_success
       assigns(:attachment).should == new_file
     end
@@ -550,6 +558,7 @@ describe FilesController do
       response.should be_success
       assigns[:attachment].should_not be_nil
       assigns[:attachment].id.should_not be_nil
+      assigns[:attachment][:user_id].should_not be_nil
       json = json_parse
       json.should_not be_nil
       json['id'].should eql(assigns[:attachment].id)
@@ -568,6 +577,7 @@ describe FilesController do
       response.should be_success
       assigns[:attachment].should_not be_nil
       assigns[:attachment].id.should_not be_nil
+      assigns[:attachment][:user_id].should_not be_nil
       json = json_parse
       json.should_not be_nil
       json['id'].should eql(assigns[:attachment].id)

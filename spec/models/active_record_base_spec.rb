@@ -104,6 +104,20 @@ describe ActiveRecord::Base do
         end
       end
     end
+
+    it "should not use a cursor when start is passed" do
+      pending "needs PostgreSQL" unless Account.connection.adapter_name == 'PostgreSQL'
+      Account.transaction do
+        Account.expects(:find_in_batches_with_cursor).never
+        Account.where(:id => Account.default).includes(:courses).find_each(start: 0) do |a|
+          a.courses.loaded?.should be_true
+        end
+      end
+    end
+
+    it "should raise an error when start is used with group" do
+      lambda { Account.group(:id).find_each(start: 0) }.should raise_error(ArgumentError)
+    end
   end
 
   describe "#remove_dropped_columns" do
@@ -345,11 +359,11 @@ describe ActiveRecord::Base do
 
   context "bulk_insert" do
     it "should work" do
-      Course.bulk_insert [
-        {:name => "foo"},
-        {:name => "bar"}
+      User.bulk_insert [
+        {:name => "foo", :workflow_state => "registered"},
+        {:name => "bar", :workflow_state => "registered"}
       ]
-      Course.order(:name).pluck(:name).should eql ["bar", "foo"]
+      User.order(:name).pluck(:name).should eql ["bar", "foo"]
     end
 
     it "should not raise an error if there are no records" do
@@ -391,7 +405,7 @@ describe ActiveRecord::Base do
   describe "find_ids_in_ranges" do
     it "should return ids from the table in ranges" do
       ids = []
-      10.times { ids << User.create!().id.to_s }
+      10.times { ids << User.create!().id }
       batches = []
       User.find_ids_in_ranges(:batch_size => 4) do |*found_ids|
         batches << found_ids
@@ -406,13 +420,17 @@ describe ActiveRecord::Base do
       user2 = User.create!
       user2.destroy
       User.active.find_ids_in_ranges do |*found_ids|
-        found_ids.should == [user.id.to_s, user.id.to_s]
+        found_ids.should == [user.id, user.id]
       end
     end
   end
 
   context "after_transaction_commit" do
     self.use_transactional_fixtures = false
+
+    before do
+      Rails.env.stubs(:test?).returns(false)
+    end
 
     it "should execute the callback immediately if not in a transaction" do
       a = 0
@@ -512,6 +530,17 @@ describe ActiveRecord::Base do
     end
   end
 
+  describe "delete_all with_limit" do
+    it "should work" do
+      u = User.create!
+      p1 = u.pseudonyms.create!(unique_id: 'a', account: Account.default)
+      p2 = u.pseudonyms.create!(unique_id: 'b', account: Account.default)
+      u.pseudonyms.scoped.reorder("unique_id DESC").limit(1).delete_all
+      p1.reload
+      lambda { p2.reload }.should raise_error(ActiveRecord::RecordNotFound)
+    end
+  end
+
   context "fake arel extensions" do
     before do
       @user = User.create!(:name => 'a')
@@ -598,6 +627,59 @@ describe ActiveRecord::Base do
       it "should merge group" do
         User.group(:id).group(:name).scope(:find, :group).should == 'id, name'
       end
+    end
+  end
+
+  describe "add_index" do
+    it "should raise an error on too long of name" do
+      name = 'some_really_long_name_' * 10
+      lambda { User.connection.add_index :users, [:id], name: name }.should raise_error
+    end
+  end
+
+  describe "nested conditions" do
+    it "should not barf if the condition has a question mark" do
+      User.joins(:enrollments).where(enrollments: { sis_source_id: 'a?c'}).first.should be_nil
+    end
+  end
+
+  describe ".nulls" do
+    before do
+      @u1 = User.create!
+      User.where(id: @u1).update_all(name: nil)
+      @u2 = User.create!(name: 'a')
+      @u3 = User.create!
+      User.where(id: @u3).update_all(name: nil)
+      @u4 = User.create!(name: 'b')
+
+      @us = [@u1, @u2, @u3, @u4]
+      # for sanity
+      User.where(id: @us, name: nil).order(:id).all.should == [@u1, @u3]
+    end
+
+    it "should sort nulls first" do
+      User.where(id: @us).order(User.nulls(:first, :name), :id).all.should == [@u1, @u3, @u2, @u4]
+    end
+
+    it "should sort nulls last" do
+      User.where(id: @us).order(User.nulls(:last, :name), :id).all.should == [@u2, @u4, @u1, @u3]
+    end
+
+    it "should sort nulls first, desc" do
+      User.where(id: @us).order(User.nulls(:first, :name, :desc), :id).all.should == [@u1, @u3, @u4, @u2]
+    end
+
+    it "should sort nulls last, desc" do
+      User.where(id: @us).order(User.nulls(:last, :name, :desc), :id).all.should == [@u4, @u2, @u1, @u3]
+    end
+  end
+
+  describe "marshalling" do
+    it "should not load associations when marshalling" do
+      a = Account.default
+      a.user_account_associations.loaded?.should be_false
+      Marshal.dump(a)
+      a.user_account_associations.loaded?.should be_false
     end
   end
 end

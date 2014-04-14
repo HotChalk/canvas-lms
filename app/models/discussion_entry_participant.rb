@@ -25,6 +25,8 @@ class DiscussionEntryParticipant < ActiveRecord::Base
   belongs_to :discussion_entry
   belongs_to :user
 
+  validates_presence_of :discussion_entry_id, :user_id, :workflow_state
+
   def self.read_entry_ids(entry_ids, user)
     self.where(:user_id => user, :discussion_entry_id => entry_ids, :workflow_state => 'read').
       pluck(:discussion_entry_id)
@@ -41,4 +43,8 @@ class DiscussionEntryParticipant < ActiveRecord::Base
   end
 
   scope :read, where(:workflow_state => 'read')
+  scope :existing_participants, ->(user, entry_id) {
+    select([:id, :discussion_entry_id]).
+      where(user_id: user, discussion_entry_id: entry_id)
+  }
 end

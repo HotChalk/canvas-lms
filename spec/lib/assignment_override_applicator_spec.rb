@@ -47,13 +47,15 @@ describe AssignmentOverrideApplicator do
     end
 
     it "should distinguish cache by assignment version" do
-      @assignment.due_at = 7.days.from_now
-      @assignment.save!
-      @assignment.versions.count.should == 2
-      enable_cache do
-        overrides1 = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment.versions.first.model, @student)
-        overrides2 = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment.versions.current.model, @student)
-        overrides1.object_id.should_not == overrides2.object_id
+      Timecop.travel Time.now + 1.hour do
+        @assignment.due_at = 7.days.from_now
+        @assignment.save!
+        @assignment.versions.count.should == 2
+        enable_cache do
+          overrides1 = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment.versions.first.model, @student)
+          overrides2 = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment.versions.current.model, @student)
+          overrides1.object_id.should_not == overrides2.object_id
+        end
       end
     end
 
@@ -84,7 +86,7 @@ describe AssignmentOverrideApplicator do
     context "group overrides" do
       before :each do
         @category = group_category
-        @group = @category.groups.create!
+        @group = @category.groups.create!(context: @course)
 
         @assignment.group_category = @category
         @assignment.save!
@@ -102,7 +104,7 @@ describe AssignmentOverrideApplicator do
       end
 
       it "should not include group override for groups other than the user's" do
-        @override.set = @category.groups.create!
+        @override.set = @category.groups.create!(context: @course)
         @override.save!
 
         overrides = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment, @student)
@@ -199,7 +201,7 @@ describe AssignmentOverrideApplicator do
 
     it "should order adhoc override before group override" do
       @category = group_category
-      @group = @category.groups.create!
+      @group = @category.groups.create!(:context => @course)
       @membership = @group.add_user(@student)
       @assignment.group_category = @category
       @assignment.save!
@@ -221,7 +223,7 @@ describe AssignmentOverrideApplicator do
 
     it "should order group override before section overrides" do
       @category = group_category
-      @group = @category.groups.create!
+      @group = @category.groups.create!(:context => @course)
       @membership = @group.add_user(@student)
       @assignment.group_category = @category
       @assignment.save!
@@ -323,34 +325,70 @@ describe AssignmentOverrideApplicator do
       end
 
       context "overrides for an assignment for a quiz, where the overrides were created before the quiz was published" do
-        it "skips versions of the override that have nil for an assignment version" do
-          student_in_course
-          expected_time = Time.zone.now
-          quiz = @course.quizzes.create! :title => "VDD Quiz", :quiz_type => 'assignment'
-          section = @course.course_sections.create! :name => "title"
-          @course.enroll_user(@student,
-                              'StudentEnrollment',
-                              :section => section,
-                              :enrollment_state => 'active',
-                              :allow_multiple_enrollments => true)
-          override = quiz.assignment_overrides.build
-          override.quiz_id = quiz.id
-          override.quiz = quiz
-          override.set_type = 'CourseSection'
-          override.set_id = section.id
-          override.title = "Quiz Assignment override"
-          override.due_at = expected_time
-          override.save!
-          quiz.publish!
-          override = quiz.reload.assignment.assignment_overrides.first
-          override.versions.length.should == 2
-          override.versions[0].model.assignment_version.should_not be_nil
-          override.versions[1].model.assignment_version.should be_nil
-          # Assert that it won't call the "<=" method on nil
-          expect do
-            overrides = AssignmentOverrideApplicator.
-              overrides_for_assignment_and_user(quiz.assignment, @student)
-          end.to_not raise_error
+        context "without draft states" do
+          it "skips versions of the override that have nil for an assignment version" do
+            student_in_course
+            expected_time = Time.zone.now
+            quiz = @course.quizzes.create! :title => "VDD Quiz", :quiz_type => 'assignment'
+            section = @course.course_sections.create! :name => "title"
+            @course.enroll_user(@student,
+                                'StudentEnrollment',
+                                :section => section,
+                                :enrollment_state => 'active',
+                                :allow_multiple_enrollments => true)
+            override = quiz.assignment_overrides.build
+            override.quiz_id = quiz.id
+            override.quiz = quiz
+            override.set_type = 'CourseSection'
+            override.set_id = section.id
+            override.title = "Quiz Assignment override"
+            override.due_at = expected_time
+            override.save!
+            quiz.publish!
+            override = quiz.reload.assignment.assignment_overrides.first
+            override.versions.length.should == 2
+            override.versions[0].model.assignment_version.should_not be_nil
+            override.versions[1].model.assignment_version.should be_nil
+            # Assert that it won't call the "<=" method on nil
+            expect do
+              overrides = AssignmentOverrideApplicator.
+                overrides_for_assignment_and_user(quiz.assignment, @student)
+            end.to_not raise_error
+          end
+        end
+
+        context "with draft states" do
+          it "quiz should always have an assignment for overrides" do
+            # with draft states quizzes always have an assignment.
+            student_in_course
+            course.root_account.enable_feature!(:draft_state)
+            expected_time = Time.zone.now
+            quiz = @course.quizzes.create! :title => "VDD Quiz", :quiz_type => 'assignment'
+            section = @course.course_sections.create! :name => "title"
+            @course.enroll_user(@student,
+                                'StudentEnrollment',
+                                :section => section,
+                                :enrollment_state => 'active',
+                                :allow_multiple_enrollments => true)
+            override = quiz.assignment_overrides.build
+            override.quiz_id = quiz.id
+            override.quiz = quiz
+            override.set_type = 'CourseSection'
+            override.set_id = section.id
+            override.title = "Quiz Assignment override"
+            override.due_at = expected_time
+            override.save!
+            quiz.publish!
+            override = quiz.reload.assignment.assignment_overrides.first
+            override.versions.length.should == 1
+            override.versions[0].model.assignment_version.should_not be_nil
+            # Assert that it won't call the "<=" method on nil
+            expect do
+              overrides = AssignmentOverrideApplicator.
+                overrides_for_assignment_and_user(quiz.assignment, @student)
+            end.to_not raise_error
+            course.root_account.disable_feature!(:draft_state)
+          end
         end
       end
     end
@@ -414,8 +452,13 @@ describe AssignmentOverrideApplicator do
     end
 
     it "should copy pre-loaded associations" do
-      @overridden.loaded_context?.should == @assignment.loaded_context?
-      @overridden.loaded_rubric?.should == @assignment.loaded_rubric?
+      if CANVAS_RAILS2
+        @overridden.loaded_context?.should == @assignment.loaded_context?
+        @overridden.loaded_rubric?.should == @assignment.loaded_rubric?
+      else
+        @overridden.association(:context).loaded?.should == @assignment.association(:context).loaded?
+        @overridden.association(:rubric).loaded?.should == @assignment.association(:rubric).loaded?
+      end
       @overridden.learning_outcome_alignments.loaded? == @assignment.learning_outcome_alignments.loaded?
     end
   end
@@ -441,16 +484,19 @@ describe AssignmentOverrideApplicator do
       end
     end
 
-    it "should distinguish cache by assignment version" do
+    it "should distinguish cache by assignment updated_at" do
       @assignment = assignment_model
-      @assignment.due_at = 5.days.from_now
-      @assignment.save!
-      @assignment.versions.count.should == 2
-      @override = assignment_override_model(:assignment => @assignment)
-      enable_cache do
-        overrides1 = AssignmentOverrideApplicator.collapsed_overrides(@assignment.versions.first.model, [@override])
-        overrides2 = AssignmentOverrideApplicator.collapsed_overrides(@assignment.versions.current.model, [@override])
-        overrides1.object_id.should_not == overrides2.object_id
+      Timecop.travel Time.now + 1.hour do
+        @assignment.due_at = 5.days.from_now
+        @assignment.save!
+        @assignment.versions.count.should == 2
+        @override = assignment_override_model(:assignment => @assignment)
+        enable_cache do
+          overrides1 = AssignmentOverrideApplicator.collapsed_overrides(@assignment.versions.first.model, [@override])
+          overrides2 = AssignmentOverrideApplicator.collapsed_overrides(@assignment.versions.current.model, [@override])
+          @assignment.versions.first.updated_at.should_not == @assignment.versions.current.model
+          overrides1.object_id.should_not == overrides2.object_id
+        end
       end
     end
 

@@ -40,6 +40,7 @@ define [
 
     els:
       '.screenreader-only': '$title'
+      '.discussion-row': '$row'
 
     # Public: Topic is able to be locked/unlocked.
     @optionProperty 'lockable'
@@ -47,10 +48,13 @@ define [
     # Public: Topic is able to be pinned/unpinned.
     @optionProperty 'pinnable'
 
+    @child 'publishIcon', '[data-view=publishIcon]' if ENV.permissions.publish
+
     @child 'toggleableSubscriptionIcon', '[data-view=toggleableSubscriptionIcon]'
 
     initialize: (options) ->
       @attachModel()
+      options.publishIcon = new PublishIconView(model: @model) if ENV.permissions.publish
       options.toggleableSubscriptionIcon = new ToggleableSubscriptionIconView(model: @model)
       super
 
@@ -69,19 +73,6 @@ define [
       key    = if @model.get('locked') then 'lock' else 'unlock'
       locked = !@model.get('locked')
       pinned = if locked then false else @model.get('pinned')
-      @model.save(locked: locked, pinned: pinned)
-      $(e.target).text(@messages[key])
-
-    # Public: Pin or unpin the model and update it on the server.
-    #
-    # e - Event object.
-    #
-    # Returns nothing.
-    togglePinned: (e) =>
-      e.preventDefault()
-      key = if @model.get('pinned') then 'pin' else 'unpin'
-      pinned = !@model.get('pinned')
-      locked = if pinned then false else @model.get('locked')
       @model.save(locked: locked, pinned: pinned)
       $(e.target).text(@messages[key])
 
@@ -141,10 +132,26 @@ define [
       # check for permission to lock the discussion topic based on due date (see TL-219)
       assignment = @model.get('assignment')
       base.permissions.lock = @model.get('locked') || !(assignment && assignment.dueAt() && (new Date(assignment.dueAt()) > new Date()))
+      base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
+      base.ENV = ENV
       base
+
+    # Internal: Re-render for publish state change preserving focus
+    #
+    # Returns nothing.
+    renderPublishChange: =>
+      @publishIcon?.render()
+      if ENV.permissions.publish
+        if @model.get('published')
+          @$row.removeClass('discussion-unpublished')
+          @$row.addClass('discussion-published')
+        else
+          @$row.removeClass('discussion-published')
+          @$row.addClass('discussion-unpublished')
 
     # Internal: Add event handlers to the model.
     #
     # Returns nothing.
     attachModel: ->
       @model.on('change:hidden', @hide)
+      @model.on('change:published', @renderPublishChange)

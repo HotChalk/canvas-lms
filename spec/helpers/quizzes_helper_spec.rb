@@ -23,6 +23,93 @@ describe QuizzesHelper do
   include ApplicationHelper
   include QuizzesHelper
 
+  describe "#needs_unpublished_warning" do
+    before do
+      course_with_teacher
+    end
+
+    context "with draft state enabled" do
+      before do
+        @course.account.enable_feature!(:draft_state)
+      end
+
+      it "is false if quiz not manageable" do
+        quiz = Quiz.new(:context => @course)
+
+        def can_publish(quiz); false; end
+        needs_unpublished_warning?(quiz, User.new).should be_false
+      end
+
+      it "is false if quiz is available with no unpublished changes" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'available'
+        quiz.last_edited_at = 10.minutes.ago
+        quiz.published_at   = Time.now
+
+        def can_publish(quiz); true; end
+        needs_unpublished_warning?(quiz, User.new).should be_false
+      end
+
+      it "is true if quiz is not available" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'created'
+
+        def can_publish(quiz); true; end
+        needs_unpublished_warning?(quiz, User.new).should be_true
+      end
+
+      it "is true if quiz has unpublished changes" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'available'
+        quiz.last_edited_at = Time.now
+        quiz.published_at   = 10.minutes.ago
+
+        def can_publish(quiz); true; end
+        needs_unpublished_warning?(quiz, User.new).should be_true
+      end
+    end
+
+    context "with draft state disabled" do
+
+      it "is false if quiz is not readable" do
+        quiz = Quiz.new(:context => @course)
+
+        def can_read(quiz); false; end
+        needs_unpublished_warning?(quiz, User.new).should be_false
+      end
+
+      it "is false if quiz is available with no unpublished changes" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'available'
+        quiz.last_edited_at = 10.minutes.ago
+        quiz.published_at   = Time.now
+
+        def can_publish(quiz); true; end
+        needs_unpublished_warning?(quiz, User.new).should be_false
+      end
+
+      it "is true if quiz is not available" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'created'
+
+        def can_read(quiz); true; end
+        def can_publish(quiz); false; end
+        needs_unpublished_warning?(quiz, User.new).should be_true
+      end
+
+      it "is true if quiz has unpublished changes" do
+        quiz = Quiz.new(:context => @course)
+        quiz.workflow_state = 'available'
+        quiz.last_edited_at = Time.now
+        quiz.published_at   = 10.minutes.ago
+
+        def can_read(quiz); true; end
+        def can_publish(quiz); true; end
+        needs_unpublished_warning?(quiz, User.new).should be_true
+      end
+    end
+  end
+
   describe "#attachment_id_for" do
 
     it "returns the attachment id if attachment exists" do
@@ -128,17 +215,34 @@ describe QuizzesHelper do
   end
 
   context 'fill_in_multiple_blanks_question' do
-    it 'should sanitize user input' do
-      def user_content(stuff); stuff; end
+    before(:each) do
+      @question_text = %q|<input name="question_1" 'value={{question_1}}' />|
+      @answer_list = []
+      @answers = []
 
-      question_text = %q|<input name="question_1" 'value={{question_1}}' />|
+      def user_content(stuff); stuff; end # mock #user_content
+    end
+    it 'should sanitize user input' do
+      malicious_answer_list =  [%q|'><script>alert('ha!')</script><img|]
+
       html = fill_in_multiple_blanks_question(
-        :question => {:question_text => question_text},
-        :answer_list => [%q|'><script>alert('ha!')</script><img|],
-        :answers => []
+        :question => {:question_text => @question_text},
+        :answer_list => malicious_answer_list,
+        :answers => @answers
       )
 
-      html.should == %q|<input name="question_1" 'value=&#39;&gt;&lt;script&gt;alert(&#39;ha!&#39;)&lt;/script&gt;&lt;img' readonly="readonly" />|
+      html.should == %q|<input name="question_1" 'value=&#39;&gt;&lt;script&gt;alert(&#39;ha!&#39;)&lt;/script&gt;&lt;img' readonly="readonly" aria-label='Fill in the blank, read surrounding text' />|
+    end
+
+    it 'should add an appropriate label' do
+      html = fill_in_multiple_blanks_question(
+        :question => {:question_text => @question_text},
+        :answer_list => @answer_list,
+        :answers => @answers
+      )
+
+      html.should =~ /aria\-label/
+      html.should =~ /Fill in the blank/
     end
   end
 
@@ -177,6 +281,102 @@ describe QuizzesHelper do
     it "returns false if kept score equals score before regrade" do
       submission = stub(:score_before_regrade => 5, :kept_score => 5, :score => 0)
       score_affected_by_regrade?(submission).should be_false
+    end
+  end
+
+  describe "#answer_title" do
+    it "builds title if answer is selected" do
+      title = answer_title(true, false, false)
+      title.should == "title=\"You selected this answer.\""
+    end
+
+    it "builds title if answer is correct" do
+      title = answer_title(false, true, true)
+      title.should == "title=\"This was the correct answer.\""
+    end
+
+    it "returns nil if not selected or correct" do
+      title = answer_title(false, false, false)
+      title.should be_nil
+    end
+  end
+
+  describe '#render_correct_answer_protection' do
+    it 'should provide a useful message when "no"' do
+      quiz = stub({
+        show_correct_answers: false,
+        show_correct_answers_at: nil,
+        hide_correct_answers_at: nil
+      })
+
+      message = render_correct_answer_protection(quiz)
+      message.should =~ /are hidden/
+    end
+
+    it 'should provide nothing when "yes"' do
+      quiz = stub({
+        show_correct_answers: true,
+        show_correct_answers_at: nil,
+        hide_correct_answers_at: nil
+      })
+
+      message = render_correct_answer_protection(quiz)
+      message.should == nil
+    end
+
+    it 'should provide a useful message, and an availability date, when "show at" is set' do
+      quiz = stub({
+        show_correct_answers: true,
+        show_correct_answers_at: 1.day.from_now,
+        hide_correct_answers_at: nil
+      })
+
+      message = render_correct_answer_protection(quiz)
+      message.should =~ /will be available/
+    end
+
+    it 'should provide a useful message, and a date, when "hide at" is set' do
+      quiz = stub({
+        show_correct_answers: true,
+        show_correct_answers_at: nil,
+        hide_correct_answers_at: 1.day.from_now
+      })
+
+      message = render_correct_answer_protection(quiz)
+      message.should =~ /are available until/
+    end
+  end
+
+  context "#point_value_for_input" do
+    let(:user_answer) { @user_answer }
+    let(:question) { { points_possible: 5 } }
+    let(:quiz) { @quiz }
+
+    before do
+      @quiz = stub(quiz_type: 'graded_survey')
+      @user_answer = { correct: 'undefined', points: 5 }
+    end
+
+    it "returns user_answer[:points] if correct is true/false" do
+      [true, false].each do |bool|
+        user_answer[:correct] = bool
+        point_value_for_input(user_answer, question).should == user_answer[:points]
+      end
+    end
+
+    it "returns -- if quiz is practice quiz or assignment" do
+      ['assignment', 'practice_quiz'].each do |quiz_type|
+        @quiz.expects(:quiz_type).returns quiz_type
+        point_value_for_input(user_answer, question).should == "--"
+      end
+    end
+
+    it "returns points possible for the question if (un)graded survey" do
+      ['survey', 'graded_survey'].each do |quiz_type|
+        @quiz.expects(:quiz_type).returns quiz_type
+        point_value_for_input(user_answer, question).should ==
+          question[:points_possible]
+      end
     end
   end
 end

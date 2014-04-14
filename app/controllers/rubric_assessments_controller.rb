@@ -67,27 +67,35 @@ class RubricAssessmentsController < ApplicationController
     @request = @association.assessment_requests.find(params[:assessment_request_id])
     if authorized_action(@association, @current_user, :manage)
       @request.send_reminder!
-      render :json => @request.to_json
+      render :json => @request
     end
   end
   
   def update
     @association = @context.rubric_associations.find(params[:rubric_association_id])
-    @assessment = @association.rubric_assessments.find(params[:id]) rescue nil
+    @assessment = @association.rubric_assessments.find_by_id(params[:id])
     @association_object = @association.association
+
+    # only check if there's no @assessment object, since that's the only time
+    # this param matters (assessing_user_id and arg find_asset_for_assessment)
+    user_id = params[:rubric_assessment][:user_id]
+    if !@assessment && user_id !~ /\A\d+\Z/
+      raise ActiveRecord::RecordNotFound
+    end
+
     # Funky flow to avoid a double-render, re-work it if you like
-    @association.assessing_user_id = params[:rubric_assessment][:user_id] rescue nil
+    @association.assessing_user_id = user_id
     if @assessment && !authorized_action(@assessment, @current_user, :update)
       return
     elsif @assessment || authorized_action(@association, @current_user, :assess)
-      @asset, @user = @association_object.find_asset_for_assessment(@association, @assessment ? @assessment.user_id : params[:rubric_assessment][:user_id])
+      @asset, @user = @association_object.find_asset_for_assessment(@association, @assessment ? @assessment.user_id : user_id)
       @assessment = @association.assess(:assessor => @current_user, :user => @user, :artifact => @asset, :assessment => params[:rubric_assessment])
       @asset.reload
       artifact_includes = @asset.is_a?(Submission) ? {
         :artifact => Submission.json_serialization_full_parameters,
         :rubric_association => {}
       } : [:artifact, :rubric_association]
-      render :json => @assessment.to_json(:methods => [:ratings, :assessor_name, :related_group_submissions_and_assessments], :include => artifact_includes, :include_root => false)
+      render :json => @assessment.as_json(:methods => [:ratings, :assessor_name, :related_group_submissions_and_assessments], :include => artifact_includes, :include_root => false)
     end
   end
   
@@ -97,9 +105,9 @@ class RubricAssessmentsController < ApplicationController
     @assessment = @rubric.rubric_assessments.find(params[:id])
     if authorized_action(@assessment, @current_user, :delete)
       if @assessment.destroy
-        render :json => @assessment.to_json
+        render :json => @assessment
       else
-        render :json => @assessment.errors.to_json, :status => :bad_request
+        render :json => @assessment.errors, :status => :bad_request
       end
     end
   end

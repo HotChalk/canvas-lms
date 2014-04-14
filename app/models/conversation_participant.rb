@@ -179,6 +179,7 @@ class ConversationParticipant < ActiveRecord::Base
 
   attr_accessible :subscribed, :starred, :workflow_state, :user
 
+  validates_presence_of :conversation_id, :user_id, :workflow_state
   validates_inclusion_of :label, :in => ['starred'], :allow_nil => true
 
   def as_json(options = {})
@@ -232,22 +233,27 @@ class ConversationParticipant < ActiveRecord::Base
       :include_indirect_participants => false
     }.merge(options)
 
-    participants = conversation.participants
-    if options[:include_indirect_participants]
-      user_ids =
-        messages.map(&:all_forwarded_messages).flatten.map(&:author_id) |
-        messages.map{
-          |m| m.submission.submission_comments.map(&:author_id) if m.submission
-        }.compact.flatten
-      user_ids -= participants.map(&:id)
-      participants += MessageableUser.available.where(:id => user_ids).all
+    shard.activate do
+      Rails.cache.fetch([conversation, user, 'participants', options].cache_key) do
+        participants = conversation.participants
+        if options[:include_indirect_participants]
+          user_ids =
+            messages.map(&:all_forwarded_messages).flatten.map(&:author_id) |
+            messages.map{
+              |m| m.submission.submission_comments.map(&:author_id) if m.submission
+            }.compact.flatten
+          user_ids -= participants.map(&:id)
+          participants += Shackles.activate(:slave) { MessageableUser.available.where(:id => user_ids).all }
+        end
+        if options[:include_participant_contexts]
+          # we do this to find out the contexts they share with the user
+          user.load_messageable_users(participants, :strict_checks => false)
+        else
+          participants
+        end
+      end
     end
-    return participants unless options[:include_participant_contexts]
-
-    # we do this to find out the contexts they share with the user
-    user.load_messageable_users(participants, :strict_checks => false)
   end
-  memoize :participants
 
   def properties(latest = last_message)
     properties = []
@@ -359,6 +365,7 @@ class ConversationParticipant < ActiveRecord::Base
   def starred
     read_attribute(:label) == 'starred'
   end
+  alias :starred? :starred
 
   def starred=(val)
     # if starred were an actual boolean column, this is the method that would

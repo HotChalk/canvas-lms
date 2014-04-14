@@ -1,11 +1,10 @@
 define [
   'underscore'
   'Backbone'
-  'compiled/views/DiscussionTopics/DiscussionListView'
   'jst/DiscussionTopics/IndexView'
   'compiled/views/DiscussionTopics/DiscussionsSettingsView'
   'compiled/views/DiscussionTopics/UserSettingsView'
-], (_, {View}, DiscussionListView, template, DiscussionsSettingsView, UserSettingsView) ->
+], (_, {View}, template, DiscussionsSettingsView, UserSettingsView) ->
 
   class IndexView extends View
     template: template
@@ -36,9 +35,9 @@ define [
         fn: (model, term) ->
           return unless term
           regex = new RegExp(term, 'ig')
-          regex.test(model.get('title')) or
-            regex.test(model.get('user_name')) or
-            regex.test(model.summary())
+          model.get('title').match(regex) or
+            model.get('user_name')?.match(regex) or
+            model.summary().match(regex)
 
     collections: ->
       [

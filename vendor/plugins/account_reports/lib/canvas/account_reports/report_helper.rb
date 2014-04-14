@@ -21,6 +21,8 @@ module Canvas::AccountReports::ReportHelper
   def parse_utc_string(datetime)
     if datetime.is_a? String
       Time.use_zone('UTC') {Time.zone.parse(datetime)}
+    else
+      datetime
     end
   end
 
@@ -28,13 +30,20 @@ module Canvas::AccountReports::ReportHelper
 # iso8601 for the root_account's timezone
 # A string datetime needs to be in UTC
   def default_timezone_format(datetime, account=root_account)
-    if datetime.is_a? String
-      datetime = parse_utc_string(datetime)
-    end
+    datetime = parse_utc_string(datetime)
     if datetime
       datetime.in_time_zone(account.default_time_zone).iso8601
     else
       nil
+    end
+  end
+
+  # This function will take a datetime or a datetime string and convert into
+  # iso8601 for the root_account's timezone
+  # it will then format the datetime using the given format string
+  def timezone_strftime(datetime, format)
+    if datetime = parse_utc_string(datetime)
+      (datetime.in_time_zone(account.default_time_zone)).strftime(format)
     end
   end
 
@@ -131,10 +140,41 @@ module Canvas::AccountReports::ReportHelper
 
   def extra_text_term(account_report = @account_report)
     account_report.parameters ||= {}
-    account_report.parameters["extra_text"] = I18n.t(
+    add_extra_text(I18n.t(
       'account_reports.default.extra_text_term', "Term: %{term_name};",
       :term_name => term_name
-    )
+    ))
+  end
+
+  def check_report_key(key)
+    Canvas::AccountReports.for_account(account)[@account_report.report_type][:parameters].keys.include? key
+  end
+
+  def report_extra_text
+    if term && check_report_key(:enrollment_term_id)
+      add_extra_text(I18n.t('account_reports.default.term_text', "Term: %{term_name};",
+                       :term_name => term_name))
+    end
+
+    if start_at && check_report_key(:start_at)
+      add_extra_text(I18n.t('account_reports.default.start_text',
+                            "Start At: %{start_at};", :start_at => default_timezone_format(start_at)))
+    end
+
+    if end_at && check_report_key(:end_at)
+      add_extra_text(I18n.t('account_reports.default.end_text',
+                            "End At: %{end_at};", :end_at => default_timezone_format(end_at)))
+    end
+
+    if course && check_report_key(:course_id)
+      add_extra_text(I18n.t('account_reports.default.course_text',
+                            "For Course: %{course};", :course => course.id))
+    end
+
+    if section && check_report_key(:section_id)
+      add_extra_text(I18n.t('account_reports.default.section_text',
+                            "For Section: %{section};", :section => section.id))
+    end
   end
 
   def send_report(file = nil, account_report = @account_report)
@@ -161,4 +201,13 @@ module Canvas::AccountReports::ReportHelper
       send_report(file)
     end
   end
+
+  def add_extra_text(text)
+    if @account_report.has_parameter?('extra_text')
+      @account_report.parameters["extra_text"] << " #{text}"
+    else
+      @account_report.parameters["extra_text"] = text
+    end
+  end
+
 end

@@ -2,6 +2,7 @@ require 'lib/canvas/require_js/plugin_extension'
 module Canvas
   module RequireJs
     class << self
+      @@matcher = nil
       def get_binding
         binding
       end
@@ -9,8 +10,12 @@ module Canvas
       PATH_REGEX = %r{.*?/javascripts/(plugins/)?(.*)\.js\z}
       JS_ROOT = "#{Rails.root}/public/javascripts"
 
+      def matcher=(value)
+        @@matcher = value
+      end
+
       def matcher
-        ENV['JS_SPEC_MATCHER'] || '**/*Spec.js'
+        @@matcher || ENV['JS_SPEC_MATCHER'] || '**/*Spec.js'
       end
 
       # get all regular canvas (and plugin) bundles
@@ -22,7 +27,7 @@ module Canvas
             # plugins have their name prepended, since that's we do the paths
             name = file.sub(PATH_REGEX, '\2')
             unless name == 'compiled/bundles/common'
-              hash[name] = { :name => name, :exclude => ['common', 'compiled/tinymce'] }
+              hash[name] = { :name => name, :exclude => ['common'] }
             end
             hash
           }
@@ -53,14 +58,22 @@ module Canvas
 
       def paths(cache_busting = false)
         @paths ||= {
-          :Ember => 'vendor/ember/ember',
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
           :use => 'vendor/use',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.1.min'
+          :uploadify => '../flash/uploadify/jquery.uploadify-3.1.min',
+          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
         }.update(cache_busting ? cache_busting_paths : {}).update(plugin_paths).update(Canvas::RequireJs::PluginExtension.paths).to_json.gsub(/([,{])/, "\\1\n    ")
       end
-  
+
+      def packages
+        @packages ||= [
+          {'name' => 'ic-ajax', 'location' => 'bower/ic-ajax'},
+          {'name' => 'ic-styled', 'location' => 'bower/ic-styled'},
+          {'name' => 'ic-menu', 'location' => 'bower/ic-menu'},
+        ].to_json
+      end
+
       def plugin_paths
         @plugin_paths ||= begin
           Dir['public/javascripts/plugins/*'].inject({}) { |hash, plugin|
@@ -72,26 +85,33 @@ module Canvas
       end
 
       def cache_busting_paths
-        { 'compiled/tinymce' => 'compiled/tinymce.js?v2' } # hack: increment to purge browser cached bundles after tiny change
+        #{ 'compiled/tinymce' => 'compiled/tinymce.js?v2' } # hack: increment to purge browser cached bundles after tiny change
+        {}
       end
       
       def shims
         <<-JS.gsub(%r{\A +|^ {8}}, '')
           {
+            'bower/ember/ember': {
+              deps: ['jquery', 'handlebars'],
+              attach: 'Ember'
+            },
+            'bower/handlebars/handlebars.runtime': {
+              attach: 'Handlebars'
+            },
             'vendor/backbone': {
               deps: ['underscore', 'jquery'],
               attach: function(_, $){
                 return Backbone;
               }
             },
-        
             // slick grid shim
-            'vendor/slickgrid/lib/jquery.event.drag-2.0.min': {
+            'vendor/slickgrid/lib/jquery.event.drag-2.2': {
               deps: ['jquery'],
               attach: '$'
             },
             'vendor/slickgrid/slick.core': {
-              deps: ['jquery', 'use!vendor/slickgrid/lib/jquery.event.drag-2.0.min'],
+              deps: ['jquery', 'use!vendor/slickgrid/lib/jquery.event.drag-2.2'],
               attach: 'Slick'
             },
             'vendor/slickgrid/slick.grid': {

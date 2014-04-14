@@ -3,9 +3,9 @@ define [
   'underscore'
   'Backbone'
   'compiled/class/cache'
-  'compiled/collections/AssignmentCollection'
+  'compiled/models/AssignmentGroup'
   'jst/assignments/ToggleShowBy'
-], (I18n, _, Backbone, Cache, AssignmentCollection, template) ->
+], (I18n, _, Backbone, Cache, AssignmentGroup, template) ->
 
   class ToggleShowByView extends Backbone.View
     @optionProperty 'course'
@@ -23,46 +23,63 @@ define [
     initialize: ->
       super
       @initialized = false
-      @firstResetLanded = @assignmentGroups.length > 0
-
+      @initializeCache()
       @course.on 'change', @initializeCache
       @course.on 'change', @render
-      @assignmentGroups.on 'reset', @initializeDateGroups
+      @assignmentGroups.once 'change:submissions', @initializeDateGroups
       @.on 'changed:showBy', @setAssignmentGroups
       @.on 'changed:showBy', @render
 
     initializeCache: =>
+      return unless @course.get('id')?
       $.extend true, @, Cache
       @cache.use('localStorage') if ENV.current_user_id? # default: {}
       @cache.set(@cacheKey(), true) if !@cache.get(@cacheKey())?
       @initialized = true
 
     initializeDateGroups: =>
-      unless @firstResetLanded
-        @firstResetLanded = true
+      assignments = _.flatten(@assignmentGroups.map (ag) -> ag.get('assignments').models)
+      dated = _.select assignments, (a) -> a.dueAt()?
+      undated = _.difference assignments, dated
 
-        assignments = _.flatten(@assignmentGroups.map (ag) -> ag.get('assignments').models)
-        dated = _.select assignments, (a) -> a.dueAt()?
-        undated = _.difference assignments, dated
-        past = _.chain(dated)
-          .select((a) -> (new Date()) > Date.parse(a.dueAt()))
-          .sortBy((a) -> (new Date()) - Date.parse(a.dueAt()))
-          .value()
-        upcoming = _.chain(dated)
-          .difference(past)
-          .sortBy((a) -> Date.parse(a.dueAt()))
-          .value()
-        overdue = []
+      past = []
+      overdue = []
+      upcoming = []
+      _.each(dated, (a) ->
+        if new Date() > Date.parse(a.dueAt())
+          if a.expectsSubmission() && a.allowedToSubmit() && a.withoutGradedSubmission()
+            overdue.push a
+          else
+            past.push a
+        else
+          upcoming.push a
+      )
 
-        @groupedByAG = @assignmentGroups.models
-        @groupedByDate = [
-          new Backbone.Model({ id: 'overdue', name: 'Overdue Assignments', assignments: new AssignmentCollection(overdue) }),
-          new Backbone.Model({ id: 'upcoming', name: 'Upcoming Assignments', assignments: new AssignmentCollection(upcoming) }),
-          new Backbone.Model({ id: 'undated', name: 'Undated Assignments', assignments: new AssignmentCollection(undated) }),
-          new Backbone.Model({ id: 'past', name: 'Past Assignments', assignments: new AssignmentCollection(past) })
-        ]
+      overdue_group = new AssignmentGroup({ id: 'overdue', name: 'Overdue Assignments', assignments: overdue })
+      upcoming_group = new AssignmentGroup({ id: 'upcoming', name: 'Upcoming Assignments', assignments: upcoming })
+      undated_group = new AssignmentGroup({ id: 'undated', name: 'Undated Assignments', assignments: undated })
+      past_group = new AssignmentGroup({ id: 'past', name: 'Past Assignments', assignments: past })
 
-        @setAssignmentGroups()
+      sorted_groups = @_sortGroups(overdue_group, upcoming_group, undated_group, past_group)
+
+      @groupedByAG = @assignmentGroups.models
+      @groupedByDate = sorted_groups
+
+      @setAssignmentGroups()
+
+    _sortGroups: (overdue, upcoming, undated, past) ->
+      @_sortAscending overdue.get('assignments')
+      @_sortAscending upcoming.get('assignments')
+      @_sortDescending past.get('assignments')
+      [overdue, upcoming, undated, past]
+
+    _sortAscending: (assignments) ->
+      assignments.comparator = (a) -> Date.parse(a.dueAt())
+      assignments.sort()
+
+    _sortDescending: (assignments) ->
+      assignments.comparator = (a) -> new Date() - Date.parse(a.dueAt())
+      assignments.sort()
 
     toJSON: ->
       visible: @initialized
@@ -73,12 +90,21 @@ define [
 
     setAssignmentGroups: =>
       groups = if @showByDate() then @groupedByDate else @groupedByAG
+      @setAssignmentGroupAssociations(groups)
       groups = _.select groups, (group) =>
         hasWeight = @course.get('apply_assignment_group_weights') and
           group.get('group_weight')? and
           group.get('group_weight') > 0
         group.get('assignments').length > 0 or hasWeight
       @assignmentGroups.reset(groups)
+
+    setAssignmentGroupAssociations: (groups) ->
+      for assignment_group in groups
+        if assignment_group.get("assignments").models.length
+          for assignment in assignment_group.get("assignments").models
+            # we are keeping this change on the frontend only (for keyboard nav), will not persist in the db
+            assignment.collection = assignment_group
+            assignment.set('assignment_group_id', assignment_group.id)
 
     showByDate: ->
       return true unless @initialized
@@ -95,3 +121,5 @@ define [
       if currentlyByDate != showByDate
         @cache.set(key, showByDate)
         @trigger 'changed:showBy'
+
+      @assignmentGroups.trigger 'cancelSearch'

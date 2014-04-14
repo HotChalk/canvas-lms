@@ -130,18 +130,15 @@
     margin: 0;
   }
 
-  .element_toggler {
-    color: #3d454c;
-    cursor: pointer;
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: none;
-    }
-  }
-
   .loader {
     height: 40px;
+  }
+
+  .ordered_by {
+    width: auto;
+    height: auto;
+    vertical-align: baseline;
+    margin-left: 3px;
   }
 }
 
@@ -189,6 +186,22 @@
       display: table-cell;
       vertical-align: middle;
     }
+    &.discussion-unpublished {
+      .discussion-type, .discussion-title a {
+        color: #696969;
+      }
+    }
+    &.discussion-published {
+      .discussion-type, .discussion-title a {
+        color: #34832B;
+      }
+    }
+  }
+
+  .draggable-handle {
+    width: 16px;
+    color: #B4B7BA;
+    cursor: pointer;
   }
 
   .discussion-type {
@@ -197,15 +210,26 @@
   }
 
   .discussion-due-date {
-    width: 150px;
+    width: 200px;
+
+    .discussion-date-type {
+      font-weight: bold;
+    }
   }
 
   .discussion-status {
     color: #bbb;
-    width: 40px;
+    width: 60px;
 
-    .subscription-toggler:focus {
-      outline: none;
+    .publish-icon {
+      margin-right: 10px;
+    }
+
+    .subscription-toggler {
+      padding: 5px;
+      &:before {
+      margin: 0;
+      }
     }
 
     a[class*=icon-] {

@@ -22,8 +22,7 @@ define([
   'i18n!files',
   'jquery' /* jQuery, $ */,
   'str/htmlEscape',
-  'compiled/tinymce',
-  'tinymce.editor_box',
+  'redactor.editor_box',
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.doc_previews' /* loadDocPreview */,
@@ -605,7 +604,7 @@ define([
         files.refreshContext.refreshing[context_string] = true;
 
         var url = $("#file_context_links ." + context_string + "_attachments_url").attr('href');
-        $.ajaxJSON(url + '.json', 'GET', {}, function(data) {
+        $.ajaxJSON(url, 'GET', {}, function(data) {
           files.clearDataCache();
           files.refreshContext.refreshing[context_string] = false;
           var scrollTop = $files_structure.scrollTop();
@@ -1892,8 +1891,7 @@ define([
         $form.find("form")
              .attr('action', $("#file_context_links ." + 
                                 itemData.context_string + 
-                                "_attachments_url").attr('href') + 
-                                ".text");
+                                "_attachments_url").attr('href'));
         $form.mouseover();
         $form.find(":text:first")
              .focus()
@@ -2039,7 +2037,7 @@ define([
           modal: true,
           width: 350,
           title: item_type == 'folder' ? I18n.t('titles.lock_folder', "Lock Folder") : I18n.t('titles.lock_file', 'Lock File')
-        });
+        }).find('.datetime_field').datetime_field();;
       });
 
       $("#folder_just_hide,#attachment_just_hide").change(function() {
@@ -2057,6 +2055,8 @@ define([
 
       $("#lock_attachment_form").formSubmit({
         processData: function(data) {
+          data['attachment[unlock_at]'] = $.datetime.process(data['attachment[unlock_at]']);
+          data['attachment[lock_at]'] = $.datetime.process(data['attachment[lock_at]']);
           return data;
         },
         beforeSubmit: function(data) {
@@ -2071,6 +2071,8 @@ define([
 
       $("#lock_folder_form").formSubmit({
         processData: function(data) {
+          data['folder[unlock_at]'] = $.datetime.process(data['folder[unlock_at]']);
+          data['folder[lock_at]'] = $.datetime.process(data['folder[lock_at]']);
           return data;
         },
         beforeSubmit: function(data) {

@@ -7,8 +7,7 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'wikiSidebar'
   'compiled/object/unflatten'
-  'tinymce.editor_box'
-  'compiled/tinymce'
+  'redactor.editor_box'
 ], ($, _, I18n, Backbone, editCalendarEventFullTemplate, MissingDateDialogView, wikiSidebar, unflatten) ->
 
   ##
@@ -26,6 +25,7 @@ define [
       'click .switch_event_description_view': 'toggleHtmlView'
 
     initialize: ->
+      super
       @model.fetch().done =>
         if ENV.NEW_CALENDAR_EVENT_ATTRIBUTES
           attrs = @model.parse(ENV.NEW_CALENDAR_EVENT_ATTRIBUTES)

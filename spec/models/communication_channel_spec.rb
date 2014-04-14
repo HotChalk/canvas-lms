@@ -132,16 +132,13 @@ describe CommunicationChannel do
     @cc.path_type.should eql('email')
   end
   
-  it "should only allow email, sms, or chat as path types" do
+  it "should only allow email, or sms as path types" do
     communication_channel_model
     @cc.path_type = 'email'; @cc.save
     @cc.path_type.should eql('email')
 
     @cc.path_type = 'sms'; @cc.save
     @cc.path_type.should eql('sms')
-
-    @cc.path_type = 'chat'; @cc.save
-    @cc.path_type.should eql('chat')
 
     @cc.path_type = 'not valid'; @cc.save
     @cc.path_type.should eql('email')
@@ -231,6 +228,7 @@ describe CommunicationChannel do
     @cc.confirm!
     @user.otp_communication_channel = @cc
     @user.save!
+    @cc.reload
     @cc.destroy.should be_false
     @cc.reload.should be_active
   end

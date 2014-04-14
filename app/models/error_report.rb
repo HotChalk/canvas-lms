@@ -30,10 +30,10 @@ class ErrorReport < ActiveRecord::Base
   # Define a custom callback for external notification of an error report.
   define_callbacks :on_send_to_external
   # Setup callback to default behavior.
-  if Rails.version >= "3.0"
-    set_callback :on_send_to_external, :send_via_email_or_post
-  else
+  if CANVAS_RAILS2
     on_send_to_external :send_via_email_or_post
+  else
+    set_callback :on_send_to_external, :send_via_email_or_post
   end
 
   attr_accessible
@@ -49,7 +49,7 @@ class ErrorReport < ActiveRecord::Base
     attr_reader :opts, :exception
 
     def log_error(category, opts)
-      opts[:category] = category.to_s
+      opts[:category] = category.to_s.presence || 'default'
       @opts = opts
       # sanitize invalid encodings
       @opts[:message] = TextHelper.strip_invalid_utf8(@opts[:message]) if @opts[:message]

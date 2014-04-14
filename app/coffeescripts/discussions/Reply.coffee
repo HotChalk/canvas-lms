@@ -7,7 +7,7 @@ define [
   'str/htmlEscape'
   'jst/discussions/_reply_attachment'
   'compiled/fn/preventDefault'
-  'tinymce.editor_box'
+  'redactor.editor_box'
 ], (Backbone, _, I18n, $, Entry, htmlEscape, replyAttachmentTemplate, preventDefault) ->
 
   class Reply
@@ -48,8 +48,7 @@ define [
     edit: ->
       @form.addClass 'replying'
       @discussionEntry.addClass 'replying'
-      @textArea.editorBox tinyOptions: width: '100%'
-      setTimeout (=> @textArea.editorBox 'focus'), 20 if @options.focus
+      @textArea.editorBox focus: true, tinyOptions: width: '100%'
       @editing = true
       @trigger 'edit', this
 
@@ -65,6 +64,7 @@ define [
       @textArea.val @content
       @editing = false
       @trigger 'hide', this
+      @discussionEntry.find('.discussion-reply-action').focus()
 
     hideNotification: =>
       @view.model.set 'notification', ''
@@ -117,6 +117,7 @@ define [
     # @api private
     onPostReplySuccess: (entry) =>
       @view.model.set 'notification', ''
+      @textArea.val ''
       @trigger 'save', entry
 
     ##

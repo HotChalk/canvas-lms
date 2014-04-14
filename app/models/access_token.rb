@@ -7,6 +7,8 @@ class AccessToken < ActiveRecord::Base
   serialize :scopes, Array
   validate :must_only_include_valid_scopes
 
+  has_many :communication_channels, dependent: :destroy
+
   # For user-generated tokens, purpose can be manually set.
   # For app-generated tokens, this should be generated based
   # on the scope defined in the auth process (scope has not
@@ -42,8 +44,12 @@ class AccessToken < ActiveRecord::Base
     developer_key.try(:name) || "No App"
   end
 
+  def record_last_used_threshold
+    Setting.get('access_token_last_used_threshold', 10.minutes).to_i
+  end
+
   def used!
-    if !last_used_at || last_used_at < 5.minutes.ago
+    if !last_used_at || last_used_at < record_last_used_threshold.ago
       self.last_used_at = Time.now
       self.save
     end

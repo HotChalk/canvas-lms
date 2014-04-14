@@ -16,7 +16,7 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
 
 describe Pseudonym do
 
@@ -197,29 +197,8 @@ describe Pseudonym do
     it "should set last_timeout_failure on LDAP servers that timeout" do
       Net::LDAP.any_instance.expects(:bind_as).once.raises(Timeout::Error, "timed out")
       @pseudonym.ldap_bind_result('test').should be_false
-      ErrorReport.last.message.should match /Timeout::Error|timed out/ # 1.8/1.9 compat
+      ErrorReport.last.message.should match(/timed out/)
       @aac.reload.last_timeout_failure.should > 1.minute.ago
-    end
-
-    it "should not attempt to bind if last_timeout_failure is set recently" do
-      # calling again should not attempt to bind
-      @aac.update_attribute(:last_timeout_failure, 5.seconds.ago)
-      Net::LDAP.any_instance.expects(:bind_as).never
-      @pseudonym.ldap_bind_result('test').should be_false
-
-      # updating the config should reset :last_timeout_failure
-      @aac.reload.update_attributes(:auth_port => 637)
-      @aac.last_timeout_failure.should be_nil
-      Net::LDAP.any_instance.expects(:bind_as).returns(true)
-      @pseudonym.reload
-      @pseudonym.ldap_bind_result('test').should be_true
-    end
-
-    it "should allow another attempt once last_timeout_failure is sufficiently in the past" do
-      @aac.update_attribute(:last_timeout_failure, 5.seconds.ago)
-      Setting.set('ldap_failure_wait_time', 2.seconds)
-      Net::LDAP.any_instance.expects(:bind_as).returns(true)
-      @pseudonym.ldap_bind_result('test').should be_true
     end
   end
 
@@ -362,6 +341,28 @@ describe Pseudonym do
 
       @pseudonym.stubs(:valid_ldap_credentials?).returns(true)
       @pseudonym.valid_arbitrary_credentials?('anything').should be_true
+    end
+  end
+
+  describe "authenticate" do
+    context "sharding" do
+      specs_require_sharding
+
+      it "should only query pertinent shards" do
+        account2 = @shard1.activate { Account.create! }
+        Pseudonym.expects(:associated_shards).with('abc').returns([@shard1])
+        Pseudonym.expects(:active).once.returns(Pseudonym.none)
+        GlobalLookups.stubs(:enabled?).returns(true)
+        Pseudonym.authenticate({ unique_id: 'abc', password: 'def' }, [Account.default.id, account2])
+      end
+
+      it "should only query pertinent shards" do
+        account2 = @shard1.activate { Account.create! }
+        Pseudonym.expects(:associated_shards).with('abc').returns([Shard.default, @shard1])
+        Pseudonym.expects(:active).twice.returns(Pseudonym.none)
+        GlobalLookups.stubs(:enabled?).returns(true)
+        Pseudonym.authenticate({ unique_id: 'abc', password: 'def' }, [Account.default.id, account2])
+      end
     end
   end
 

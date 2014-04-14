@@ -45,4 +45,14 @@ describe EnrollmentTerm do
       I18n.locale = old_locale
     end
   end
+
+  it "should validate end_at date is not before start_at date" do
+    account_model
+    term = @account.default_enrollment_term
+
+    term.start_at = Time.now
+    term.end_at = 3.days.ago
+
+    term.valid?.should be_false
+  end
 end

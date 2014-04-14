@@ -1,7 +1,7 @@
 require File.expand_path(File.dirname(__FILE__) + '/helpers/conversations_common')
 
 describe "conversations" do
-  it_should_behave_like "in-process server selenium tests"
+  include_examples "in-process server selenium tests"
 
   before (:each) do
     conversation_setup
@@ -139,13 +139,14 @@ describe "conversations" do
     it "should not display on my own message" do
       # Hover over own message
       driver.execute_script("$('.message.self:first .send_private_message').focus()")
-      f(".message.self .send_private_message").displayed?.should be_false
+      f(".message.self .send_private_message").should_not be_displayed
     end
 
     it "should display on messages from others" do
       # Hover over the message from the other writer to display link
+      # This spec fails locally in isolation and in this context block.
       driver.execute_script("$('.message.other .send_private_message').focus()")
-      f(".message.other .send_private_message").displayed?.should be_true
+      f(".message.other .send_private_message").should be_displayed
     end
 
     it "should start new message to the user" do
@@ -366,7 +367,7 @@ describe "conversations" do
       f('#help-btn').click
       expect_new_page_load { fj('#try-new-conversations-menu-item').click }
       f('#inbox').should be_nil # #inbox is in the old conversations ui and not the new ui
-      f('.help-btn').click
+      driver.execute_script("$('#help-btn').click()") #selenium.clik() not working in this case...
       expect_new_page_load {  fj('#switch-to-old-conversations-menu-item').click }
       f('#inbox').should be_displayed
     end
@@ -378,7 +379,7 @@ describe "conversations" do
       new_conversation
       f('#help-btn').click
       fj('#conversations-intro-menu-item').click
-      wait_for_animations
+      wait_for_ajaximations
       ff('#conversations_intro').last.should be_displayed
     end
   end

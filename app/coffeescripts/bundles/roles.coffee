@@ -30,7 +30,7 @@ require [
     views:
       'account-roles': new AccountRolesView
         views: 
-          '#account_roles' : new ManageRolesView
+          'account_roles' : new ManageRolesView
             collection: account_roles
             permission_groups: account_permissions
           'new-role' : new NewRoleView
@@ -40,7 +40,7 @@ require [
 
       'course-roles': new CourseRolesView
         views: 
-          '#course_roles' : new ManageRolesView
+          'course_roles' : new ManageRolesView
             collection: course_roles
             permission_groups: course_permissions
           'new-role' : new NewRoleView

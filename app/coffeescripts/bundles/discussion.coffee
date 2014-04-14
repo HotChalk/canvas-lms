@@ -14,6 +14,7 @@ require [
   'compiled/views/DiscussionTopic/TopicView'
   'compiled/views/DiscussionTopic/EntriesView'
   'compiled/jquery/sticky'
+  'compiled/jquery/ModuleSequenceFooter'
 ], (EntryView, DiscussionFilterState, DiscussionToolbarView, DiscussionFilterResultsView, MarkAsReadWatcher, $, _, Backbone, Entry, MaterializedDiscussionTopic, SideCommentDiscussionTopic, EntryCollection, TopicView, EntriesView) ->
 
   descendants = 5
@@ -37,7 +38,7 @@ require [
                     model: new Backbone.Model
                     filterModel: filterModel
 
-  entriesView   = new EntriesView
+  @entriesView   = new EntriesView
                     el: '#discussion_subentries'
                     collection: entries
                     descendants: descendants
@@ -87,7 +88,7 @@ require [
     router.navigate '',
       trigger: false
       replace: true
-    $container.scrollTo top
+    $container.scrollTop(top)
 
   ##
   # catch when an EntryView changes the read_state
@@ -119,11 +120,11 @@ require [
     EntryView.collapseRootEntries()
     scrollToTop()
 
-  toolbarView.on 'markAllAsRead', ->
+  topicView.on 'markAllAsRead', ->
     data.markAllAsRead()
     setAllReadStateAllViews('read')
 
-  toolbarView.on 'markAllAsUnread', ->
+  topicView.on 'markAllAsUnread', ->
     data.markAllAsUnread()
     setAllReadStateAllViews('unread')
 
@@ -168,6 +169,15 @@ require [
 
   topicView.render()
   toolbarView.render()
+
+  ##
+  # Add module sequence footer
+  if ENV.DISCUSSION.SEQUENCE?
+    $('#module_sequence_footer').moduleSequenceFooter(
+      assetType: 'Discussion'
+      assetID: ENV.DISCUSSION.SEQUENCE.ASSET_ID
+      courseID: ENV.DISCUSSION.SEQUENCE.COURSE_ID
+      )
 
   ##
   # Get the party started

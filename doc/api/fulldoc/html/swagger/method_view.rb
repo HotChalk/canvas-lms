@@ -37,12 +37,6 @@ class MethodView < HashView
     select_tags("argument")
   end
 
-  def arguments
-    raw_arguments.map do |tag|
-      ArgumentView.new(tag.text, route.verb, route.path_variables)
-    end
-  end
-
   def return_tag
     select_tags("returns").first
   end
@@ -55,37 +49,28 @@ class MethodView < HashView
     end
   end
 
-  def route
-    @route ||= RouteView.new(@method)
+  def controller
+    @method.parent.path.underscore.sub("_controller", '')
   end
 
-  def parameters
-    arguments.map do |arg|
-      arg.to_swagger
+  def action
+    @method.path.sub(/^.*#/, '').sub(/_with_.*$/, '')
+  end
+
+  def raw_routes
+    ApiRouteSet::V1.api_methods_for_controller_and_action(controller, action)
+  end
+
+  def routes
+    @routes ||= raw_routes.map do |raw_route|
+      RouteView.new(raw_route, self)
+    end.select do |route|
+      route.api_path !~ /json$/
     end
   end
 
-  def path
-    route.swagger_path
-  end
-
-  def operation
-    {
-      "httpMethod" => route.verb,
-      "nickname" => nickname,
-      "responseClass" => returns.to_swagger,
-      "parameters" => parameters,
-      "summary" => summary,
-      "notes" => desc
-    }
-  end
-
-  def to_swagger
-    {
-      "path" => path,
-      "description" => desc,
-      "operations" => [operation]
-    }
+  def swagger_type
+    returns.to_swagger
   end
 
   def to_hash

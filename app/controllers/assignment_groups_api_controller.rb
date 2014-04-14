@@ -34,12 +34,13 @@ class AssignmentGroupsApiController < ApplicationController
   # @argument override_assignment_dates [Optional, Boolean]
   #   Apply assignment overrides for each assignment, defaults to true.
   #
-  # @returns Assignment Group
+  # @returns AssignmentGroup
   def show
     if authorized_action(@assignment_group, @current_user, :read)
       includes = Array(params[:include])
       override_dates = value_to_boolean(params[:override_assignment_dates] || true)
       render :json => assignment_group_json(@assignment_group, @current_user, session, includes, {
+        stringify_json_ids: stringify_json_ids?,
         override_dates: override_dates
       })
     end
@@ -62,7 +63,7 @@ class AssignmentGroupsApiController < ApplicationController
   #   The grading rules that are applied within this assignment group
   #   See the Assignment Group object definition for format
   #
-  # @returns Assignment Group
+  # @returns AssignmentGroup
   def create
     @assignment_group = @context.assignment_groups.new
     if authorized_action(@assignment_group, @current_user, :create)
@@ -75,7 +76,7 @@ class AssignmentGroupsApiController < ApplicationController
   # Modify an existing Assignment Group.
   # Accepts the same parameters as Assignment Group creation
   #
-  # @returns Assignment Group
+  # @returns AssignmentGroup
   def update
     if authorized_action(@assignment_group, @current_user, :update)
       process_assignment_group
@@ -92,7 +93,7 @@ class AssignmentGroupsApiController < ApplicationController
   #   NOTE: If this argument is not provided, any assignments in this Assignment
   #   Group will be deleted.
   #
-  # @returns Assignment Group
+  # @returns AssignmentGroup
   def destroy
     if authorized_action(@assignment_group, @current_user, :delete)
 
@@ -100,7 +101,7 @@ class AssignmentGroupsApiController < ApplicationController
         if @assignment_group.has_frozen_assignment_group_id_assignment?(@current_user)
           err_msg = t('errors.frozen_assignments_error', "You cannot delete a group with a locked assignment.")
           @assignment_group.errors.add('workflow_state', err_msg, :att_name => 'workflow_state')
-          render :json => @assignment_group.errors.to_json, :status => :bad_request
+          render :json => @assignment_group.errors, :status => :bad_request
           return
         end
 
@@ -110,7 +111,7 @@ class AssignmentGroupsApiController < ApplicationController
       end
 
       @assignment_group.destroy
-      render :json => assignment_group_json(@assignment_group, @current_user, session)
+      render :json => assignment_group_json(@assignment_group, @current_user, session, [], { stringify_json_ids: stringify_json_ids? })
     end
   end
 
@@ -120,9 +121,9 @@ class AssignmentGroupsApiController < ApplicationController
 
   def process_assignment_group
     if update_assignment_group @assignment_group, params
-      render :json => assignment_group_json(@assignment_group, @current_user, session)
+      render :json => assignment_group_json(@assignment_group, @current_user, session, [], { stringify_json_ids: stringify_json_ids? })
     else
-      render :json => @assignment_group.errors.to_json, :status => :bad_request
+      render :json => @assignment_group.errors, :status => :bad_request
     end
   end
 

@@ -21,7 +21,8 @@ require([
     $("#add_user_form :text:visible:first").focus().select();
   });
   $("#add_user_form").formSubmit({
-    required: ['user[name]'],
+    formErrors: false,
+    required: ['user[name]', 'pseudonym[unique_id]'],
     beforeSubmit: function(data) {
       $(this).find("button").attr('disabled', true)
         .filter(".submit_button").text(I18n.t('adding_user_message', "Adding User..."));
@@ -41,6 +42,23 @@ require([
       $("#add_user_dialog").dialog('close');
     },
     error: function(data) {
+      errorData = {};
+
+      // Email errors
+      if(data.pseudonym.unique_id){
+        errorList = [];
+
+        $.each(data.pseudonym.unique_id, function(i){
+          if(this.message){
+            errorList.push(this.message);
+          }
+        });
+
+        errorData['unique_id'] = errorList.join(', ');
+      }
+
+      $(this).formErrors(errorData);
+
       $(this).find("button").attr('disabled', false)
         .filter(".submit_button").text(I18n.t('user_add_failed_message', "Adding User Failed, please try again"));
     }

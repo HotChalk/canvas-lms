@@ -34,7 +34,6 @@ define([
   function updateStudentGrades() {
     var ignoreUngradedSubmissions = $("#only_consider_graded_assignments").attr('checked');
     var currentOrFinal = ignoreUngradedSubmissions ? 'current' : 'final';
-
     var calculatedGrades = GradeCalculator.calculate(
       ENV.submissions,
       ENV.assignment_groups,
@@ -105,17 +104,31 @@ define([
         $(this).attr('title', '');
       }
     });
-    $(".toggle_comments_link").click(function(event) {
+
+    // manages toggling and screenreader focus for comments, scoring, and rubric details
+    $(".toggle_comments_link, .toggle_score_details_link, .toggle_rubric_assessments_link").click(function(event) {
       event.preventDefault();
       var $row = $( '#' + $(this).attr('aria-controls') );
+      var originEl = this;
 
+      $(originEl).attr("aria-expanded", $row.css('display') == 'none');
       $row.toggle();
-      $row.attr('aria-expanded', $row.is(':visible'));
+
+      if ($row.css('display') != 'none') {
+        $row.find(".screenreader-toggle").focus();
+      }
     });
-    $(".toggle_rubric_assessments_link").click(function(event) {
+
+    $(".screenreader-toggle").click(function(event) {
       event.preventDefault();
-      $(this).parents("tr.student_assignment").next("tr.comments").next("tr.rubric_assessments").toggle();
+      ariaControl = $(this).data('aria');
+      originEl = $("a[aria-controls='" + ariaControl + "']");
+
+      $(originEl).attr('aria-expanded', false);
+      $(originEl).focus();
+      $(this).closest('.rubric_assessments, .comments').hide();
     });
+
     $('.student_assignment.editable .assignment_score').click(function(event) {
       if ($('#grades_summary.editable').length === 0 || $(this).find('#grade_entry').length > 0 || $(event.target).closest('.revert_score_link').length > 0) {
         return;
@@ -158,9 +171,9 @@ define([
         update = false;
         $assignment.removeClass('dont_update');
       }
+      var assignment_id = $assignment.getTemplateData({ textValues: ['assignment_id'] }).assignment_id;
       if (update) {
-        var assignment_id = $assignment.getTemplateData({ textValues: ['assignment_id'] }).assignment_id,
-            url           = $.replaceTags($('.update_submission_url').attr('href'), 'assignment_id', assignment_id);
+        var url           = $.replaceTags($('.update_submission_url').attr('href'), 'assignment_id', assignment_id);
         if (!isChanged) { val = null; }
         $.ajaxJSON(url, 'PUT', { 'submission[student_entered_score]': val }, function(data) {
           data = {student_entered_score: data.submission.student_entered_score};
@@ -186,9 +199,8 @@ define([
       if (val === 0) { val = '0.0'; }
       if (val === originalVal) { val = originalScore; }
       $assignment.find('.grade').html(val || $assignment.find('.grade').data('originalValue'));
-      if (update) {
-        updateScoreForAssignment(assignment_id, val);
-      }
+
+      updateScoreForAssignment(assignment_id, val);
       updateStudentGrades();
     });
     $("#grade_entry").blur(function() {
@@ -204,12 +216,14 @@ define([
             I18n.t('student_mute_notification', 'Instructor is working on grades') :
             I18n.t('click_to_change', 'Click to test a different score');
       $assignment.find(".score").text(val);
-      $assignment.data('muted') ? $assignment.find('.grade').html('<img alt="Muted" class="muted_icon" src="/images/sound_mute.png?1318436336">') : $assignment.find(".grade").text(val || "-");
       $assignment.find(".assignment_score").attr('title', I18n.t('click_to_change', 'Click to test a different score'))
         .find(".score_teaser").text(tooltip).end()
         .find(".grade").removeClass('changed');
       $assignment.find(".revert_score_link").remove();
       $assignment.find(".score_value").text(val);
+
+      if (isNaN(parseFloat(val))) { val = null; }
+      $assignment.data('muted') ? $assignment.find('.grade').html('<img alt="Muted" class="muted_icon" src="/images/sound_mute.png?1318436336">') : $assignment.find(".grade").text(val || "-");
 
       var assignmentId = $assignment.getTemplateValue('assignment_id');
       updateScoreForAssignment(assignmentId, val);
@@ -259,24 +273,40 @@ define([
     $("#only_consider_graded_assignments").change(function() {
       updateStudentGrades();
     }).triggerHandler('change');
-    $("#show_all_details_link").click(function(event) {
-      event.preventDefault();
-      $("tr.comments").show();
-      $("tr.rubric_assessments").show();
-    });
     $.scrollSidebar();
     $("#observer_user_url").change(function() {
       if(location.href != $(this).val()) {
         location.href = $(this).val();
       }
     });
+
+    $("#show_all_details_link").click(function(event) {
+      event.preventDefault();
+      $button = $('#show_all_details_link');
+
+      $("tr.rubric_assessments").toggle();
+      $("tr.comments").toggle();
+      $button.toggleClass('showAll')
+
+      if ($button.hasClass('showAll')) {
+        $button.text(I18n.t('hide_all_details_button', 'Hide All Details'));
+      }
+      else {
+        $button.text(I18n.t('show_all_details_button', 'Show All Details'));
+      }
+    });
+
   });
 
   function updateScoreForAssignment(assignmentId, score) {
     var submission = _.find(ENV.submissions, function(s) {
       return s.assignment_id == assignmentId;
     });
-    if (submission) { submission.score = score; }
+    if (submission) {
+      submission.score = score;
+    } else {
+      ENV.submissions.push({assignment_id: assignmentId, score: score});
+    }
   }
 });
 

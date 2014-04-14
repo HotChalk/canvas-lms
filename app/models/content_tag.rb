@@ -33,16 +33,16 @@ class ContentTag < ActiveRecord::Base
   belongs_to :learning_outcome
   # This allows doing a has_many_through relationship on ContentTags for linked LearningOutcomes. (see LearningOutcomeContext)
   belongs_to :learning_outcome_content, :class_name => 'LearningOutcome', :foreign_key => :content_id
-  belongs_to :cloned_item
   has_many :learning_outcome_results
   # This allows bypassing loading context for validation if we have
   # context_id and context_type set, but still allows validating when
   # context is not yet saved.
   validates_presence_of :context, :unless => proc { |tag| tag.context_id && tag.context_type }
+  validates_presence_of :workflow_state
   validates_length_of :comments, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   before_save :default_values
   after_save :update_could_be_locked
-  after_save :touch_context_module
+  after_save :touch_context_module_after_transaction
   after_save :touch_context_if_learning_outcome
   include CustomValidations
   validates_as_url :url
@@ -66,13 +66,23 @@ class ContentTag < ActiveRecord::Base
     state :deleted
   end
 
+  alias_method :published?, :active?
+
   scope :active, where(:workflow_state => 'active')
   scope :not_deleted, where("content_tags.workflow_state<>'deleted'")
 
   attr_accessor :skip_touch
   def touch_context_module
-    ContentTag.touch_context_modules([self.context_module_id]) unless skip_touch.present?
+    return true if skip_touch.present?
+    ContentTag.touch_context_modules([self.context_module_id])
   end
+
+  def touch_context_module_after_transaction
+    connection.after_transaction_commit {
+      touch_context_module
+    }
+  end
+  private :touch_context_module_after_transaction
   
   def self.touch_context_modules(ids=[])
     ContextModule.where(:id => ids).update_all(:updated_at => Time.now.utc) unless ids.empty?
@@ -154,6 +164,8 @@ class ContentTag < ActiveRecord::Base
 
   def assignment
     return self.content if self.content_type == 'Assignment'
+    # Ugly hack to support having Reply Assignments show up in the Modules page
+    return self.content.reply_assignment if self.content_type == 'DiscussionTopic' && self.content.grade_replies_separately && self.content.reply_assignment.title == self.title
     return self.content.assignment if self.content.respond_to?(:assignment)
   end
   
@@ -177,15 +189,17 @@ class ContentTag < ActiveRecord::Base
 
   def update_asset_name!
     return unless self.sync_title_to_asset_title?
-    correct_context = self.content && self.content.respond_to?(:context) && self.content.context == self.context
+    correct_context = content && content.respond_to?(:context) && content.context == context
     if correct_context
-      if self.content.respond_to?("name=") && self.content.respond_to?("name") && self.content.name != self.title
-        self.content.update_attribute(:name, asset_safe_title('name'))
-      elsif self.content.respond_to?("title=") && self.content.title != self.title
-        self.content.update_attribute(:title, asset_safe_title('title'))
-      elsif self.content.respond_to?("display_name=") && self.content.display_name != self.title
-        self.content.update_attribute(:display_name, asset_safe_title('display_name'))
+      # Assignment proxies name= and name to title= and title, which breaks the asset_safe_title logic
+      if content.respond_to?("name=") && content.respond_to?("name") && !content.is_a?(Assignment)
+        content.name = asset_safe_title('name')
+      elsif content.respond_to?("title=")
+        content.title = asset_safe_title('title')
+      elsif content.respond_to?("display_name=")
+        content.display_name = asset_safe_title('display_name')
       end
+      content.save if content.changed?
     end
   end
 
@@ -235,7 +249,7 @@ class ContentTag < ActiveRecord::Base
           alignment_conditions[:context_id] = self.context_id
           alignment_conditions[:context_type] = self.context_type
         end
-        alignment = ContentTag.learning_outcome_alignments.where(alignment_conditions).first
+        alignment = ContentTag.learning_outcome_alignments.active.where(alignment_conditions).first
         # then don't let them delete the link
         raise LastLinkToOutcomeNotDestroyed.new(alignment) if alignment
       end
@@ -295,7 +309,7 @@ class ContentTag < ActiveRecord::Base
   end
 
   def sync_workflow_state_to_asset?
-    ['Assignment', 'WikiPage'].include?(self.content_type)
+    ['Quiz', 'Assignment', 'WikiPage'].include?(self.content_type)
   end
   
   def context_module_action(user, action, points=nil)
@@ -322,46 +336,6 @@ class ContentTag < ActiveRecord::Base
 
   def has_rubric_association?
     content.respond_to?(:rubric_association) && content.rubric_association
-  end
-  
-  attr_accessor :clone_updated
-  def clone_for(context, dup=nil, options={})
-    return nil if ( !(self.content && self.content.respond_to?(:clone_for)) && self.content_type != 'ExternalUrl' && self.content_type != 'ContextModuleSubHeader')
-    options[:migrate] = true if options[:migrate] == nil
-    if !self.cloned_item && !self.new_record?
-      self.cloned_item ||= ClonedItem.create(:original_item => self)
-      begin
-        self.save! 
-      rescue ActiveRecord::RecordInvalid => e
-        if e.message =~ /Url is not a valid URL/
-          self.url = URI::escape(self.url)
-          self.save!
-        else
-          raise e
-        end
-      end
-    end
-    existing = ContentTag.active.find_by_context_type_and_context_id_and_id(context.class.to_s, context.id, self.id)
-    existing ||= ContentTag.active.find_by_context_type_and_context_id_and_cloned_item_id(context.class.to_s, context.id, self.cloned_item_id)
-    return existing if existing && !options[:overwrite]
-    dup ||= ContentTag.new
-    dup = existing if existing && options[:overwrite]
-
-    self.attributes.delete_if{|k,v| [:id].include?(k.to_sym) }.each do |key, val|
-      dup.send("#{key}=", val)
-    end
-
-    dup.context = context
-    if self.content && self.content.respond_to?(:clone_for)
-      content = self.content.clone_for(context)
-      content.save! if content.new_record?
-      context.map_merge(self.content, content)
-      dup.content = content
-    end
-    context.log_merge_result("Tag \"#{self.title}\" created")
-    dup.updated_at = Time.now
-    dup.clone_updated = true
-    dup
   end
   
   scope :for_tagged_url, lambda { |url, tag| where(:url => url, :tag => tag) }

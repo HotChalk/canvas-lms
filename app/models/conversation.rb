@@ -26,6 +26,7 @@ class Conversation < ActiveRecord::Base
   has_many :conversation_message_participants, :through => :conversation_messages
   has_one :stream_item, :as => :asset
   belongs_to :context, :polymorphic => true
+  validates_length_of :subject, :maximum => maximum_string_length, :allow_nil => true
 
   # see also MessageableUser
   def participants(reload = false)
@@ -81,7 +82,7 @@ class Conversation < ActiveRecord::Base
       if private
         conversation = users.first.all_conversations.find_by_private_hash(private_hash).try(:conversation)
         # for compatibility during migration, before ConversationParticipant has finished populating
-        if Setting.get_cached('populate_conversation_participants_private_hash_complete', '0') == '0'
+        if Setting.get('populate_conversation_participants_private_hash_complete', '0') == '0'
           conversation ||= Conversation.find_by_private_hash(private_hash)
         end
       end
@@ -308,8 +309,12 @@ class Conversation < ActiveRecord::Base
       save! if new_tags.present? || root_account_ids_changed?
 
       # so we can take advantage of other preloaded associations
-      ConversationMessage.send :add_preloaded_record_to_collection, [message], :conversation, self
-      message.save!
+      if CANVAS_RAILS2
+        ConversationMessage.send :add_preloaded_record_to_collection, [message], :conversation, self
+      else
+        message.association(:conversation).target = self
+      end
+      message.save_without_broadcasting!
 
       add_message_to_participants(message, options.merge(
           :tags => new_tags,
@@ -321,6 +326,8 @@ class Conversation < ActiveRecord::Base
       if options[:update_participants]
         update_participants(message, options)
       end
+      # now that the message participants are all saved, we can properly broadcast to recipients
+      message.after_participants_created_broadcast
       message
     end
   end
@@ -443,6 +450,14 @@ class Conversation < ActiveRecord::Base
   def context_name
     name = context.try(:name)
     name ||= Context.find_by_asset_string(context_tags.first).try(:name) if context_tags.first
+  end
+
+  def context_code
+    if context_type && context_id
+      "#{context_type.underscore}_#{context_id}"
+    else
+      nil
+    end
   end
 
   def context_tags
@@ -657,9 +672,13 @@ class Conversation < ActiveRecord::Base
           ConversationMessageParticipant.joins(:conversation_message).
               where(:conversation_messages => { :conversation_id => self.id }).
               delete_all
-          # bare scoped call avoids HasManyAssociation's delete_all, which loads
-          # all records in Rails 2
-          self.conversation_messages.scoped.delete_all
+          if CANVAS_RAILS2
+            # bare scoped call avoids HasManyAssociation's delete_all, which loads
+            # all records in Rails 2
+            self.conversation_messages.scoped.delete_all
+          else
+            self.conversation_messages.delete_all
+          end
         end
       end
 
@@ -693,10 +712,12 @@ class Conversation < ActiveRecord::Base
     # look up participants across all shards
     shards = conversations.map(&:associated_shards).flatten.uniq
     Shard.with_each_shard(shards) do
-      user_map = MessageableUser.select("#{MessageableUser.build_select}, last_authored_at, conversation_id").
-        joins(:all_conversations).
-        where(:conversation_participants => { :conversation_id => conversations }).
-        order('last_authored_at IS NULL, last_authored_at DESC, LOWER(COALESCE(short_name, name))').group_by { |mu| mu.conversation_id.to_i }
+      user_map = Shackles.activate(:slave) do
+        MessageableUser.select("#{MessageableUser.build_select}, last_authored_at, conversation_id").
+          joins(:all_conversations).
+          where(:conversation_participants => { :conversation_id => conversations }).
+          order(Conversation.nulls(:last, :last_authored_at, :desc), Conversation.best_unicode_collation_key("COALESCE(short_name, name)")).group_by { |mu| mu.conversation_id.to_i }
+      end
       conversations.each do |conversation|
         participants[conversation.global_id].concat(user_map[conversation.id] || [])
       end
@@ -705,11 +726,8 @@ class Conversation < ActiveRecord::Base
     # post-sort and -uniq in Ruby
     if shards.length > 1
       participants.each do |key, value|
-        participants[key] = value.uniq_by(&:id).sort do |user1, user2|
-          result = (user1.last_authored_at ? 0 : 1) <=> (user2.last_authored_at ? 0 : 1)
-          result = -(user1.last_authored_at <=> user2.last_authored_at) if result == 0 && user1.last_authored_at
-          result = (user1.short_name.try(:downcase) || user1.name.downcase) <=> (user2.short_name.try(:downcase) || user2.name.downcase) if result == 0
-          result
+        participants[key] = value.uniq_by(&:id).sort_by do |user|
+          [user.last_authored_at ? -user.last_authored_at.to_f : SortLast, Canvas::ICU.collation_key(user.short_name || user.name)]
         end
       end
     end
@@ -750,15 +768,25 @@ class Conversation < ActiveRecord::Base
 
   def delete_for_all
     stream_item.try(:destroy_stream_item_instances)
-    # bare scoped call avoid Rails 2 HasManyAssociation loading all objects
-    shard.activate { conversation_message_participants.scoped.delete_all }
+    shard.activate do
+      if CANVAS_RAILS2
+        # bare scoped call avoid Rails 2 HasManyAssociation loading all objects
+        conversation_message_participants.scoped.delete_all
+      else
+        conversation_message_participants.delete_all
+      end
+    end
     conversation_participants.with_each_shard { |scope| scope.scoped.delete_all; nil }
   end
 
   protected
 
   def maybe_update_timestamp(col, val, additional_conditions=[])
-    condition = self.class.merge_conditions(["(#{col} IS NULL OR #{col} < ?)", val], additional_conditions)
+    if CANVAS_RAILS2
+      condition = self.class.merge_conditions(["(#{col} IS NULL OR #{col} < ?)", val], additional_conditions)
+    else
+      condition = self.class.where(["(#{col} IS NULL OR #{col} < ?)", val]).where(additional_conditions).where_values.join(' AND ')
+    end
     sanitize_sql ["#{col} = CASE WHEN #{condition} THEN ? ELSE #{col} END", val]
   end
 end

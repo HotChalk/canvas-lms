@@ -25,9 +25,8 @@ class ProfileController < ApplicationController
   before_filter :require_password_session, :only => [:settings, :communication, :communication_update, :update]
 
   include Api::V1::Avatar
-  include Api::V1::Notification
-  include Api::V1::NotificationPolicy
   include Api::V1::CommunicationChannel
+  include Api::V1::NotificationPolicy
   include Api::V1::UserProfile
 
   include TextHelper
@@ -40,6 +39,12 @@ class ProfileController < ApplicationController
     end
 
     @user ||= @current_user
+    @channels = @user.communication_channels.unretired
+    @email_channels = @channels.select{|c| c.path_type == "email"}
+    @sms_channels = @channels.select{|c| c.path_type == 'sms'}
+    @other_channels = @channels.select{|c| c.path_type != "email"}
+    @default_email_channel = @email_channels.first
+
     @active_tab = "profile"
     @context = @user.profile if @user == @current_user
 
@@ -120,10 +125,20 @@ class ProfileController < ApplicationController
 
     # Get the list of Notification models (that are treated like categories) that make up the full list of Categories.
     full_category_list = Notification.dashboard_categories(@user)
+    categories = full_category_list.map do |category|
+      category.as_json(only: %w{id name workflow_state user_id}, include_root: false).tap do |json|
+        # Add custom method result entries to the json
+        json[:category]             = category.category.underscore.gsub(/\s/, '_')
+        json[:display_name]         = category.category_display_name
+        json[:category_description] = category.category_description
+        json[:option]               = category.related_user_setting(@user)
+      end
+    end
+
     js_env  :NOTIFICATION_PREFERENCES_OPTIONS => {
       :channels => @user.communication_channels.all_ordered_for_display(@user).map { |c| communication_channel_json(c, @user, session) },
-      :policies => NotificationPolicy.setup_with_default_policies(@user, full_category_list).map{ |p| notification_policy_json(p, @user, session) },
-      :categories => full_category_list.map{ |c| notification_category_json(c, @user, session) },
+      :policies => NotificationPolicy.setup_with_default_policies(@user, full_category_list).map { |p| notification_policy_json(p, @user, session).tap { |json| json[:communication_channel_id] = p.communication_channel_id } },
+      :categories => categories,
       :update_url => communication_update_profile_path,
       },
       :READ_PRIVACY_INFO => @user.preferences[:read_notification_privacy_info],
@@ -149,7 +164,7 @@ class ProfileController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/users/1/avatars.json' \ 
+  #   curl 'https://<canvas>/api/v1/users/1/avatars.json' \
   #        -H "Authorization: Bearer <token>"
   #
   # @example_response
@@ -188,6 +203,10 @@ class ProfileController < ApplicationController
   def update
     @user = @current_user
 
+    if params[:user] && params[:user][:enabled_theme]
+      @user.enabled_theme = params[:user].delete(:enabled_theme)
+    end
+
     if params[:privacy_notice].present?
       @user.preferences[:read_notification_privacy_info] = Time.now.utc.to_s
       @user.save
@@ -219,7 +238,7 @@ class ProfileController < ApplicationController
             pseudonymed = true
             flash[:error] = error_msg
             format.html { redirect_to user_profile_url(@current_user) }
-            format.json { render :json => {:errors => {:old_password => error_msg}}.to_json, :status => :bad_request }
+            format.json { render :json => {:errors => {:old_password => error_msg}}, :status => :bad_request }
           end
           if change_password != '1' || !pseudonym_to_update || !pseudonym_to_update.valid_arbitrary_credentials?(old_password)
             params[:pseudonym].delete :password
@@ -230,17 +249,17 @@ class ProfileController < ApplicationController
             pseudonymed = true
             flash[:error] = t('errors.profile_update_failed', "Login failed to update")
             format.html { redirect_to user_profile_url(@current_user) }
-            format.json { render :json => pseudonym_to_update.errors.to_json, :status => :bad_request }
+            format.json { render :json => pseudonym_to_update.errors, :status => :bad_request }
           end
         end
         unless pseudonymed
           flash[:notice] = t('notices.updated_profile', "Settings successfully updated")
           format.html { redirect_to user_profile_url(@current_user) }
-          format.json { render :json => @user.to_json(:methods => :avatar_url, :include => {:communication_channel => {:only => [:id, :path]}, :pseudonym => {:only => [:id, :unique_id]} }) }
+          format.json { render :json => @user.as_json(:methods => :avatar_url, :include => {:communication_channel => {:only => [:id, :path]}, :pseudonym => {:only => [:id, :unique_id]} }) }
         end
       else
         format.html
-        format.json { render :json => @user.errors.to_json }
+        format.json { render :json => @user.errors }
       end
     end
   end
@@ -286,7 +305,7 @@ class ProfileController < ApplicationController
     else
       respond_to do |format|
         format.html { redirect_to user_profile_path(@user) } # FIXME: need to go to edit path
-        format.json { render :json => @profile.errors.to_json, :status => :bad_request }  #NOTE: won't send back @user validation errors (i.e. short_name)
+        format.json { render :json => @profile.errors, :status => :bad_request }  #NOTE: won't send back @user validation errors (i.e. short_name)
       end
     end
   end

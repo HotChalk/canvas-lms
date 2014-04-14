@@ -169,11 +169,11 @@ module Technoweenie # :nodoc:
         base.after_save :after_process_attachment
         base.after_destroy :destroy_file
         base.after_validation :process_attachment
-        if CANVAS_RAILS3
+        if CANVAS_RAILS2
+          base.define_callbacks :after_resize, :before_attachment_saved, :after_attachment_saved, :before_thumbnail_saved, :after_save_and_attachment_processing
+        else
           base.define_model_callbacks :resize, :attachment_saved, :save_and_attachment_processing, only: [:after]
           base.define_model_callbacks :attachment_saved, :thumbnail_saved, only: [:before]
-        else
-          base.define_callbacks :after_resize, :before_attachment_saved, :after_attachment_saved, :before_thumbnail_saved, :after_save_and_attachment_processing
         end
       end
 
@@ -355,7 +355,6 @@ module Technoweenie # :nodoc:
             self.root_attachment = nil
             self.root_attachment_id = nil
             self.scribd_mime_type_id = nil
-            self.scribd_user = nil
             self.submitted_to_scribd_at = nil
             self.workflow_state = nil
             self.scribd_doc = nil
@@ -571,6 +570,7 @@ module Technoweenie # :nodoc:
           end
         end
 
+        if CANVAS_RAILS2
         # Yanked from ActiveRecord::Callbacks, modified so I can pass args to the callbacks besides self.
         # Only accept blocks, however
         if ActiveSupport.const_defined?(:Callbacks)
@@ -602,6 +602,26 @@ module Technoweenie # :nodoc:
               return false if result == false
             end
             result
+          end
+        end
+
+        else
+          # callback is not defined in Rails 3
+          def callback(method)
+            runner_method = "_run_#{method}_callbacks"
+            unless self.respond_to?(runner_method, true)
+              chain = ActiveSupport::Callbacks::CallbackChain.new(method, {})
+
+              kind, chain_name = method.to_s.split('_', 2) # e.g. :after_save becomes 'after', 'save'
+              chain.concat(self.send("_#{chain_name}_callbacks").to_a.select{|callback| callback.kind.to_s == kind})
+
+              str = chain.compile
+              class_eval <<-RUBY_EVAL, __FILE__, __LINE__ + 1
+                def #{runner_method}() #{str} end
+                protected :#{runner_method}
+              RUBY_EVAL
+            end
+            self.send(runner_method)
           end
         end
 

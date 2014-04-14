@@ -15,8 +15,7 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
-  'compiled/tinymce'
-  'tinymce.editor_box'
+  'redactor.editor_box'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
@@ -35,17 +34,22 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     els:
       '#availability_options': '$availabilityOptions'
+      '#reply_grading_options': '$replyGradingOptions'
+      '#reply_assignment_options': '$replyAssignmentOptions'
       '#use_for_grading': '$useForGrading'
+      '#use_for_grading_replies': '$useForGradingReplies'
 
     events: _.extend(@::events,
       'click .removeAttachment' : 'removeAttachment'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
+      'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
     )
 
     @optionProperty 'permissions'
 
     initialize: (options) ->
       @assignment = @model.get("assignment")
+      @replyAssignment = @model.get("reply_assignment")
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', -> window.location = @get 'html_url'
       super
@@ -58,6 +62,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       data = super
       json = _.extend data, @options,
         showAssignment: !!@assignmentGroupCollection
+        showReplyAssignment: @model.get('reply_assignment')?
         useForGrading: @model.get('assignment')?
         isTopic: @isTopic()
         isAnnouncement: @isAnnouncement()
@@ -66,7 +71,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         canModerate: @permissions.CAN_MODERATE
         isLargeRoster: ENV?.IS_LARGE_ROSTER || false
         threaded: data.discussion_type is "threaded"
+        draftStateEnabled: ENV.DRAFT_STATE
       json.assignment = json.assignment.toView()
+      json.reply_assignment = json.reply_assignment.toView()
       json
 
     render: =>
@@ -84,31 +91,38 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       wikiSidebar.show()
 
       if @assignmentGroupCollection
-        (@assignmentGroupFetchDfd ||= @assignmentGroupCollection.fetch()).done @renderAssignmentGroupOptions
+        _this = this
+        (@assignmentGroupFetchDfd ||= @assignmentGroupCollection.fetch()).done =>
+          _this.renderAssignmentGroupOptions(null, null, null)
+          _this.renderAssignmentGroupOptions('#reply_assignment_group_options', 'reply_assignment', @replyAssignment)
 
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
 
+      _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
+
       @$(".datetime_field").datetime_field()
 
       this
 
-    renderAssignmentGroupOptions: =>
+    renderAssignmentGroupOptions: (el, basePrefix, parentModel) =>
       @assignmentGroupSelector = new AssignmentGroupSelector
-        el: '#assignment_group_options'
+        el: el || '#assignment_group_options'
         assignmentGroups: @assignmentGroupCollection.toJSON()
-        parentModel: @assignment
+        parentModel: parentModel || @assignment
         nested: true
+        basePrefix: basePrefix || 'assignment'
 
       @assignmentGroupSelector.render()
 
-    renderGradingTypeOptions: =>
+    renderGradingTypeOptions: (el, basePrefix) =>
       @gradingTypeSelector = new GradingTypeSelector
-        el: '#grading_type_options'
+        el: el || '#grading_type_options'
         parentModel: @assignment
         nested: true
         preventNotGraded: true
+        basePrefix: basePrefix || 'assignment'
 
       @gradingTypeSelector.render()
 
@@ -119,7 +133,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         groupCategories: ENV.GROUP_CATEGORIES
         nested: true
 
-      @groupCategorySelector.render()
+#      @groupCategorySelector.render()
 
     renderPeerReviewOptions: =>
       @peerReviewSelector = new PeerReviewsSelector
@@ -127,7 +141,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         parentModel: @assignment
         nested: true
 
-      @peerReviewSelector.render()
+#      @peerReviewSelector.render()
 
     getFormData: ->
       data = super
@@ -137,12 +151,17 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       assign_data = data.assignment
       delete data.assignment
+      reply_assign_data = data.reply_assignment
+      delete data.reply_assignment
 
       if assign_data?.set_assignment is '1'
         data.set_assignment = '1'
-        data.assignment = @updateAssignment(assign_data)
+        data.assignment = @updateAssignment('assignment', assign_data)
         data.delayed_post_at = ''
         data.lock_at = ''
+        if assign_data?.set_reply_assignment is '1'
+          data.set_reply_assignment = '1'
+          data.reply_assignment = @updateAssignment('reply_assignment', reply_assign_data)
       else
         # Announcements don't have assignments.
         # DiscussionTopics get a model created for them in their
@@ -157,7 +176,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       data
 
-    updateAssignment: (data) =>
+    updateAssignment: (model_key, data) =>
       unless ENV?.IS_LARGE_ROSTER
         data = @groupCategorySelector.filterFormData data
       @dueDateOverrideView.updateOverrides()
@@ -167,7 +186,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
 
-      assignment = @model.get('assignment')
+      assignment = @model.get(model_key)
       assignment or= new Assignment
       assignment.set(data)
 
@@ -211,9 +230,20 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           errors = @groupCategorySelector.validateBeforeSave(data, errors)
         data2 =
           assignment_overrides: @dueDateOverrideView.getAllDates(data.assignment.toJSON())
-        errors = @dueDateOverrideView.validateBeforeSave(data2,errors)
+        errors = @dueDateOverrideView.validateBeforeSave(data2, errors)
+        errors = @_validatePointsPossible(data, errors)
       else
         @model.set 'assignment', {set_assignment: false}
+      errors
+
+    _validatePointsPossible: (data, errors) =>
+      assign = data.assignment
+      frozenPoints = _.contains(assign.frozenAttributes(), "points_possible")
+
+      if !frozenPoints and assign.pointsPossible() and isNaN(parseFloat(assign.pointsPossible()))
+        errors["assignment[points_possible]"] = [
+          message: I18n.t 'points_possible_number', 'Points possible must be a number'
+        ]
       errors
 
     showErrors: (errors) ->
@@ -226,5 +256,13 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     toggleAvailabilityOptions: ->
       if @$useForGrading.is(':checked')
         @$availabilityOptions.hide()
+        @$replyGradingOptions.show()
       else
         @$availabilityOptions.show()
+        @$replyGradingOptions.hide()
+
+    toggleReplyGradeOptions: ->
+      if @$useForGradingReplies.is(':checked')
+        @$replyAssignmentOptions.show()
+      else
+        @$replyAssignmentOptions.hide()

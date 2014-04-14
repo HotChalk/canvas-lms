@@ -86,12 +86,12 @@ course will see this page first.  You can change that from [the course home page
     <% end %>
   <% end %>
 </div>
-<div id="wiki_edit_view_main" style="display:none; text-align: right;">
-  <div>
+<div id="wiki_edit_view_main" style="display:none">
+  <div style="text-align: right;">
     <a href="#" class="wiki_switch_views_link"><%= t '#editor.switch_views', "Switch Views" %></a>
   </div>
   <div class="clear"></div>
-  <% form_for(@page, :url => (@page.new_record?) ? context_url(@context, :context_wiki_pages_url) : context_url(@context, :context_wiki_page_url, @page)) do |f| -%>
+  <%= form_for(@page, :url => (@page.new_record?) ? context_url(@context, :context_wiki_pages_url) : context_url(@context, :context_wiki_page_url, @page)) do |f| -%>
     <%= f.hidden_field :title %>
     <%= f.text_area :body, :style => "width:99%;" %>
     <% if course_home %>

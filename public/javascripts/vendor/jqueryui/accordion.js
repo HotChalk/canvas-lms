@@ -1,11 +1,12 @@
 /*!
- * jQuery UI Accordion @VERSION
+ * jQuery UI Accordion 1.9.2
+ * http://jqueryui.com
  *
- * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
- * Dual licensed under the MIT or GPL Version 2 licenses.
+ * Copyright 2012 jQuery Foundation and other contributors
+ * Released under the MIT license.
  * http://jquery.org/license
  *
- * http://docs.jquery.com/UI/Accordion
+ * http://api.jqueryui.com/accordion/
  *
  * Depends:
  *	jquery.ui.core.js
@@ -17,28 +18,17 @@ define([
 	'jqueryui/widget'
 ], function( $ ) {
 
-// jQuery is referenced a couple times by its full name and not $ below
-var jQuery = $;
-
 var uid = 0,
 	hideProps = {},
-	showProps = {},
-	showPropsAdjust = {};
+	showProps = {};
 
 hideProps.height = hideProps.paddingTop = hideProps.paddingBottom =
 	hideProps.borderTopWidth = hideProps.borderBottomWidth = "hide";
 showProps.height = showProps.paddingTop = showProps.paddingBottom =
 	showProps.borderTopWidth = showProps.borderBottomWidth = "show";
-$.extend( showPropsAdjust, showProps, { accordionHeight: "show" } );
-
-$.fx.step.accordionHeight = function( fx ) {
-	var elem = $( fx.elem ),
-		data = elem.data( "ui-accordion-height" );
-	elem.height( data.total - elem.outerHeight() - data.toHide.outerHeight() + elem.height() );
-};
 
 $.widget( "ui.accordion", {
-	version: "@VERSION",
+	version: "1.9.2",
 	options: {
 		active: 0,
 		animate: {},
@@ -73,8 +63,8 @@ $.widget( "ui.accordion", {
 			.addClass( "ui-accordion-content ui-helper-reset ui-widget-content ui-corner-bottom" )
 			.hide();
 
-		// don't allow collapsible: false and active: false
-		if ( !options.collapsible && options.active === false ) {
+		// don't allow collapsible: false and active: false / null
+		if ( !options.collapsible && (options.active === false || options.active == null) ) {
 			options.active = 0;
 		}
 		// handle negative values
@@ -89,7 +79,6 @@ $.widget( "ui.accordion", {
 			.show();
 
 		this._createIcons();
-		this.originalHeight = this.element[0].style.height;
 		this.refresh();
 
 		// ARIA
@@ -212,7 +201,6 @@ $.widget( "ui.accordion", {
 				}
 			});
 		if ( this.options.heightStyle !== "content" ) {
-			this.element.css( "height", this.originalHeight );
 			contents.css( "height", "" );
 		}
 	},
@@ -303,7 +291,6 @@ $.widget( "ui.accordion", {
 			heightStyle = this.options.heightStyle,
 			parent = this.element.parent();
 
-		this.element.css( "height", this.originalHeight );
 
 		if ( heightStyle === "fill" ) {
 			// IE 6 treats height like minHeight, so we need to turn off overflow
@@ -342,13 +329,9 @@ $.widget( "ui.accordion", {
 			maxHeight = 0;
 			this.headers.next()
 				.each(function() {
-					maxHeight = Math.max( maxHeight, $( this ).height( "" ).height() );
+					maxHeight = Math.max( maxHeight, $( this ).css( "height", "" ).height() );
 				})
 				.height( maxHeight );
-		}
-
-		if ( heightStyle !== "content" ) {
-			this.element.height( this.element.height() );
 		}
 	},
 
@@ -491,12 +474,12 @@ $.widget( "ui.accordion", {
 	_animate: function( toShow, toHide, data ) {
 		var total, easing, duration,
 			that = this,
+			adjust = 0,
 			down = toShow.length &&
 				( !toHide.length || ( toShow.index() < toHide.index() ) ),
 			animate = this.options.animate || {},
 			options = down && animate.down || animate,
 			complete = function() {
-				toShow.removeData( "ui-accordion-height" );
 				that._toggleComplete( data );
 			};
 
@@ -518,15 +501,29 @@ $.widget( "ui.accordion", {
 		}
 
 		total = toShow.show().outerHeight();
-		toHide.animate( hideProps, duration, easing );
+		toHide.animate( hideProps, {
+			duration: duration,
+			easing: easing,
+			step: function( now, fx ) {
+				fx.now = Math.round( now );
+			}
+		});
 		toShow
 			.hide()
-			.data( "ui-accordion-height", {
-				total: total,
-				toHide: toHide
-			})
-			.animate( this.options.heightStyle === "content" ? showProps : showPropsAdjust,
-				duration, easing, complete );
+			.animate( showProps, {
+				duration: duration,
+				easing: easing,
+				complete: complete,
+				step: function( now, fx ) {
+					fx.now = Math.round( now );
+					if ( fx.prop !== "height" ) {
+						adjust += fx.now;
+					} else if ( that.options.heightStyle !== "content" ) {
+						fx.now = Math.round( total - toHide.outerHeight() - adjust );
+						adjust = 0;
+					}
+				}
+			});
 	},
 
 	_toggleComplete: function( data ) {
@@ -603,7 +600,7 @@ if ( $.uiBackCompat !== false ) {
 				_create.call( this );
 			},
 
-			_setOption: function( key, value ) {
+			_setOption: function( key ) {
 				if ( key === "autoHeight" || key === "clearStyle" || key === "fillSpace" ) {
 					this.options.heightStyle = this._mergeHeightStyle();
 				}

@@ -79,7 +79,7 @@ module AssignmentOverrideApplicator
   # returned in priority order; the first override to contain an overridden
   # value for a particular field is used for that field
   def self.overrides_for_assignment_and_user(assignment_or_quiz, user)
-    Rails.cache.fetch([user, assignment_or_quiz, assignment_or_quiz.version_number, 'overrides'].cache_key) do
+    Rails.cache.fetch([user, assignment_or_quiz, 'overrides'].cache_key) do
 
       # return an empty array to the block if there is nothing to do here
       next [] if user.nil? || !assignment_or_quiz.has_overrides?
@@ -192,8 +192,7 @@ module AssignmentOverrideApplicator
 
   def self.copy_preloaded_associations_to_clone(orig, clone)
     orig.class.reflections.keys.each do |association|
-      ivar = "@#{association}"
-      clone.instance_variable_set ivar, orig.instance_variable_get(ivar)
+      clone.send(:association_instance_set, association, orig.send(:association_instance_get, association))
     end
   end
 
@@ -207,7 +206,7 @@ module AssignmentOverrideApplicator
   # the same collapsed assignment or quiz, regardless of the user that ended up at that
   # set of overrides.
   def self.collapsed_overrides(assignment_or_quiz, overrides)
-    Rails.cache.fetch([assignment_or_quiz, assignment_or_quiz.version_number, self.overrides_hash(overrides)].cache_key) do
+    Rails.cache.fetch([assignment_or_quiz, self.overrides_hash(overrides)].cache_key) do
       overridden_data = {}
       # clone the assignment_or_quiz, apply overrides, and freeze
       [:due_at, :all_day, :all_day_date, :unlock_at, :lock_at].each do |field|

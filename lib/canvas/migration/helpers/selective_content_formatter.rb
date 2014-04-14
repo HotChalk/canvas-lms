@@ -216,7 +216,7 @@ module Canvas::Migration::Helpers
             elsif type == 'discussion_topics'
               count = source.discussion_topics.active.only_discussion_topics.count
             elsif source.respond_to?(type) && source.send(type).respond_to?(:count)
-              scope = source.send(type)
+              scope = source.send(type).except(:includes)
               if scope.respond_to?(:not_deleted)
                 scope = scope.not_deleted
               elsif scope.respond_to?(:active)
@@ -300,7 +300,7 @@ module Canvas::Migration::Helpers
     end
 
     def course_attachments_data(content_list, source_course)
-      source_course.folders.active.select('id, full_name, name').includes(:active_file_attachments).sort_by{|f| f.full_name}.each do |folder|
+      Canvas::ICU.collate_by(source_course.folders.active.select('id, full_name, name').includes(:active_file_attachments), &:full_name).each do |folder|
         next if folder.active_file_attachments.length == 0
 
         item = course_item_hash('folders', folder)

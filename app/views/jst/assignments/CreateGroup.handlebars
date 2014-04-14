@@ -39,7 +39,7 @@
         </label>
         <div class="controls">
           <input
-            type="text"
+            type="number"
             id="ag_{{label_id}}_drop_lowest"
             class="span1 field"
             name="rules[drop_lowest]"
@@ -53,7 +53,7 @@
         </label>
         <div class="controls">
           <input
-            type="text"
+            type="number"
             id="ag_{{label_id}}_drop_highest"
             class="span1 field"
             name="rules[drop_highest]"
@@ -69,10 +69,6 @@
             {{#t "never_drop"}}Never Drop:{{/t}}
           </label>
           <div class="controls never_drop_rules_group">
-            <div class="never_drop"></div>
-            <a href="#" class="add_never_drop icon-add">
-              {{#t "add_first_assignment"}}Add an assignment{{/t}}
-            </a>
           </div>
         </div>
       {{/if}}

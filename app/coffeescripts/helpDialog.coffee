@@ -44,6 +44,9 @@ define [
           showEmail: showEmail
           helpLinks: links
           url: window.location
+          contextAssetString: ENV.context_asset_string
+          userRoles: ENV.current_user_roles
+
 
         @$dialog.html(helpDialogTemplate locals)
         @initTicketForm()
@@ -65,8 +68,8 @@ define [
     switchTo: (panelId) ->
       toggleablePanels = "#teacher_feedback, #create_ticket"
       @$dialog.find(toggleablePanels).hide()
-
-      newHeight = @$dialog.find(panelId).show().outerHeight()
+      newPanel = @$dialog.find(panelId)
+      newHeight = newPanel.show().outerHeight()
       @$dialog.animate({
         left : if toggleablePanels.match(panelId) then -400 else 0
         height: newHeight
@@ -75,6 +78,8 @@ define [
           #reposition vertically to reflect current height
           @$dialog.dialog('option', 'position', 'center')
         duration: 100
+        complete: ->
+          newPanel.find(':input').not(':disabled').first().focus()
       })
 
       if newTitle = @$dialog.find("a[href='#{panelId}'] .text").text()

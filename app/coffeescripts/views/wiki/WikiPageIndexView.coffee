@@ -43,6 +43,14 @@ define [
       [@contextName, @contextId] = splitAssetString(@contextAssetString) if @contextAssetString
       @itemViewOptions.contextName = @contextName
 
+      @collection.on 'fetch', =>
+        unless @fetched
+          @fetched = true
+          @render()
+      @collection.on 'fetched:last', =>
+        @fetchedLast = true
+        @render()
+
       @collection.on 'sortChanged', @sortChanged
       @currentSortField = @collection.currentSortField
 
@@ -74,9 +82,9 @@ define [
         sortOrder = if sortOrders[sortField] == 'asc' then 'up' else 'down'
 
         if sortOrder == 'up'
-          $sortHeader.attr('aria-label', I18n.t('headers.sort_ascending', 'Sort ascending'))
+          $sortHeader.attr('aria-label', I18n.t('headers.sort_ascending', '%{title}, Sort ascending', {title: $sortHeader.text()}))
         else
-          $sortHeader.attr('aria-label', I18n.t('headers.sort_descending', 'Sort descending'))
+          $sortHeader.attr('aria-label', I18n.t('headers.sort_descending', '%{title}, Sort descending', {title: $sortHeader.text()}))
 
         $sortHeader.toggleClass 'sort-field-active', sortField == @currentSortField
         $i.removeClass('icon-mini-arrow-up icon-mini-arrow-down')
@@ -87,7 +95,7 @@ define [
 
       @$el.hide()
       $('body').removeClass('index')
-      $('body').addClass('edit')
+      $('body').addClass('edit with-right-side')
 
       @editModel = new WikiPage {editing_roles: @default_editing_roles}, contextAssetString: @contextAssetString
       @editView = new WikiPageEditView
@@ -97,6 +105,7 @@ define [
         PAGE_RIGHTS:
           update: ENV.WIKI_RIGHTS.update_page
           update_content: ENV.WIKI_RIGHTS.update_page_content
+          read_revisions: ENV.WIKI_RIGHTS.read_revisions
       @$el.parent().append(@editView.$el)
 
       @editView.render()
@@ -106,7 +115,7 @@ define [
         @editView.$el.remove()
         wikiSidebar.hide()
 
-        $('body').removeClass('edit')
+        $('body').removeClass('edit with-right-side')
         $('body').addClass('index')
         @$el.show()
 
@@ -116,5 +125,7 @@ define [
         CREATE: !!@WIKI_RIGHTS.create_page
         MANAGE: !!@WIKI_RIGHTS.manage
         PUBLISH: !!@WIKI_RIGHTS.manage && @contextName == 'courses'
-      json.fetched = @fetched
+      json.CAN.VIEW_TOOLBAR = json.CAN.CREATE
+      json.fetched = !!@fetched
+      json.fetchedLast = !!@fetchedLast
       json

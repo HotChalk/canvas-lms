@@ -15,11 +15,11 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-require 'zip/zip'
-require 'action_controller'
-require 'action_controller/test_process.rb'
+require 'zip'
+require 'action_controller_test_process'
 require 'tmpdir'
 require 'set'
+
 
 class ContentZipper
 
@@ -79,7 +79,7 @@ class ContentZipper
 
     make_zip_tmpdir(filename) do |zip_name|
       @logger.debug("creating #{zip_name}")
-      Zip::ZipFile.open(zip_name, Zip::ZipFile::CREATE) do |zipfile|
+      Zip::File.open(zip_name, Zip::File::CREATE) do |zipfile|
         count = submissions.length
         submissions.each_with_index do |submission, idx|
           @assignment = assignment
@@ -93,12 +93,21 @@ class ContentZipper
           # necessary because we use /_\d+_/ to infer the user/attachment
           # ids when teachers upload graded submissions
           users_name.gsub! /_(\d+)_/, '-\1-'
+          users_name.gsub! /^(\d+)$/, '-\1-'
 
           filename = users_name + (submission.late? ? " LATE_" : "_") + submission.user_id.to_s
           filename = filename.gsub(/ /, "-").gsub(/[^-\w]/, "-").downcase
+
           content = nil
           if submission.submission_type == "online_upload"
-            submission.attachments.each do |attachment|
+            # NOTE: not using #versioned_attachments or #attachments because
+            # they do not include submissions for group assignments for anyone
+            # but the original submitter of the group submission
+            attachment_ids = submission.attachment_ids.try(:split, ",")
+            attachments = attachment_ids ?
+                            Attachment.where(id: attachment_ids) :
+                            []
+            attachments.each do |attachment|
               @logger.debug("  found attachment: #{attachment.display_name}")
               fn = filename + "_" + attachment.id.to_s + "_" + attachment.display_name
               mark_successful! if add_attachment_to_zip(attachment, zipfile, fn)
@@ -176,7 +185,7 @@ class ContentZipper
     make_zip_tmpdir(filename) do |zip_name|
       idx = 0
       count = static_attachments.length + 2
-      Zip::ZipFile.open(zip_name, Zip::ZipFile::CREATE) do |zipfile|
+      Zip::File.open(zip_name, Zip::File::CREATE) do |zipfile|
         update_progress(zip_attachment, idx, count)
         portfolio.eportfolio_entries.each do |entry|
           filename = "#{entry.full_slug}.html"
@@ -224,7 +233,7 @@ class ContentZipper
     filename = "#{folder.context.short_name}-#{folder.name} files"
     make_zip_tmpdir(filename) do |zip_name|
       @logger.debug("creating #{zip_name}")
-      Zip::ZipFile.open(zip_name, Zip::ZipFile::CREATE) do |zipfile|
+      Zip::File.open(zip_name, Zip::File::CREATE) do |zipfile|
         @logger.debug("zip_name: #{zip_name}")
         process_folder(folder, zipfile)
       end
@@ -315,7 +324,7 @@ class ContentZipper
     handle = nil
     begin
       handle = attachment.open(:need_local_file => true)
-      zipfile.get_output_stream(filename){|zos| IOExtras.copy_stream(zos, handle)}
+      zipfile.get_output_stream(filename){|zos| Zip::IOExtras.copy_stream(zos, handle)}
     rescue => e
       @logger.error("  skipping #{attachment.full_filename} with error: #{e.message}")
       return false
@@ -335,7 +344,7 @@ class ContentZipper
   def complete_attachment!(zip_attachment, zip_name)
     if zipped_successfully?
       @logger.debug("data zipped! uploading to s3...")
-      uploaded_data = ActionController::TestUploadedFile.new(zip_name, 'application/zip')
+      uploaded_data = Rack::Test::UploadedFile.new(zip_name, 'application/zip')
       zip_attachment.uploaded_data = uploaded_data
       zip_attachment.workflow_state = 'zipped'
       zip_attachment.file_state = 'available'

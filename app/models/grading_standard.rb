@@ -22,6 +22,8 @@ class GradingStandard < ActiveRecord::Base
   belongs_to :context, :polymorphic => true
   belongs_to :user
   has_many :assignments
+  validates_presence_of :context_id, :context_type, :workflow_state
+
   # version 1 data is an array of [ letter, max_integer_value ]
   # we created a version 2 because this is ambiguous once we added support for
   # fractional values -- 89 used to actually mean < 90, so 89.9999... , but
@@ -50,9 +52,9 @@ class GradingStandard < ActiveRecord::Base
     state :active
     state :deleted
   end
-  
+
   scope :active, where("grading_standards.workflow_state<>'deleted'")
-  scope :sorted, order("usage_count >= 3 DESC, title ASC")
+  scope :sorted, lambda { order("usage_count >= 3 DESC").order(nulls(:last, best_unicode_collation_key('title'))) }
 
   VERSION = 2
 
@@ -97,10 +99,10 @@ class GradingStandard < ActiveRecord::Base
 
   def data=(new_val)
     self.version = VERSION
-    # round values to the nearest 0.1 (0.001 since e.g. 78 is stored as .78)
+    # round values to the nearest 0.01 (0.0001 since e.g. 78 is stored as .78)
     # and dup the data while we're at it. (new_val.dup only dups one level, the
     # elements of new_val.dup are the same objects as the elements of new_val)
-    new_val = new_val.map{ |row| [ row[0], (row[1] * 1000).to_i / 1000.0 ] }
+    new_val = new_val.map{ |row| [ row[0], (row[1] * 10000).to_i / 10000.0 ] }
     write_attribute(:data, new_val)
   end
 

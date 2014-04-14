@@ -33,7 +33,7 @@ class RubricAssessment < ActiveRecord::Base
   
   simply_versioned
   
-  validates_presence_of :assessment_type
+  validates_presence_of :assessment_type, :rubric_id, :artifact_id, :artifact_type, :assessor_id
   validates_length_of :comments, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   
   before_save :update_artifact_parameters
@@ -171,9 +171,13 @@ class RubricAssessment < ActiveRecord::Base
   def methods_for_serialization(*methods)
     @serialization_methods = methods
   end
+
+  def serialization_methods
+    @serialization_methods || []
+  end
   
   def assessor_name
-    self.assessor.name rescue t('unknown_user', "Unknown User")
+    self.assessor.short_name rescue t('unknown_user', "Unknown User")
   end
   
   def assessment_url

@@ -24,7 +24,7 @@ describe QuizSubmissionZipper do
   end
 
   let(:submission_stubs) do
-    submissions.map { |sub| stub(:latest_submitted_version => sub) }
+    submissions.map { |sub| stub(:latest_submitted_attempt => sub) }
   end
   let(:zip_attachment) { stub(:id => 1, :user => nil) }
 
@@ -97,7 +97,7 @@ describe QuizSubmissionZipper do
         zip_attachment: attachment).zip!
       attachment.reload
       attachment.should be_zipped
-      names = Zip::ZipFile.foreach(attachment.full_filename).map { |f| f.name }
+      names = Zip::File.foreach(attachment.full_filename) { |f| f.name }
       names.length.should == 1
       names.first.should == "user#{student.id}_question_#{question.id}_#{attach.id}_#{attach.display_name}"
     end

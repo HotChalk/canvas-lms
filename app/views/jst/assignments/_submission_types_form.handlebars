@@ -99,6 +99,7 @@
           <input id="assignment_allowed_extensions"
             name="allowed_extensions"
             type="text"
+            maxlength="254"
             placeholder="{{#t "labels.allowed_extensions"}}Allowed File Extensions{{/t}}"
             value="{{join allowedExtensions ","}}"
             {{disabledIfIncludes frozenAttributes "submission_types"}}/>
@@ -142,7 +143,7 @@
           name="external_tool_tag_attributes[url]"
           type="text"
           value="{{externalToolUrl}}"
-          {{disabledIfIncludes frozenAttributes "submission_types"}}/>
+          {{disabledIfIncludes frozenAttributes "submission_types"}} {{#if isExternalTool}}required="true"{{/if}}/>
       </div>
     </div>
 

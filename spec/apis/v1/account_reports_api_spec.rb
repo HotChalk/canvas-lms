@@ -22,8 +22,9 @@ describe 'Account Reports API', :type => :integration do
   before do
     @admin = account_admin_user
     user_with_pseudonym(:user => @admin)
-    @report = AccountReport.create()
+    @report = AccountReport.new
     @report.account = @admin.account
+    @report.user = @admin
     @report.progress=rand(100)
     @report.start_at=DateTime.now
     @report.end_at=(Time.now + (rand(60*60*4))).to_datetime
@@ -62,6 +63,12 @@ describe 'Account Reports API', :type => :integration do
       report.key?('status').should be_true
       report.key?('progress').should be_true
       report.key?('file_url').should be_true
+    end
+
+    it 'should 404 for non existing reports' do
+      raw_api_call(:post, "/api/v1/accounts/#{@admin.account.id}/reports/bad_report_csv",
+                   { :report=> 'bad_report_csv', :controller => 'account_reports', :action => 'create', :format => 'json', :account_id => @admin.account.id.to_s })
+      response.status.should == '404 Not Found'
     end
   end
 

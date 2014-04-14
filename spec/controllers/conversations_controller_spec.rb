@@ -45,9 +45,7 @@ describe ConversationsController do
       course_with_student_logged_in(:active_all => true)
       conversation
 
-      term = EnrollmentTerm.create! :name => "Fall"
-      term.root_account_id = @course.root_account_id
-      term.save!
+      term = @course.root_account.enrollment_terms.create! :name => "Fall"
       @course.update_attributes! :enrollment_term => term
 
       get 'index'
@@ -467,6 +465,14 @@ describe ConversationsController do
       post 'remove_messages', :conversation_id => @conversation.conversation_id, :remove => [message.id.to_s]
       response.should be_success
       @conversation.messages.size.should == 1
+    end
+
+    it "should null a conversation_participant's last_message_at if all message_participants have been destroyed" do
+      course_with_student_logged_in(active_all: true)
+      message = conversation.conversation.conversation_messages.first
+
+      post 'remove_messages', conversation_id: @conversation.conversation_id, :remove => [message.id.to_s]
+      @conversation.reload.last_message_at.should be_nil
     end
   end
 

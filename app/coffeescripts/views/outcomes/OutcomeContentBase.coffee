@@ -21,10 +21,9 @@ define [
   'jquery'
   'underscore'
   'compiled/views/ValidatedFormView'
-  'tinymce.editor_box'
+  'redactor.editor_box'
   'compiled/jquery.rails_flash_notifications'
   'jquery.disableWhileLoading'
-  'compiled/tinymce',
 ], (I18n, $, _, ValidatedFormView) ->
 
   # Superclass for OutcomeView and OutcomeGroupView.
@@ -51,6 +50,8 @@ define [
       title: (data) ->
         if _.isEmpty data.title
           I18n.t('blank_error', 'Cannot be blank')
+        else if data.title.length > 255
+          I18n.t('length_error', 'Must be 255 characters or less')
 
     # Returns true if there are no errors in @validations.
     # Also creates an @errors object for use in @showErrors()
@@ -74,7 +75,7 @@ define [
         @$el.disableWhileLoading @model.fetch success: =>
           @state = opts.state
           @render()
-      super()
+      super
 
     _cleanUpTiny: => @$el.find('[name="description"]').editorBox 'destroy'
 

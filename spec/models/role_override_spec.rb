@@ -62,7 +62,7 @@ describe RoleOverride do
 
   it "should not fail when a context's associated accounts are missing" do
     group_model
-    @group.account.should be_nil
+    @group.stubs(:account).returns(nil)
     lambda {
       RoleOverride.permission_for(@group, :read_course_content, "TeacherEnrollment")
     }.should_not raise_error
@@ -246,6 +246,14 @@ describe RoleOverride do
     context 'using :account_allows' do
       it "should be enabled for account if not specified" do
         permission_data = RoleOverride.permission_for(@account, :undelete_courses,
+                                                      'AccountMembership', 'AccountAdmin')
+        permission_data[:account_allows].should be_true
+        permission_data[:enabled].should be_true
+        permission_data[:explicit].should be_false
+      end
+
+      it "should be enabled for account if not specified" do
+        permission_data = RoleOverride.permission_for(@account, :view_grade_changes,
                                                       'AccountMembership', 'AccountAdmin')
         permission_data[:account_allows].should be_true
         permission_data[:enabled].should be_true

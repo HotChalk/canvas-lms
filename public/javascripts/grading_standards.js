@@ -1,4 +1,5 @@
 define([
+  'compiled/util/round',
   'i18n!grading_standards',
   'jquery' /* $ */,
   'jquery.ajaxJSON' /* ajaxJSON */,
@@ -8,7 +9,7 @@ define([
   'compiled/jquery.rails_flash_notifications',
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */
-], function(I18n, $) {
+], function(round, I18n, $) {
 
   $(document).ready(function() {
     $(".add_standard_link").click(function(event) {
@@ -99,6 +100,7 @@ define([
       event.preventDefault();
       var $standard = $(this).parents(".grading_standard");
       $standard.addClass('editing');
+      $standard.find(".max_score_cell").attr('tabindex', '0');
       if($(this).hasClass('read_only')) {
         $standard.attr('id', 'grading_standard_blank');
       }
@@ -197,6 +199,7 @@ define([
       $(this).parents(".grading_standard").removeClass('editing')
         .find(".insert_grading_standard").hide();
       var $standard = $(this).parents(".grading_standard");
+      $standard.find(".max_score_cell").removeAttr('tabindex');
       $standard.find(".to_add").remove();
       $standard.find(".to_delete").removeClass('to_delete').show();
       if($standard.attr('id') == 'grading_standard_new') {
@@ -223,7 +226,7 @@ define([
         var row = standard.data[idx];
         $row_instance.removeClass('to_delete').removeClass('to_add');
         $row_instance.find(".standard_name").val(row[0]).attr('name', 'grading_standard[standard_data][scheme_'+idx+'][name]').end()
-          .find(".standard_value").val(row[1] * 100).attr('name', 'grading_standard[standard_data][scheme_'+idx+'][value]');
+          .find(".standard_value").val(round((row[1] * 100),2)).attr('name', 'grading_standard[standard_data][scheme_'+idx+'][value]');
         $table.append($row_instance.show());
         $table.append($link.clone(true).show());
       }
@@ -253,7 +256,6 @@ define([
         } else if(url && url.match(/assignments$/)) {
           url = null;
         }
-  
         if(url) {
           $.ajaxJSON(url, 'PUT', put_data, function(data) {
             $("#course_form .grading_scheme_set").text((data && data.course && data.course.grading_standard_title) || I18n.t('grading_scheme_currently_set', "Currently Set"));
@@ -298,6 +300,12 @@ define([
         $(this).prev(".insert_grading_standard").show();
       }
     });
+    $(".grading_standard *").focus(function(event) {
+      $(this).trigger('mouseover');
+      if ($(this).hasClass('delete_row_link')) {
+        $(this).parents(".grading_standard_row").nextAll('.grading_standard_row').first().trigger('mouseover');
+      }
+    });
     $(".grading_standard .insert_grading_standard_link").click(function(event) {
       event.preventDefault();
       if($(this).parents(".grading_standard").find(".grading_standard_row").length > 40) { return; }
@@ -306,7 +314,7 @@ define([
       var $link = $standard.find(".insert_grading_standard:first").clone(true);
       var temp_id = null;
       while(!temp_id || $(".standard_name[name='grading_standard[standard_data][scheme_" + temp_id + "][name]']").length > 0) {
-        temp_id = Math.round(Math.random() * 10000);    
+        temp_id = Math.round(Math.random() * 10000);
       }
       $row.find(".standard_name").val("-").attr('name', 'grading_standard[standard_data][scheme_' + temp_id + '][name]');
       $row.find(".standard_value").attr('name', 'grading_standard[standard_data][scheme_' + temp_id + '][value]');
@@ -334,8 +342,7 @@ define([
     $(".grading_standard input[type='text']").bind('blur change', function() {
       var $standard = $(this).parents(".grading_standard");
       var val = parseFloat($(this).parents(".grading_standard_row").find(".standard_value").val());
-      // round to 0.1
-      val = Math.round(val * 10) / 10.0;
+      val = round(val,2);
       $(this).parents(".grading_standard_row").find(".standard_value").val(val);
       if(isNaN(val)) { val = null; }
       var lastVal = val || 100;
@@ -404,6 +411,13 @@ define([
         }
       });
       $list.filter(":first").find(".edit_max_score").text(100);
+      $list.find('.max_score_cell').each(function() {
+        if (!$(this).data('label')) {
+          $(this).data('label', $(this).attr('aria-label'));
+        }
+        var label = $(this).data('label');
+        $(this).attr('aria-label', label + ' ' + $(this).find('.edit_max_score').text() + '%');
+      });
     });
   });
 });

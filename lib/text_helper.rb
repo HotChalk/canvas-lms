@@ -50,13 +50,37 @@ module TextHelper
     pm.to_plain_text
   end
 
-  def html_to_simple_html(html_str, opts={})
-    return "" if html_str.blank?
-    text = html_to_simple_text(html_str, opts)
-    text.gsub!(/^([\*\-]+\n*)$/, '') # Remove the H tag markers
-    text.gsub!(/\n{3,}/, "\n\n")     # Remove the triple breaks left by the H tag marker removals
-    html = format_message(text).first
-    "<p>#{html}</p>".html_safe
+  # Public: Strip (most) HTML from an HTML string.
+  #
+  # html - The original HTML string to format.
+  # options - Formatting options.
+  #   - base_url: The protocol and domain to prepend to relative links (e.g. "https://instructure.com").
+  #
+  # Returns an HTML string.
+  def html_to_simple_html(html, options = {})
+    return '' if html.blank?
+    base_url = options.fetch(:base_url, '')
+    output   = Sanitize.clean(html, Sanitize::Config::BASIC)
+
+    append_base_url(output, base_url).html_safe
+  end
+
+  # Internal: Append given base URL to relative links in the source.
+  #
+  # subject - A string to HTML.
+  # base - A base protocol/domain string (e.g. "https://instructure.com").
+  #
+  # Returns a string.
+  def append_base_url(subject, base)
+    output = Nokogiri::HTML.fragment(subject)
+    tags   = output.search('*[@href]')
+
+    tags.each do |tag|
+      next if tag.attributes['href'].value.match(/^https?|mailto|ftp/)
+      tag.attributes['href'].value = "#{base}#{tag.attributes['href']}"
+    end
+
+    output.to_s
   end
 
   def quote_clump(quote_lines)
@@ -80,9 +104,16 @@ module TextHelper
         [a-z0-9.\-]+[.][a-z]{2,4}/               # looks like domain name followed by a slash
       )
 
-      [^\s()<>]+                                 # Run of non-space, non-()<>
-
-      [^\s`!()\[\]{};:'".,<>?«»“”‘’]             # End with: not a space or one of these punct chars
+      (?:
+        [^\s()<>]+                               # Run of non-space, non-()<>
+        |                                        # or
+        \([^\s()<>]*\)                           # balanced parens, single level
+      )+
+      (?:
+        \([^\s()<>]*\)                           # balanced parens, single level
+        |                                        # or
+        [^\s`!()\[\]{};:'".,<>?«»“”‘’]           # End with: not a space or one of these punct chars
+      )
     ) | (
       #{AUTO_LINKIFY_PLACEHOLDER}
     )
@@ -446,7 +477,7 @@ def self.date_component(start_date, style=:normal)
     result = RDiscount.new(string).to_html.strip
     # Strip wrapping <p></p> if inlinify == :auto && they completely wrap the result && there are not multiple <p>'s
     result.gsub!(/<\/?p>/, '') if inlinify == :auto && result =~ /\A<p>.*<\/p>\z/m && !(result =~ /.*<p>.*<p>.*/m)
-    result.html_safe.strip
+    result.strip.html_safe
   end
 
   # This doesn't make any attempt to convert other encodings to utf-8, it just

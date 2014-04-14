@@ -16,6 +16,7 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+if CANVAS_RAILS2
 class Shard
   def self.stubbed?
     true
@@ -90,7 +91,7 @@ class Shard
 end
 
 ActiveRecord::Base.class_eval do
-  if Rails.version < "3.0"
+  if CANVAS_RAILS2
     class << self
       VALID_FIND_OPTIONS << :shard
     end
@@ -117,7 +118,7 @@ ActiveRecord::Base.class_eval do
 end
 
 module ActiveRecord::Associations
-  AssociationProxy.class_eval do
+  (CANVAS_RAILS2 ? AssociationProxy : Association).class_eval do
     def shard
       Shard.default
     end
@@ -132,4 +133,5 @@ module ActiveRecord::Associations
       end
     end
   end
+end
 end

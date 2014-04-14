@@ -23,104 +23,104 @@
 # (e.g. "Office Hours" or "Meet with professor about Final Project"). Both time
 # slots and reservations of time slots are stored as Calendar Events.
 #
-# @object Appointment Group
+# @object AppointmentGroup
 #     {
 #       // The ID of the appointment group
-#       id: 543,
+#       "id": 543,
 #
 #       // The title of the appointment group
-#       title: "Final Presentation",
+#       "title": "Final Presentation",
 #
 #       // The start of the first time slot in the appointment group
-#       start_at: "2012-07-20T15:00:00-06:00",
+#       "start_at": "2012-07-20T15:00:00-06:00",
 #
 #       // The end of the last time slot in the appointment group
-#       end_at: "2012-07-20T17:00:00-06:00",
+#       "end_at": "2012-07-20T17:00:00-06:00",
 #
 #       // The text description of the appointment group
-#       description: "Es muy importante",
+#       "description": "Es muy importante",
 #
 #       // The location name of the appointment group
-#       location_name: "El Tigre Chino's office",
+#       "location_name": "El Tigre Chino's office",
 #
 #       // The address of the appointment group's location
-#       location_address: "Room 234",
+#       "location_address": "Room 234",
 #
 #       // The number of participant who have reserved slots
 #       // (see include[] argument)
-#       participant_count: 2,
+#       "participant_count": 2,
 #
 #       // The start and end times of slots reserved by the current user as
 #       // well as the id of the calendar event for the reservation (see
 #       // include[] argument)
-#       reserved_times: [{id: 987,
-#                         start_at: "2012-07-20T15:00:00-06:00",
-#                         start_at: "2012-07-20T15:00:00-06:00"}],
+#       "reserved_times": [{"id": 987,
+#                         "start_at": "2012-07-20T15:00:00-06:00",
+#                         "end_at": "2012-07-20T15:00:00-06:00"}],
 #
 #       // The context codes (i.e. courses) this appointment group belongs to.
 #       // Only people in these courses will be eligible to sign up.
-#       context_codes: ["course_123"],
+#       "context_codes": ["course_123"],
 #
 #       // The sub-context codes (i.e. course sections and group categories)
 #       // this appointment group is restricted to
-#       sub_context_codes: ["course_section_234"],
+#       "sub_context_codes": ["course_section_234"],
 #
 #       // Current state of the appointment group ("pending", "active" or
 #       // "deleted"). "pending" indicates that it has not been published yet
 #       // and is invisible to participants.
-#       workflow_state: "active",
+#       "workflow_state": "active",
 #
 #       // Boolean indicating whether the current user needs to sign up for
 #       // this appointment group (i.e. it's reservable and the
 #       // min_appointments_per_participant limit has not been met by this
 #       // user).
-#       requiring_action: true,
+#       "requiring_action": true,
 #
 #       // Number of time slots in this appointment group
-#       appointments_count: 2,
+#       "appointments_count": 2,
 #
 #       // Calendar Events representing the time slots (see include[] argument)
 #       // Refer to the Calendar Events API for more information
-#       appointments: [ ... ],
+#       "appointments": [],
 #
 #       // Newly created time slots (same format as appointments above). Only
 #       // returned in Create/Update responses where new time slots have been
 #       // added
-#       new_appointments: [ ... ],
+#       "new_appointments": [],
 #
 #       // Maximum number of time slots a user may register for, or null if no
 #       // limit
-#       max_appointments_per_participant: 1,
+#       "max_appointments_per_participant": 1,
 #
 #       // Minimum number of time slots a user must register for. If not set,
 #       // users do not need to sign up for any time slots
-#       min_appointments_per_participant: 1,
+#       "min_appointments_per_participant": 1,
 #
 #       // Maximum number of participants that may register for each time slot,
 #       // or null if no limit
-#       participants_per_appointment: 1,
+#       "participants_per_appointment": 1,
 #
 #       // "private" means participants cannot see who has signed up for a
 #       // particular time slot, "protected" means that they can
-#       participant_visibility: "private",
+#       "participant_visibility": "private",
 #
 #       // Indicates how participants sign up for the appointment group, either
 #       // as individuals ("User") or in student groups ("Group"). Related to 
 #       // sub_context_codes (i.e. "Group" signups always have a single group
 #       // category)
-#       participant_type: "User",
+#       "participant_type": "User",
 #
 #       // URL for this appointment group (to update, delete, etc.)
-#       url: "https://example.com/api/v1/appointment_groups/543",
+#       "url": "https://example.com/api/v1/appointment_groups/543",
 #
 #       // URL for a user to view this appointment group
-#       html_url: "http://example.com/appointment_groups/1",
+#       "html_url": "http://example.com/appointment_groups/1",
 #
 #       // When the appointment group was created
-#       created_at: "2012-07-13T10:55:20-06:00",
+#       "created_at": "2012-07-13T10:55:20-06:00",
 #
 #       // When the appointment group was last updated
-#       updated_at: "2012-07-13T10:55:20-06:00"
+#       "updated_at": "2012-07-13T10:55:20-06:00"
 #     }
 
 class AppointmentGroupsController < ApplicationController
@@ -252,7 +252,7 @@ class AppointmentGroupsController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/appointment_groups.json' \ 
+  #   curl 'https://<canvas>/api/v1/appointment_groups.json' \
   #        -X POST \ 
   #        -F 'appointment_group[context_codes][]=course_123' \ 
   #        -F 'appointment_group[sub_context_codes][]=course_section_234' \ 
@@ -278,7 +278,7 @@ class AppointmentGroupsController < ApplicationController
         @group.publish! if publish
         render :json => appointment_group_json(@group, @current_user, session), :status => :created
       else
-        render :json => @group.errors.to_json, :status => :bad_request
+        render :json => @group.errors, :status => :bad_request
       end
     end
   end
@@ -360,7 +360,7 @@ class AppointmentGroupsController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/appointment_groups/543.json' \ 
+  #   curl 'https://<canvas>/api/v1/appointment_groups/543.json' \
   #        -X PUT \ 
   #        -F 'appointment_group[publish]=1' \
   #        -H "Authorization: Bearer <token>"
@@ -373,7 +373,7 @@ class AppointmentGroupsController < ApplicationController
         @group.publish! if publish
         render :json => appointment_group_json(@group, @current_user, session)
       else
-        render :json => @group.errors.to_json, :status => :bad_request
+        render :json => @group.errors, :status => :bad_request
       end
     end
   end
@@ -388,7 +388,7 @@ class AppointmentGroupsController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/appointment_groups/543.json' \ 
+  #   curl 'https://<canvas>/api/v1/appointment_groups/543.json' \
   #        -X DELETE \ 
   #        -F 'cancel_reason=El Tigre Chino got fired' \ 
   #        -H "Authorization: Bearer <token>"
@@ -398,7 +398,7 @@ class AppointmentGroupsController < ApplicationController
       if @group.destroy
         render :json => appointment_group_json(@group, @current_user, session)
       else
-        render :json => @group.errors.to_json, :status => :bad_request
+        render :json => @group.errors, :status => :bad_request
       end
     end
   end

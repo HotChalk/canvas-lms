@@ -27,7 +27,7 @@
 #     // The role type that is being used as a base for this role.
 #     // For account-level roles, this is "AccountMembership".
 #     // For course-level roles, it is an enrollment type.
-#     "base_role_type": "AccountMembership"
+#     "base_role_type": "AccountMembership",
 #
 #     // JSON representation of the account the role is in.
 #     "account": {
@@ -79,8 +79,8 @@
 #         "locked": false,
 #         "readonly": false,
 #         "explicit": false
-#       },
-#       ...
+#       }
+#       // ...
 #     }
 #   }
 #
@@ -216,6 +216,7 @@ class RoleOverridesController < ApplicationController
   #     site_admin                       -- Use the Site Admin section and admin all other accounts
   #     view_error_reports               -- View error reports
   #     view_statistics                  -- View statistics
+  #     manage_feature_flags             -- Enable or disable features at an account level
   #
   #     [For both Account-Level and Course-Level roles]
   #      Note: Applicable enrollment types for course-level roles are given in brackets:
@@ -266,7 +267,7 @@ class RoleOverridesController < ApplicationController
   #   upstream. May occur multiple times with unique values for <X>.
   #
   # @example_request
-  #   curl 'http://<canvas>/api/v1/accounts/<account_id>/roles.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/<account_id>/roles.json' \
   #        -H "Authorization: Bearer <token>" \ 
   #        -F 'role=New Role' \ 
   #        -F 'permissions[read_course_content][explicit]=1' \ 

@@ -5,11 +5,11 @@ define [
   'compiled/views/PublishIconView'
   'jst/quizzes/QuizItemGroupView'
   'compiled/views/quizzes/QuizItemView'
-], ($, _, CollectionView, PublishIconView, template, quizItemView) ->
+], ($, _, CollectionView, PublishIconView, template, QuizItemView) ->
 
   class ItemGroupView extends CollectionView
     template: template
-    itemView: quizItemView
+    itemView: QuizItemView
 
     tagName:   'div'
     className: 'item-group-condensed'
@@ -30,12 +30,9 @@ define [
 
     render: ->
       super
-      @$el.find('.ig-no-content').toggle(@isEmpty())
+      @$el.find('.no_content').toggle(@isEmpty())
       @
 
     renderItem: (model) =>
       return if model.get 'hidden'
       super
-
-    createItemView: (model) ->
-      new @itemView model: model, publishIconView: new PublishIconView(model: model)

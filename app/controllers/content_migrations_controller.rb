@@ -23,40 +23,39 @@
 # @object ContentMigration
 #   {
 #       // the unique identifier for the migration
-#       id: 370663,
+#       "id": 370663,
 #
 #       // the type of content migration
-#       migration_type: common_cartridge_importer,
+#       "migration_type": "common_cartridge_importer",
 #
 #       // the name of the content migration type
-#       migration_type_title: "Canvas Cartridge Importer",
+#       "migration_type_title": "Canvas Cartridge Importer",
 #
 #       // API url to the content migration's issues
-#       migration_issues_url: "https://example.com/api/v1/courses/1/content_migrations/1/migration_issues",
+#       "migration_issues_url": "https://example.com/api/v1/courses/1/content_migrations/1/migration_issues",
 #
 #       // attachment api object for the uploaded file
 #       // may not be present for all migrations
-#       attachment: {url:"https://example.com/api/v1/courses/1/content_migrations/1/download_archive"},
+#       "attachment": {"url":"https://example.com/api/v1/courses/1/content_migrations/1/download_archive"},
 #
 #       // The api endpoint for polling the current progress
-#       progress_url: "https://example.com/api/v1/progress/4",
+#       "progress_url": "https://example.com/api/v1/progress/4",
 #
 #       // The user who started the migration
-#       user_id: 4,
+#       "user_id": 4,
 #
 #       // Current state of the content migration: pre_processing pre_processed running waiting_for_select completed failed
-#       workflow_state: "running",
+#       "workflow_state": "running",
 #
 #       // timestamps
-#       started_at: "2012-06-01T00:00:00-06:00",
-#       finished_at: "2012-06-01T00:00:00-06:00",
+#       "started_at": "2012-06-01T00:00:00-06:00",
+#       "finished_at": "2012-06-01T00:00:00-06:00",
 #
 #       // file uploading data, see {file:file_uploads.html File Upload Documentation} for file upload workflow
 #       // This works a little differently in that all the file data is in the pre_attachment hash
 #       // if there is no upload_url then there was an attachment pre-processing error, the error message will be in the message key
 #       // This data will only be here after a create or update call
-#       pre_attachment:{upload_url: "", message: "file exceeded quota", upload_params: {...}}
-#
+#       "pre_attachment":{"upload_url": "", "message": "file exceeded quota", "upload_params": {}}
 #   }
 #
 # @object Migrator
@@ -101,7 +100,7 @@ class ContentMigrationsController < ApplicationController
     if api_request?
       render :json => content_migration_json_hash
     else
-      @plugins = ContentMigration.migration_plugins(true).sort_by {|p| [p.metadata(:sort_order) || 100, p.metadata(:select_text)]}
+      @plugins = ContentMigration.migration_plugins(true).sort_by {|p| [p.metadata(:sort_order) || SortLast, p.metadata(:select_text)]}
 
       options = @plugins.map{|p| {:label => p.metadata(:select_text), :id => p.id}}
 
@@ -175,6 +174,8 @@ class ContentMigrationsController < ApplicationController
   #   Other file upload properties, See {file:file_uploads.html File Upload
   #   Documentation}
   #
+  # @argument settings[file_url] [string] (optional) A URL to download the file from. Must not require authentication.
+  #
   # @argument settings[source_course_id] [Optional, String]
   #   The course to copy from for a course copy migration. (required if doing
   #   course copy)
@@ -238,8 +239,8 @@ class ContentMigrationsController < ApplicationController
     end
     settings = @plugin.settings || {}
     if settings[:requires_file_upload]
-      if !params[:pre_attachment] || params[:pre_attachment][:name].blank?
-        return render(:json => { :message => t('must_upload_file', "File upload is required") }, :status => :bad_request)
+      if !(params[:pre_attachment] && params[:pre_attachment][:name].present?) && !(params[:settings] && params[:settings][:file_url].present?)
+        return render(:json => {:message => t('must_upload_file', "File upload or url is required")}, :status => :bad_request)
       end
     end
     if validator = settings[:required_options_validator]
@@ -374,6 +375,7 @@ class ContentMigrationsController < ApplicationController
       end
     elsif params[:copy]
       copy_options = ContentMigration.process_copy_params(params[:copy])
+      copy_options.merge!({ 'all_learning_outcome_groups' => '1' }) if copy_options['all_learning_outcomes'] == '1'
       @content_migration.migration_settings[:migration_ids_to_import] ||= {}
       @content_migration.migration_settings[:migration_ids_to_import][:copy] = copy_options
       @content_migration.copy_options = copy_options

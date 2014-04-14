@@ -1,7 +1,7 @@
 require File.expand_path(File.dirname(__FILE__) + '/common')
 
 describe "assignments" do
-  it_should_behave_like "in-process server selenium tests"
+  include_examples "in-process server selenium tests"
 
   context "as a student" do
 
@@ -115,7 +115,7 @@ describe "assignments" do
       get "/courses/#{@course.id}/groups"
 
       f('.add_group_link').click
-      wait_for_animations
+      wait_for_ajaximations
       f('#group_name').send_keys(new_group_name)
       submit_form('#add_group_form')
       wait_for_ajaximations
@@ -261,8 +261,7 @@ describe "assignments" do
 
     context "draft state" do
       before do
-        Account.default.settings[:enable_draft] = true
-        Account.default.save!
+        Account.default.enable_feature!(:draft_state)
         @domain_root_account = Account.default
 
         get "/courses/#{@course.id}/assignments"
@@ -438,7 +437,7 @@ def setup_sections_and_overrides_all_future
   # 2 course sections, student in second section.
   @section1 = @course.course_sections.create!(:name => 'Section A')
   @section2 = @course.course_sections.create!(:name => 'Section B')
-  @course.student_enrollments.delete_all  # get rid of existing student enrollments, mess up section enrollment
+  @course.student_enrollments.scoped.delete_all  # get rid of existing student enrollments, mess up section enrollment
   # Overridden lock dates for 2nd section - different dates, but still in future
   @override = assignment_override_model(:assignment => @assignment, :set => @section2,
                                         :lock_at => @lock_at + 12.days,

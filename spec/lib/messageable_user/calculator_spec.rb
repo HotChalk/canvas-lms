@@ -142,7 +142,7 @@ describe "MessageableUser::Calculator" do
         # contrived, but have read_roster permission, but no association
         account = Account.create!
         account_admin_user(:user => @viewing_user, :account => account)
-        @viewing_user.user_account_associations.delete_all
+        @viewing_user.user_account_associations.scoped.delete_all
         @calculator.uncached_visible_account_ids.should_not include(account.id)
       end
 
@@ -644,8 +644,14 @@ describe "MessageableUser::Calculator" do
       end
 
       it "should partition groups by shard" do
-        group1 = @shard1.activate{ group_with_user(:user => @viewing_user).group }
-        group2 = @shard2.activate{ group_with_user(:user => @viewing_user).group }
+        group1 = @shard1.activate do
+          account = Account.create!
+          group_with_user(:group_context => account, :user => @viewing_user).group
+        end
+        group2 = @shard2.activate do
+          account = Account.create!
+          group_with_user(:group_context => account, :user => @viewing_user).group
+        end
         result = @calculator.fully_visible_group_ids_by_shard
         result[@shard1].should == [group1.local_id]
         result[@shard2].should == [group2.local_id]
@@ -979,15 +985,6 @@ describe "MessageableUser::Calculator" do
         it "should exclude otherwise messageable users in the course without the specified types" do
           @calculator.messageable_users_in_course(@course, :enrollment_types => ['TeacherEnrollment']).map(&:id).
             should_not include(@student.id)
-        end
-      end
-
-      context "with admin_context" do
-        it "should treat the course as if fully visible" do
-          student_in_course(:active_all => true, :section => @course.course_sections.create!)
-          Enrollment.limit_privileges_to_course_section!(@course, @viewing_user, true)
-          @calculator.messageable_users_in_course(@course, :admin_context => @course).map(&:id).
-            should include(@student.id)
         end
       end
     end

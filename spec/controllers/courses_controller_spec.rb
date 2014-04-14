@@ -355,10 +355,19 @@ describe CoursesController do
       
       it "should work for assignments view" do 
         @course1.default_view = "assignments"
-        @course1.save
+        @course1.save!
         get 'show', :id => @course1.id
         assigns(:recent_feedback).count.should == 1
         assigns(:recent_feedback).first.assignment_id.should == @a1.id
+      end
+
+      it "should not show unpublished assignments to students" do
+        @course1.default_view = "assignments"
+        @course1.save!
+        @course1.account.enable_feature!(:draft_state)
+        @a1.unpublish
+        get 'show', :id => @course1.id
+        assigns(:assignments).map(&:id).include?(@a1.id).should be_false
       end
       
       it "should work for wiki view" do 
@@ -367,6 +376,18 @@ describe CoursesController do
         get 'show', :id => @course1.id
         assigns(:recent_feedback).count.should == 1
         assigns(:recent_feedback).first.assignment_id.should == @a1.id
+      end
+
+      it "should work for wiki view with draft state enabled" do
+        @course1.account.allow_feature!(:draft_state)
+        @course1.enable_feature!(:draft_state)
+        @course1.default_view = "wiki"
+        @course1.save!
+        @course1.wiki.wiki_pages.create!(:title => 'blah').set_as_front_page!
+        get 'show', :id => @course1.id
+        controller.js_env[:WIKI_RIGHTS].should eql({:read => true})
+        controller.js_env[:PAGE_RIGHTS].should eql({:read => true})
+        controller.js_env[:COURSE_TITLE].should eql @course1.name
       end
       
       it "should work for syllabus view" do 
@@ -500,7 +521,8 @@ describe CoursesController do
       it "should auto-redirect to registration page when it's a self-enrollment" do
         course_with_student(:active_course => 1)
         @user = User.new
-        @user.communication_channels.build(:path => "jt@instructure.com")
+        cc = @user.communication_channels.build(:path => "jt@instructure.com")
+        cc.user = @user
         @user.workflow_state = 'creation_pending'
         @user.save!
         @enrollment = @course.enroll_student(@user)
@@ -891,7 +913,7 @@ describe CoursesController do
       get 'sis_publish_status', :course_id => @course.id
       response.should be_success
       response_body = json_parse(response.body)
-      response_body["sis_publish_statuses"]["Published"].sort!{|x,y|x["id"] <=> y["id"]}
+      response_body["sis_publish_statuses"]["Published"].sort_by!{|x|x["id"]}
       response_body.should == {
           "sis_publish_overall_status" => "error",
           "sis_publish_statuses" => {
@@ -956,7 +978,7 @@ describe CoursesController do
 
       response.should be_success
       response_body = json_parse(response.body)
-      response_body["sis_publish_statuses"]["Published"].sort!{|x,y|x["id"] <=> y["id"]}
+      response_body["sis_publish_statuses"]["Published"].sort_by!{|x|x["id"]}
       response_body.should == {
           "sis_publish_overall_status" => "published",
           "sis_publish_statuses" => {
@@ -985,6 +1007,7 @@ describe CoursesController do
       get 'public_feed', :format => 'atom', :feed_code => @enrollment.feed_code
       feed = Atom::Feed.load_feed(response.body) rescue nil
       feed.should_not be_nil
+      feed.entries.should_not be_empty
       feed.links.first.rel.should match(/self/)
       feed.links.first.href.should match(/http:\/\//)
     end
@@ -995,6 +1018,16 @@ describe CoursesController do
       feed.should_not be_nil
       feed.entries.should_not be_empty
       feed.entries.all?{|e| e.authors.present?}.should be_true
+    end
+
+    it "should not include unpublished assignments or discussions" do
+      discussion_topic_model(:context => @course)
+      @assignment.unpublish
+      @topic.unpublish!
+      get 'public_feed', :format => 'atom', :feed_code => @enrollment.feed_code
+      feed = Atom::Feed.load_feed(response.body) rescue nil
+      feed.should_not be_nil
+      feed.entries.should be_empty
     end
   end
 

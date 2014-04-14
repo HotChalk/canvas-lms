@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2013 Instructure, Inc.
+# Copyright (C) 2013 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -19,10 +19,12 @@
 require File.expand_path(File.dirname(__FILE__) + '/report_spec_helper')
 
 describe 'Student reports' do
+  include ReportSpecHelper
+
   before do
     Notification.find_or_create_by_name('Report Generated')
     Notification.find_or_create_by_name('Report Generation Failed')
-    @account = Account.default
+    @account = Account.create(name: 'New Account', default_time_zone: 'UTC')
     @course1 = course(:course_name => 'English 101', :account => @account,
                       :active_course => true)
     @course1.sis_source_id = 'SIS_COURSE_ID_1'
@@ -87,7 +89,7 @@ describe 'Student reports' do
     it 'should find users that have not submitted anything after a date' do
       parameters = {}
       parameters['start_at'] = @start_at2
-      parsed = ReportSpecHelper.run_report(@account,@type,parameters,[1,8])
+      parsed = read_report(@type, {params: parameters, order: [1,8]})
       parsed.length.should == 4
 
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
@@ -108,11 +110,11 @@ describe 'Student reports' do
                            @course2.id.to_s, nil, 'Math 101']
     end
 
-    it 'should find users that have not submitted anything after a date' do
+    it 'should find users that have not submitted anything in a date range' do
       parameters = {}
       parameters['start_at'] = 45.days.ago
       parameters['end_at'] = 35.days.ago
-      parsed = ReportSpecHelper.run_report(@account,@type,parameters,[1,8])
+      parsed = read_report(@type, {params: parameters, order: 1})
       parsed.length.should == 2
 
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
@@ -125,19 +127,30 @@ describe 'Student reports' do
                            @course2.id.to_s, nil, 'Math 101']
     end
 
-    it 'should find users that have not submitted anything ever' do
-      parsed = ReportSpecHelper.run_report(@account,@type,{},[1,8])
-      parsed.length.should == 1
+    it 'should find users that have not submitted anything in the past 2 weeks' do
+      parsed = read_report(@type, {order: [1,8]})
 
-      parsed[0].should == [@user2.id.to_s, 'user_sis_id_02',
+      parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
+                           @user1.sortable_name, @section1.id.to_s,
+                           @section1.sis_source_id, @section1.name,
+                           @course1.id.to_s, 'SIS_COURSE_ID_1', 'English 101']
+      parsed[1].should == [@user1.id.to_s, 'user_sis_id_01',
+                           @user1.sortable_name, @section2.id.to_s,
+                           @section2.sis_source_id, @section2.name,
+                           @course2.id.to_s, nil, 'Math 101']
+      parsed[2].should == [@user2.id.to_s, 'user_sis_id_02',
+                           'Bolton, Michael', @section1.id.to_s,
+                           @section1.sis_source_id, @section1.name,
+                           @course1.id.to_s, 'SIS_COURSE_ID_1', 'English 101']
+      parsed[3].should == [@user2.id.to_s, 'user_sis_id_02',
                            'Bolton, Michael', @section2.id.to_s,
                            @section2.sis_source_id, @section2.name,
                            @course2.id.to_s, nil, 'Math 101']
+      parsed.length.should == 4
     end
 
-    it 'should find users that have not submitted in a term' do
-      @term1 = EnrollmentTerm.create(:name => 'Fall')
-      @term1.root_account = @account
+    it 'should adjust date range to 2 weeks' do
+      @term1 = @account.enrollment_terms.create(:name => 'Fall')
       @term1.save!
       @course1.enrollment_term = @term1
       @course1.save
@@ -146,35 +159,53 @@ describe 'Student reports' do
       parameters['start_at'] = @start_at.to_s
       parameters['end_at'] = @end_at.to_s(:db)
       parameters['enrollment_term'] = @term1.id
-      parsed = ReportSpecHelper.run_report(@account,@type,parameters,[1,8])
+      parsed = read_report(@type, {params: parameters, order: 1})
 
-      parsed.length.should == 0
+      parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
+                           @user1.sortable_name, @section1.id.to_s,
+                           @section1.sis_source_id, @section1.name,
+                           @course1.id.to_s, 'SIS_COURSE_ID_1', 'English 101']
+      parsed[1].should == [@user2.id.to_s, 'user_sis_id_02',
+                           'Bolton, Michael', @section1.id.to_s,
+                           @section1.sis_source_id, @section1.name,
+                           @course1.id.to_s, 'SIS_COURSE_ID_1', 'English 101']
+      parsed.length.should == 2
     end
 
     it 'should find users that have not submitted under a sub account' do
-      @sub_account = Account.create(:parent_account => @account,
+      sub_account = Account.create(:parent_account => @account,
                                     :name => 'English')
-      @course2.account = @sub_account
+      @course2.account = sub_account
       @course2.save
-      parsed = ReportSpecHelper.run_report(@sub_account,@type,{},[1,5])
-      parsed.length.should == 1
+      parsed = read_report(@type, {account: sub_account, order: 1})
 
-      parsed[0].should == [@user2.id.to_s, 'user_sis_id_02',
+      parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
+                           @user1.sortable_name, @section2.id.to_s,
+                           @section2.sis_source_id, @section2.name,
+                           @course2.id.to_s, nil, 'Math 101']
+      parsed[1].should == [@user2.id.to_s, 'user_sis_id_02',
                            'Bolton, Michael', @section2.id.to_s,
                            @section2.sis_source_id, @section2.name,
                            @course2.id.to_s, nil, 'Math 101']
+      parsed.length.should == 2
+
     end
 
     it 'should find users that have not submitted for one course' do
       parameters = {}
       parameters['course'] = @course2.id
-      parsed = ReportSpecHelper.run_report(@account,@type,parameters,[1,5])
-      parsed.length.should == 1
+      parsed = read_report(@type, {params: parameters, order: 1})
 
-      parsed[0].should == [@user2.id.to_s, 'user_sis_id_02',
+      parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
+                           @user1.sortable_name, @section2.id.to_s,
+                           @section2.sis_source_id, @section2.name,
+                           @course2.id.to_s, nil, 'Math 101']
+      parsed[1].should == [@user2.id.to_s, 'user_sis_id_02',
                            'Bolton, Michael', @section2.id.to_s,
                            @section2.sis_source_id, @section2.name,
                            @course2.id.to_s, nil, 'Math 101']
+      parsed.length.should == 2
+
     end
   end
 
@@ -206,7 +237,7 @@ describe 'Student reports' do
     it 'should run the zero activity report for course' do
       param = {}
       param['course'] = @course1.id
-      parsed = ReportSpecHelper.run_report(@account,@type,param,[1,5])
+      parsed = read_report(@type, {params: param, order: 1})
       parsed.length.should == 2
       parsed[0].should == [@user2.id.to_s, 'user_sis_id_02',
                            'Bolton, Michael', @section1.id.to_s,
@@ -227,7 +258,7 @@ describe 'Student reports' do
       @course1.save
       param = {}
       param['enrollment_term'] = 'sis_term_id:fall12'
-      parsed = ReportSpecHelper.run_report(@account,@type,param,[1,5])
+      parsed = read_report(@type, {params: param, order: 1})
       parsed.length.should == 2
       parsed[0].should == [@user2.id.to_s, 'user_sis_id_02',
                            'Bolton, Michael', @section1.id.to_s,
@@ -240,7 +271,7 @@ describe 'Student reports' do
     end
 
     it 'should run the zero activity report with no params' do
-      parsed = ReportSpecHelper.run_report(@account,@type,{},[1,5])
+      parsed = read_report(@type, {order: 1})
       parsed.length.should == 3
 
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
@@ -262,7 +293,7 @@ describe 'Student reports' do
       @course2.account = sub_account
       @course2.save!
 
-      parsed = ReportSpecHelper.run_report(sub_account,@type,{},[1,5])
+      parsed = read_report(@type, {account: sub_account})
       parsed.length.should == 1
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
                            @user1.sortable_name, @section2.id.to_s,
@@ -275,7 +306,7 @@ describe 'Student reports' do
         update_all(:updated_at => 6.days.ago)
       parameter = {}
       parameter['start_at'] = 3.days.ago
-      parsed = ReportSpecHelper.run_report(@account,@type,parameter,[1,5])
+      parsed = read_report(@type, {params: parameter, order: [1,5]})
 
       parsed.length.should == 4
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01',
@@ -317,7 +348,7 @@ describe 'Student reports' do
     end
 
     it 'should run the last user access report' do
-      parsed = ReportSpecHelper.run_report(@account,@type)
+      parsed = read_report(@type, {order: 1})
       parsed.length.should == 3
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01', 'Clair, John St.', @last_login_time2.iso8601, @p1.current_login_ip]
       parsed[1].should == [@user2.id.to_s, 'user_sis_id_02', 'Bolton, Michael', @last_login_time.iso8601, @p2.current_login_ip]
@@ -332,7 +363,7 @@ describe 'Student reports' do
       @course1.save
       param = {}
       param['enrollment_term'] = @term1.id
-      parsed = ReportSpecHelper.run_report(@account,@type,param)
+      parsed = read_report(@type, {params: param, order: 1})
       parsed.length.should == 2
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01', 'Clair, John St.', @last_login_time2.iso8601, @p1.current_login_ip]
       parsed[1].should == [@user2.id.to_s, 'user_sis_id_02', 'Bolton, Michael', @last_login_time.iso8601, @p2.current_login_ip]
@@ -341,10 +372,54 @@ describe 'Student reports' do
     it 'should run the last user access report for a course' do
       param = {}
       param['course'] = @course.id
-      parsed = ReportSpecHelper.run_report(@account,@type,param)
+      parsed = read_report(@type, {params: param, order: 1})
       parsed.length.should == 2
       parsed[0].should == [@user1.id.to_s, 'user_sis_id_01', 'Clair, John St.', @last_login_time2.iso8601, @p1.current_login_ip]
       parsed[1].should == [@user2.id.to_s, 'user_sis_id_02', 'Bolton, Michael', @last_login_time.iso8601, @p2.current_login_ip]
+    end
+
+    it 'should not include a user multiple times for multiple enrollments' do
+      @course1.enroll_user(@user1, 'ObserverEnrollment', {enrollment_state: 'active'})
+      term1 = @account.enrollment_terms.create(name: 'Fall')
+      term1.root_account = @account
+      term1.save!
+      @course1.enrollment_term = term1
+      @course1.save!
+      param = {}
+      param['enrollment_term'] = term1.id
+
+      parsed = read_report(@type, {params: param, order: 1})
+      parsed[0].should == [@user1.id.to_s, 'user_sis_id_01', 'Clair, John St.',
+                           @last_login_time2.iso8601, @p1.current_login_ip]
+      parsed[1].should == [@user2.id.to_s, 'user_sis_id_02', 'Bolton, Michael',
+                           @last_login_time.iso8601, @p2.current_login_ip]
+      parsed.length.should == 2
+    end
+
+    it 'should include each pseudonym for users' do
+      @course1.enroll_user(@user1, 'ObserverEnrollment', {enrollment_state: 'active'})
+      term1 = @account.enrollment_terms.create(name: 'Fall')
+      term1.root_account = @account
+      term1.save!
+      @course1.enrollment_term = term1
+      @course1.save!
+      p1b = @user1.pseudonym.create(unique_id: 'unique@example.com')
+      p1b.account = @account
+      p1b.sis_user_id = 'secondSIS'
+      p1b.last_login_at = @last_login_time
+      p1b.last_request_at = @last_login_time
+      p1b.save!
+      param = {}
+      param['enrollment_term'] = term1.id
+
+      parsed = read_report(@type, {params: param, order: 1})
+      parsed[0].should == [@user1.id.to_s, 'secondSIS', 'Clair, John St.',
+                           @last_login_time.iso8601, p1b.current_login_ip]
+      parsed[1].should == [@user1.id.to_s, 'user_sis_id_01', 'Clair, John St.',
+                           @last_login_time2.iso8601, @p1.current_login_ip]
+      parsed[2].should == [@user2.id.to_s, 'user_sis_id_02', 'Bolton, Michael',
+                           @last_login_time.iso8601, @p2.current_login_ip]
+      parsed.length.should == 3
     end
   end
 end

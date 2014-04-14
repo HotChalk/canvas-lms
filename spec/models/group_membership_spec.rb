@@ -88,7 +88,7 @@ describe GroupMembership do
       }.should_not raise_error(ActiveRecord::RecordInvalid)
     end
   end
-  
+
   it "should dispatch a 'new_student_organized_group' message if the first membership in a student organized group" do
     course_with_teacher
     student = user_model
@@ -101,7 +101,20 @@ describe GroupMembership do
     group_membership = group.group_memberships.create(:user => student)
     group_membership.messages_sent.should be_include("New Student Organized Group")
   end
-  
+
+  it "should not dispatch a message if the membership has been created with SIS" do
+    course_with_teacher(active_all: true)
+    student    = user_model
+    group      = @course.groups.create(group_category: GroupCategory.student_organized_for(@course))
+    membership = group.group_memberships.build(user: student)
+    @course.enroll_student(student).accept!
+    Notification.create!(name: 'New Context Group Membership', category: 'TestImmediately')
+    Notification.create!(name: 'New Context Group Membership Invitation', category: 'TestImmediately')
+    membership.sis_batch_id = '12345'
+    membership.save!
+    membership.messages_sent.should be_empty
+  end
+
   it "should be invalid if group wants a common section, but doesn't have one with the user" do
     course_with_teacher(:active_all => true)
     section1 = @course.course_sections.create
@@ -300,27 +313,31 @@ describe GroupMembership do
       @assignments.last.save!
     end
 
-    it "triggers when membership is created" do
-      DueDateCacher.expects(:recompute).with(@assignments[0].id).once
-      DueDateCacher.expects(:recompute).with(@assignments[1].id).once
-      DueDateCacher.expects(:recompute).with(@assignments[2].id).never
+    it "triggers a batch when membership is created" do
+      DueDateCacher.expects(:recompute).never
+      DueDateCacher.expects(:recompute_course).with { |course_id, assignment_ids|
+        course_id == @course.id && assignment_ids.sort == [@assignments[0].id, @assignments[1].id].sort
+      }.once
       @group.group_memberships.create(:user => user)
     end
 
-    it "triggers when membership is deleted" do
-      DueDateCacher.expects(:recompute).with(@assignments[0].id).once
-      DueDateCacher.expects(:recompute).with(@assignments[1].id).once
-      DueDateCacher.expects(:recompute).with(@assignments[2].id).never
+    it "triggers a batch when membership is deleted" do
+      DueDateCacher.expects(:recompute).never
+      DueDateCacher.expects(:recompute_course).with { |course_id, assignment_ids|
+        course_id == @course.id && assignment_ids.sort == [@assignments[0].id, @assignments[1].id].sort
+      }.once
       @membership.destroy
     end
 
     it "does not trigger when nothing changed" do
       DueDateCacher.expects(:recompute).never
+      DueDateCacher.expects(:recompute_course).never
       @membership.save
     end
 
     it "does not trigger when it's an account group" do
       DueDateCacher.expects(:recompute).never
+      DueDateCacher.expects(:recompute_course).never
       @group = Account.default.groups.create!(:name => 'Group!')
       @group.group_memberships.create!(:user => user)
     end

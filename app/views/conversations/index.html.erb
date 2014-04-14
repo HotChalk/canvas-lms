@@ -88,7 +88,6 @@
       </div>
     </div>
     <ul id="message_status"></ul>
-    <% if Account.site_admin.grants_right?(@current_user, nil, :become_user) %>
       <div>
         <a id="help-btn"
            class="al-trigger"
@@ -119,17 +118,6 @@
           </li>
         </ul>
       </div>
-    <% else %>
-      <a href="#"
-         id="conversations-intro-btn"
-         tabindex="-1"
-         data-track-category="Help"
-         data-track-action="Click"
-         data-track-label="Question Mark"
-         role="button">
-        <i class="icon-question"></i>
-      </a>
-    <% end %>
     <div id="create_message_form"></div>
     <ul class="messages">
     </ul>
@@ -218,7 +206,7 @@
   <%= text_field_tag :recipients, nil, :id => 'add_recipients', 'data-finder_url' => search_recipients_url, :class => "recipients", :style => "width: 370px" %>
 </form>
 
-<% form_tag conversations_url, :id => 'forward_message_form' do %>
+<%= form_tag conversations_url, :id => 'forward_message_form' do %>
   <table>
     <tr id="recipient_info">
       <th><%= label_tag :forward_recipients, :to, :en => "To", :before => true %></th>

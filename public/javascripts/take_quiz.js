@@ -30,8 +30,7 @@ define([
   'jqueryui/dialog',
   'jquery.instructure_misc_helpers' /* scrollSidebar */,
   'compiled/jquery.rails_flash_notifications',
-  'compiled/tinymce',
-  'tinymce.editor_box' /* editorBox */,
+  'redactor.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'compiled/behaviors/quiz_selectmenu'
 ], function(FileUploadQuestionView, File, I18n, $, timing, autoBlurActiveInput, _) {
@@ -65,15 +64,16 @@ define([
       endAt: endAt,
       startedAtText: startedAtText,
       timeLimit: parseInt($(".time_limit").text(), 10) || null,
+      hasTimeLimit: !!ENV.QUIZ.time_limit,
       timeLeft: parseInt($(".time_left").text()) * 1000,
       oneAtATime: $("#submit_quiz_form").hasClass("one_question_at_a_time"),
       cantGoBack: $("#submit_quiz_form").hasClass("cant_go_back"),
       finalSubmitButtonClicked: false,
       clockInterval: 500,
-      updateSubmission: function(repeat, beforeLeave) {
+      updateSubmission: function(repeat, beforeLeave, autoInterval) {
         if(quizSubmission.submitting && !repeat) { return; }
         var now = new Date();
-        if((now - quizSubmission.lastSubmissionUpdate) < 1000) { 
+        if((now - quizSubmission.lastSubmissionUpdate) < 1000 && !autoInterval) {
           return;
         }
         if(quizSubmission.currentlyBackingUp) { return; }
@@ -99,6 +99,8 @@ define([
             async: false        // NOTE: Not asynchronous. Otherwise Firefox will cancel the request as navigating away from the page.
             // NOTE: No callbacks. Don't care about response. Just making effort to save the quiz
           });
+          // since this is sync, a callback never fires to reset this
+          quizSubmission.currentlyBackingUp = false;
         }
         else {
           (function(submissionData) {
@@ -107,10 +109,11 @@ define([
             // If this is a timeout-based submission and the data is the same as last time,
             // palliate the server by skipping the data submission
             if (!quizSubmission.inBackground && repeat && _.isEqual(submissionData, lastSuccessfulSubmissionData)) {
-              $lastSaved.text(I18n.t('saving_not_needed', "No new data to save."));
+              $lastSaved.text(I18n.t('saving_not_needed', "No new data to save. Last checked at %{t}", { t: $.friendlyDatetime(new Date()) }));
 
               quizSubmission.currentlyBackingUp = false;
-              setTimeout(function() { quizSubmission.updateSubmission(true) }, 30000);
+
+              setTimeout(function() { quizSubmission.updateSubmission(true, false, true) }, 30000);
               return;
             }
             $.ajaxJSON(url, 'PUT', submissionData,
@@ -121,7 +124,7 @@ define([
                 quizSubmission.currentlyBackingUp = false;
                 quizSubmission.inBackground = false;
                 if(repeat) {
-                  setTimeout(function() {quizSubmission.updateSubmission(true) }, 30000);
+                  setTimeout(function() {quizSubmission.updateSubmission(true, false, true) }, 30000);
                 }
                 if(data && data.end_at) {
                   var endAtFromServer     = Date.parse(data.end_at),
@@ -205,9 +208,9 @@ define([
       },
 
       updateTime: function() {
-        var timeLeft = quizSubmission.timeLeft = quizSubmission.timeLeft - quizSubmission.clockInterval;
-
-        if(!timeLeft) {
+        if(quizSubmission.hasTimeLimit) {
+          var timeLeft = quizSubmission.timeLeft = quizSubmission.timeLeft - quizSubmission.clockInterval;
+        } else {
           return quizSubmission.updateCounter();
         }
 
@@ -307,15 +310,15 @@ define([
         var listSelector = "#list_" + questionId;
         var questionSelector = "#" + questionId;
         var combinedId = listSelector + ", " + questionSelector;
-        var $questionIcon = $(listSelector + "> i.placeholder");
+        var $questionIcon = $(listSelector + " i.placeholder");
         if(answer) {
           $(combinedId).addClass('answered');
           $questionIcon.addClass('icon-check').removeClass('icon-question');
-          $questionIcon.siblings('div.icon-text').text(I18n.t('question_answered',"Answered"))
+          $questionIcon.find('.icon-text').text(I18n.t('question_answered', "Answered"));
         } else {
           $(combinedId).removeClass('answered');
           $questionIcon.addClass('icon-question').removeClass('icon-check');
-          $questionIcon.siblings('div.icon-text').text(I18n.t('question_unanswered', "Haven't Answered Yet"))
+          $questionIcon.find('.icon-text').text(I18n.t('question_unanswered', "Haven't Answered Yet"));
         }
       },
 
@@ -347,6 +350,11 @@ define([
     lastAnswerSelected = $(event.target).parents(".answer")[0];
   }).keydown(function() {
     lastAnswerSelected = null;
+  });
+
+  // fix screenreader focus for links to href="#target"
+  $("a[href^='#']").not("a[href='#']").click(function() {
+    $($(this).attr('href')).attr('tabindex', -1).focus()
   });
 
   $(function() {
@@ -400,15 +408,7 @@ define([
       .find(".list_question").bind({
         mouseenter: function(event) {
           var $this = $(this),
-              data = $this.data(),
-              title = I18n.t('titles.not_answered', "Haven't Answered yet");
-
-          if ($this.hasClass('marked')) {
-            title = I18n.t('titles.come_back_later', "You marked this question to come back to later");
-          } else if ($this.hasClass('answered')) {
-            title = I18n.t('titles.answered', "Answered");
-          }
-          $this.attr('title', title);
+              data = $this.data();
 
           if(!quizSubmission.oneAtATime) {
             data.relatedQuestion || (data.relatedQuestion = $("#" + $this.attr('id').substring(5)));
@@ -452,18 +452,35 @@ define([
       })
       .delegate(".numerical_question_input", {
         keyup: function(event) {
-          var val = $(this).val();
-          if (val === '' || !isNaN(parseFloat(val))) {
-            $(this).triggerHandler('focus'); // makes the errorBox go away
-          } else{
-            $(this).errorBox(I18n.t('errors.only_numerical_values', "only numerical values are accepted"));
+          var $this = $(this);
+          var val = $this.val();
+          var $errorBox = $this.data('associated_error_box');
+
+          if (val.match(/^$|^-$/) || !isNaN(parseFloat(val))) {
+            if ($errorBox) {
+              $this.triggerHandler('click');
+            }
+          } else {
+            if (!$errorBox) {
+              $this.errorBox(I18n.t('errors.only_numerical_values', "only numerical values are accepted"));
+            }
           }
         }
       })
       .delegate(".flag_question", 'click', function() {
         var $question = $(this).parents(".question");
         $question.toggleClass('marked');
+        $(this).attr("aria-checked", $question.hasClass('marked'));
         $("#list_" + $question.attr('id')).toggleClass('marked');
+
+        var markedText;
+        if ($("#list_" + $question.attr('id')).hasClass('marked')) {
+          markedText = I18n.t('titles.come_back_later', 'You marked this question to come back to later');
+        } else {
+          markedText = "";
+        }
+        $("#list_" + $question.attr('id')).find(".marked-status").text(markedText);
+
         quizSubmission.updateSubmission();
       })
       .delegate(".question_input", 'change', function(event, update, changedMap) {
@@ -561,7 +578,7 @@ define([
           }
         }
         else {
-          unanswered = $("#question_list .list_question:not(.answered)").length;
+          unanswered = $("#question_list .list_question:not(.answered):not(.text_only)").length;
           if(unanswered > 0) {
             warningMessage = I18n.t('confirms.unanswered_questions',
               {'one': "You have 1 unanswered question (see the right sidebar for details).  Submit anyway?",

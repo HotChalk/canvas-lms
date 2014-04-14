@@ -324,6 +324,11 @@ describe AppointmentGroup do
       @g9.grants_right?(@teacher2, nil, :manage).should be_true
       @g9.grants_right?(@teacher3, nil, :manage).should be_false
     end
+
+    it "should ignore deleted courses when performing permissions checks" do
+      @course3.destroy
+      @g8.reload.grants_right?(@teacher2, nil, :manage).should be_true
+    end
   end
 
   context "notifications" do
@@ -478,7 +483,7 @@ describe AppointmentGroup do
       @group1.participating_users << @users.last
       @group1.save!
       @gc = @group1.group_category
-      @group2 = @gc.groups.create!(:name => "group2")
+      @group2 = @gc.groups.create!(:name => "group2", :context => @course)
 
       @ag = AppointmentGroup.create!(:title => "test", :contexts => [@course], :participants_per_appointment => 2, :new_appointments => [["#{Time.now.year + 1}-01-01 12:00:00", "#{Time.now.year + 1}-01-01 13:00:00"], ["#{Time.now.year + 1}-01-01 13:00:00", "#{Time.now.year + 1}-01-01 14:00:00"]])
     end

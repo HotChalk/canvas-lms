@@ -31,11 +31,16 @@ class AccountsController < ApplicationController
   # students and even teachers will get an empty list in response, only
   # account admins can view the accounts that they are in.
   def index
-    @accounts = @current_user.accounts rescue []
     respond_to do |format|
-      format.html
+      format.html do
+        @accounts = @current_user ? @current_user.all_accounts : []
+      end
       format.json do
-        @accounts = Api.paginate(@accounts, self, api_v1_accounts_url)
+        if @current_user
+          @accounts = Api.paginate(@current_user.all_paginatable_accounts, self, api_v1_accounts_url)
+        else
+          @accounts = []
+        end
         render :json => @accounts.map { |a| account_json(a, @current_user, session, params[:includes] || []) }
       end
     end
@@ -67,7 +72,7 @@ class AccountsController < ApplicationController
   #   direct sub-accounts of this account will be returned. Defaults to false.
   #
   # @example_request
-  #     curl https://<canvas>/api/v1/accounts/<account_id>/sub_accounts \ 
+  #     curl https://<canvas>/api/v1/accounts/<account_id>/sub_accounts \
   #          -H 'Authorization: Bearer <token>'
   def sub_accounts
     return unless authorized_action(@account, @current_user, :read)
@@ -90,7 +95,7 @@ class AccountsController < ApplicationController
     end
 
     @accounts = Api.paginate(@accounts, self, api_v1_sub_accounts_url,
-                             :without_count => recursive)
+                             :total_entries => recursive ? nil : @accounts.count)
 
     render :json => @accounts.map { |a| account_json(a, @current_user, session, []) }
   end
@@ -133,6 +138,9 @@ class AccountsController < ApplicationController
   # @argument enrollment_term_id [Optional, Integer]
   #   If set, only includes courses from the specified term.
   #
+  # @argument search_term [Optional, String]
+  #   The partial course name, code, or full ID to match and return in the results list. Must be at least 3 characters.
+  #
   # @returns [Course]
   def courses_api
     return unless authorized_action(@account, @current_user, :read)
@@ -144,7 +152,7 @@ class AccountsController < ApplicationController
       params[:state] -= %w{available}
     end
 
-    @courses = @account.associated_courses.where(:workflow_state => params[:state])
+    @courses = @account.associated_courses.order(:id).where(:workflow_state => params[:state])
     if params[:hide_enrollmentless_courses] || value_to_boolean(params[:with_enrollments])
       @courses = @courses.with_enrollments
     elsif !params[:with_enrollments].nil? && !value_to_boolean(params[:with_enrollments])
@@ -172,7 +180,24 @@ class AccountsController < ApplicationController
       @courses = @courses.for_term(term)
     end
 
-    @courses = Api.paginate(@courses, self, api_v1_account_courses_url, :order => :id)
+    if params[:search_term]
+      search_term = params[:search_term]
+
+      is_id = search_term.to_s =~ Api::ID_REGEX
+      if is_id && course = @courses.find_by_id(search_term)
+        @courses = [course]
+      elsif is_id && !SearchTermHelper.valid_search_term?(search_term)
+        @courses = []
+      else
+        SearchTermHelper.validate_search_term(search_term)
+
+        name = ActiveRecord::Base.wildcard('courses.name', search_term)
+        code = ActiveRecord::Base.wildcard('courses.course_code', search_term)
+        @courses = @courses.where("#{name} OR #{code}")
+      end
+    end
+
+    @courses = Api.paginate(@courses, self, api_v1_account_courses_url)
 
     render :json => @courses.map { |c| course_json(c, @current_user, session, [], nil) }
   end
@@ -256,11 +281,11 @@ class AccountsController < ApplicationController
   #   The default group storage quota to be used, if not otherwise specified.
   #
   # @example_request
-  #   curl https://<canvas>/api/v1/accounts/<account_id> \ 
-  #     -X PUT \ 
-  #     -H 'Authorization: Bearer <token>' \ 
-  #     -d 'account[name]=New account name' \ 
-  #     -d 'account[default_time_zone]=Mountain Time (US & Canada)' \ 
+  #   curl https://<canvas>/api/v1/accounts/<account_id> \
+  #     -X PUT \
+  #     -H 'Authorization: Bearer <token>' \
+  #     -d 'account[name]=New account name' \
+  #     -d 'account[default_time_zone]=Mountain Time (US & Canada)' \
   #     -d 'account[default_storage_quota_mb]=450'
   #
   # @example_response
@@ -312,6 +337,13 @@ class AccountsController < ApplicationController
             params[:account][:settings][:outgoing_email_default_name] = '' if params[:account][:settings][:outgoing_email_default_name_option] == 'default'
           end
 
+          google_docs_domain = params[:account][:settings].try(:delete, :google_docs_domain)
+          if @account.feature_enabled?(:google_docs_domain_restriction) &&
+             @account.root_account? &&
+             !@account.site_admin?
+            @account.settings[:google_docs_domain] = google_docs_domain.present? ? google_docs_domain : nil
+          end
+
           @account.enable_user_notes = enable_user_notes if enable_user_notes
           @account.allow_sis_import = allow_sis_import if allow_sis_import && @account.root_account?
           if @account.site_admin? && params[:account][:settings]
@@ -328,7 +360,10 @@ class AccountsController < ApplicationController
             :enable_profiles,
             :enable_scheduler,
             :show_scheduler,
+            :enable_resources_link,
+            :show_resources_link,
             :global_includes,
+            :gmail_domain
           ].each do |key|
             params[:account][:settings].try(:delete, key)
           end
@@ -351,16 +386,16 @@ class AccountsController < ApplicationController
 
         if @account.update_attributes(params[:account])
           format.html { redirect_to account_settings_url(@account) }
-          format.json { render :json => @account.to_json }
+          format.json { render :json => @account }
         else
           flash[:error] = t(:update_failed_notice, "Account settings update failed")
           format.html { redirect_to account_settings_url(@account) }
-          format.json { render :json => @account.errors.to_json, :status => :bad_request }
+          format.json { render :json => @account.errors, :status => :bad_request }
         end
       end
     end
   end
-  
+
   def settings
     if authorized_action(@account, @current_user, :read)
       @available_reports = AccountReport.available_reports(@account) if @account.grants_right?(@current_user, @session, :read_reports)
@@ -378,24 +413,35 @@ class AccountsController < ApplicationController
       @account.available_account_roles.each_with_index do |type, idx|
         order_hash[type] = idx
       end
-      @account_users = @account_users.select(&:user).sort_by{|au| [order_hash[au.membership_type] || 999, au.user.sortable_name.downcase] }
-      @announcements = @account.announcements
+      @account_users = @account_users.select(&:user).sort_by{|au| [order_hash[au.membership_type] || SortLast, Canvas::ICU.collation_key(au.user.sortable_name)] }
       @alerts = @account.alerts
       @role_types = RoleOverride.account_membership_types(@account)
+      @enrollment_types = RoleOverride.enrollment_types
+      @announcements = @account.announcements
       js_env :APP_CENTER => {
         enabled: Canvas::Plugin.find(:app_center).enabled?
       }
     end
   end
 
-  # Admin Tools page controls 
+  # Admin Tools page controls
   # => Log Auditing
   # => Add/Change Quota
   # = Restoring Content
   def admin_tools
     if !@account.can_see_admin_tools_tab?(@current_user)
-      return render_unauthorized_action(@account)
+      return render_unauthorized_action
     end
+
+    authentication_logging = @account.grants_rights?(@current_user, :view_statistics, :manage_user_logins).values.any?
+    grade_change_logging = @account.grants_rights?(@current_user, :view_grade_changes).values.any?
+    if authentication_logging || grade_change_logging
+      logging = {
+        authentication: authentication_logging,
+        grade_change: grade_change_logging
+      }
+    end
+    logging ||= false
 
     js_env :ACCOUNT_ID => @account.id
     js_env :PERMISSIONS => {
@@ -405,7 +451,7 @@ class AccountsController < ApplicationController
        view_messages: (@account.settings[:admins_can_view_notifications] &&
                        @account.grants_right?(@current_user, session, :view_notifications)) ||
                       Account.site_admin.grants_right?(@current_user, :read_messages),
-       auth_logging: @account.grants_rights?(@current_user, :view_statistics, :manage_user_logins).values.any?,
+       logging: logging
       }
   end
 
@@ -420,7 +466,7 @@ class AccountsController < ApplicationController
       end
     end
   end
-  
+
   def remove_user
     @root_account = @account.root_account
     if authorized_action(@root_account, @current_user, :manage_user_logins)
@@ -438,12 +484,12 @@ class AccountsController < ApplicationController
       end
       respond_to do |format|
         format.html { redirect_to account_users_url(@account) }
-        format.json { render :json => (@user || {}).to_json }
+        format.json { render :json => @user || {} }
       end
     end
   end
-  
-  def turnitin_confirmation 
+
+  def turnitin_confirmation
     if authorized_action(@account, @current_user, :manage_account_settings)
       host = validated_turnitin_host(params[:turnitin_host])
       begin
@@ -452,13 +498,13 @@ class AccountsController < ApplicationController
           params[:turnitin_shared_secret],
           host
         )
-        render :json => { :success => turnitin.testSettings }.to_json
+        render :json => { :success => turnitin.testSettings }
       rescue
-        render :json => { :success => false }.to_json
+        render :json => { :success => false }
       end
     end
   end
-  
+
   def load_course_right_side
     @root_account = @account.root_account
     @maximum_courses_im_gonna_show = 50
@@ -473,7 +519,7 @@ class AccountsController < ApplicationController
     @hide_enrollmentless_courses = params[:hide_enrollmentless_courses] == "1"
   end
   protected :load_course_right_side
-  
+
   def statistics
     if authorized_action(@account, @current_user, :view_statistics)
       add_crumb(t(:crumb_statistics, "Statistics"), statistics_account_url(@account))
@@ -490,13 +536,13 @@ class AccountsController < ApplicationController
       @counts_report = @account.report_snapshots.detailed.last.try(:data)
     end
   end
-  
+
   def statistics_graph
     if authorized_action(@account, @current_user, :view_statistics)
       @items = @account.report_snapshots.progressive.last.try(:report_value_over_time, params[:attribute])
       respond_to do |format|
-        format.json { render :json => @items.to_json }
-        format.csv { 
+        format.json { render :json => @items }
+        format.csv {
           res = CSV.generate do |csv|
             csv << ['Timestamp', 'Value']
             @items.each do |item|
@@ -506,8 +552,8 @@ class AccountsController < ApplicationController
           cancel_cache_buster
           # TODO i18n
           send_data(
-            res, 
-            :type => "text/csv", 
+            res,
+            :type => "text/csv",
             :filename => "#{params[:attribute].titleize} Report for #{@account.name}.csv",
             :disposition => "attachment"
           )
@@ -515,7 +561,7 @@ class AccountsController < ApplicationController
       end
     end
   end
-  
+
   def avatars
     if authorized_action(@account, @current_user, :manage_admin_users)
       @users = @account.all_users
@@ -540,7 +586,7 @@ class AccountsController < ApplicationController
       @users = @users.paginate(:page => params[:page], :per_page => 100)
     end
   end
-  
+
   def sis_import
     if authorized_action(@account, @current_user, :manage_sis)
       return redirect_to account_settings_url(@account) if !@account.allow_sis_import || !@account.root_account?
@@ -549,15 +595,15 @@ class AccountsController < ApplicationController
       @terms = @account.enrollment_terms.active
       respond_to do |format|
         format.html
-        format.json { render :json => @current_batch.try(:api_json) }
+        format.json { render :json => @current_batch }
       end
     end
   end
-  
+
   def courses_redirect
     redirect_to course_url(params[:id])
   end
-  
+
   def courses
     if authorized_action(@context, @current_user, :read)
       Shackles.activate(:slave) do
@@ -575,15 +621,15 @@ class AccountsController < ApplicationController
             build_course_stats
           end
         }
-        format.json  { 
+        format.json  {
           cancel_cache_buster
-          expires_in 30.minutes 
+          expires_in 30.minutes
           render :json => @courses.map{ |c| {:label => c.name, :id => c.id} }
         }
       end
     end
   end
-  
+
   def build_course_stats
     teachers = TeacherEnrollment.for_courses_with_user_name(@courses).admin.active
     course_to_student_counts = StudentEnrollment.student_in_claimed_or_available.where(:course_id => @courses).group(:course_id).count(:user_id, :distinct => true)
@@ -599,7 +645,7 @@ class AccountsController < ApplicationController
     end
   end
   protected :build_course_stats
-  
+
   def saml_meta_data
     # This needs to be publicly available since external SAML
     # servers need to be able to access it without being authenticated.
@@ -607,7 +653,7 @@ class AccountsController < ApplicationController
     settings = AccountAuthorizationConfig.saml_settings_for_account(@domain_root_account, request.host_with_port)
     render :xml => Onelogin::Saml::MetaData.create(settings)
   end
-  
+
   # TODO Refactor add_account_user and remove_account_user actions into
   # AdminsController. see https://redmine.instructure.com/issues/6634
   def add_account_user
@@ -631,14 +677,14 @@ class AccountsController < ApplicationController
       render :json => account_users
     end
   end
-  
+
   def remove_account_user
     if authorized_action(@context, @current_user, :manage_account_memberships)
       @account_user = AccountUser.find(params[:id])
       @account_user.destroy
       respond_to do |format|
         format.html { redirect_to account_settings_url(@context, :anchor => "tab-users") }
-        format.json { render :json => @account_user.to_json }
+        format.json { render :json => @account_user }
       end
     end
   end

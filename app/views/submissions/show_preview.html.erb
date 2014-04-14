@@ -16,12 +16,23 @@
       <% end %>
 
     </p>
-    <% @entries = @assignment.discussion_topic.discussion_entries.active.for_user(@user) %>
-    <% if @assignment.has_group_category? %>
-      <% @entries = @assignment.discussion_topic.child_topics.map{|t| t.discussion_entries.active.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
-    <% end %>
-    <% @entries.each do |entry| %>
-      <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true} %>
+    <% if @assignment.discussion_topic.grade_replies_separately %>
+      <% @initial_posts = @assignment.discussion_topic.discussion_entries.active.initial_posts.for_user(@user) %>
+      <% @reply_posts = @assignment.discussion_topic.discussion_entries.active.reply_posts.for_user(@user) %>
+      <% @initial_posts.each do |entry| %>
+        <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :initial_posts_only => true} %>
+      <% end %>
+      <% @reply_posts.each do |entry| %>
+        <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :reply_posts_only => true} %>
+      <% end %>
+    <% else %>
+      <% @entries = @assignment.discussion_topic.discussion_entries.active.for_user(@user) %>
+      <% if @assignment.has_group_category? %>
+        <% @entries = @assignment.discussion_topic.child_topics.map{|t| t.discussion_entries.active.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
+      <% end %>
+      <% @entries.each do |entry| %>
+        <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true} %>
+      <% end %>
     <% end %>
     <div style="text-align: center; font-size: 1.2em; margin-top: 10px; display: none;">
       <a href="<%= context_url(@assignment.context, :context_discussion_topic_url, @assignment.discussion_topic.id, :headless => 1, :combined => 1) %>" class="forward"><%= t('show_entire_discussion', 'Show the Entire Discussion') %></a>
@@ -102,7 +113,7 @@
                 <% preview_document = t('preview_document', 'Preview the document') %>
                 <% if attachment.crocodoc_available? || attachment.scribdable? %>
                 <div class="ui-listview-text ui-listview-right" style="padding-left:5px; padding-right:5px;">
-                  <a href=<%= preview_url %> title="<%= preview_document %>" class="modal_preview_link" data-attachment_id="<%= attachment.id %>" data-submission_id="<%= @submission.id %>" data-dialog-title="<%= attachment.display_name %>" <%= doc_preview_attributes(attachment) %>><%= image_tag('preview.png') %></a>
+                  <a href=<%= preview_url %> title="<%= preview_document %>" class="modal_preview_link" aria-hidden="true" tabindex="-1" data-attachment_id="<%= attachment.id %>" data-submission_id="<%= @submission.id %>" data-dialog-title="<%= attachment.display_name %>" <%= doc_preview_attributes(attachment) %>><%= image_tag('preview.png') %></a>
                 </div>
                 <% end %>
                 <a href="<%= preview_url %>" class="ui-listview-text comment_attachment_link <%= attachment.mime_class %>">

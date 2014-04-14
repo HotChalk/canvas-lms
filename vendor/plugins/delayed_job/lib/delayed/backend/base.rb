@@ -61,7 +61,7 @@ module Delayed
               full_strand_name = strand_name
             end
 
-            num_strands ||= Setting.get_cached("#{strand_name}_num_strands", nil)
+            num_strands ||= Setting.get("#{strand_name}_num_strands", nil)
             num_strands = num_strands ? num_strands.to_i : 1
 
             strand_num = num_strands > 1 ? rand(num_strands) + 1 : 1
@@ -225,8 +225,12 @@ module Delayed
       # Moved into its own method so that new_relic can trace it.
       def invoke_job
         Delayed::Job.in_delayed_job = true
-        payload_object.perform
-        Delayed::Job.in_delayed_job = false
+        begin
+          payload_object.perform
+        ensure
+          Delayed::Job.in_delayed_job = false
+          ::ActiveRecord::Base.clear_active_connections! unless Rails.env.test?
+        end
       end
 
       def batch?
@@ -304,8 +308,7 @@ module Delayed
         end
       end
 
-    protected
-
+    public
       def before_save
         self.queue ||= Delayed::Worker.queue
         self.run_at ||= self.class.db_time_now

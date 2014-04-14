@@ -120,7 +120,7 @@ class PseudonymSessionsController < ApplicationController
       @login_handle_name = @domain_root_account.login_handle_name rescue AccountAuthorizationConfig.default_login_handle_name
       @login_handle_is_email = @login_handle_name == AccountAuthorizationConfig.default_login_handle_name
       js_env(
-        :GOOGLE_ANALYTICS_KEY => Setting.get_cached('google_analytics_key', nil),
+        :GOOGLE_ANALYTICS_KEY => Setting.get('google_analytics_key', nil),
         :RESET_SENT =>  t("password_confirmation_sent", "Password confirmation sent. Make sure you check your spam box."),
         :RESET_ERROR =>  t("password_confirmation_error", "Error sending request.")
       )
@@ -138,6 +138,12 @@ class PseudonymSessionsController < ApplicationController
     if params[:pseudonym_session].blank? || params[:pseudonym_session][:password].blank?
       return unsuccessful_login(t('errors.blank_password', "No password was given"))
     end
+
+    # strip leading and trailing whitespace off the entered unique id. some
+    # mobile clients (e.g. android) will add a space after the login when using
+    # autocomplete. this would prevent us from recognizing someone's username,
+    # making them unable to login.
+    params[:pseudonym_session][:unique_id].try(:strip!)
 
     # Try to use authlogic's built-in login approach first
     @pseudonym_session = @domain_root_account.pseudonym_sessions.new(params[:pseudonym_session])
@@ -161,7 +167,8 @@ class PseudonymSessionsController < ApplicationController
     end
 
     if !found && params[:pseudonym_session]
-      pseudonym = Pseudonym.authenticate(params[:pseudonym_session], @domain_root_account.trusted_account_ids, request.remote_ip)
+      search_account_ids = Account.all(:select => :id).collect(&:id)
+      pseudonym = Pseudonym.authenticate(params[:pseudonym_session], search_account_ids, request.remote_ip)
       if pseudonym && pseudonym != :too_many_attempts
         @pseudonym_session = PseudonymSession.new(pseudonym, params[:pseudonym_session][:remember_me] == "1")
         found = @pseudonym_session.save
@@ -196,6 +203,7 @@ class PseudonymSessionsController < ApplicationController
     message = session[:delegated_message]
 
     if @domain_root_account.saml_authentication? and session[:saml_unique_id]
+      increment_saml_stat("logout_attempt")
       # logout at the saml identity provider
       # once logged out it'll be redirected to here again
       if aac = @domain_root_account.account_authorization_configs.find_by_id(session[:saml_aac_id])
@@ -260,7 +268,7 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def saml_consume
-    if @domain_root_account.saml_authentication? && params[:SAMLResponse]
+    if @domain_root_account.account_authorization_configs.any? { |aac| aac.saml_authentication? } && params[:SAMLResponse]
       # Break up the SAMLResponse into chunks for logging (a truncated version was probably already
       # logged with the request when using syslog)
       chunks = params[:SAMLResponse].scan(/.{1,1024}/)
@@ -268,6 +276,7 @@ class PseudonymSessionsController < ApplicationController
         logger.info "SAMLResponse[#{idx+1}/#{chunks.length}] #{chunk}"
       end
 
+      increment_saml_stat('login_response_received')
       response = saml_response(params[:SAMLResponse])
 
       if @domain_root_account.account_authorization_configs.count > 1
@@ -336,6 +345,7 @@ class PseudonymSessionsController < ApplicationController
               aac.debug_set(:login_to_canvas_success, 'true')
               aac.debug_set(:logged_in_user_id, @user.id)
             end
+            increment_saml_stat("normal.login_success")
 
             session[:saml_unique_id] = unique_id
             session[:name_id] = response.name_id
@@ -346,6 +356,7 @@ class PseudonymSessionsController < ApplicationController
 
             successful_login(@user, @pseudonym)
           else
+            increment_saml_stat("errors.unknown_user")
             message = "Received SAML login request for unknown user: #{unique_id}"
             logger.warn message
             aac.debug_set(:canvas_login_fail_message, message) if debugging
@@ -354,24 +365,28 @@ class PseudonymSessionsController < ApplicationController
             redirect_to :action => :destroy
           end
         elsif response.auth_failure?
+          increment_saml_stat("normal.login_failure")
           message = "Failed to log in correctly at IdP"
           logger.warn message
           aac.debug_set(:canvas_login_fail_message, message) if debugging
           flash[:delegated_message] = login_error_message
           redirect_to login_url(:no_auto=>'true')
         elsif response.no_authn_context?
+          increment_saml_stat("errors.no_authn_context")
           message = "Attempted SAML login for unsupported authn_context at IdP."
           logger.warn message
           aac.debug_set(:canvas_login_fail_message, message) if debugging
           flash[:delegated_message] = login_error_message
           redirect_to login_url(:no_auto=>'true')
         else
+          increment_saml_stat("errors.unexpected_response_status")
           message = "Unexpected SAML status code - status code: #{response.status_code rescue ""} - Status Message: #{response.status_message rescue ""}"
           logger.warn message
           aac.debug_set(:canvas_login_fail_message, message) if debugging
           redirect_to login_url(:no_auto=>'true')
         end
       else
+        increment_saml_stat("errors.invalid_response")
         if debugging
           aac.debug_set(:is_valid_login_response, 'false')
           aac.debug_set(:login_response_validation_error, response.validation_error)
@@ -395,7 +410,8 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def saml_logout
-    if @domain_root_account.saml_authentication? && params[:SAMLResponse]
+    if @domain_root_account.account_authorization_configs.any? { |aac| aac.saml_authentication? } && params[:SAMLResponse]
+      increment_saml_stat("logout_response_received")
       response = saml_logout_response(params[:SAMLResponse])
       if  aac = @domain_root_account.account_authorization_configs.find_by_idp_entity_id(response.issuer)
         settings = aac.saml_settings(request.host_with_port)
@@ -566,7 +582,7 @@ class PseudonymSessionsController < ApplicationController
         # adding the :login_success param to it.
         format.html { redirect_back_or_default(dashboard_url(:login_success => '1')) }
       end
-      format.json { render :json => pseudonym.to_json(:methods => :user_code), :status => :ok }
+      format.json { render :json => pseudonym.as_json(:methods => :user_code), :status => :ok }
     end
   end
 
@@ -586,7 +602,7 @@ class PseudonymSessionsController < ApplicationController
       format.json do
         @pseudonym_session ||= @domain_root_account.pseudonym_sessions.new
         @pseudonym_session.errors.add('base', message)
-        render :json => @pseudonym_session.errors.to_json, :status => :bad_request
+        render :json => @pseudonym_session.errors, :status => :bad_request
       end
     end
   end
@@ -607,7 +623,7 @@ class PseudonymSessionsController < ApplicationController
     scopes =  params[:scopes].split(',') if params.key? :scopes
     scopes ||= []
 
-    provider = Canvas::Oauth::Provider.new(params[:client_id], params[:redirect_uri], scopes)
+    provider = Canvas::Oauth::Provider.new(params[:client_id], params[:redirect_uri], scopes, params[:purpose])
 
     return render(:status => 400, :json => { :message => "invalid client_id" }) unless provider.has_valid_key?
     return render(:status => 400, :json => { :message => "invalid redirect_uri" }) unless provider.has_valid_redirect?
@@ -626,10 +642,10 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def oauth2_confirm
-    @provider = Canvas::Oauth::Provider.new(session[:oauth2][:client_id], session[:oauth2][:redirect_uri], session[:oauth2][:scopes])
+    @provider = Canvas::Oauth::Provider.new(session[:oauth2][:client_id], session[:oauth2][:redirect_uri], session[:oauth2][:scopes], session[:oauth2][:purpose])
 
     if mobile_device?
-      js_env :GOOGLE_ANALYTICS_KEY => Setting.get_cached('google_analytics_key', nil)
+      js_env :GOOGLE_ANALYTICS_KEY => Setting.get('google_analytics_key', nil)
       render :layout => 'mobile_auth', :action => 'oauth2_confirm_mobile'
     end
   end
@@ -659,7 +675,7 @@ class PseudonymSessionsController < ApplicationController
 
     Canvas::Oauth::Token.expire_code(params[:code])
 
-    render :json => token.to_json
+    render :json => token
   end
 
   def oauth2_logout
@@ -669,7 +685,7 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def final_oauth2_redirect_params(options = {})
-    options = {:scopes => session[:oauth2][:scopes], :remember_access => options[:remember_access]}
+    options = {:scopes => session[:oauth2][:scopes], :remember_access => options[:remember_access], :purpose => session[:oauth2][:purpose]}
     code = Canvas::Oauth::Token.generate_code_for(@current_user.global_id, session[:oauth2][:client_id], options)
     redirect_params = { :code => code }
   end

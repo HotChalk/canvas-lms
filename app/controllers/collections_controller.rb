@@ -35,25 +35,25 @@
 # @object Collection
 #     {
 #       // The ID of the collection.
-#       id: 5,
+#       "id": 5,
 #
 #       // The display name of the collection, set by the collection creator.
-#       name: "My Collection",
+#       "name": "My Collection",
 #
 #       // The visibility of the collection. If "public", the collection is
 #       // visible to everybody, and can be followed.  If "private", the
 #       // collection is visible only to the creating user.
 #       // The default is "private".
-#       visibility: "public",
+#       "visibility": "public",
 #
 #       // Boolean indicating whether this user is following this collection.
-#       followed_by_user: false,
+#       "followed_by_user": false,
 #
 #       // The number of people following this collection.
-#       followers_count: 10,
+#       "followers_count": 10,
 #
 #       // The number of items in this collection.
-#       items_count: 7
+#       "items_count": 7
 #     }
 #
 class CollectionsController < ApplicationController
@@ -298,15 +298,7 @@ class CollectionsController < ApplicationController
   end
 
   def preload_groups_collections_counts(groups)
-    counts_data = Collection.connection.execute(Collection.send(:sanitize_sql_array, [<<-SQL, groups.map(&:id)])).to_a
-      SELECT context_id AS group_id, COUNT(*) AS collections_count 
-      FROM collections 
-      WHERE context_id IN (?) AND context_type='Group' AND workflow_state='active' 
-      GROUP BY context_id
-    SQL
-    @collections_counts = {}
-    counts_data.each do |cd| 
-      @collections_counts[cd['group_id'].to_i] = cd['collections_count'].to_i
-    end
+    @collections_counts = Collection.where(context_id: groups, context_type: 'Group', workflow_state: 'active').
+      group(:context_id).count
   end
 end

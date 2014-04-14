@@ -190,6 +190,39 @@ describe UsersController do
         a.save!
       end
 
+      context 'self registration for observers only' do
+        before :each do
+          a = Account.default
+          a.settings[:self_registration_type] = 'observer'
+          a.save!
+        end
+
+        it "should not allow teachers to self register" do
+          post 'create', :pseudonym => { :unique_id => 'jane@example.com' }, :user => { :name => 'Jane Teacher', :terms_of_use => '1', :initial_enrollment_type => 'teacher' }, :format => 'json'
+          response.status.should match /403 Forbidden/
+        end
+
+        it "should not allow students to self register" do
+          course(:active_all => true)
+          @course.update_attribute(:self_enrollment, true)
+
+          post 'create', :pseudonym => { :unique_id => 'jane@example.com', :password => 'lolwut', :password_confirmation => 'lolwut' }, :user => { :name => 'Jane Student', :terms_of_use => '1', :self_enrollment_code => @course.self_enrollment_code, :initial_enrollment_type => 'student' }, :pseudonym_type => 'username', :self_enrollment => '1', :format => 'json'
+          response.status.should match /403 Forbidden/
+        end
+
+        it "should allow observers to self register" do
+          user_with_pseudonym(:active_all => true, :password => 'lolwut')
+
+          post 'create', :pseudonym => { :unique_id => 'jane@example.com' }, :observee => { :unique_id => @pseudonym.unique_id, :password => 'lolwut' }, :user => { :name => 'Jane Observer', :terms_of_use => '1', :initial_enrollment_type => 'observer' }, :format => 'json'
+          response.should be_success
+        end
+
+        it "should redirect 'new' action to root_url" do
+          get 'new'
+          response.should redirect_to root_url
+        end
+      end
+
       it "should create a pre_registered user" do
         post 'create', :pseudonym => { :unique_id => 'jacob@instructure.com' }, :user => { :name => 'Jacob Fugal', :terms_of_use => '1' }
         response.should be_success
@@ -249,30 +282,7 @@ describe UsersController do
         p.user.communication_channels.first.path.should == 'jacob@instructure.com'
 
         post 'create', :pseudonym => { :unique_id => 'jacob@instructure.com' }, :user => { :name => 'Jacob Fugal', :terms_of_use => '1' }
-        response.should be_success
-
-        Pseudonym.find_all_by_unique_id('jacob@instructure.com').should == [p]
-        p.reload
-        p.should be_active
-        p.user.should be_pre_registered
-        p.user.name.should == 'Jacob Fugal'
-        p.user.communication_channels.length.should == 1
-        p.user.communication_channels.first.should be_unconfirmed
-        p.user.communication_channels.first.path.should == 'jacob@instructure.com'
-
-        # case sensitive?
-        post 'create', :pseudonym => { :unique_id => 'JACOB@instructure.com' }, :user => { :name => 'Jacob Fugal', :terms_of_use => '1' }
-        response.should be_success
-
-        Pseudonym.by_unique_id('jacob@instructure.com').all.should == [p]
-        Pseudonym.by_unique_id('JACOB@instructure.com').all.should == [p]
-        p.reload
-        p.should be_active
-        p.user.should be_pre_registered
-        p.user.name.should == 'Jacob Fugal'
-        p.user.communication_channels.length.should == 1
-        p.user.communication_channels.first.should be_unconfirmed
-        p.user.communication_channels.first.path.should == 'jacob@instructure.com'
+        response.should_not be_success
       end
 
       it "should validate acceptance of the terms" do
@@ -514,7 +524,6 @@ describe UsersController do
       @assignment.grade_student(@s1, :grade => 3)
       @assignment.grade_student(@s2, :grade => 4)
       @assignment.grade_student(@test_student, :grade => 5)
-      run_transaction_commit_callbacks
 
       get 'grades'
       assigns[:presenter].course_grade_summaries[@course.id].should == { :score => 70, :students => 2 }
@@ -715,6 +724,59 @@ describe UsersController do
       response.should be_success
       user = json_parse
       user['name'].should == @student.name
+    end
+  end
+
+  describe "POST 'masquerade'" do
+    specs_require_sharding
+
+    it "should associate the user with target user's shard" do
+      PageView.stubs(:page_view_method).returns(:db)
+      user_with_pseudonym
+      admin = @user
+      Account.site_admin.add_user(admin)
+      user_session(admin)
+      @shard1.activate do
+        account = Account.create!
+        user2 = user_with_pseudonym(account: account)
+        LoadAccount.stubs(:default_domain_root_account).returns(account)
+        post 'masquerade', user_id: user2.id
+        response.should be_redirect
+
+        admin.associated_shards(:shadow).should be_include(@shard1)
+      end
+    end
+
+    it "should not associate the user with target user's shard if masquerading failed" do
+      PageView.stubs(:page_view_method).returns(:db)
+      user_with_pseudonym
+      admin = @user
+      user_session(admin)
+      @shard1.activate do
+        account = Account.create!
+        user2 = user_with_pseudonym(account: account)
+        LoadAccount.stubs(:default_domain_root_account).returns(account)
+        post 'masquerade', user_id: user2.id
+        response.should_not be_redirect
+
+        admin.associated_shards(:shadow).should_not be_include(@shard1)
+      end
+    end
+
+    it "should not associate the user with target user's shard for non-db page views" do
+      user_with_pseudonym
+      admin = @user
+      Account.site_admin.add_user(admin)
+      user_session(admin)
+      @shard1.activate do
+        account = Account.create!
+        user2 = user_with_pseudonym(account: account)
+        LoadAccount.stubs(:default_domain_root_account).returns(account)
+        post 'masquerade', user_id: user2.id
+        response.should be_redirect
+
+        admin.associated_shards(:shadow).should_not be_include(@shard1)
+      end
     end
   end
 end

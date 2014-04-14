@@ -1,4 +1,55 @@
-environment_configuration(defined?(config) && config) do |config|
+if ENV['COVERAGE'] == "1"
+  puts "Code Coverage enabled"
+  require 'simplecov'
+  require 'simplecov-rcov'
+
+  SimpleCov.command_name "RSpec:#{Process.pid}#{ENV['TEST_ENV_NUMBER']}"
+
+  SimpleCov.start do
+    class SimpleCov::Formatter::MergedFormatter
+      def format(result)
+        SimpleCov::Formatter::HTMLFormatter.new.format(result)
+        SimpleCov::Formatter::RcovFormatter.new.format(result)
+      end
+    end
+    SimpleCov.formatter = SimpleCov::Formatter::MergedFormatter
+    add_filter '/spec/'
+    add_filter '/config/'
+    add_filter '/parallelized_specs/'
+    add_filter '/db_imports/'
+    add_filter 'spec_canvas'
+
+    add_group 'Controllers', 'app/controllers'
+    add_group 'Models', 'app/models'
+    add_group 'Services', 'app/services'
+    add_group 'App', '/app/'
+    add_group 'Helpers', 'app/helpers'
+    add_group 'Libraries', '/lib/'
+    add_group 'Plugins', 'vendor/plugins'
+    add_group "Long files" do |src_file|
+      src_file.lines.count > 500
+    end
+    SimpleCov.at_exit do
+      SimpleCov.result.format!
+    end
+  end
+else
+  puts "Code coverage not enabled"
+end
+
+if ENV['BULLET']
+  puts "Bullet enabled"
+  require 'bullet'
+
+  config.after_initialize do
+    Bullet.enable = true
+    Bullet.bullet_logger = true
+  end
+else
+  puts "Bullet not enabled"
+end
+
+  environment_configuration(defined?(config) && config) do |config|
   # Settings specified here will take precedence over those in config/application.rb
 
   # The test environment is used exclusively to run your application's
@@ -12,7 +63,7 @@ environment_configuration(defined?(config) && config) do |config|
   config.whiny_nils = false
 
   # Show full error reports and disable caching
-  if Rails.version < "3.0"
+  if CANVAS_RAILS2
     config.action_controller.consider_all_requests_local = true
   else
     config.consider_all_requests_local = true
@@ -36,12 +87,14 @@ environment_configuration(defined?(config) && config) do |config|
   # eval <env>-local.rb if it exists
   Dir[File.dirname(__FILE__) + "/" + File.basename(__FILE__, ".rb") + "-*.rb"].each { |localfile| eval(File.new(localfile).read) }
 
-  # XXX: Rails3 NullStore wasn't added until Rails 3.2, but can replace our custom NilStore
-  #config.cache_store = :null
-  require_dependency 'nil_store'
-  config.cache_store = NilStore.new
+  if CANVAS_RAILS2
+    require_dependency 'nil_store'
+    config.cache_store = NilStore.new
+  else
+    config.cache_store = :null_store
+  end
 
-  if Rails.version < "3.0"
+  if CANVAS_RAILS2
     # Raise an exception on bad mass assignment. Helps us catch these bugs before
     # they hit.
     Canvas.protected_attribute_error = :raise

@@ -112,24 +112,22 @@ describe QuizStatistics::StudentAnalysis do
 
       # and one in progress
       @quiz.generate_submission(@student)
-
       stats = CSV.parse(csv(:include_all_versions => true))
-      # format for row is row_name, '', data1, data2, ...
-      stats.first.length.should == 3
-      stats[0][0].should == "section"
+      stats.last.length.should == 9
+      stats.first.first == "section"
     end
 
     it 'should succeed with logged-out user submissions' do
       survey_with_logged_out_submission
       stats = CSV.parse(csv(:include_all_versions => true))
-      stats[0][1].should == ''
-      stats[1][1].should == ''
-      stats[2][1].should == ''
+      stats.last[0].should == ''
+      stats.last[1].should == ''
+      stats.last[2].should == ''
     end
 
     it 'should have sections in quiz statistics_csv' do
       #enroll user in multiple sections
-      pseudonym = pseudonym(@student)
+      pseudonym(@student)
       @student.pseudonym.sis_user_id = "user_sis_id_01"
       @student.pseudonym.save!
       section1 = @course.course_sections.first
@@ -144,19 +142,22 @@ describe QuizStatistics::StudentAnalysis do
       qs.grade_submission
 
       stats = CSV.parse(csv(:include_all_versions => true))
-      # format for row is row_name, '', data1, data2, ...
-      stats[0].should == ["name", "", "nobody@example.com"]
-      stats[1].should == ["id", "", @student.id.to_s]
-      stats[2].should == ["sis_id", "", "user_sis_id_01"]
-      expect_multi_value_row(stats[3], "section", ["section2", "Unnamed Course"])
-      expect_multi_value_row(stats[4], "section_id", [section1.id, section2.id])
-      expect_multi_value_row(stats[5], "section_sis_id", ["SISSection02", "SISSection01"])
-      stats.first.length.should == 3
-    end
+      stats.last[0].should == "nobody@example.com"
+      stats.last[1].should == @student.id.to_s
+      stats.last[2].should == "user_sis_id_01"
 
-    def expect_multi_value_row(row, expected_name, expected_values)
-      row[0..1].should == [expected_name, ""]
-      row[2].split(', ').sort.should == expected_values.map(&:to_s).sort
+      splitter = lambda { |str| str.split(",").map(&:strip) }
+      sections = splitter.call(stats.last[3])
+      sections.should include("section2")
+      sections.should include("Unnamed Course")
+
+      section_ids = splitter.call(stats.last[4])
+      section_ids.should include(section2.id.to_s)
+      section_ids.should include(section1.id.to_s)
+
+      section_sis_ids = splitter.call(stats.last[5])
+      section_sis_ids.should include("SISSection02")
+      section_sis_ids.should include("SISSection01")
     end
 
     it 'should deal with incomplete fill-in-multiple-blanks questions' do
@@ -164,13 +165,13 @@ describe QuizStatistics::StudentAnalysis do
         :question_type => 'fill_in_multiple_blanks_question',
         :question_text => "[ans0]",
         :answers =>
-          {'answer_0' => {'answer_text' => 'foo', 'blank_id' => 'ans0', 'answer_weight' => '100'}}})
+          [{'answer_text' => 'foo', 'blank_id' => 'ans0', 'answer_weight' => '100'}]})
       @quiz.quiz_questions.create!(:question_data => { :name => "test 3",
         :question_type => 'fill_in_multiple_blanks_question',
         :question_text => "[ans0] [ans1]",
         :answers =>
-           {'answer_0' => {'answer_text' => 'bar', 'blank_id' => 'ans0', 'answer_weight' => '100'},
-            'answer_1' => {'answer_text' => 'baz', 'blank_id' => 'ans1', 'answer_weight' => '100'}}})
+           [{'answer_text' => 'bar', 'blank_id' => 'ans0', 'answer_weight' => '100'},
+            {'answer_text' => 'baz', 'blank_id' => 'ans1', 'answer_weight' => '100'}]})
       @quiz.generate_quiz_data
       @quiz.save!
       @quiz.quiz_questions.size.should == 3
@@ -181,9 +182,8 @@ describe QuizStatistics::StudentAnalysis do
       }
       qs.grade_submission
       stats = CSV.parse(csv)
-      stats.size.should == 16 # 3 questions * 2 lines + ten more (name, id, sis_id, section, section_id, section_sis_id, submitted, correct, incorrect, score)
-      stats[11].size.should == 3
-      stats[11][2].should == ',baz'
+      stats.last.size.should == 16 # 3 questions * 2 lines + ten more (name, id, sis_id, section, section_id, section_sis_id, submitted, correct, incorrect, score)
+      stats.last[11].should == ',baz'
     end
 
     it 'should contain answers to numerical questions' do
@@ -204,14 +204,13 @@ describe QuizStatistics::StudentAnalysis do
       qs.grade_submission
 
       stats = CSV.parse(csv)
-      stats[9][2].should == '5'
+      stats.last[9].should == '5'
     end
 
   end
 
   it "includes attachment display names for quiz file upload questions" do
-    require 'action_controller'
-    require 'action_controller/test_process.rb'
+    require 'action_controller_test_process'
     student_in_course(:active_all => true)
     student = @student
     student.name = "Not Steve"
@@ -246,16 +245,15 @@ describe QuizStatistics::StudentAnalysis do
     qs.updated_at = 3.days.ago
     qs.save!
     stats = CSV.parse(csv({:include_all_versions => true},q.reload))
-    stats[7][2].should == "" # student2
-    stats[7][3].should == attach.display_name # student
+    stats.last[7].should == attach.display_name
   end
 
   it 'should strip tags from html multiple-choice/multiple-answers' do
     student_in_course(:active_all => true)
     q = @course.quizzes.create!(:title => "new quiz")
     q.update_attribute(:published_at, Time.now)
-    q.quiz_questions.create!(:question_data => {:name => 'q1', :points_possible => 1, 'question_type' => 'multiple_choice_question', 'answers' => {'answer_0' => {'answer_text' => '', 'answer_html' => '<em>zero</em>', 'answer_weight' => '100'}, 'answer_1' => {'answer_text' => "", 'answer_html' => "<p>one</p>", 'answer_weight' => '0'}}})
-    q.quiz_questions.create!(:question_data => {:name => 'q2', :points_possible => 1, 'question_type' => 'multiple_answers_question', 'answers' => {'answer_0' => {'answer_text' => '', 'answer_html' => "<a href='http://example.com/caturday.gif'>lolcats</a>", 'answer_weight' => '100'}, 'answer_1' => {'answer_text' => 'lolrus', 'answer_weight' => '100'}}})
+    q.quiz_questions.create!(:question_data => {:name => 'q1', :points_possible => 1, 'question_type' => 'multiple_choice_question', 'answers' => [{'answer_text' => '', 'answer_html' => '<em>zero</em>', 'answer_weight' => '100'}, {'answer_text' => "", 'answer_html' => "<p>one</p>", 'answer_weight' => '0'}]})
+    q.quiz_questions.create!(:question_data => {:name => 'q2', :points_possible => 1, 'question_type' => 'multiple_answers_question', 'answers' => [{'answer_text' => '', 'answer_html' => "<a href='http://example.com/caturday.gif'>lolcats</a>", 'answer_weight' => '100'}, {'answer_text' => 'lolrus', 'answer_weight' => '100'}]})
     q.generate_quiz_data
     q.save
     qs = q.generate_submission(@student)
@@ -286,8 +284,8 @@ describe QuizStatistics::StudentAnalysis do
 
     # csv statistics
     stats = CSV.parse(csv({}, q))
-    stats[7][2].should == "zero"
-    stats[9][2].should == "lolcats,lolrus"
+    stats.last[7].should == "zero"
+    stats.last[9].should == "lolcats,lolrus"
   end
 
 end

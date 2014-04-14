@@ -28,47 +28,55 @@
 # @object Module
 #     {
 #       // the unique identifier for the module
-#       id: 123,
+#       "id": 123,
+#
 #       // the state of the module: active, deleted
-#       workflow_state: active,
+#       "workflow_state": "active",
 #
 #       // the position of this module in the course (1-based)
-#       position: 2,
+#       "position": 2,
 #
 #       // the name of this module
-#       name: "Imaginary Numbers and You",
+#       "name": "Imaginary Numbers and You",
 #
 #       // (Optional) the date this module will unlock
-#       unlock_at: "2012-12-31T06:00:00-06:00",
+#       "unlock_at": "2012-12-31T06:00:00-06:00",
 #
 #       // Whether module items must be unlocked in order
-#       require_sequential_progress: true,
+#       "require_sequential_progress": true,
 #
 #       // IDs of Modules that must be completed before this one is unlocked
-#       prerequisite_module_ids: [121, 122],
+#       "prerequisite_module_ids": [121, 122],
 #
 #       // The number of items in the module
-#       items_count: 10,
+#       "items_count": 10,
 #
 #       // The API URL to retrive this module's items
-#       items_url: 'https://canvas.example.com/api/v1/modules/123/items',
+#       "items_url": "https://canvas.example.com/api/v1/modules/123/items",
 #
-#       items: [ ... ]
 #       // The contents of this module, as an array of Module Items.
 #       // (Present only if requested via include[]=items
 #       //  AND the module is not deemed too large by Canvas.)
+#       "items": [],
 #
 #       // The state of this Module for the calling user
 #       // one of 'locked', 'unlocked', 'started', 'completed'
-#       // (Optional; present only if the caller is a student)
-#       state: 'started',
+#       // (Optional; present only if the caller is a student
+#       // or if the optional parameter 'student_id' is included)
+#       "state": "started",
 #
 #       // the date the calling user completed the module
-#       // (Optional; present only if the caller is a student)
-#       completed_at: nil
+#       // (Optional; present only if the caller is a student
+#       // or if the optional parameter 'student_id' is included)
+#       "completed_at": null,
+#
+#       // if the student's final grade for the course should be published
+#       // to the SIS upon completion of this module
+#       "publish_final_grade": false
 #     }
 class ContextModulesApiController < ApplicationController
-  before_filter :require_context  
+  before_filter :require_context
+  before_filter :find_student, :only => [:index, :show]
   include Api::V1::ContextModule
 
   # @API List modules
@@ -91,6 +99,9 @@ class ContextModulesApiController < ApplicationController
   #   The partial name of the modules (and module items, if include['items'] is
   #   specified) to match and return.
   #
+  # @argument student_id [Optional]
+  #   Returns module completion information for the student with this id.
+  #
   # @example_request
   #     curl -H 'Authorization: Bearer <token>' \
   #          https://<canvas>/api/v1/courses/222/modules
@@ -99,7 +110,7 @@ class ContextModulesApiController < ApplicationController
   def index
     if authorized_action(@context, @current_user, :read)
       route = polymorphic_url([:api_v1, @context, :context_modules])
-      scope = @context.modules_visible_to(@current_user)
+      scope = @context.modules_visible_to(@student || @current_user)
 
       includes = Array(params[:include])
       scope = ContextModule.search_by_attribute(scope, :name, params[:search_term]) unless includes.include?('items')
@@ -107,17 +118,17 @@ class ContextModulesApiController < ApplicationController
 
       ContextModule.send(:preload_associations, modules, {:content_tags => :content}) if includes.include?('items')
 
-      modules_and_progressions = if @context.grants_right?(@current_user, session, :participate_as_student)
-        modules.map { |m| [m, m.evaluate_for(@current_user, true)] }
+      if @student
+        modules_and_progressions = modules.map { |m| [m, m.evaluate_for(@student, true)] }
       else
-        modules.map { |m| [m, nil] }
+        modules_and_progressions = modules.map { |m| [m, nil] }
       end
       opts = {}
       if includes.include?('items') && params[:search_term].present?
         SearchTermHelper.validate_search_term(params[:search_term])
         opts[:search_term] = params[:search_term]
       end
-      render :json => modules_and_progressions.map { |mod, prog| module_json(mod, @current_user, session, prog, includes, opts) }.compact
+      render :json => modules_and_progressions.map { |mod, prog| module_json(mod, @student || @current_user, session, prog, includes, opts) }.compact
     end
   end
 
@@ -137,6 +148,9 @@ class ContextModulesApiController < ApplicationController
   #    - "content_details": Requires include['items']. Returns additional
   #      details with module items specific to their associated content items.
   #
+  # @argument student_id [Optional]
+  #   Returns module completion information for the student with this id.
+  #
   # @example_request
   #     curl -H 'Authorization: Bearer <token>' \
   #          https://<canvas>/api/v1/courses/222/modules/123
@@ -144,11 +158,11 @@ class ContextModulesApiController < ApplicationController
   # @returns Module
   def show
     if authorized_action(@context, @current_user, :read)
-      mod = @context.modules_visible_to(@current_user).find(params[:id])
+      mod = @context.modules_visible_to(@student || @current_user).find(params[:id])
       includes = Array(params[:include])
       ContextModule.send(:preload_associations, mod, {:content_tags => :content}) if includes.include?('items')
-      prog = @context.grants_right?(@current_user, session, :participate_as_student) ? mod.evaluate_for(@current_user, true) : nil
-      render :json => module_json(mod, @current_user, session, prog, includes)
+      prog = @student ? mod.evaluate_for(@student, true) : nil
+      render :json => module_json(mod, @student || @current_user, session, prog, includes)
     end
   end
 
@@ -228,6 +242,10 @@ class ContextModulesApiController < ApplicationController
   #   Prerequisite modules must precede this module (i.e. have a lower position
   #   value), otherwise they will be ignored
   #
+  # @argument module[publish_final_grade] [Optional, Boolean]
+  #   Whether to publish the student's final grade for the course upon
+  #   completion of this module.
+  #
   # @example_request
   #
   #     curl https://<canvas>/api/v1/courses/<course_id>/modules \
@@ -244,14 +262,14 @@ class ContextModulesApiController < ApplicationController
       return render :json => {:message => "missing module parameter"}, :status => :bad_request unless params[:module]
       return render :json => {:message => "missing module name"}, :status => :bad_request unless params[:module][:name].present?
 
-      module_parameters = params[:module].slice(:name, :unlock_at, :require_sequential_progress)
+      module_parameters = params[:module].slice(:name, :unlock_at, :require_sequential_progress, :publish_final_grade)
 
       @module = @context.context_modules.build(module_parameters)
 
       if ids = params[:module][:prerequisite_module_ids]
         @module.prerequisites = ids.map{|id| "module_#{id}"}.join(',')
       end
-      if @domain_root_account.enable_draft?
+      if @context.feature_enabled?(:draft_state)
         @module.workflow_state = 'unpublished'
       else
         @module.workflow_state = 'active'
@@ -260,7 +278,7 @@ class ContextModulesApiController < ApplicationController
       if @module.save && set_position
         render :json => module_json(@module, @current_user, session, nil)
       else
-        render :json => @module.errors.to_json, :status => :bad_request
+        render :json => @module.errors, :status => :bad_request
       end
     end
   end
@@ -286,6 +304,10 @@ class ContextModulesApiController < ApplicationController
   #   Prerequisite modules must precede this module (i.e. have a lower position
   #   value), otherwise they will be ignored
   #
+  # @argument module[publish_final_grade] [Optional, Boolean]
+  #   Whether to publish the student's final grade for the course upon
+  #   completion of this module.
+  #
   # @argument module[published] [Optional, Boolean]
   #   Whether the module is published and visible to students
   #
@@ -304,7 +326,7 @@ class ContextModulesApiController < ApplicationController
     @module = @context.context_modules.not_deleted.find(params[:id])
     if authorized_action(@module, @current_user, :update)
       return render :json => {:message => "missing module parameter"}, :status => :bad_request unless params[:module]
-      module_parameters = params[:module].slice(:name, :unlock_at, :require_sequential_progress)
+      module_parameters = params[:module].slice(:name, :unlock_at, :require_sequential_progress, :publish_final_grade)
 
       if ids = params[:module][:prerequisite_module_ids]
         if ids.blank?
@@ -326,7 +348,7 @@ class ContextModulesApiController < ApplicationController
       if @module.update_attributes(module_parameters) && set_position
         render :json => module_json(@module, @current_user, session, nil)
       else
-        render :json => @module.errors.to_json, :status => :bad_request
+        render :json => @module.errors, :status => :bad_request
       end
     end
   end
@@ -353,7 +375,7 @@ class ContextModulesApiController < ApplicationController
   def set_position
     return true unless @module && params[:module][:position]
 
-    if @module.insert_at_position(params[:module][:position], @context.context_modules.not_deleted)
+    if @module.insert_at(params[:module][:position].to_i)
       # see ContextModulesController#reorder
       @context.touch
       @context.context_modules.not_deleted.each{|m| m.save_without_touching_context }
@@ -366,4 +388,17 @@ class ContextModulesApiController < ApplicationController
       return false
     end
   end
+
+  def find_student
+    if params[:student_id]
+      student_enrollments = @context.student_enrollments.for_user(params[:student_id])
+      return render_unauthorized_action unless student_enrollments.any?{|e| e.grants_right?(@current_user, session, :read)}
+      @student = student_enrollments.first.user
+    elsif @context.grants_right?(@current_user, session, :participate_as_student)
+      @student = @current_user
+    else
+      return true
+    end
+  end
+  protected :find_student
 end

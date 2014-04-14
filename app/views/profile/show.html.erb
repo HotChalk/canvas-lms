@@ -16,5 +16,8 @@
       <% end %>
     <% end %>
   </div>
+    <% if @current_user.registered? %>
+        <%= render :partial => "ways_to_contact" %>
+    <% end %>
 <% end %>
 

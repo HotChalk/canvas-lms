@@ -27,12 +27,12 @@ class RubricAssociation < ActiveRecord::Base
   belongs_to :association, :polymorphic => true
 
   belongs_to :context, :polymorphic => true
-  has_many :rubric_assessments
+  has_many :rubric_assessments, :dependent => :nullify
   has_many :assessment_requests, :dependent => :destroy
   
   has_a_broadcast_policy
 
-  validates_presence_of :purpose
+  validates_presence_of :purpose, :rubric_id, :association_id, :association_type, :context_id, :context_type
   validates_length_of :description, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
 
   before_save :update_assignment_points
@@ -175,7 +175,7 @@ class RubricAssociation < ActiveRecord::Base
     # Go up to the assignment and loop through all submissions.
     # Update each submission's assessment_requests with a link to this rubric association
     # but only if not already associated and the assessment is incomplete.
-    if self.association_id && self.association_type != 'Account'
+    if self.association_id && self.association_type == 'Assignment'
       self.association.submissions.each do |sub|
         sub.assessment_requests.incomplete.where(:rubric_association_id => nil).
             update_all(:rubric_association_id => self)

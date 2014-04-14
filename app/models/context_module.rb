@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011 - 2013 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -19,20 +19,19 @@
 class ContextModule < ActiveRecord::Base
   include Workflow
   include SearchTermHelper
-  attr_accessible :context, :name, :unlock_at, :require_sequential_progress, :completion_requirements, :prerequisites
+  attr_accessible :context, :name, :unlock_at, :require_sequential_progress, :completion_requirements, :prerequisites, :publish_final_grade
   belongs_to :context, :polymorphic => true
-  belongs_to :cloned_item
   has_many :context_module_progressions, :dependent => :destroy
   has_many :content_tags, :dependent => :destroy, :order => 'content_tags.position, content_tags.title'
-  acts_as_list :scope => :context
+  acts_as_list scope: { context: self, workflow_state: ['active', 'unpublished'] }
   
   serialize :prerequisites
   serialize :completion_requirements
-  serialize :downstream_modules
   before_save :infer_position
   before_save :validate_prerequisites
   before_save :confirm_valid_requirements
   after_save :touch_context
+  validates_presence_of :workflow_state, :context_id, :context_type
 
   def self.module_positions(context)
     # Keep a cached hash of all modules for a given context and their
@@ -76,15 +75,15 @@ class ContextModule < ActiveRecord::Base
   alias_method :destroy!, :destroy
   def destroy
     self.workflow_state = 'deleted'
-    self.deleted_at = Time.now
+    self.deleted_at = Time.now.utc
     ContentTag.where(:context_module_id => self).update_all(:workflow_state => 'deleted', :updated_at => Time.now.utc)
-    self.send_later_if_production(:update_downstreams, self.position)
+    self.send_later_if_production_enqueue_args(:update_downstreams, { max_attempts: 1, n_strand: "context_module_update_downstreams", priority: Delayed::LOW_PRIORITY }, self.position)
     save!
     true
   end
   
   def restore
-    self.workflow_state = 'active'
+    self.workflow_state = context.feature_enabled?(:draft_state) ? 'unpublished' : 'active'
     self.save
   end
   
@@ -109,6 +108,8 @@ class ContextModule < ActiveRecord::Base
   scope :active, where(:workflow_state => 'active')
   scope :unpublished, where(:workflow_state => 'unpublished')
   scope :not_deleted, where("context_modules.workflow_state<>'deleted'")
+
+  alias_method :published?, :active?
 
   def publish_items!
     self.content_tags.select{|t| t.unpublished?}.each do |tag|
@@ -173,60 +174,40 @@ class ContextModule < ActiveRecord::Base
   def current?
     (self.start_at || self.end_at) && (!self.start_at || Time.now >= self.start_at) && (!self.end_at || Time.now <= self.end_at) rescue true
   end
-  
-  def self.context_prerequisites(context)
-    prereq = {}
-    to_visit = []
-    visited = []
-    context.context_modules.active.each do |m|
-      prereq[m.id] = []
-      (m.prerequisites || []).each do |p|
-        prereq[m.id] << p
-        to_visit << [m.id, p[:id]] if p[:type] == 'context_module'
+
+  def self.module_names(context)
+    Rails.cache.fetch(['module_names', context].cache_key) do
+      names = {}
+      context.context_modules.not_deleted.select([:id, :name]).each do |mod|
+        names[mod.id] = mod.name
       end
+      names
     end
-    while !to_visit.empty?
-      val = to_visit.shift
-      if(!visited.include?(val))
-        visited << val
-        (prereq[val[1]] || []).each do |p|
-          prereq[val[0]] << p
-          to_visit << [val[0], p[:context_module_id]] if p[:type] == 'context_module'
-        end
-      end
-    end
-    prereq.each{|idx, val| prereq[idx] = val.uniq.compact }
-    prereq
   end
-  
-  def prerequisites=(val)
-    if val.is_a?(Array)
-      val = val.map {|item|
-        if item[:type] == 'context_module'
-          "module_#{item[:id]}"
-        else
-          "#{item[:type]}_#{item[:id]}"
-        end
-      }.join(',') rescue nil
-    end
-    if val.is_a?(String)
+
+  def prerequisites=(prereqs)
+    if prereqs.is_a?(Array)
+      # validate format, skipping invalid ones
+      prereqs = prereqs.select do |pre|
+        pre.has_key?(:id) && pre.has_key?(:name) && pre[:type] == 'context_module'
+      end
+    elsif prereqs.is_a?(String)
       res = []
-      modules = self.context.context_modules.not_deleted
-      module_prereqs = ContextModule.context_prerequisites(self.context)
-      invalid_prereqs = module_prereqs.to_a.map{|id, ps| id if (ps.any?{|p| p[:type] == 'context_module' && p[:id].to_i == self.id}) }.compact
-      pres = val.split(",")
+      module_names = ContextModule.module_names(self.context)
+      pres = prereqs.split(",")
+      pre_regex = /module_(\d+)/
       pres.each do |pre|
-        type, id = pre.reverse.split("_", 2).map{|s| s.reverse}.reverse
-        m = modules.to_a.find{|m| m.id == id.to_i}
-        if type == 'module' && !invalid_prereqs.include?(id.to_i) && m
-          res << {:id => id.to_i, :type => 'context_module', :name => (modules.to_a.find{|m| m.id == id.to_i}.name rescue "module")}
+        next unless match = pre_regex.match(pre)
+        id = match[1].to_i
+        if module_names.has_key?(id)
+          res << {:id => id, :type => 'context_module', :name => module_names[id]}
         end
       end
-      val = res
+      prereqs = res
     else
-      val = nil
+      prereqs = nil
     end
-    write_attribute(:prerequisites, val)
+    write_attribute(:prerequisites, prereqs)
   end
   
   def completion_requirements=(val)
@@ -237,10 +218,10 @@ class ContextModule < ActiveRecord::Base
     end
     if val.is_a?(Hash)
       res = []
-      tag_ids = self.content_tags.active.map{|t| t.id}
+      tag_ids = self.content_tags.active.pluck(:id)
       val.each do |id, opts|
         if tag_ids.include?(id.to_i)
-          res << {:id => id.to_i, :type => opts[:type], :min_score => opts[:min_score], :max_score => opts[:max_score]} #id => id.to_i, :type => type
+          res << {:id => id.to_i, :type => opts[:type], :min_score => opts[:min_score] && opts[:min_score].to_f, :max_score => opts[:max_score] && opts[:max_score].to_f}
         end
       end
       val = res
@@ -268,7 +249,7 @@ class ContextModule < ActiveRecord::Base
 
   def add_item(params, added_item=nil, opts={})
     params[:type] = params[:type].underscore if params[:type]
-    position = opts[:position] || (self.content_tags.active.map(&:position).compact.max || 0) + 1
+    position = opts[:position] || (self.content_tags.active.maximum(:position) || 0) + 1
     if params[:type] == "wiki_page" || params[:type] == "page"
       item = opts[:wiki_page] || self.context.wiki.wiki_pages.find_by_id(params[:id])
     elsif params[:type] == "attachment" || params[:type] == "file"
@@ -296,7 +277,7 @@ class ContextModule < ActiveRecord::Base
       added_item.content_type = 'ExternalUrl'
       added_item.context_module_id = self.id
       added_item.indent = params[:indent] || 0
-      added_item.workflow_state = workflow_state
+      added_item.workflow_state = (self.context.feature_enabled?(:draft_state) ? 'unpublished' : workflow_state)
       added_item.save
       added_item
     elsif params[:type] == 'context_external_tool' || params[:type] == 'external_tool'
@@ -318,7 +299,7 @@ class ContextModule < ActiveRecord::Base
       }
       added_item.context_module_id = self.id
       added_item.indent = params[:indent] || 0
-      added_item.workflow_state = workflow_state
+      added_item.workflow_state = (self.context.feature_enabled?(:draft_state) ? 'unpublished' : workflow_state)
       added_item.save
       added_item
     elsif params[:type] == 'context_module_sub_header' || params[:type] == 'sub_header'
@@ -360,6 +341,7 @@ class ContextModule < ActiveRecord::Base
     return nil unless self.context.users.include?(user)
     return nil unless self.prerequisites_satisfied?(user)
     progression = self.find_or_create_progression(user)
+    return unless progression
     progression.requirements_met ||= []
     requirement = self.completion_requirements.to_a.find{|p| p[:id] == tag.local_id}
     return if !requirement || progression.requirements_met.include?(requirement)
@@ -485,21 +467,27 @@ class ContextModule < ActiveRecord::Base
   
   def find_or_create_progression(user)
     return nil unless user
-    ContextModule.find_or_create_progression(self.id, user.id)
+    progression = nil
+    self.shard.activate do
+      Shackles.activate(:master) do
+        self.class.unique_constraint_retry do
+          progression = context_module_progressions.where(user_id: user).first
+          if !progression
+            # check if we should even be creating a progression for this user
+            return nil unless context.enrollments.except(:includes).where(user_id: user).exists?
+            progression = context_module_progressions.create!(user: user)
+          end
+        end
+      end
+    end
+    progression.context_module = self
+    progression
   end
   
   def find_or_create_progression_with_multiple_lookups(user)
     user.module_progression_for(self.id) || self.find_or_create_progression(user)
   end
   
-  def self.find_or_create_progression(module_id, user_id)
-    Shackles.activate(:master) do
-      unique_constraint_retry do
-        ContextModuleProgression.find_or_create_by_context_module_id_and_user_id(module_id, user_id)
-      end
-    end
-  end
-
   def content_tags_hash
     return @tags_hash if @tags_hash
     @tags_hash = {}
@@ -515,6 +503,7 @@ class ContextModule < ActiveRecord::Base
     end
     return nil unless user
     progression ||= self.find_or_create_progression_with_multiple_lookups(user)
+    return unless progression
     if self.unpublished?
       progression.workflow_state = 'locked'
       Shackles.activate(:master) do
@@ -619,65 +608,6 @@ class ContextModule < ActiveRecord::Base
   def to_be_unlocked
     self.unlock_at && self.unlock_at > Time.now
   end
-  
-  attr_accessor :clone_updated
-  def clone_for(context, dup=nil, options={})
-    options[:migrate] = true if options[:migrate] == nil
-    if !self.cloned_item && !self.new_record?
-      self.cloned_item ||= ClonedItem.create(:original_item => self)
-      self.save! 
-    end
-    existing = context.context_modules.active.find_by_id(self.id)
-    existing ||= context.context_modules.active.find_by_cloned_item_id(self.cloned_item_id || 0)
-    return existing if existing && !options[:overwrite]
-    dup ||= ContextModule.new
-    dup = existing if existing && options[:overwrite]
-
-    dup.context = context
-    self.attributes.delete_if{|k,v| [:id, :context_id, :context_type, :downstream_modules].include?(k.to_sym) }.each do |key, val|
-      dup.send("#{key}=", val)
-    end
-
-    dup.save!
-    tag_changes = {}
-    self.content_tags.not_deleted.each do |tag|
-      new_tag = tag.clone_for(context, nil, :context_module_id => dup.id)
-      if new_tag
-        new_tag.context_module_id = dup.id
-        new_tag.save
-        context.map_merge(tag, new_tag)
-        tag_changes[tag.id] = new_tag.id
-      end
-    end
-    pres = []
-    (self.prerequisites || []).each do |req|
-      new_req = req.dup
-      if req[:type] == 'context_module'
-        id = context.merge_mapped_id("context_module_#{req[:id]}")
-        if !id
-          cm = self.context.context_modules.find_by_id(req[:id]) if req[:id].present?
-          clone_id = cm.cloned_item_id if cm
-          obj = ContextModule.find_by_cloned_item_id_and_context_id_and_context_type(clone_id, context.id, context.class.to_s) if clone_id
-          id = obj.id if obj
-        end
-        new_req[:id] = id
-        new_req = nil unless id
-      end
-      pres << new_req if new_req
-    end
-    dup.prerequisites = pres
-    reqs = []
-    (self.completion_requirements || []).each do |req|
-      new_req = req.dup
-      new_req[:id] = tag_changes[req[:id]]
-      reqs << new_req
-    end
-    dup.completion_requirements = reqs
-    context.log_merge_result("Module \"#{self.name}\" created")
-    dup.updated_at = Time.now
-    dup.clone_updated = true
-    dup
-  end
 
   def self.process_migration(data, migration)
     modules = data['modules'] ? data['modules'] : []
@@ -690,14 +620,8 @@ class ContextModule < ActiveRecord::Base
         end
       end
     end
-    migration_ids = modules.map{|m| m['module_id'] }.compact
-    conn = self.connection
-    cases = []
-    max = migration.context.context_modules.not_deleted.map(&:position).compact.max || 0
-    modules.each_with_index{|m, idx| cases << " WHEN migration_id=#{conn.quote(m['module_id'])} THEN #{max + idx + 1} " if m['module_id'] }
-    unless cases.empty?
-      conn.execute("UPDATE context_modules SET position=CASE #{cases.join(' ')} ELSE NULL END WHERE context_id=#{migration.context.id} AND context_type=#{conn.quote(migration.context.class.to_s)} AND migration_id IN (#{migration_ids.map{|id| conn.quote(id)}.join(',')})")
-    end
+    migration.context.context_modules.first.try(:fix_position_conflicts)
+    migration.context.touch
   end
   
   def self.import_from_migration(hash, context, item=nil)
@@ -838,12 +762,19 @@ class ContextModule < ActiveRecord::Base
       end
     elsif hash[:linked_resource_type] =~ /contextexternaltool/i
       # external tool
+      external_tool_id = nil
+      if hash[:linked_resource_global_id]
+        external_tool_id = hash[:linked_resource_global_id]
+      elsif hash[:linked_resource_id] && et = self.context.context_external_tools.active.find_by_migration_id(hash[:linked_resource_id])
+        external_tool_id = et.id
+      end
       if hash['url']
         item = self.add_item({
           :title => hash[:title] || hash[:linked_resource_title] || hash['description'],
           :type => 'context_external_tool',
           :indent => hash[:indent].to_i,
-          :url => hash['url']
+          :url => hash['url'],
+          :id => external_tool_id
         }, existing_item, :position => migration_position)
       end
     elsif hash[:linked_resource_type] =~ /assessment|quiz/i
@@ -886,5 +817,40 @@ class ContextModule < ActiveRecord::Base
       end
     end
     item
+  end
+
+  VALID_COMPLETION_EVENTS = [:publish_final_grade].freeze
+
+  def completion_events
+    (read_attribute(:completion_events) || '').split(',').map(&:to_sym)
+  end
+
+  def completion_events=(value)
+    return write_attribute(:completion_events, nil) unless value
+    write_attribute(:completion_events, (value.map(&:to_sym) & VALID_COMPLETION_EVENTS).join(','))
+  end
+
+  VALID_COMPLETION_EVENTS.each do |event|
+    self.class_eval <<-CODE
+      def #{event}=(value)
+        if Canvas::Plugin.value_to_boolean(value)
+          self.completion_events |= [:#{event}]
+        else
+          self.completion_events -= [:#{event}]
+        end
+      end
+
+      def #{event}?
+        completion_events.include?(:#{event})
+      end
+    CODE
+  end
+
+  def completion_event_callbacks
+    callbacks = []
+    if publish_final_grade?
+      callbacks << lambda { |user| context.publish_final_grades(user, user.id) }
+    end
+    callbacks
   end
 end

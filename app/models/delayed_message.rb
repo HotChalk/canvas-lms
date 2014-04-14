@@ -27,7 +27,7 @@ class DelayedMessage < ActiveRecord::Base
     :communication_channel_id, :context, :workflow_state, :root_account_id
 
   validates_length_of :summary, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
-  validates_presence_of :communication_channel_id
+  validates_presence_of :communication_channel_id, :workflow_state
 
   before_save :set_send_at
   
@@ -97,7 +97,7 @@ class DelayedMessage < ActiveRecord::Base
   # should be deliverable. After this is run on a list of delayed messages,
   # the regular dispatch process will take place. 
   def self.summarize(delayed_message_ids)
-    delayed_messages = DelayedMessage.includes(:notification).where(:id => delayed_message_ids.uniq).compact
+    delayed_messages = DelayedMessage.includes(:notification).find_all_by_id(delayed_message_ids.uniq).compact
     uniqs = {}
     # only include the most recent instance of each notification-context pairing
     delayed_messages.each do |m|

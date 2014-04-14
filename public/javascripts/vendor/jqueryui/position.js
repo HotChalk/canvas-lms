@@ -1,16 +1,17 @@
 /*!
- * jQuery UI Position @VERSION
+ * jQuery UI Position 1.9.2
+ * http://jqueryui.com
  *
- * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
- * Dual licensed under the MIT or GPL Version 2 licenses.
+ * Copyright 2012 jQuery Foundation and other contributors
+ * Released under the MIT license.
  * http://jquery.org/license
  *
- * http://docs.jquery.com/UI/Position
+ * http://api.jqueryui.com/position/
  */
 define([
   'jquery'
 ], function( $ ) {
-  
+
 $.ui = $.ui || {};
 
 var cachedScrollbarWidth,
@@ -266,10 +267,7 @@ $.fn.position = function( options ) {
 				if ( targetHeight < elemHeight && abs( top + bottom ) < targetHeight ) {
 					feedback.vertical = "middle";
 				}
-				//if ( max( abs( left ), abs( right ) ) > max( abs( top ), abs( bottom ) ) ) {
-				// INSTRUCTURE: We changed the previous line to this line because it was using an incorrect calculation
-				// to figure out which axis is important.
-				if ( abs(left + right) / 2 > abs(top + bottom) / 2 ) {
+				if ( max( abs( left ), abs( right ) ) > max( abs( top ), abs( bottom ) ) ) {
 					feedback.important = "horizontal";
 				} else {
 					feedback.important = "vertical";
@@ -364,7 +362,7 @@ $.ui.position = {
 			var within = data.within,
 				withinOffset = within.offset.left + within.scrollLeft,
 				outerWidth = within.width,
-				offsetLeft = within.isWindow ? 0 : within.offset.left,
+				offsetLeft = within.isWindow ? within.scrollLeft : within.offset.left,
 				collisionPosLeft = position.left - data.collisionPosition.marginLeft,
 				overLeft = collisionPosLeft - offsetLeft,
 				overRight = collisionPosLeft + data.collisionWidth - outerWidth - offsetLeft,
@@ -399,7 +397,7 @@ $.ui.position = {
 			var within = data.within,
 				withinOffset = within.offset.top + within.scrollTop,
 				outerHeight = within.height,
-				offsetTop = within.isWindow ? 0 : within.offset.top,
+				offsetTop = within.isWindow ? within.scrollTop : within.offset.top,
 				collisionPosTop = position.top - data.collisionPosition.marginTop,
 				overTop = collisionPosTop - offsetTop,
 				overBottom = collisionPosTop + data.collisionHeight - outerHeight - offsetTop,

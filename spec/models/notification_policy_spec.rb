@@ -79,8 +79,8 @@ describe NotificationPolicy do
                          :category => "TestImmediately"
     Message.any_instance.stubs(:get_template).returns("here's a free <%= data.favorite_soda %>")
     class DataTest < ActiveRecord::Base
-      set_table_name :courses
-      attr_accessible :id
+      self.table_name = :courses
+      attr_protected
       has_a_broadcast_policy
       set_broadcast_policy do
         dispatch :hello
@@ -98,7 +98,10 @@ describe NotificationPolicy do
         data { {:favorite_soda => 'mtn dew'} }
       end
     end
-    dt = DataTest.new
+    dt = DataTest.new(account_id: Account.default.id,
+                      root_account_id: Account.default.id,
+                      enrollment_term_id: Account.default.default_enrollment_term.id,
+                      workflow_state: 'created')
     dt.save!
     msg = dt.messages_sent["Hello"].find { |m| m.to == "blarg@example.com" }
     msg.should_not be_nil
@@ -125,10 +128,11 @@ describe NotificationPolicy do
     
     context "by" do
       before do
-        @n1 = notification_policy_model(:frequency => 'immediately')
-        @n2 = notification_policy_model(:frequency => 'daily')
-        @n3 = notification_policy_model(:frequency => 'weekly')
-        @n4 = notification_policy_model(:frequency => 'never')
+        user_with_pseudonym(:active_all => 1)
+        @n1 = notification_policy_model(:frequency => 'immediately', :communication_channel => @cc)
+        @n2 = notification_policy_model(:frequency => 'daily', :communication_channel => @cc)
+        @n3 = notification_policy_model(:frequency => 'weekly', :communication_channel => @cc)
+        @n4 = notification_policy_model(:frequency => 'never', :communication_channel => @cc)
       end
       
       it "should have a scope to differentiate by frequency" do
@@ -213,7 +217,7 @@ describe NotificationPolicy do
       }
       n1 = notification_policy_model(trifecta_opts.merge(:notification => notify1) )
       n2 = notification_policy_model(trifecta_opts.merge(:notification => notify2) )
-      params = {:category => 'MultiCategory', :channel_id => @communication_channel.id, :frequency => Notification::FREQ_IMMEDIATELY}
+      params = {:category => 'multi_category', :channel_id => @communication_channel.id, :frequency => Notification::FREQ_IMMEDIATELY}
       NotificationPolicy.setup_for(@user, params)
       n1.reload; n2.reload
       n1.frequency.should == Notification::FREQ_IMMEDIATELY
@@ -223,9 +227,10 @@ describe NotificationPolicy do
 
   describe "setup_with_default_policies" do
     before :each do
-      user_model
-      communication_channel_model
+      @user = User.create!
+      @communication_channel = @user.communication_channels.create!(path: 'email@example.com')
       @announcement = notification_model(:name => 'Setting 1', :category => 'Announcement')
+      Notification.stubs(:all).returns([@notification])
     end
 
     it "should create default NotificationPolicy entries if missing" do
@@ -314,7 +319,7 @@ describe NotificationPolicy, "communication_preference" do
   before(:each) do
     @cc1 = mock('CommunicationChannel')
     @cc2 = mock('CommunicationChannel')
-    @user = mock('User')
+    @user = User.create!
     @user.stubs(:communication_channel).returns(@cc1)
     notification_policy_model
     @notification_policy.stubs(:user).returns(@user)

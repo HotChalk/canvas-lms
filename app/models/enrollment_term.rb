@@ -23,15 +23,23 @@ class EnrollmentTerm < ActiveRecord::Base
 
   attr_accessible :name, :start_at, :end_at, :ignore_term_date_restrictions
   belongs_to :root_account, :class_name => 'Account'
-  has_many :enrollment_dates_overrides
+  has_many :enrollment_dates_overrides, autosave: true
   has_many :courses
   has_many :enrollments, :through => :courses
   has_many :course_sections
+  validate :end_at_date_cannot_be_before_start_at_date
+  validates_presence_of :root_account_id, :workflow_state
   before_validation :verify_unique_sis_source_id
   before_save :update_courses_later_if_necessary
 
   include StickySisFields
   are_sis_sticky :name, :start_at, :end_at
+
+  def end_at_date_cannot_be_before_start_at_date
+    if self.end_at && self.start_at && (self.end_at < self.start_at)
+      errors.add(:start_at, "To date can't be before the from date")
+    end
+  end
 
   def update_courses_later_if_necessary
     self.update_courses_later if !self.new_record? && (self.start_at_changed? || self.end_at_changed?)
@@ -88,7 +96,11 @@ class EnrollmentTerm < ActiveRecord::Base
       override.start_at = values[:start_at]
       override.end_at = values[:end_at]
       override.context = context
-      override.save
+      if override.end_at && override.start_at && (override.end_at < override.start_at)
+        self.errors.add(:start_at, "To date can't be before the from date")
+      else
+        override.save
+      end
       override
     end
   end
@@ -96,26 +108,27 @@ class EnrollmentTerm < ActiveRecord::Base
   def verify_unique_sis_source_id
     return true unless self.sis_source_id
     existing_term = self.root_account.enrollment_terms.find_by_sis_source_id(self.sis_source_id)
-    return true if !existing_term || existing_term.id == self.id 
-    
+    return true if !existing_term || existing_term.id == self.id
+
     self.errors.add(:sis_source_id, t('errors.not_unique', "SIS ID \"%{sis_source_id}\" is already in use", :sis_source_id => self.sis_source_id))
     false
   end
-  
+
   def users_count
-    Enrollment.active.count(
-      :select => "enrollments.user_id", 
-      :distinct => true,
-      :joins => :course,
-      :conditions => ['enrollments.course_id = courses.id AND courses.enrollment_term_id = ? AND enrollments.root_account_id = ?', id, self.root_account_id]
-    )
+    scope = Enrollment.active.joins(:course).
+      where(root_account_id: root_account_id, courses: {enrollment_term_id: self})
+    if CANVAS_RAILS2
+      scope.count(:distinct => true, :select => "enrollments.user_id")
+    else
+      scope.select(:user_id).uniq.count
+    end
   end
-  
+
   workflow do
     state :active
     state :deleted
   end
-  
+
   def enrollment_dates_for(enrollment)
     return [nil, nil] if ignore_term_date_restrictions
     # detect will cause the whole collection to load; that's fine, it's a small collection, and
@@ -124,12 +137,12 @@ class EnrollmentTerm < ActiveRecord::Base
     override = enrollment_dates_overrides.detect { |override| override.enrollment_type == enrollment.type.to_s}
     [ override.try(:start_at) || start_at, override.try(:end_at) || end_at ]
   end
-  
+
   alias_method :destroy!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     save!
   end
-  
+
   scope :active, where("enrollment_terms.workflow_state<>'deleted'")
 end

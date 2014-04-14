@@ -17,8 +17,8 @@
 #
 
 class WikiPage < ActiveRecord::Base
-  attr_accessible :title, :body, :url, :user_id, :hide_from_students, :editing_roles, :notify_of_update
-  attr_readonly :wiki_id
+  attr_accessible :title, :body, :url, :user_id, :editing_roles, :notify_of_update
+  attr_readonly :wiki_id, :hide_from_students
   validates_length_of :body, :maximum => maximum_long_text_length, :allow_nil => true, :allow_blank => true
   validates_presence_of :wiki_id
   include Workflow
@@ -29,7 +29,6 @@ class WikiPage < ActiveRecord::Base
   include SearchTermHelper
 
   belongs_to :wiki, :touch => true
-  belongs_to :cloned_item
   belongs_to :user
   acts_as_url :title, :scope => [:wiki_id, :not_deleted], :sync_url => true
 
@@ -42,7 +41,7 @@ class WikiPage < ActiveRecord::Base
   SIMPLY_VERSIONED_EXCLUDE_FIELDS = [:workflow_state, :hide_from_students, :editing_roles, :notify_of_update]
 
   def validate_front_page_visibility
-    if self.hide_from_students && self.is_front_page?
+    if !published? && self.is_front_page?
       self.errors.add(:hide_from_students, t(:cannot_hide_page, "cannot hide front page"))
     end
   end
@@ -68,6 +67,31 @@ class WikiPage < ActiveRecord::Base
 
       self.title = new_title
     end
+  end
+
+  def normalize_hide_from_students
+    workflow_state = self.read_attribute('workflow_state')
+    hide_from_students = self.read_attribute('hide_from_students')
+    if !workflow_state.nil? && !hide_from_students.nil?
+      self.workflow_state = 'unpublished' if hide_from_students && workflow_state == 'active'
+      self.write_attribute('hide_from_students', nil)
+    end
+  end
+  if CANVAS_RAILS2
+    alias_method :after_find, :normalize_hide_from_students
+  else
+    after_find :normalize_hide_from_students
+  end
+  private :normalize_hide_from_students
+
+  def hide_from_students
+    self.workflow_state == 'unpublished'
+  end
+
+  def hide_from_students=(v)
+    self.workflow_state = 'unpublished' if v && self.workflow_state == 'active'
+    self.workflow_state = 'active' if !v && self.workflow_state = 'unpublished'
+    hide_from_students
   end
 
   def self.title_order_by_clause
@@ -136,6 +160,7 @@ class WikiPage < ActiveRecord::Base
   }
   after_save :remove_changed_flag
 
+
   workflow do
     state :active do
       event :unpublish, :transitions_to => :unpublished
@@ -146,13 +171,12 @@ class WikiPage < ActiveRecord::Base
     state :post_delayed do
       event :delayed_post, :transitions_to => :active
     end
-
     state :deleted
-
   end
+  alias_method :published?, :active?
 
   def restore
-    self.workflow_state = 'active'
+    self.workflow_state = context.feature_enabled?(:draft_state) ? 'unpublished' : 'active'
     self.save
   end
 
@@ -185,11 +209,14 @@ class WikiPage < ActiveRecord::Base
 
   scope :not_deleted, where("wiki_pages.workflow_state<>'deleted'")
 
+  scope :published, where("wiki_pages.workflow_state='active' AND (wiki_pages.hide_from_students=? OR wiki_pages.hide_from_students IS NULL)", false)
+  scope :unpublished, where("wiki_pages.workflow_state='unpublished' OR (wiki_pages.hide_from_students=? AND wiki_pages.workflow_state<>'deleted')", true)
+
+  # needed for ensure_unique_url
   def not_deleted
     !deleted?
   end
 
-  scope :visible_to_students, where(:hide_from_students => false)
   scope :order_by_id, order(:id)
 
   def locked_for?(user, opts={})
@@ -210,14 +237,20 @@ class WikiPage < ActiveRecord::Base
 
   def is_front_page?
     return false if self.deleted?
-    self.url == self.wiki.get_front_page_url # wiki.get_front_page_url checks has_front_page? and context.draft_state_enabled?
+    self.url == self.wiki.get_front_page_url # wiki.get_front_page_url checks has_front_page? and context.feature_enabled?(:draft_state)
   end
 
   def set_as_front_page!
-    if self.hide_from_students
-      self.errors.add(:front_page, t(:cannot_set_hidden_front_page, "could not set as front page because it is hidden"))
-      return false
+    can_set_front_page = true
+    if self.unpublished?
+      self.errors.add(:front_page, t(:cannot_set_unpublished_front_page, 'could not set as front page because it is unpublished'))
+      can_set_front_page = false
     end
+    if self.hide_from_students
+      self.errors.add(:front_page, t(:cannot_set_hidden_front_page, 'could not set as front page because it is hidden'))
+      can_set_front_page = false
+    end
+    return false unless can_set_front_page
 
     self.wiki.set_front_page_url!(self.url)
   end
@@ -258,17 +291,18 @@ class WikiPage < ActiveRecord::Base
   end
 
   def can_read_page?(user, session=nil)
-    self.wiki.grants_right?(user, session, :manage) || (!hide_from_students && self.active?)
+    self.wiki.grants_right?(user, session, :manage) || (self.active?)
   end
 
   def can_edit_page?(user, session=nil)
     context_roles = context.default_wiki_editing_roles rescue nil
     roles = (editing_roles || context_roles || default_roles).split(",")
+    roles.clear if roles == %w(teachers) # "Only teachers" option doesn't grant rights excluded by RoleOverrides
 
     # managers are always allowed to edit
     return true if wiki.grants_right?(user, session, :manage)
 
-    return true if roles.include?('teachers') && context.respond_to?(:teachers) && context.teachers.include?(user)
+    return true if roles.include?('teachers') && context.respond_to?(:admins) && context.admins.include?(user)
     # the remaining edit roles all require read access, so just check here
     return false unless can_read_page?(user, session) && !self.locked_for?(user)
     return true if roles.include?('students') && context.respond_to?(:students) && context.includes_student?(user)
@@ -290,25 +324,22 @@ class WikiPage < ActiveRecord::Base
   set_broadcast_policy do |p|
     p.dispatch :updated_wiki_page
     p.to { participants }
-    p.whenever { |record| 
-      record.created_at < Time.now - (30*60) &&
-        ((
-          record.active? && @wiki_page_changed && record.prior_version
-        ) || 
-        (
-          record.changed_state(:active)
-        ))
-    }
+    p.whenever do |record|
+      return false unless record.created_at < Time.now - 30.minutes
+      (record.published? && @wiki_page_changed && record.prior_version) || record.changed_state(:active)
+    end
   end
 
   def context(user=nil)
-    @context ||= Course.find_by_wiki_id(self.wiki_id) || Group.find_by_wiki_id(self.wiki_id)
+    shard.activate do
+      @context ||= Course.find_by_wiki_id(self.wiki_id) || Group.find_by_wiki_id(self.wiki_id)
+    end
   end
 
   def participants
     res = []
     if context && context.available?
-      if self.hide_from_students
+      if !self.active?
         res += context.participating_admins
       else
         res += context.participants
@@ -343,30 +374,6 @@ class WikiPage < ActiveRecord::Base
     res = self.revised_at || self.updated_at
     res = Time.now if res.is_a?(String)
     res
-  end
-
-  attr_accessor :clone_updated
-  def clone_for(context, dup=nil, options={}) #migrate=true)
-    options[:migrate] = true if options[:migrate] == nil
-    if !self.cloned_item && !self.new_record?
-      self.cloned_item ||= ClonedItem.create(:original_item => self)
-      self.save!
-    end
-    existing = context.wiki.wiki_pages.active.find_by_id(self.id)
-    existing ||= context.wiki.wiki_pages.active.find_by_cloned_item_id(self.cloned_item_id || 0)
-    return existing if existing && !options[:overwrite]
-    dup ||= WikiPage.new
-    dup = existing if existing && options[:overwrite]
-    self.attributes.delete_if{|k,v| [:id, :wiki_id].include?(k.to_sym) }.each do |key, val|
-      dup.send("#{key}=", val)
-    end
-    dup.wiki = context.wiki
-    dup.body = context.migrate_content_links(self.body, options[:old_context] || self.context) if options[:migrate]
-    context.log_merge_result(t('notices.wiki_page_created', 'Wiki Page "%{title}" created', :title => dup.title))
-    context.may_have_links_to_migrate(dup)
-    dup.updated_at = Time.now
-    dup.clone_updated = true
-    dup
   end
 
   def self.process_migration_course_outline(data, migration)
@@ -418,8 +425,10 @@ class WikiPage < ActiveRecord::Base
         item = front_page
       end
     end
-    if state = hash[:workflow_state]
-      if state == 'active'
+    hide_from_students = hash[:hide_from_students] if !hash[:hide_from_students].nil?
+    state = hash[:workflow_state]
+    if state || !hide_from_students.nil?
+      if state == 'active' && Canvas::Plugin.value_to_boolean(hide_from_students) == false
         item.workflow_state = 'active'
       else
         item.workflow_state = 'unpublished'
@@ -530,7 +539,6 @@ class WikiPage < ActiveRecord::Base
       hash[:missing_links][:body] = []
       item.body = ImportedHtmlConverter.convert(hash[:text] || "", context, {:missing_links => hash[:missing_links][:body]})
       item.editing_roles = hash[:editing_roles] if hash[:editing_roles].present?
-      item.hide_from_students = hash[:hide_from_students] if !hash[:hide_from_students].nil?
       item.notify_of_update = hash[:notify_of_update] if !hash[:notify_of_update].nil?
     else
       allow_save = false
@@ -553,9 +561,30 @@ class WikiPage < ActiveRecord::Base
     unless self.new_record?
       self.with_versioning(false) do |p|
         context ||= p.context
-        p.connection.execute("UPDATE wiki_pages SET view_count=COALESCE(view_count, 0) + 1 WHERE id=#{p.id}")
+        WikiPage.where(id: p).update_all("view_count=COALESCE(view_count, 0) + 1")
         p.context_module_action(user, context, :read)
       end
+    end
+  end
+
+  def can_unpublish?
+    !is_front_page?
+  end
+
+  def initialize_wiki_page(user)
+    is_privileged_user = wiki.grants_right?(user, :manage)
+    if is_privileged_user && context.feature_enabled?(:draft_state) && !context.is_a?(Group)
+      self.workflow_state = 'unpublished'
+    else
+      self.workflow_state = 'active'
+    end
+
+    self.editing_roles = (context.default_wiki_editing_roles rescue nil) || default_roles
+
+    if is_front_page?
+      self.body = t "#application.wiki_front_page_default_content_course", "Welcome to your new course wiki!" if context.is_a?(Course)
+      self.body = t "#application.wiki_front_page_default_content_group", "Welcome to your new group wiki!" if context.is_a?(Group)
+      self.workflow_state = 'active'
     end
   end
 end

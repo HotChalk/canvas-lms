@@ -20,12 +20,22 @@
 # Likewise, all the methods added will be available for all controllers.
 
 class ApplicationController < ActionController::Base
+  def self.promote_view_path(path)
+    if CANVAS_RAILS2
+      self.view_paths.delete path
+    else
+      self.view_paths = self.view_paths.to_ary.reject{ |p| p.to_s == path }
+    end
+    prepend_view_path(path)
+  end
 
   attr_accessor :active_tab
+  attr_reader :context
 
   include Api
   include LocaleSelection
   include Api::V1::User
+  include Api::V1::WikiPage
   around_filter :set_locale
 
   helper :all
@@ -53,7 +63,17 @@ class ApplicationController < ActionController::Base
   after_filter :update_enrollment_last_activity_at
   include Tour
 
-  add_crumb(proc { %Q{<i title="#{I18n.t('links.dashboard', "My Dashboard")}" class="icon-home standalone-icon"></i>}.html_safe }, :root_path, :class => "home")
+  add_crumb(proc {
+    title = I18n.t('links.dashboard', 'My Dashboard')
+    crumb = <<-END
+      <i class="icon-home standalone-icon"
+         title="#{title}">
+        <span class="screenreader-only">#{title}</span>
+      </i>
+    END
+
+    crumb.html_safe
+  }, :root_path, class: 'home')
 
   ##
   # Sends data from rails to JavaScript
@@ -161,7 +181,7 @@ class ApplicationController < ActionController::Base
     # we can't block frames on the files domain, since files domain requests
     # are typically embedded in an iframe in canvas, but the hostname is
     # different
-    if !files_domain? && Setting.get_cached('block_html_frames', 'true') == 'true' && !@embeddable
+    if !files_domain? && Setting.get('block_html_frames', 'true') == 'true' && !@embeddable
       headers['X-Frame-Options'] = 'SAMEORIGIN'
     end
     true
@@ -258,9 +278,10 @@ class ApplicationController < ActionController::Base
   # end
   def authorized_action(object, *opts)
     can_do = is_authorized_action?(object, *opts)
-    render_unauthorized_action(object) unless can_do
+    render_unauthorized_action unless can_do
     can_do
   end
+  alias :authorized_action? :authorized_action
 
   def is_authorized_action?(object, *opts)
     user = opts.shift
@@ -269,6 +290,7 @@ class ApplicationController < ActionController::Base
     action_session = opts.shift if !opts[0].is_a?(Symbol) && !opts[0].is_a?(Array)
     actions = Array(opts.shift)
     can_do = false
+
     begin
       if object == @context && user == @current_user
         @context_all_permissions ||= @context.grants_rights?(user, session, nil)
@@ -282,9 +304,7 @@ class ApplicationController < ActionController::Base
     can_do
   end
 
-  def render_unauthorized_action(object=nil)
-    object ||= User.new
-    object.errors.add_to_base(t "#application.errors.unauthorized.generic", "You are not authorized to perform this action")
+  def render_unauthorized_action
     respond_to do |format|
       @show_left_side = false
       clear_crumbs
@@ -353,8 +373,7 @@ class ApplicationController < ActionController::Base
   def get_context
     unless @context
       if params[:course_id]
-        @context = api_request? ?
-          api_find(Course.active, params[:course_id]) : Course.active.find(params[:course_id])
+        @context = api_find(Course.active, params[:course_id])
         params[:context_id] = params[:course_id]
         params[:context_type] = "Course"
         if @context && session[:enrollment_uuid_course_id] == @context.id
@@ -369,42 +388,27 @@ class ApplicationController < ActionController::Base
         @context_enrollment = @context.enrollments.find_all_by_user_id(@current_user.id).sort_by{|e| [e.state_sortable, e.rank_sortable, e.id] }.first if @context && @current_user
         @context_membership = @context_enrollment
       elsif params[:account_id] || (self.is_a?(AccountsController) && params[:account_id] = params[:id])
-        case params[:account_id]
-        when 'self'
-          @context = @domain_root_account
-        when 'default'
-          @context = Account.default
-        when 'site_admin'
-          @context = Account.site_admin
-        else
-          @context = api_request? ?
-            api_find(Account, params[:account_id]) : Account.find(params[:account_id])
-        end
+        @context = api_find(Account, params[:account_id])
         params[:context_id] = @context.id
         params[:context_type] = "Account"
         @context_enrollment = @context.account_users.find_by_user_id(@current_user.id) if @context && @current_user
         @context_membership = @context_enrollment
         @account = @context
       elsif params[:group_id]
-        @context = api_request? ? api_find(Group, params[:group_id]) : Group.find(params[:group_id])
+        @context = api_find(Group, params[:group_id])
         params[:context_id] = params[:group_id]
         params[:context_type] = "Group"
         @context_enrollment = @context.group_memberships.find_by_user_id(@current_user.id) if @context && @current_user      
         @context_membership = @context_enrollment
       elsif params[:user_id] || (self.is_a?(UsersController) && params[:user_id] = params[:id])
-        case params[:user_id]
-        when 'self'
-          @context = @current_user
-        else
-          @context = api_request? ? api_find(User, params[:user_id]) : User.find(params[:user_id])
-        end
+        @context = api_find(User, params[:user_id])
         params[:context_id] = params[:user_id]
         params[:context_type] = "User"
         @context_membership = @context if @context == @current_user
       elsif params[:course_section_id] || (self.is_a?(SectionsController) && params[:course_section_id] = params[:id])
         params[:context_id] = params[:course_section_id]
         params[:context_type] = "CourseSection"
-        @context = api_request? ? api_find(CourseSection, params[:course_section_id]) : CourseSection.find(params[:course_section_id])
+        @context = api_find(CourseSection, params[:course_section_id])
       elsif params[:collection_item_id]
         params[:context_id] = params[:collection_item_id]
         params[:context_type] = 'CollectionItem'
@@ -429,7 +433,10 @@ class ApplicationController < ActionController::Base
       end
       set_badge_counts_for(@context, @current_user, @current_enrollment)
       assign_localizer if @context.present?
-      add_crumb(@context.short_name, named_context_url(@context, :context_url), :id => "crumb_#{@context.asset_string}") if @context && @context.respond_to?(:short_name)
+      if @context && @context.respond_to?(:short_name)
+        crumb_url = named_context_url(@context, :context_url) if @context.grants_right?(@current_user, :read)
+        add_crumb(@context.short_name, crumb_url)
+      end
     end
   end
   
@@ -510,11 +517,22 @@ class ApplicationController < ActionController::Base
     @context = @courses.first
 
     if @just_viewing_one_course
-      @groups = @context.assignment_groups.active.includes(:active_assignments)
-      @assignments = @groups.map(&:active_assignments).flatten
+
+      # fake assignment used for checking if the @current_user can read unpublished assignments
+      fake = @context.assignments.new
+      fake.workflow_state = 'unpublished'
+
+      assignment_scope = :active_assignments
+      if @context.feature_enabled?(:draft_state) && !fake.grants_right?(@current_user, session, :read)
+        # user should not see unpublished assignments
+        assignment_scope = :published_assignments
+      end
+
+      @groups = @context.assignment_groups.active.includes(assignment_scope)
+      @assignments = @groups.flat_map(&assignment_scope)
     else
       assignments_and_groups = Shard.partition_by_shard(@courses) do |courses|
-        [[Assignment.active.for_course(courses).all,
+        [[Assignment.published.for_course(courses).all,
          AssignmentGroup.active.for_course(courses).order(:position).all]]
       end
       @assignments = assignments_and_groups.map(&:first).flatten
@@ -607,8 +625,8 @@ class ApplicationController < ActionController::Base
       respond_to do |format|
         flash[:error] = error unless request.format.to_s == "text/plain"
         format.html {redirect_to redirect }
-        format.json {render :json => {:errors => {:base => error}}.to_json }
-        format.text {render :json => {:errors => {:base => error}}.to_json }
+        format.json {render :json => {:errors => {:base => error}} }
+        format.text {render :json => {:errors => {:base => error}} }
       end
       return true
     end
@@ -756,6 +774,7 @@ class ApplicationController < ActionController::Base
   # to generate access reports per student per course.
   def log_asset_access(asset, asset_category, asset_group=nil, level=nil, membership_type=nil)
     return unless @current_user && @context && asset
+    return if asset.respond_to?(:new_record?) && asset.new_record?
     @accessed_asset = {
       :code => asset.is_a?(String) ? asset : asset.asset_string,
       :group_code => asset_group.is_a?(String) ? asset_group : (asset_group.asset_string rescue 'unknown'),
@@ -769,11 +788,12 @@ class ApplicationController < ActionController::Base
     return true if !page_views_enabled?
 
     if @current_user && @log_page_views != false
-      if request.xhr? && params[:page_view_id] && !(@page_view && @page_view.generated_by_hand)
-        @page_view = PageView.for_request_id(params[:page_view_id])
+      updated_fields = params.slice(:interaction_seconds, :page_view_contributed)
+      if request.xhr? && params[:page_view_id] && !updated_fields.empty? && !(@page_view && @page_view.generated_by_hand)
+        @page_view = PageView.find_for_update(params[:page_view_id])
         if @page_view
           response.headers["X-Canvas-Page-View-Id"] = @page_view.id.to_s if @page_view.id
-          @page_view.do_update(params.slice(:interaction_seconds, :page_view_contributed))
+          @page_view.do_update(updated_fields)
           @page_view_update = true
         end
       end
@@ -812,6 +832,43 @@ class ApplicationController < ActionController::Base
     true
   end
 
+  unless CANVAS_RAILS2
+    rescue_from Exception, :with => :rescue_exception
+
+    # analogous to rescue_action_without_handler from ActionPack 2.3
+    def rescue_exception(exception)
+      ActiveSupport::Deprecation.silence do
+        message = "\n#{exception.class} (#{exception.message}):\n"
+        message << exception.annoted_source_code.to_s if exception.respond_to?(:annoted_source_code)
+        message << "  " << exception.backtrace.join("\n  ")
+        logger.fatal("#{message}\n\n")
+      end
+
+      if config.consider_all_requests_local || local_request?
+        rescue_action_locally(exception)
+      else
+        rescue_action_in_public(exception)
+      end
+    end
+
+    def interpret_status(code)
+      Rack::Utils::HTTP_STATUS_CODES[Rack::Utils.status_code(code)] || Rack::Utils::HTTP_STATUS_CODES[500]
+    end
+
+    def response_code_for_rescue(exception)
+      ActionDispatch::ExceptionWrapper.status_code_for_exception(exception.class.name)
+    end
+
+    def render_optional_error_file(status)
+      path = "#{Rails.public_path}/#{status.to_s[0,3]}.html"
+      if File.exist?(path)
+        render :file => path, :status => status, :content_type => Mime::HTML, :layout => false
+      else
+        head status
+      end
+    end
+  end
+
   # Custom error catching and message rendering.
   def rescue_action_in_public(exception)
     response_code = response_code_for_rescue(exception)
@@ -819,7 +876,7 @@ class ApplicationController < ActionController::Base
       status_code = interpret_status(response_code)
       status = status_code
       status = 'AUT' if exception.is_a?(ActionController::InvalidAuthenticityToken)
-      type = 'default'
+      type = nil
       type = '404' if status == '404 Not Found'
 
       unless exception.respond_to?(:skip_error_report?) && exception.skip_error_report?
@@ -874,7 +931,7 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  if Rails.version < "3.0"
+  if CANVAS_RAILS2
     rescue_responses['AuthenticationMethods::AccessTokenError'] = 401
   else
     ActionDispatch::ShowExceptions.rescue_responses['AuthenticationMethods::AccessTokenError'] = 401
@@ -991,7 +1048,7 @@ class ApplicationController < ActionController::Base
     @wiki.check_has_front_page
 
     page_name = params[:wiki_page_id] || params[:id] || (params[:wiki_page] && params[:wiki_page][:title])
-    page_name ||= (@wiki.get_front_page_url || Wiki::DEFAULT_FRONT_PAGE_URL) unless @context.draft_state_enabled?
+    page_name ||= (@wiki.get_front_page_url || Wiki::DEFAULT_FRONT_PAGE_URL) unless @context.feature_enabled?(:draft_state)
     if(params[:format] && !['json', 'html'].include?(params[:format]))
       page_name += ".#{params[:format]}"
       params[:format] = 'html'
@@ -999,41 +1056,11 @@ class ApplicationController < ActionController::Base
     return if @page || !page_name
 
     if params[:action] != 'create'
-      @page = @wiki.wiki_pages.deleted_last.find_by_url(page_name.to_s) ||
-              @wiki.wiki_pages.deleted_last.find_by_url(page_name.to_s.to_url) ||
-              @wiki.wiki_pages.find_by_id(page_name.to_i)
+      @page = @wiki.wiki_pages.not_deleted.find_by_url(page_name.to_s) ||
+              @wiki.wiki_pages.not_deleted.find_by_url(page_name.to_s.to_url) ||
+              @wiki.wiki_pages.not_deleted.find_by_id(page_name.to_i)
     end
-    @page ||= @wiki.wiki_pages.new(
-      :title => page_name.titleize,
-      :url => page_name.to_url
-    )
-    if @page.new_record?
-      @page.wiki = @wiki
-      initialize_wiki_page
-    end
-  end
-
-  # Initializes the state of @page, but only if it is a new page
-  def initialize_wiki_page
-    return unless @page.new_record? || @page.deleted?
-
-    unless @context.draft_state_enabled?
-      @page.set_as_front_page! if !@wiki.has_front_page? and @page.url == Wiki::DEFAULT_FRONT_PAGE_URL
-    end
-
-    is_privileged_user = is_authorized_action?(@page.wiki, @current_user, :manage)
-    if is_privileged_user && @context.draft_state_enabled? && !@context.is_a?(Group)
-      @page.workflow_state = 'unpublished'
-    else
-      @page.workflow_state = 'active'
-    end
-
-    @page.editing_roles = (@context.default_wiki_editing_roles rescue nil) || @page.default_roles
-
-    if @page.is_front_page?
-      @page.body = t "#application.wiki_front_page_default_content_course", "Welcome to your new course wiki!" if @context.is_a?(Course)
-      @page.body = t "#application.wiki_front_page_default_content_group", "Welcome to your new group wiki!" if @context.is_a?(Group)
-    end
+    @page ||= @wiki.build_wiki_page(@current_user, :url => page_name)
   end
 
   def context_wiki_page_url
@@ -1053,17 +1080,19 @@ class ApplicationController < ActionController::Base
       redirect_to named_context_url(context, :context_quiz_url, tag.content_id, url_params)
     elsif tag.content_type == 'DiscussionTopic'
       redirect_to named_context_url(context, :context_discussion_topic_url, tag.content_id, url_params)
+    elsif tag.content_type == 'Rubric'
+      redirect_to named_context_url(context, :context_rubric_url, tag.content_id, url_params)
     elsif tag.content_type == 'ExternalUrl'
       require 'uri'
       @tag = tag
       @module = tag.context_module
       tag.context_module_action(@current_user, :read) unless tag.locked_for? @current_user
       uri = URI::parse(@tag.url)
-      if Canvas::Plugin.find(:hotchalk).enabled? && uri.host == PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
+      if Canvas::Plugin.find(:hotchalk).enabled? && uri.host == PluginSetting.settings_for_plugin(:hotchalk)['cl_proxy_url']
         @tag.url = @template.context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
         render :template => 'context_modules/embedded_url_show'
       else
-        render :template => 'context_modules/url_show'
+      render :template => 'context_modules/url_show'
       end
     elsif tag.content_type == 'ContextExternalTool'
       @tag = tag
@@ -1074,9 +1103,7 @@ class ApplicationController < ActionController::Base
         @resource_title = @tag.title
       end
       @resource_url = @tag.url
-      @opaque_id = @tag.opaque_identifier(:asset_string)
       @tool = ContextExternalTool.find_external_tool(tag.url, context, tag.content_id)
-      @target = '_blank' if tag.new_tab
       tag.context_module_action(@current_user, :read)
       if !@tool
         flash[:error] = t "#application.errors.invalid_external_tool", "Couldn't find valid settings for this link"
@@ -1084,10 +1111,12 @@ class ApplicationController < ActionController::Base
       else
         return unless require_user
         @return_url = named_context_url(@context, :context_external_tool_finished_url, @tool.id, :include_host => true)
+        @opaque_id = @tool.opaque_identifier_for(@tag)
         @launch = BasicLTI::ToolLaunch.new(:url => @resource_url, :tool => @tool, :user => @current_user, :context => @context, :link_code => @opaque_id, :return_url => @return_url)
         if @assignment
           @launch.for_assignment!(@tag.context, lti_grade_passback_api_url(@tool), blti_legacy_grade_passback_api_url(@tool))
         end
+        @tool_launch_type = 'window' if tag.new_tab
         @tool_settings = @launch.generate
         render :template => 'external_tools/tool_show'
       end
@@ -1225,10 +1254,10 @@ class ApplicationController < ActionController::Base
         !!Kaltura::ClientV3.config
       elsif feature == :web_conferences
         !!WebConference.config
-      elsif feature == :tinychat
-        !!Tinychat.config
       elsif feature == :scribd
         !!ScribdAPI.config
+      elsif feature == :scribd_html5
+        ScribdAPI.config && ScribdAPI.config[:enable_html5_viewer]
       elsif feature == :crocodoc
         !!Canvas::Crocodoc.config
       elsif feature == :lockdown_browser
@@ -1396,11 +1425,27 @@ class ApplicationController < ActionController::Base
     (@body_classes ||= []) << 'embedded' if @embedded_view
   end
 
+  def stringify_json_ids?
+    request.headers['Accept'] =~ %r{application/json\+canvas-string-ids}
+  end
+
+  def json_cast(obj)
+    stringify_json_ids? ? Api.recursively_stringify_json_ids(obj) : obj
+  end
+
   def render(options = nil, extra_options = {}, &block)
     set_layout_options
     if options && options.key?(:json)
       json = options.delete(:json)
-      json = ActiveSupport::JSON.encode(json) unless json.is_a?(String)
+      unless json.is_a?(String)
+        json_cast(json)
+        if CANVAS_RAILS2
+          json = MultiJson.dump(json).force_encoding(Encoding::ASCII_8BIT)
+        else
+          json = ActiveSupport::JSON.encode(json)
+        end
+      end
+
       # prepend our CSRF protection to the JSON response, unless this is an API
       # call that didn't use session auth, or a non-GET request.
       if prepend_json_csrf?
@@ -1475,7 +1520,7 @@ class ApplicationController < ActionController::Base
   def reject_student_view_student
     return unless @current_user && @current_user.fake_student?
     @unauthorized_message ||= t('#application.errors.student_view_unauthorized', "You cannot access this functionality in student view.")
-    render_unauthorized_action(@current_user)
+    render_unauthorized_action
   end
 
   def set_site_admin_context
@@ -1489,14 +1534,25 @@ class ApplicationController < ActionController::Base
       if !browser_supported? && !@embedded_view && !cookies['unsupported_browser_dismissed']
         notices << {:type => 'warning', :content => unsupported_browser, :classes => 'unsupported_browser'} 
       end
-      if error = flash.delete(:error)
-        notices << {:type => 'error', :content => error}
+      if error = flash[:error]
+        flash.delete(:error)
+        notices << {:type => 'error', :content => error, :icon => 'warning'}
       end
-      if warning = flash.delete(:warning)
-        notices << {:type => 'warning', :content => warning}
+      if warning = flash[:warning]
+        flash.delete(:warning)
+        notices << {:type => 'warning', :content => warning, :icon => 'warning'}
       end
-      if notice = (flash[:html_notice] ? flash.delete(:html_notice).html_safe : flash.delete(:notice))
-        notices << {:type => 'success', :content => notice}
+      if info = flash[:info]
+        flash.delete(:info)
+        notices << {:type => 'info', :content => info, :icon => 'info'}
+      end
+      if notice = (flash[:html_notice] ? flash[:html_notice].html_safe : flash[:notice])
+        if flash[:html_notice]
+          flash.delete(:html_notice)
+        else
+          flash.delete(:notice)
+        end
+        notices << {:type => 'success', :content => notice, :icon => 'check'}
       end
       notices
     end
@@ -1557,16 +1613,16 @@ class ApplicationController < ActionController::Base
     data
   end
 
-  unless CANVAS_RAILS3
+  if CANVAS_RAILS2
     filter_parameter_logging *LoggingFilter.filtered_parameters
-  end
 
-  # filter out sensitive parameters in the query string as well when logging
-  # the rails "Completed in XXms" line.
-  # this is fixed in Rails 3.x
-  def complete_request_uri
-    uri = LoggingFilter.filter_uri(request.request_uri)
-    "#{request.protocol}#{request.host}#{uri}"
+    # filter out sensitive parameters in the query string as well when logging
+    # the rails "Completed in XXms" line.
+    # this is fixed in Rails 3.x
+    def complete_request_uri
+      uri = LoggingFilter.filter_uri(request.fullpath)
+      "#{request.protocol}#{request.host}#{uri}"
+    end
   end
 
   def self.batch_jobs_in_actions(opts = {})
@@ -1582,10 +1638,11 @@ class ApplicationController < ActionController::Base
     raise ActionController::RoutingError.new('Not Found')
   end
 
-  def set_js_rights
-    if respond_to?(:js_rights)
+  def set_js_rights(objtypes = nil)
+    objtypes ||= js_rights if respond_to?(:js_rights)
+    if objtypes
       hash = {}
-      js_rights.each do |instance_symbol|
+      objtypes.each do |instance_symbol|
         instance_name = instance_symbol.to_s
         obj = instance_variable_get("@#{instance_name}")
         policy = obj.check_policy(@current_user, session) unless obj.nil? || !obj.respond_to?(:check_policy)
@@ -1595,4 +1652,31 @@ class ApplicationController < ActionController::Base
       js_env hash
     end
   end
+
+  def set_js_wiki_data(opts = {})
+    hash = {}
+
+    hash[:DEFAULT_EDITING_ROLES] = @context.default_wiki_editing_roles if @context.respond_to?(:default_wiki_editing_roles)
+    hash[:WIKI_PAGES_PATH] = polymorphic_path([@context, :pages])
+    if opts[:course_home]
+      hash[:COURSE_HOME] = true
+      hash[:COURSE_TITLE] = @context.name
+    end
+
+    if @page
+      hash[:WIKI_PAGE] = wiki_page_json(@page, @current_user, session)
+      hash[:WIKI_PAGE_REVISION] = (current_version = @page.versions.current) ? Api.stringify_json_id(current_version.number) : nil
+      hash[:WIKI_PAGE_SHOW_PATH] = polymorphic_path([@context, :named_page], :wiki_page_id => @page)
+      hash[:WIKI_PAGE_EDIT_PATH] = polymorphic_path([@context, :edit_named_page], :wiki_page_id => @page)
+      hash[:WIKI_PAGE_HISTORY_PATH] = polymorphic_path([@context, @page, :wiki_page_revisions])
+
+      if @context.is_a?(Course) && @context.grants_right?(@current_user, :read)
+        hash[:COURSE_ID] = @context.id
+        hash[:MODULES_PATH] = polymorphic_path([@context, :context_modules])
+      end
+    end
+
+    js_env hash
+  end
+
 end

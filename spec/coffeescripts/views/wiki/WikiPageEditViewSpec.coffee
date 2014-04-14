@@ -32,20 +32,108 @@ define [
     ok @attachWikiEditorStub.calledOnce, 'Attached wikisidebar to body'
 
 
+  module 'WikiPageEditView:UnsavedChanges'
+  setupUnsavedChangesTest = (test, attributes) ->
+    setup = ->
+      @stub($, 'scrollSidebar')
+      @stub(wikiSidebar, 'init')
+      @stub(wikiSidebar, 'attachToEditor').returns(show: @stub())
+
+      @wikiPage = new WikiPage attributes
+      @view = new WikiPageEditView model: @wikiPage
+      @view.$el.appendTo('#fixtures')
+      @view.render()
+
+      @titleInput = @view.$el.find('[name=title]')
+      @bodyInput = @view.$el.find('[name=body]')
+
+      # stub the 'is_dirty' command of the editorBox
+      model = @wikiPage
+      bodyInput = @bodyInput
+      editorBox = bodyInput.editorBox
+      @stub $.fn, 'editorBox', (options) ->
+        if options == 'is_dirty'
+          return bodyInput.val() != model.get('body')
+        else
+          editorBox.apply(this, arguments)
+
+      # extend the teardown function
+      teardown = @teardown
+      @teardown = ->
+        teardown.apply(this, arguments)
+
+        @view.remove()
+        $(window).off('beforeunload')
+
+    setup.call(test, attributes)
+
+  test 'check for unsaved changes on new model', ->
+    setupUnsavedChangesTest(this, title: '', body: '')
+
+    @titleInput.val('blah')
+    ok @view.getFormData().title == 'blah', "blah"
+    ok @view.hasUnsavedChanges(), 'Changed title'
+    @titleInput.val('')
+    ok !@view.hasUnsavedChanges(), 'Unchanged title'
+    @bodyInput.val('bloo')
+    ok @view.hasUnsavedChanges(), 'Changed body'
+    @bodyInput.val('')
+    ok !@view.hasUnsavedChanges(), 'Unchanged body'
+
+  test 'check for unsaved changes on model with data', ->
+    setupUnsavedChangesTest(this, title: 'nooo', body: 'blargh')
+
+    ok !@view.hasUnsavedChanges(), 'No changes'
+    @titleInput.val('')
+    ok @view.hasUnsavedChanges(), 'Changed title'
+    @titleInput.val('nooo')
+    ok !@view.hasUnsavedChanges(), 'Unchanged title'
+    @bodyInput.val('')
+    ok @view.hasUnsavedChanges(), 'Changed body'
+
+  test 'warn on cancel if unsaved changes', ->
+    setupUnsavedChangesTest(this, title: 'nooo', body: 'blargh')
+    @spy(@view, 'trigger')
+    @stub(window, 'confirm')
+    @titleInput.val('mwhaha')
+
+    window.confirm.returns(false)
+    @view.$el.find('.cancel').click()
+    ok window.confirm.calledOnce, 'Warn on cancel'
+    ok !@view.trigger.calledWith('cancel'), "Don't trigger cancel if declined"
+
+    window.confirm.reset()
+    @view.trigger.reset()
+
+    window.confirm.returns(true)
+    @view.$el.find('.cancel').click()
+    ok window.confirm.calledOnce, 'Warn on cancel again'
+    ok @view.trigger.calledWith('cancel'), 'Do trigger cancel if accepted'
+
+  test 'warn on leaving if unsaved changes', ->
+    setupUnsavedChangesTest(this, title: 'nooo', body: 'blargh')
+
+    strictEqual @view.onUnload({}), undefined, "No warning if not changed"
+
+    @titleInput.val('mwhaha')
+
+    ok @view.onUnload({}) isnt undefined, "Returns warning if changed"
+
+
   module 'WikiPageEditView:Validate'
 
   test 'validation of the title is only performed if the title is present', ->
     view = new WikiPageEditView
 
-    errors = view.validateFormData wiki_page: {body: 'blah'}
-    strictEqual errors['wiki_page[title]'], undefined, 'no error when title is omitted'
+    errors = view.validateFormData body: 'blah'
+    strictEqual errors['title'], undefined, 'no error when title is omitted'
 
-    errors = view.validateFormData wiki_page: {title: 'blah', body: 'blah'}
-    strictEqual errors['wiki_page[title]'], undefined, 'no error when title is present'
+    errors = view.validateFormData title: 'blah', body: 'blah'
+    strictEqual errors['title'], undefined, 'no error when title is present'
 
-    errors = view.validateFormData wiki_page: {title: '', body: 'blah'}
-    ok errors['wiki_page[title]'], 'error when title is present, but blank'
-    ok errors['wiki_page[title]'][0].message, 'error message when title is present, but blank'
+    errors = view.validateFormData title: '', body: 'blah'
+    ok errors['title'], 'error when title is present, but blank'
+    ok errors['title'][0].message, 'error message when title is present, but blank'
 
 
   module 'WikiPageEditView:JSON'
@@ -134,10 +222,8 @@ define [
       PUBLISH: true
       DELETE: true
       EDIT_TITLE: true
-      EDIT_HIDE: true
       EDIT_ROLES: true
     SHOW:
-      OPTIONS: true
       COURSE_ROLES: true
 
   testRights 'CAN/SHOW (manage group)',
@@ -150,10 +236,8 @@ define [
       PUBLISH: false
       DELETE: false
       EDIT_TITLE: true # new record
-      EDIT_HIDE: false
       EDIT_ROLES: true
     SHOW:
-      OPTIONS: true
       COURSE_ROLES: false
 
   testRights 'CAN/SHOW (update_content)',
@@ -169,10 +253,8 @@ define [
       PUBLISH: false
       DELETE: false
       EDIT_TITLE: false
-      EDIT_HIDE: false
       EDIT_ROLES: false
-    SHOW:
-      OPTIONS: false
+    #SHOW:
       #COURSE_ROLES: false # intentionally omitted as EDIT_ROLES === false
 
   testRights 'CAN/SHOW (null)',
@@ -182,8 +264,6 @@ define [
       PUBLISH: false
       DELETE: false
       EDIT_TITLE: false
-      EDIT_HIDE: false
       EDIT_ROLES: false
-    SHOW:
-      OPTIONS: false
+    #SHOW:
       #COURSE_ROLES: false # intentionally omitted as EDIT_ROLES === false

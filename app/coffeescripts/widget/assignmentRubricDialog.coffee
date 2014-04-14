@@ -13,15 +13,19 @@ define [
     # </a>
 
     initTriggers: ->
-      if $trigger = $('.rubric_dialog_trigger')
-        @noRubricExists = $trigger.data('noRubricExists')
-        @url = $trigger.data('url')
-        $trigger.click (event) ->
-          event.preventDefault()
-          assignmentRubricDialog.openDialog()
+      if $triggers = $('.rubric_dialog_trigger')
+        $triggers.each (i, el) ->
+          noRubricExists = $(el).data('noRubricExists')
+          url = $(el).data('url')
+          $(el).click (event) ->
+            event.preventDefault()
+            assignmentRubricDialog.openDialog(url, noRubricExists)
 
-    initDialog: ->
-      @dialogInited = true
+    initDialog: (url, noRubricExists) ->
+      @dialogUrl = url
+
+      if @$dialog
+        @$dialog.dialog('destroy').remove()
 
       @$dialog = $("<div><h4>#{I18n.t 'loading', 'Loading...'}</h4></div>").dialog
         title: I18n.t("titles.assignment_rubric_details", "Assignment Rubric Details")
@@ -30,18 +34,18 @@ define [
         resizable: true
         autoOpen: false
 
-      $.get @url, (html) ->
+      $.get url, (html) ->
         # weird hackery because the server returns a <div id="rubrics" style="display:none">
         # as it's root node, so we need to show it before we inject it
         assignmentRubricDialog.$dialog.html $(html).show()
 
         # if there is not already a rubric, we want to click the "add rubric" button for them,
         # since that is the point of why they clicked the link.
-        if assignmentRubricDialog.noRubricExists
+        if noRubricExists
           $.subscribe 'edit_rubric/initted', ->
             assignmentRubricDialog.$dialog.find('.btn.add_rubric_link').click()
 
-    openDialog: ->
-      @initDialog() unless @dialogInited
+    openDialog: (url, noRubricExists) ->
+      @initDialog(url, noRubricExists) unless @dialogUrl == url
       @$dialog.dialog 'open'
 

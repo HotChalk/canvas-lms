@@ -79,7 +79,7 @@ describe DiscussionTopicsController, :type => :integration do
     let(:item_type) { 'discussion_topic' }
 
     let(:locked_item) do
-      @course.discussion_topics.create!(:message => 'Locked Discussion')
+      @course.discussion_topics.create!(:user => @user, :message => 'Locked Discussion')
     end
 
     def api_get_json
@@ -169,7 +169,7 @@ describe DiscussionTopicsController, :type => :integration do
       @topic.message.should == "test <b>message</b>"
       @topic.threaded?.should == true
       @topic.post_delayed?.should == true
-      @topic.published?.should be_false
+      @topic.published?.should @topic.draft_state_enabled? ? be_true : be_false
       @topic.delayed_post_at.to_i.should == post_at.to_i
       @topic.lock_at.to_i.should == lock_at.to_i
       @topic.podcast_enabled?.should == true
@@ -255,6 +255,7 @@ describe DiscussionTopicsController, :type => :integration do
                   "discussion_subentry_count"=>0,
                   "assignment_id"=>nil,
                   "published"=>true,
+                  "can_unpublish"=>true,
                   "delayed_post_at"=>nil,
                   "lock_at"=>nil,
                   "id"=>@topic.id,
@@ -355,6 +356,7 @@ describe DiscussionTopicsController, :type => :integration do
           topic.save!
         end
         [@sub, @topic2, @topic3].each(&:lock!)
+        @topic2.update_attribute(:pinned, true)
         
         json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=unlocked",
                         {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s, 
@@ -373,6 +375,21 @@ describe DiscussionTopicsController, :type => :integration do
         links.each do |link|
           link.should match('scope=locked')
         end
+
+        json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=pinned",
+                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
+                         :per_page => '10', :scope => 'pinned'})
+        json.size.should == 1
+
+        json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=unpinned",
+                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
+                         :per_page => '10', :scope => 'unpinned'})
+        json.size.should == 3
+
+        json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=locked,unpinned",
+                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
+                         :per_page => '10', :scope => 'locked,unpinned'})
+        json.size.should == 2
       end
       
       it "should include all parameters in pagination urls" do
@@ -535,7 +552,7 @@ describe DiscussionTopicsController, :type => :integration do
 
       context "publishing" do
         it "should publish a draft state topic" do
-          @topic.workflow_state = 'post_delayed'
+          @topic.workflow_state = 'unpublished'
           @topic.save!
           @topic.should_not be_published
           api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
@@ -801,6 +818,7 @@ describe DiscussionTopicsController, :type => :integration do
       "discussion_subentry_count"=>0,
       "assignment_id"=>nil,
       "published"=>true,
+      "can_unpublish"=>true,
       "delayed_post_at"=>nil,
       "lock_at"=>nil,
       "id"=>gtopic.id,
@@ -969,9 +987,7 @@ describe DiscussionTopicsController, :type => :integration do
     end
 
     it "should allow including attachments on top-level entries" do
-      data = ActionController::TestUploadedFile.new(File.join(File.dirname(__FILE__), "/../../fixtures/scribd_docs/txt.txt"), "text/plain", true)
-      require 'action_controller'
-      require 'action_controller/test_process.rb'
+      data = fixture_file_upload("scribd_docs/txt.txt", "text/plain", true)
       json = api_call(
         :post, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries.json",
         { :controller => 'discussion_topics_api', :action => 'add_entry', :format => 'json',
@@ -979,13 +995,12 @@ describe DiscussionTopicsController, :type => :integration do
         { :message => @message, :attachment => data })
       @entry = DiscussionEntry.find_by_id(json['id'])
       @entry.attachment.should_not be_nil
+      @entry.attachment.context.should eql @user
     end
 
     it "should include attachments on replies to top-level entries" do
       top_entry = create_entry(@topic, :message => 'top-level message')
-      require 'action_controller'
-      require 'action_controller/test_process.rb'
-      data = ActionController::TestUploadedFile.new(File.join(File.dirname(__FILE__), "/../../fixtures/scribd_docs/txt.txt"), "text/plain", true)
+      data = fixture_file_upload("scribd_docs/txt.txt", "text/plain", true)
       json = api_call(
         :post, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries/#{top_entry.id}/replies.json",
         { :controller => 'discussion_topics_api', :action => 'add_reply', :format => 'json',
@@ -993,12 +1008,11 @@ describe DiscussionTopicsController, :type => :integration do
         { :message => @message, :attachment => data })
       @entry = DiscussionEntry.find_by_id(json['id'])
       @entry.attachment.should_not be_nil
+      @entry.attachment.context.should eql @user
     end
 
     it "should include attachment info in the json response" do
-      data = ActionController::TestUploadedFile.new(File.join(File.dirname(__FILE__), "/../../fixtures/scribd_docs/txt.txt"), "text/plain", true)
-      require 'action_controller'
-      require 'action_controller/test_process.rb'
+      data = fixture_file_upload("scribd_docs/txt.txt", "text/plain", true)
       json = api_call(
         :post, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/entries.json",
         { :controller => 'discussion_topics_api', :action => 'add_entry', :format => 'json',
@@ -1006,6 +1020,7 @@ describe DiscussionTopicsController, :type => :integration do
         { :message => @message, :attachment => data })
       json['attachment'].should_not be_nil
       json['attachment'].should_not be_empty
+      json['attachment']['url'].should be_include 'verifier='
     end
 
     it "should create a submission from an entry on a graded topic" do
@@ -1821,7 +1836,8 @@ describe DiscussionTopicsController, :type => :integration do
 
       @all_entries.each &:reload
 
-      run_transaction_commit_callbacks
+      # materialized view jobs are now delayed
+      Timecop.travel(Time.now + 20.seconds)
       run_jobs
 
       json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/view",
@@ -1879,7 +1895,7 @@ describe DiscussionTopicsController, :type => :integration do
       v0_r1 = v0['replies'][1]
       v0_r1['id'].should         == @reply2.id
       v0_r1['user_id'].should    == @teacher.id
-      v0_r1['message'].should    == "<p><a href=\"http://#{Account.default.domain}/courses/#{@course.id}/files/#{@reply2_attachment.id}/download?verifier=#{@reply2_attachment.uuid}\">This is a file link</a></p>\n    <p>This is a video:\n      <video poster=\"http://#{Account.default.domain}/media_objects/0_abcde/thumbnail?height=448&amp;type=3&amp;width=550\" data-media_comment_type=\"video\" preload=\"none\" class=\"instructure_inline_media_comment\" data-media_comment_id=\"0_abcde\" controls=\"controls\" src=\"http://#{Account.default.domain}/courses/#{@course.id}/media_download?entryId=0_abcde&amp;redirect=1&amp;type=mp4\">link</video>\n    </p>"
+      v0_r1['message'].should    == "<p><a href=\"http://#{Account.default.domain}/courses/#{@course.id}/files/#{@reply2_attachment.id}/download?verifier=#{@reply2_attachment.uuid}\" data-api-endpoint=\"http://#{Account.default.domain}/api/v1/files/#{@reply2_attachment.id}\" data-api-returntype=\"File\">This is a file link</a></p>\n    <p>This is a video:\n      <video poster=\"http://#{Account.default.domain}/media_objects/0_abcde/thumbnail?height=448&amp;type=3&amp;width=550\" data-media_comment_type=\"video\" preload=\"none\" class=\"instructure_inline_media_comment\" data-media_comment_id=\"0_abcde\" controls=\"controls\" src=\"http://#{Account.default.domain}/courses/#{@course.id}/media_download?entryId=0_abcde&amp;redirect=1&amp;type=mp4\">link</video>\n    </p>"
       v0_r1['parent_id'].should  == @root1.id
       v0_r1['created_at'].should == @reply2.created_at.as_json
       v0_r1['updated_at'].should == @reply2.updated_at.as_json
@@ -1918,7 +1934,8 @@ describe DiscussionTopicsController, :type => :integration do
       @topic = @course.discussion_topics.create!(:title => "title", :message => "message", :user => @teacher, :discussion_type => 'threaded')
       @root1 = @topic.reply_from(:user => @student, :html => "root1")
 
-      run_transaction_commit_callbacks
+      # materialized view jobs are now delayed
+      Timecop.travel(Time.now + 20.seconds)
       run_jobs
 
       # make everything slightly in the past to test updating

@@ -44,12 +44,12 @@
 #       // an abbreviated OutcomeGroup object representing the parent group of
 #       // this outcome group, if any. omitted in the abbreviated form.
 #       "parent_outcome_group": {
-#         "id": ...,
-#         "url": ...,
-#         "title": ...,
-#         "subgroups_url": ...,
-#         "outcomes_url": ...,
-#         "can_edit": ...
+#         "id": 1337,
+#         "url": "http://...",
+#         "title": "title",
+#         "subgroups_url": "http://...",
+#         "outcomes_url": "http://...",
+#         "can_edit": true
 #       },
 #
 #       // the context owning the outcome group. may be null for global outcome
@@ -83,7 +83,6 @@
 #     }
 #
 # @object OutcomeLink
-#
 #     {
 #       // the URL for fetching/updating the outcome link. should be treated as
 #       // opaque
@@ -99,24 +98,24 @@
 #       // the outcome link.
 #       "outcome_group": {
 #         "id": 1,
-#         "url": ...,
-#         "title": ...,
-#         "vendor_guid": ...,
-#         "subgroups_url": ...,
-#         "outcomes_url": ...,
-#         "can_edit": ...
+#         "url": "http://...",
+#         "title": "title",
+#         "vendor_guid": "af827ef88a",
+#         "subgroups_url": "http://...",
+#         "outcomes_url": "http://...",
+#         "can_edit": true
 #       },
 #
 #       // an abbreviated Outcome object representing the outcome linked into
 #       // the containing outcome group.
 #       "outcome": {
 #         "id": 1,
-#         "url": ...,
-#         "vendor_guid": ...,
-#         "context_id": ...,
-#         "context_type": ...,
-#         "title": ...,
-#         "can_edit": ...
+#         "url": "http://...",
+#         "vendor_guid": "af827ef88a",
+#         "context_id": 3392,
+#         "context_type": "Course",
+#         "title": "title",
+#         "can_edit": true
 #       }
 #     }
 #
@@ -138,6 +137,30 @@ class OutcomeGroupsApiController < ApplicationController
         LearningOutcomeGroup.global_root_outcome_group
       redirect_to polymorphic_path [:api_v1, @context || :global, :outcome_group], :id => @outcome_group.id
     end
+  end
+
+  # @API Get all outcome groups for context
+  # @beta
+  #
+  # @returns [OutcomeGroup]
+  def index
+    return unless can_read_outcomes
+
+    url = polymorphic_url [:api_v1, @context || :global, :outcome_groups]
+    groups = Api.paginate(context_outcome_groups, self, url)
+    render json: groups.map { |group| outcome_group_json(group, @current_user, session) }
+  end
+
+  # @API Get all outcome links for context
+  # @beta
+  #
+  # @returns [OutcomeLink]
+  def link_index
+    return unless can_read_outcomes
+
+    url = polymorphic_url [:api_v1, @context || :global, :outcome_group_links]
+    links = Api.paginate(context_outcome_links, self, url)
+    render json: links.map { |link| outcome_link_json(link, @current_user, session) }
   end
 
   # @API Show an outcome group
@@ -176,7 +199,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \
   #        -X PUT \ 
   #        -F 'title=Outcome Group Title' \ 
   #        -F 'description=Outcome group description' \
@@ -186,7 +209,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \
   #        -X PUT \ 
   #        --data-binary '{
   #              "title": "Outcome Group Title",
@@ -234,7 +257,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/2.json' \
   #        -X DELETE \ 
   #        -H "Authorization: Bearer <token>"
   #
@@ -362,13 +385,13 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes/1.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes/1.json' \
   #        -X PUT \ 
   #        -H "Authorization: Bearer <token>"
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes.json' \
   #        -X POST \ 
   #        -F 'title=Outcome Title' \ 
   #        -F 'description=Outcome description' \
@@ -384,7 +407,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes.json' \
   #        -X POST \ 
   #        --data-binary '{
   #              "title": "Outcome Title",
@@ -432,7 +455,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes/1.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/outcomes/1.json' \
   #        -X DELETE \ 
   #        -H "Authorization: Bearer <token>"
   #
@@ -494,7 +517,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/subgroups.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/subgroups.json' \
   #        -X POST \ 
   #        -F 'title=Outcome Group Title' \ 
   #        -F 'description=Outcome group description' \
@@ -503,7 +526,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/1/outcome_groups/1/subgroups.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/1/outcome_groups/1/subgroups.json' \
   #        -X POST \ 
   #        --data-binary '{
   #              "title": "Outcome Group Title",
@@ -547,7 +570,7 @@ class OutcomeGroupsApiController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'http://<canvas>/api/v1/accounts/2/outcome_groups/3/import.json' \ 
+  #   curl 'https://<canvas>/api/v1/accounts/2/outcome_groups/3/import.json' \
   #        -X POST \ 
   #        -F 'source_outcome_group_id=2' \ 
   #        -H "Authorization: Bearer <token>"
@@ -604,6 +627,13 @@ class OutcomeGroupsApiController < ApplicationController
   # get the active outcome groups in the context/global
   def context_outcome_groups
     LearningOutcomeGroup.for_context(@context).active
+  end
+
+  def context_outcome_links
+    if @context
+      @context.learning_outcome_links
+    # else, there's no convenient way to find the global content tags; not supporting this for now
+    end
   end
 
   # verify the outcome is eligible to be linked into the context,

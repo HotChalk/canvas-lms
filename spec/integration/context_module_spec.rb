@@ -24,6 +24,22 @@ describe ContextModule do
     @module = @course.context_modules.create!(:name => "some module")
   end
 
+  describe "index" do
+    it "should require manage_content permission before showing add controls" do
+      course_with_teacher_logged_in active_all: true
+      get "/courses/#{@course.id}/modules"
+      doc = Nokogiri::HTML(response.body)
+      doc.at_css('.context-modules-main-toolbar .add_module_link').should_not be_nil
+
+      @course.account.role_overrides.create! enrollment_type: 'TaEnrollment', permission: 'manage_content', enabled: false
+      course_with_ta course: @course
+      user_session(@ta)
+      get "/courses/#{@course.id}/modules"
+      doc = Nokogiri::HTML(response.body)
+      doc.at_css('.context-modules-main-toolbar .add_module_link').should be_nil
+    end
+  end
+
   it "should clear the page cache on individual tag change" do
     enable_cache do
       course_with_teacher_logged_in(:active_all => true)
@@ -34,6 +50,7 @@ describe ContextModule do
       response.body.should match(/My Sub Header Title/)
 
       content_tag.update_attributes(:title => "My New Title")
+
       get "/courses/#{@course.id}/modules"
       response.body.should match(/My New Title/)
     end
@@ -96,17 +113,22 @@ describe ContextModule do
         course_with_student_logged_in(:active_all => true)
         @quiz = @course.quizzes.create!(:title => "new quiz", :shuffle_answers => true)
     
-        @mod1 = @course.context_modules.create!(:name => "some module")
-        @mod1.require_sequential_progress = true
-        @mod1.save!
-        @tag1 = @mod1.add_item(:type => 'quiz', :id => @quiz.id)
-        @mod1.completion_requirements = {@tag1.id => {:type => 'min_score', :min_score => 1}}
-        @mod1.save!
-    
-        @mod2 = @course.context_modules.create!(:name => "dependant module")
-        @mod2.prerequisites = "module_#{@mod1.id}"
-        @mod2.save!
-        
+        # separate timestamps so touch_context will actually invalidate caches
+        Timecop.freeze(4.seconds.ago) do
+          @mod1 = @course.context_modules.create!(:name => "some module")
+          @mod1.require_sequential_progress = true
+          @mod1.save!
+          @tag1 = @mod1.add_item(:type => 'quiz', :id => @quiz.id)
+          @mod1.completion_requirements = {@tag1.id => {:type => 'min_score', :min_score => 1}}
+          @mod1.save!
+        end
+
+        Timecop.freeze(2.second.ago) do
+          @mod2 = @course.context_modules.create!(:name => "dependant module")
+          @mod2.prerequisites = "module_#{@mod1.id}"
+          @mod2.save!
+        end
+
         yield '<div id="test_content">yay!</div>'
         
         get @test_url

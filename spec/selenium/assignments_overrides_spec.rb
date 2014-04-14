@@ -3,7 +3,7 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/assignment_overrides
 
 describe "assignment groups" do
   include AssignmentOverridesSeleniumHelper
-  it_should_behave_like "in-process server selenium tests"
+  include_examples "in-process server selenium tests"
 
   context "as a teacher" do
 
@@ -74,11 +74,11 @@ describe "assignment groups" do
       visit_assignment_edit_page(assign)
       toggle_advanced_options
 
-      sleep 5
+      wait_for_ajaximations
       click_option('.due-date-row:first select', default_section.name)
       first_due_at_element.clear
       first_due_at_element.
-        send_keys(default_section_due.strftime('%b %-d, %y'))
+      send_keys(default_section_due.strftime('%b %-d, %y'))
 
       add_override
 
@@ -106,7 +106,7 @@ describe "assignment groups" do
       get "/courses/#{@course.id}/assignments"
       f('.assignment_list .assignment_due').should include_text "Multiple Due Dates"
       driver.mouse.move_to f(".assignment_list .assignment_due a")
-      wait_for_animations
+      wait_for_ajaximations
 
       tooltip = fj('.vdd_tooltip_content:visible')
       tooltip.should include_text 'New Section'
@@ -122,7 +122,7 @@ describe "assignment groups" do
       get "/assignments"
       f('.group_assignment .date_text').should include_text "Multiple Due Dates"
       driver.mouse.move_to f(".group_assignment .date_text a")
-      wait_for_animations
+      wait_for_ajaximations
 
       tooltip = fj('.vdd_tooltip_content:visible')
       tooltip.should include_text 'New Section'

@@ -19,125 +19,122 @@
 # @API Modules
 # @subtopic Module Items
 #
-# @object Module Item
+# @object ModuleItem
 #     {
 #       // the unique identifier for the module item
-#       id: 768,
+#       "id": 768,
 #
 #       // the id of the Module this item appears in
-#       module_id: 123,
+#       "module_id": 123,
 #
 #       // the position of this item in the module (1-based)
-#       position: 1,
+#       "position": 1,
 #
 #       // the title of this item
-#       title: "Square Roots: Irrational numbers or boxy vegetables?",
+#       "title": "Square Roots: Irrational numbers or boxy vegetables?",
 #
 #       // 0-based indent level; module items may be indented to show a hierarchy
-#       indent: 0,
+#       "indent": 0,
 #
 #       // the type of object referred to
 #       // one of "File", "Page", "Discussion", "Assignment", "Quiz", "SubHeader",
 #       // "ExternalUrl", "ExternalTool"
-#       type: "Assignment",
+#       "type": "Assignment",
 #
 #       // the id of the object referred to
 #       // applies to "File", "Discussion", "Assignment", "Quiz", "ExternalTool" types
-#       content_id: 1337,
+#       "content_id": 1337,
 #
 #       // link to the item in Canvas
-#       html_url: "https://canvas.example.edu/courses/222/modules/items/768",
+#       "html_url": "https://canvas.example.edu/courses/222/modules/items/768",
 #
 #       // (Optional) link to the Canvas API object, if applicable
-#       url: "https://canvas.example.edu/api/v1/courses/222/assignments/987",
+#       "url": "https://canvas.example.edu/api/v1/courses/222/assignments/987",
 #
 #       // (only for 'Page' type) unique locator for the linked wiki page
-#       page_url: "my-page-title"
+#       "page_url": "my-page-title",
 #
 #       // (only for 'ExternalUrl' and 'ExternalTool' types) external url that the item points to
-#       external_url: "https://www.example.com/externalurl",
+#       "external_url": "https://www.example.com/externalurl",
 #
 #       // (only for 'ExternalTool' type) whether the external tool opens in a new tab
-#       new_tab: false,
+#       "new_tab": false,
 #
 #       // Completion requirement for this module item
-#       completion_requirement: {
+#       "completion_requirement": {
 #         // one of "must_view", "must_submit", "must_contribute", "min_score"
-#         type: "min_score",
+#         "type": "min_score",
 #
 #         // minimum score required to complete (only present when type == 'min_score')
-#         min_score: 10,
+#         "min_score": 10,
 #
 #         // whether the calling user has met this requirement
-#         // (Optional; present only if the caller is a student)
-#         completed: true
+#         // (Optional; present only if the caller is a student
+#         // or if the optional parameter 'student_id' is included)
+#         "completed": true
 #       },
 #
 #       // (Present only if requested through include[]=content_details)
 #       // If applicable, returns additional details specific to the associated object
-#       content_details: {
-#         points_possible: 20,
-#         due_at: "2012-12-31T06:00:00-06:00",
-#         unlock_at: "2012-12-31T06:00:00-06:00",
-#         lock_at: "2012-12-31T06:00:00-06:00"
+#       "content_details": {
+#         "points_possible": 20,
+#         "due_at": "2012-12-31T06:00:00-06:00",
+#         "unlock_at": "2012-12-31T06:00:00-06:00",
+#         "lock_at": "2012-12-31T06:00:00-06:00"
 #       }
-#
 #     }
 #
 #
-# @object Module Item Sequence
+# @object ModuleItemSequence
 #     {
 #       // an array containing one hash for each appearence of the asset in the module sequence
 #       // (up to 10 total)
-#       items:
-#         [
-#           {
-#             // the ModuleItem for the previous asset in the sequence, if present
-#             // this is the previous asset in the module, or the last asset in the previous module,
-#             // or null if this is the first module item in the course sequence
-#             prev: null,
+#       "items": [
+#         {
+#           // the ModuleItem for the previous asset in the sequence, if present
+#           // this is the previous asset in the module, or the last asset in the previous module,
+#           // or null if this is the first module item in the course sequence
+#           "prev": null,
 #
-#             // the ModuleItem for the requested asset
-#             current:
-#               {
-#                 id: 768,
-#                 module_id: 123,
-#                 title: "A lonely page",
-#                 type: "Page",
-#                 ...
-#               },
+#           // the ModuleItem for the requested asset
+#           "current": {
+#             "id": 768,
+#             "module_id": 123,
+#             "title": "A lonely page",
+#             "type": "Page"
+#             // ...
+#           },
 #
-#             // the ModuleItem for the next asset in the sequence, if present
-#             // this is the next asset in the module, or the first asset in the next module,
-#             // or null if this is the last module item in the course sequence
-#             next:
-#               {
-#                 id: 769,
-#                 module_id: 127,
-#                 title: "Project 1",
-#                 type: "Assignment",
-#                 ...
-#               }
+#           // the ModuleItem for the next asset in the sequence, if present
+#           // this is the next asset in the module, or the first asset in the next module,
+#           // or null if this is the last module item in the course sequence
+#           "next": {
+#             "id": 769,
+#             "module_id": 127,
+#             "title": "Project 1",
+#             "type": "Assignment"
+#             // ...
 #           }
-#         ],
+#         }
+#       ],
 #
 #       // an array containing each Module referenced above
-#       modules:
-#         [
-#           {
-#             id: 123,
-#             name: "Module A",
-#             ...
-#           },
-#           {
-#             id: 127,
-#             name: "Module B",
-#             ...
-#           }
-#         ]
+#       "modules": [
+#         {
+#           "id": 123,
+#           "name": "Module A"
+#           // ...
+#         },
+#         {
+#           "id": 127,
+#           "name": "Module B"
+#           // ...
+#         }
+#       ]
 #     }
 class ContextModuleItemsApiController < ApplicationController
   before_filter :require_context
+  before_filter :find_student, :only => [:index, :show]
   include Api::V1::ContextModule
 
   # @API List module items
@@ -152,21 +149,24 @@ class ContextModuleItemsApiController < ApplicationController
   # @argument search_term [Optional, String]
   #   The partial title of the items to match and return.
   #
+  # @argument student_id [Optional]
+  #   Returns module completion information for the student with this id.
+  #
   # @example_request
   #     curl -H 'Authorization: Bearer <token>' \
   #          https://<canvas>/api/v1/courses/222/modules/123/items
   #
-  # @returns [Module Item]
+  # @returns [ModuleItem]
   def index
     if authorized_action(@context, @current_user, :read)
-      mod = @context.modules_visible_to(@current_user).find(params[:module_id])
+      mod = @context.modules_visible_to(@student || @current_user).find(params[:module_id])
       ContextModule.send(:preload_associations, mod, {:content_tags => :content})
       route = polymorphic_url([:api_v1, @context, mod, :items])
-      scope = mod.content_tags_visible_to(@current_user)
+      scope = mod.content_tags_visible_to(@student || @current_user)
       scope = ContentTag.search_by_attribute(scope, :title, params[:search_term])
       items = Api.paginate(scope, self, route)
-      prog = @context.grants_right?(@current_user, session, :participate_as_student) ? mod.evaluate_for(@current_user) : nil
-      render :json => items.map { |item| module_item_json(item, @current_user, session, mod, prog, Array(params[:include])) }
+      prog = @student ? mod.evaluate_for(@student) : nil
+      render :json => items.map { |item| module_item_json(item, @student || @current_user, session, mod, prog, Array(params[:include])) }
     end
   end
 
@@ -179,17 +179,20 @@ class ContextModuleItemsApiController < ApplicationController
   #   associated with this item. Refer to the {api:Modules:Module%20Item Module
   #   Item specification} for more details.
   #
+  # @argument student_id [Optional]
+  #   Returns module completion information for the student with this id.
+  #
   # @example_request
   #     curl -H 'Authorization: Bearer <token>' \
   #          https://<canvas>/api/v1/courses/222/modules/123/items/768
   #
-  # @returns Module Item
+  # @returns ModuleItem
   def show
     if authorized_action(@context, @current_user, :read)
-      mod = @context.modules_visible_to(@current_user).find(params[:module_id])
-      item = mod.content_tags_visible_to(@current_user).find(params[:id])
-      prog = @context.grants_right?(@current_user, session, :participate_as_student) ? mod.evaluate_for(@current_user) : nil
-      render :json => module_item_json(item, @current_user, session, mod, prog, Array(params[:include]))
+      mod = @context.modules_visible_to(@student || @current_user).find(params[:module_id])
+      item = mod.content_tags_visible_to(@student || @current_user).find(params[:id])
+      prog = @student ? mod.evaluate_for(@student) : nil
+      render :json => module_item_json(item, @student || @current_user, session, mod, prog, Array(params[:include]))
     end
   end
 
@@ -265,7 +268,7 @@ class ContextModuleItemsApiController < ApplicationController
   #       -d 'module_item[indent]=1' \
   #       -d 'module_item[new_tab]=true'
   #
-  # @returns Module Item
+  # @returns ModuleItem
   def create
     @module = @context.context_modules.not_deleted.find(params[:module_id])
     if authorized_action(@module, @current_user, :update)
@@ -275,7 +278,7 @@ class ContextModuleItemsApiController < ApplicationController
       item_params[:id] = params[:module_item][:content_id]
       if ['Page', 'WikiPage'].include?(item_params[:type])
         if page_url = params[:module_item][:page_url]
-          if wiki_page = @context.wiki.wiki_pages.find_by_url(page_url)
+          if wiki_page = @context.wiki.wiki_pages.not_deleted.find_by_url(page_url)
             item_params[:id] = wiki_page.id
           else
             return render :json => {:message => "invalid page_url parameter"}, :status => :bad_request
@@ -288,14 +291,14 @@ class ContextModuleItemsApiController < ApplicationController
       item_params[:url] = params[:module_item][:external_url]
 
       if (@tag = @module.add_item(item_params)) && set_position && set_completion_requirement
-        if @domain_root_account.enable_draft?
+        if @context.feature_enabled?(:draft_state)
           @tag.workflow_state = 'unpublished'
           @tag.save
         end
         @module.touch
         render :json => module_item_json(@tag, @current_user, session, @module, nil)
       elsif @tag
-        render :json => @tag.errors.to_json, :status => :bad_request
+        render :json => @tag.errors, :status => :bad_request
       else
         render :status => 400, :json => { :message => t(:invalid_content, "Could not find content") }
       end
@@ -350,7 +353,7 @@ class ContextModuleItemsApiController < ApplicationController
   #       -d 'module_item[indent]=1' \
   #       -d 'module_item[new_tab]=true'
   #
-  # @returns Module Item
+  # @returns ModuleItem
   def update
     @tag = @context.context_module_tags.not_deleted.find(params[:id])
     if authorized_action(@tag.context_module, @current_user, :update)
@@ -360,10 +363,11 @@ class ContextModuleItemsApiController < ApplicationController
       @tag.url = params[:module_item][:external_url] if %w(ExternalUrl ContextExternalTool).include?(@tag.content_type) && params[:module_item][:external_url]
       @tag.indent = params[:module_item][:indent] if params[:module_item][:indent]
       @tag.new_tab = value_to_boolean(params[:module_item][:new_tab]) if params[:module_item][:new_tab]
-      if target_module_id = params[:module_item][:module_id]
+      if (target_module_id = params[:module_item][:module_id]) && target_module_id.to_i != @tag.context_module_id
         target_module = @context.context_modules.find_by_id(target_module_id)
         return render :json => {:message => "invalid module_id"}, :status => :bad_request unless target_module
         old_module = @context.context_modules.find(@tag.context_module_id)
+        @tag.remove_from_list
         @tag.context_module = target_module
         if req_index = old_module.completion_requirements.find_index { |req| req[:id] == @tag.id }
           old_module.completion_requirements_will_change!
@@ -390,7 +394,7 @@ class ContextModuleItemsApiController < ApplicationController
         @tag.update_asset_name! if params[:module_item][:title]
         render :json => module_item_json(@tag, @current_user, session, @tag.context_module, nil)
       else
-        render :json => @tag.errors.to_json, :status => :bad_request
+        render :json => @tag.errors, :status => :bad_request
       end
     end
   end
@@ -405,7 +409,7 @@ class ContextModuleItemsApiController < ApplicationController
   #       -X Delete \
   #       -H 'Authorization: Bearer <token>'
   #
-  # @returns Module Item
+  # @returns ModuleItem
   def destroy
     @tag = @context.context_module_tags.not_deleted.find(params[:id])
     if authorized_action(@tag.context_module, @current_user, :update)
@@ -420,7 +424,7 @@ class ContextModuleItemsApiController < ApplicationController
 
   # @API Get module item sequence
   #
-  # Given an asset in a course, find the Module Item it belongs to, and also the previous and next Module Items
+  # Given an asset in a course, find the ModuleItem it belongs to, and also the previous and next Module Items
   # in the course sequence.
   #
   # @argument asset_type [String, "ModuleItem"|"File"|"Page"|"Discussion"|"Assignment"|"Quiz"|"ExternalTool"]
@@ -436,7 +440,7 @@ class ContextModuleItemsApiController < ApplicationController
   #     curl https://<canvas>/api/v1/courses/<course_id>/module_item_sequence?asset_type=Assignment&asset_id=123 \
   #       -H 'Authorization: Bearer <token>'
   #
-  # @returns Module Item Sequence
+  # @returns ModuleItemSequence
   def item_sequence
     if authorized_action(@context, @current_user, :read)
       asset_type = Api.api_type_to_canvas_name(params[:asset_type])
@@ -445,10 +449,11 @@ class ContextModuleItemsApiController < ApplicationController
       return render :json => { :message => 'missing asset_id' }, :status => :bad_request unless asset_id
 
       # assemble a sequence of content tags in the course
+      # (break ties on module position by module id)
       tags = @context.module_items_visible_to(@current_user).
-          select('content_tags.*, context_modules.position AS module_position').
+          select('content_tags.*, context_modules.id as module_id, context_modules.position AS module_position').
           reject { |item| item.content_type == 'ContextModuleSubHeader' }.
-          sort_by { |item| [item.module_position.to_i, item.position] }
+          sort_by { |item| [item.module_position.to_i, item.module_id, item.position] }
 
       # find content tags to include
       tag_indices = []
@@ -458,7 +463,7 @@ class ContextModuleItemsApiController < ApplicationController
       else
         # map wiki page url to id
         if asset_type == 'WikiPage'
-          page = @context.wiki.wiki_pages.find_by_url(asset_id)
+          page = @context.wiki.wiki_pages.not_deleted.find_by_url(asset_id)
           asset_id = page.id if page
         else
           asset_id = asset_id.to_i
@@ -507,7 +512,7 @@ class ContextModuleItemsApiController < ApplicationController
     return true unless @tag && params[:module_item][:position]
 
     @tag.reload
-    if @tag.insert_at_position(params[:module_item][:position], @tag.context_module.content_tags.not_deleted)
+    if @tag.insert_at(params[:module_item][:position].to_i)
       # see ContextModulesController#reorder_items
       @tag.touch_context_module
       ContentTag.update_could_be_locked(@tag.context_module.content_tags)
@@ -542,4 +547,17 @@ class ContextModuleItemsApiController < ApplicationController
     @module.save
   end
   protected :set_completion_requirement
+
+  def find_student
+    if params[:student_id]
+      student_enrollments = @context.student_enrollments.for_user(params[:student_id])
+      return render_unauthorized_action unless student_enrollments.any?{|e| e.grants_right?(@current_user, session, :read)}
+      @student = student_enrollments.first.user
+    elsif @context.grants_right?(@current_user, session, :participate_as_student)
+      @student = @current_user
+    else
+      return true
+    end
+  end
+  protected :find_student
 end

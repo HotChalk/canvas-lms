@@ -16,6 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 define([
+  'INST' /* INST */,
   'i18n!course_settings',
   'jquery' /* $ */,
   'underscore',
@@ -36,7 +37,7 @@ define([
   'jqueryui/autocomplete' /* /\.autocomplete/ */,
   'jqueryui/sortable' /* /\.sortable/ */,
   'jqueryui/tabs' /* /\.tabs/ */
-], function(I18n, $, _) {
+], function(INST, I18n, $, _) {
 
   var GradePublishing = {
     status: null,
@@ -234,6 +235,17 @@ define([
       });
 
       $("#tabs_json").val(JSON.stringify(tabs));
+
+      function dynamic_tab_id_from_el(el) {
+        return $(el).attr("id").replace(/^nav_dynamic_tab_id_/, '');
+      }
+      var dynamic_tabs = [];
+      $("#nav_dynamic_list li").each(function() {
+        var tab_id = dynamic_tab_id_from_el(this);
+        var tab_id_arr = tab_id.split('_');
+        if (tab_id !== null) { dynamic_tabs.push({ context_id: parseInt(tab_id_arr.pop()), context_type: tab_id_arr.join('_'), label: $($(this).contents()[0]).text().trim() }); }
+      });
+      $("#dynamic_tabs_json").val(JSON.stringify(dynamic_tabs));
       return true;
     });
 
@@ -455,6 +467,32 @@ define([
       $("#reset_course_content_dialog").dialog('close');
     });
 
+    $(".add_page_link").live('click', function(event) {
+      event.preventDefault();
+      if(INST && INST.linkContentDialog) {
+        var options = {
+          submit: function(item_data) {
+            var id = item_data['item[id]'];
+            var type = item_data['item[type]'];
+            var title = item_data['item[title]'];
+            var li = $('<li>').attr({
+              'class': 'navitem enabled links',
+              id: 'nav_dynamic_tab_id_' + type + '_' + id,
+              tabindex: '0'
+            });
+            li.data('context_type', type);
+            li.data('context_id', id);
+            li.append(title).append($("<div class='links'><a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screen-reader-text'>Delete</span></a></div>"));
+            $("#nav_dynamic_list").append(li);
+          }
+        };
+        INST.linkContentDialog(options);
+      }
+    });
+    $("a.delete_page_link").live('click', function(event) {
+      event.preventDefault();
+      $(this).parents('li').remove();
+    });
     $.scrollSidebar();
   });
 });

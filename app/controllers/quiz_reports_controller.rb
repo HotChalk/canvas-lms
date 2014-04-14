@@ -22,47 +22,48 @@
 # @object QuizReport
 #     {
 #       // the ID of the quiz report
-#       id: 5,
+#       "id": 5,
 #
 #       // the ID of the quiz
-#       quiz_id: 4,
+#       "quiz_id": 4,
 #
 #       // which type of report this is
 #       // possible values: "student_analysis", "item_analysis"
-#       report_type: "student_analysis",
+#       "report_type": "student_analysis",
 #
 #       // boolean indicating whether the report represents all submissions or only the most recent ones for each student
-#       includes_all_versions: true,
+#       "includes_all_versions": true,
 #
 #       // boolean indicating whether the report is for an anonymous
 #       // survey. if true, no student names will be included in the csv
-#       anonymous: false,
+#       "anonymous": false,
 #
 #       // when the report was created
-#       created_at: "2013-05-01T12:34:56-07:00",
+#       "created_at": "2013-05-01T12:34:56-07:00",
 #
 #       // when the report was last updated
-#       updated_at: "2013-05-01T12:34:56-07:00",
+#       "updated_at": "2013-05-01T12:34:56-07:00",
 #
 #       // if the report has finished generating, a File object that
 #       // represents it. refer to the Files API for more information
 #       // about the format
-#       file: {
-#         content-type: "text/csv",
-#         url: "http://www.example.com/files/123/download..."
+#       "file": {
+#         "content-type": "text/csv",
+#         "url": "http://www.example.com/files/123/download..."
 #         // ...
 #       },
 #
 #       // if the report has not yet finished generating, a URL
 #       // where information about its progress can be retrieved.
 #       // refer to the Progress API for more information
-#       progress_url: null
+#       "progress_url": null
 #     }
 #
 class QuizReportsController < ApplicationController
-  before_filter :require_quiz
-
+  include Api::V1::Helpers::QuizzesApiHelper
   include Api::V1::QuizStatistics
+
+  before_filter :require_context, :require_quiz
 
   # @API Create a quiz report
   #
@@ -100,12 +101,5 @@ class QuizReportsController < ApplicationController
       @stats = @quiz.quiz_statistics.find(params[:id])
       render :json => quiz_statistics_json(@stats, @current_user, session, :include => ['file', 'progress_url'])
     end
-  end
-
-  protected
-
-  def require_quiz
-    require_context
-    @quiz = @context.quizzes.find(params[:quiz_id])
   end
 end

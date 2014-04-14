@@ -3,12 +3,16 @@ class DiscussionTopicPresenter
 
   include TextHelper
 
-  def initialize(discussion_topic = DiscussionTopic.new, current_user = User.new)
+  def initialize(discussion_topic = DiscussionTopic.new, current_user = User.new, for_reply_assignment = false)
     @topic = discussion_topic
     @user  = current_user
 
     if @topic.for_assignment?
-      @assignment = AssignmentOverrideApplicator.assignment_overridden_for(@topic.assignment, @user)
+      if for_reply_assignment && @topic.grade_replies_separately && @topic.reply_assignment
+        @assignment = AssignmentOverrideApplicator.assignment_overridden_for(@topic.reply_assignment, @user)
+      else
+        @assignment = AssignmentOverrideApplicator.assignment_overridden_for(@topic.assignment, @user)
+      end
     end
   end
 
@@ -88,6 +92,10 @@ class DiscussionTopicPresenter
   #
   # Returns a boolean.
   def allows_speed_grader?
-    !large_roster?
+    !large_roster? && draft_state_allows_speedgrader?
+  end
+
+  def draft_state_allows_speedgrader?
+    topic.context.feature_enabled?(:draft_state) ? topic.assignment.published? : true
   end
 end
