@@ -131,7 +131,10 @@ $(document).ready(function() {
     $("#edit_calendar_event_form input[name='calendar_event[title]']").indicate();
   }, function() {});
   $(".highlight_undated_events").hover(function() {
-    $(".calendar_undated").indicate();
+    $("a.show_undated_link:visible").click();
+    window.setTimeout(function() {
+      $(".calendar_undated").indicate();
+    }, 200);
   }, function() {});
   $(".highlight_assignment_tab").hover(function() {
     $(".edit_assignment_option").indicate();

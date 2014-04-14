@@ -204,7 +204,7 @@ class DiscussionEntry < ActiveRecord::Base
           submission.submitted_at = submission_date
           submission.save!
         end
-      else
+      elsif submission.present?
         submission.workflow_state = 'unsubmitted'
         submission.submission_type = nil
         submission.submitted_at = nil

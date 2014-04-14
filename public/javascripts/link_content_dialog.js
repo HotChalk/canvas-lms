@@ -1,4 +1,3 @@
-
 define([
   'INST' /* INST */,
   'i18n!link_content_dialog',
@@ -15,7 +14,7 @@ define([
 ], function(INST, I18n, $) {
 
 $(document).ready(function() {
-  var $dialog = $("#select_context_content_dialog");
+  var $dialog = $("#link_context_content_dialog");
   INST = INST || {};
   INST.linkContentDialog = function(options) {
     var select_button_text = options.select_button_text || I18n.t('buttons.add_link', "Add Link");
@@ -23,18 +22,18 @@ $(document).ready(function() {
     $dialog.data('submitted_function', options.submit);
     $dialog.find(".add_item_button").text(select_button_text);
     $('#add_module_item_select').change();
-    $("#select_context_content_dialog .module_item_select").change();
-    $("#select_context_content_dialog").dialog({
+    $("#link_context_content_dialog .module_item_select").change();
+    $("#link_context_content_dialog").dialog({
       title: dialog_title,
       width: 400
     }).fixDialogButtons();
-    $("#select_context_content_dialog").dialog('option', 'title', dialog_title);
+    $("#link_context_content_dialog").dialog('option', 'title', dialog_title);
   };
-  $("#select_context_content_dialog .cancel_button").click(function() {
+  $("#link_context_content_dialog .cancel_button").click(function() {
     $dialog.find('.alert').remove();
     $dialog.dialog('close');
   });
-  $("#select_context_content_dialog .add_item_button").click(function() {
+  $("#link_context_content_dialog .add_item_button").click(function() {
     var submit = function(item_data) {
       $dialog.dialog('close');
       $dialog.find('.alert').remove();
@@ -44,7 +43,7 @@ $(document).ready(function() {
       }
     };
     var item_type = $("#add_module_item_select").val();
-    var $options = $("#select_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
+    var $options = $("#link_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
     $options.each(function() {
       var $option = $(this);
       var item_data = {
@@ -56,10 +55,10 @@ $(document).ready(function() {
     });
   });
   $("#add_module_item_select").change(function() {
-    $("#select_context_content_dialog .module_item_option").hide();
+    $("#link_context_content_dialog .module_item_option").hide();
     $("#" + $(this).val() + "s_select").show().find(".module_item_select").change();
   });
-  $("#select_context_content_dialog .module_item_select").change(function() {
+  $("#link_context_content_dialog .module_item_select").change(function() {
     if($(this).val() == "new") {
       $(this).parents(".module_item_option").find(".new").show().focus().select();
     } else {

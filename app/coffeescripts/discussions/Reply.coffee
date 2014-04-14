@@ -117,6 +117,7 @@ define [
     # @api private
     onPostReplySuccess: (entry) =>
       @view.model.set 'notification', ''
+      @textArea.val ''
       @trigger 'save', entry
 
     ##

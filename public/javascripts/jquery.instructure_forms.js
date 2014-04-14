@@ -962,8 +962,8 @@ define([
       if(!$obj || $obj.length === 0 || name == "general") {
         $obj = $form;
       }
-      if($obj[0].tagName == 'TEXTAREA' && $obj.next('.mceEditor').length) {
-        $obj = $obj.next().find(".mceIframeContainer");
+      if($obj[0].tagName == 'TEXTAREA' && $obj.data('redactor')) {
+        $obj = $obj.redactor('getEditor');
       }
       errorDetails[name] = {object: $obj, message: msg};
       hasErrors = true;

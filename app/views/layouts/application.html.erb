@@ -79,14 +79,14 @@
           :assignments_recently_graded    => t('menu.assignments_recently_graded', "Recently Graded")
         }
         total_shown = 0
-        if assignment_sets.any?{ |k, v| @current_user.send(k).length > 0 }
+        if assignment_sets.any?{ |k, v| @current_user.send(k).length > 0 rescue false }
       -%>
         <a href="/assignments" class="menu-item-title"><%= t('menu.assignments', 'Assignments') %><span class="menu-item-title-icon"></span> <i class="icon-mini-arrow-down"></i></a>
         <div class="menu-item-drop">
           <table cellspacing="0">
             <tr>
               <% assignment_sets.each do |k,v|
-                  if (set = @current_user.send(k)).length > 0
+                  if (set = (@current_user.send(k) rescue [])).length > 0
                     set = set[0,(max_to_show - total_shown)]
                     total_shown += set.length
                    %><%= render(:partial => "shared/menu_section", :locals => {

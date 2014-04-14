@@ -324,6 +324,7 @@ class Notification < ActiveRecord::Base
     t 'names.appointment_reserved_by_user', 'Appointment Reserved By User'
     t 'names.appointment_reserved_for_user', 'Appointment Reserved For User'
     t 'names.submission_needs_grading', 'Submission Needs Grading'
+    t 'names.new_user_registration', 'New User Registration'
   end
 
   # TODO: i18n ... show these anywhere we show the category today

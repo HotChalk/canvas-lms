@@ -41,6 +41,7 @@ module SIS
             status = 'active'
             short_name = row['course_name'].split(' - ')[0]
             long_name = "#{row['course_name']} #{row['course_id']}"
+            integration_id = row['integration_id']
             #begin
             #  start_date = DateTime.parse(row['start_date']) unless row['start_date'].blank?
             #  end_date = DateTime.parse(row['end_date']) unless row['end_date'].blank?
@@ -49,7 +50,7 @@ module SIS
             #end
 
             begin
-              importer.add_course(course_id, term_id, account_id, nil, status, start_date, end_date, nil, short_name, long_name)
+              importer.add_course(course_id, term_id, account_id, nil, status, start_date, end_date, nil, short_name, long_name, integration_id)
             rescue ImportError => e
               messages << "#{e}"
             end

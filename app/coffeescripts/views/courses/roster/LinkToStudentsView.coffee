@@ -30,7 +30,6 @@ define [
           @students = tokens
         selector:
           baseData:
-            type: 'user'
             context: "course_#{ENV.course.id}_students"
             exclude: [@model.get('id')]
             skip_visibility_checks: true

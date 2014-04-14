@@ -177,6 +177,8 @@ stylesheets:
     - public/javascripts/tinymce/jscripts/tiny_mce/plugins/inlinepopups/skins/clearlooks2/window.css
   redactor:
     - public/stylesheets/static/redactor.css
+  redactor-iframe:
+    - public/stylesheets/static/redactor-iframe.css
   messages:
     - public/stylesheets/compiled/messages.css
   content_imports:

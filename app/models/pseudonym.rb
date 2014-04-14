@@ -81,6 +81,12 @@ class Pseudonym < ActiveRecord::Base
     p.whenever { |record|
       @send_registration_notification
     }
+
+    p.dispatch :new_user_registration
+    p.to { self.communication_channel || self.user.communication_channel }
+    p.whenever { |record|
+      @send_sis_import_notification
+    }
   end
   
   def update_account_associations_if_account_changed
@@ -102,7 +108,13 @@ class Pseudonym < ActiveRecord::Base
     self.save!
     @send_registration_notification = false
   end
-  
+
+  def send_sis_import_notification
+    @send_sis_import_notification = true
+    self.save
+    @send_sis_import_notification = false
+  end
+
   def send_confirmation!
     @send_confirmation = true
     self.save!

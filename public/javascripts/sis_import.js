@@ -77,15 +77,15 @@ $(document).ready(function(event) {
       return '';
     }
     output = "<ul><li>" + I18n.t('headers.imported_items', "Imported Items") + "<ul>";
-    output += "<li>" + I18n.t('import_counts.accounts', "Accounts: %{account_count}", {account_count: batch.data.counts.accounts}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.terms', "Terms: %{term_count}", {term_count: batch.data.counts.terms}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.courses', "Courses: %{course_count}", {course_count: batch.data.counts.courses}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.sections', "Sections: %{section_count}", {section_count: batch.data.counts.sections}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.users', "Users: %{user_count}", {user_count: batch.data.counts.users}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.enrollments', "Enrollments: %{enrollment_count}", {enrollment_count: batch.data.counts.enrollments}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.crosslists', "Crosslists: %{crosslist_count}", {crosslist_count: batch.data.counts.xlists}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.groups', "Groups: %{group_count}", {group_count: batch.data.counts.groups}) + "</li>";
-    output += "<li>" + I18n.t('import_counts.group_enrollments', "Group Enrollments: %{group_enrollments_count}", {group_enrollments_count: batch.data.counts.group_memberships}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.accounts', "Accounts: %{account_count}", {account_count: batch.data.counts.accounts || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.terms', "Terms: %{term_count}", {term_count: batch.data.counts.terms || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.courses', "Courses: %{course_count}", {course_count: batch.data.counts.courses || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.sections', "Sections: %{section_count}", {section_count: batch.data.counts.sections || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.users', "Users: %{user_count}", {user_count: batch.data.counts.users || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.enrollments', "Enrollments: %{enrollment_count}", {enrollment_count: batch.data.counts.enrollments || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.crosslists', "Crosslists: %{crosslist_count}", {crosslist_count: batch.data.counts.xlists || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.groups', "Groups: %{group_count}", {group_count: batch.data.counts.groups || 0}) + "</li>";
+    output += "<li>" + I18n.t('import_counts.group_enrollments', "Group Enrollments: %{group_enrollments_count}", {group_enrollments_count: batch.data.counts.group_memberships || 0}) + "</li>";
     output += "</ul></li></ul>";
     
     return output
