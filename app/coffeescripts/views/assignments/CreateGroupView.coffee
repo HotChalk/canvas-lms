@@ -1,5 +1,7 @@
 define [
+  'compiled/util/round'
   'i18n!assignments'
+  'jquery'
   'underscore'
   'compiled/models/AssignmentGroup'
   'compiled/collections/NeverDropCollection'
@@ -7,7 +9,7 @@ define [
   'compiled/views/DialogFormView'
   'jst/assignments/CreateGroup'
   'jst/EmptyDialogFormWrapper'
-], (I18n, _, AssignmentGroup, NeverDropCollection, NeverDropCollectionView, DialogFormView, template, wrapper) ->
+], (round, I18n, $, _, AssignmentGroup, NeverDropCollection, NeverDropCollectionView, DialogFormView, template, wrapper) ->
 
   class CreateGroupView extends DialogFormView
     defaults:
@@ -16,6 +18,7 @@ define [
 
     events: _.extend({}, @::events,
       'click .dialog_closer': 'close'
+      'blur .group_weight': 'roundWeight'
     )
 
     els:
@@ -33,6 +36,7 @@ define [
       positive_number: I18n.t('positive_number', 'You must use a positive number')
       max_number: I18n.t('higher_than_max', 'You cannot use a number greater than the number of assignments')
       no_name_error: I18n.t('no_name_error', 'A name is required')
+      name_too_long_error: I18n.t('name_too_long_error', 'Name is too long')
 
     initialize: ->
       super
@@ -66,6 +70,8 @@ define [
         as = @assignmentGroup.get('assignments')
         max = as.size() if as?
       errors = {}
+      if data.name.length > 255
+        errors["name"] = [{type: 'name_too_long_error', message: @messages.name_too_long_error}]
       if data.name == ""
         errors["name"] = [{type: 'no_name_error', message: @messages.no_name_error}]
       _.each data.rules, (value, name) =>
@@ -106,6 +112,10 @@ define [
         @never_drops.reset rules.never_drop,
           parse: true
 
+    roundWeight: (e) ->
+      value = $(e.target).val()
+      rounded_value = round(parseFloat(value), 2)
+      $(e.target).val(rounded_value)
 
     toJSON: ->
       data = @model.toJSON()

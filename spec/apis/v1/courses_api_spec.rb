@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 - 2013 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -25,7 +25,6 @@ class TestCourseApi
   def course_url(course, opts = {}); return "course_url(Course.find(#{course.id}), :host => #{HostUrl.context_host(@course1)})"; end
   def api_user_content(syllabus, course); return "api_user_content(#{syllabus}, #{course.id})"; end
 end
-
 
 describe Api::V1::Course do
 
@@ -81,6 +80,7 @@ describe Api::V1::Course do
         json['enrollments'].should == [{
           "type" => "student",
           "role" => "StudentEnrollment",
+          "enrollment_state" => "active",
           "computed_current_score" => 95,
           "computed_final_score" => 85,
           "computed_current_grade" => "A",
@@ -127,7 +127,7 @@ describe Api::V1::Course do
   end
 end
 
-describe CoursesController, :type => :integration do
+describe CoursesController, type: :request do
   USER_API_FIELDS = %w(id name sortable_name short_name)
 
   before do
@@ -183,6 +183,15 @@ describe CoursesController, :type => :integration do
     courses.length.should == 2
   end
 
+  it 'should paginate the course list' do
+    json = api_call(:get, "/api/v1/courses.json?per_page=1",
+            { :controller => 'courses', :action => 'index', :format => 'json', :per_page => '1' })
+    json.length.should == 1
+    json += api_call(:get, "/api/v1/courses.json?per_page=1&page=2",
+            { :controller => 'courses', :action => 'index', :format => 'json', :per_page => '1', :page => '2' })
+    json.length.should == 2
+  end
+
   it 'should not include permissions' do
     # When its asked to return permissions make sure they are not returned for a list of courses
     json = api_call(:get, "/api/v1/courses.json?include[]=permissions",
@@ -205,6 +214,7 @@ describe CoursesController, :type => :integration do
       end
 
       it "should create a new course" do
+        term = @account.enrollment_terms.create
         post_params = {
           'account_id' => @account.id,
           'offer'      => true,
@@ -218,9 +228,10 @@ describe CoursesController, :type => :integration do
             'allow_wiki_comments'                  => true,
             'allow_student_forum_attachments'      => true,
             'open_enrollment'                      => true,
+            'term_id'                              => term.id,
             'self_enrollment'                      => true,
             'restrict_enrollments_to_course_dates' => true,
-            'hide_final_grades'                     => true,
+            'hide_final_grades'                    => true,
             'apply_assignment_group_weights'       => true,
             'license'                              => 'Creative Commons',
             'sis_course_id'                        => '12345',
@@ -248,11 +259,58 @@ describe CoursesController, :type => :integration do
             new_course.send(attr).should == post_params['course'][attr.to_s]
         end
         new_course.account_id.should eql @account.id
+        new_course.enrollment_term_id.should eql term.id
         new_course.workflow_state.should eql 'available'
         course_response.merge!(
           'id' => new_course.id,
           'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/course_#{new_course.uuid}.ics" }
         )
+        course_response.delete 'term_id' #not included in the response
+        json.should eql course_response
+      end
+
+      it "should allow enrollment_term_id on course create" do
+        term = @account.enrollment_terms.create
+        post_params = {
+          'account_id' => @account.id,
+          'offer'      => true,
+          'course'     => {
+            'name'                                 => 'Test Course',
+            'course_code'                          => 'Test Course',
+            'start_at'                             => '2011-01-01T00:00:00-0700',
+            'end_at'                               => '2011-05-01T00:00:00-0700',
+            'is_public'                            => true,
+            'public_syllabus'                      => true,
+            'allow_wiki_comments'                  => true,
+            'allow_student_forum_attachments'      => true,
+            'open_enrollment'                      => true,
+            'enrollment_term_id'                   => term.id,
+            'self_enrollment'                      => true,
+            'restrict_enrollments_to_course_dates' => true,
+            'hide_final_grades'                    => true,
+            'apply_assignment_group_weights'       => true,
+            'license'                              => 'Creative Commons',
+            'sis_course_id'                        => '12345',
+            'public_description'                   => 'Nature is lethal but it doesn\'t hold a candle to man.',
+          }
+        }
+        course_response = post_params['course'].merge({
+          'account_id' => @account.id,
+          'root_account_id' => @account.id,
+          'start_at' => '2011-01-01T07:00:00Z',
+          'end_at' => '2011-05-01T07:00:00Z',
+          'workflow_state' => 'available',
+          'default_view' => 'feed',
+          'storage_quota_mb' => @account.default_storage_quota_mb
+        })
+        json = api_call(:post, @resource_path, @resource_params, post_params)
+        new_course = Course.find(json['id'])
+        new_course.enrollment_term_id.should eql term.id
+        course_response.merge!(
+          'id' => new_course.id,
+          'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/course_#{new_course.uuid}.ics" }
+        )
+        course_response.delete 'enrollment_term_id' #not included in the response
         json.should eql course_response
       end
 
@@ -346,7 +404,7 @@ describe CoursesController, :type => :integration do
             }
           }
         )
-        response.status.should eql '401 Unauthorized'
+        assert_status(401)
       end
     end
   end
@@ -355,6 +413,7 @@ describe CoursesController, :type => :integration do
     before do
       Course.any_instance.unstub(:start_at, :end_at)
       account_admin_user
+      @term = @course.root_account.enrollment_terms.create
       @path   = "/api/v1/courses/#{@course.id}"
       @params = { :controller => 'courses', :action => 'update', :format => 'json', :id => @course.to_param }
       @new_values = { 'course' => {
@@ -365,6 +424,7 @@ describe CoursesController, :type => :integration do
         'end_at' => '2012-03-30T23:59:59Z',
         'license' => 'public_domain',
         'is_public' => true,
+        'term_id' => @term.id,
         'public_syllabus' => true,
         'public_description' => 'new description',
         'allow_wiki_comments' => true,
@@ -395,6 +455,7 @@ describe CoursesController, :type => :integration do
         @course.start_at.strftime('%Y-%m-%dT%H:%M:%SZ').should eql @new_values['course']['start_at']
         @course.end_at.strftime('%Y-%m-%dT%H:%M:%SZ').should eql @new_values['course']['end_at']
         @course.sis_course_id.should eql @new_values['course']['sis_course_id']
+        @course.enrollment_term_id.should == @term.id
         @course.license.should == 'public_domain'
         @course.is_public.should be_true
         @course.public_syllabus.should be_true
@@ -415,6 +476,14 @@ describe CoursesController, :type => :integration do
         api_call(:put, @path, @params, @new_values)
         @course.reload
         @course.end_at.strftime('%Y-%m-%dT%T%z').should == '2012-01-01T23:59:59+0000'
+      end
+
+      it "should accept enrollment_term_id for updating the term" do
+        @new_values['course'].delete('term_id')
+        @new_values['course']['enrollment_term_id'] = @term.id
+        api_call(:put, @path, @params, @new_values)
+        @course.reload
+        @course.enrollment_term_id.should == @term.id
       end
 
       it "should allow a date to be deleted" do
@@ -662,6 +731,7 @@ describe CoursesController, :type => :integration do
       it "should deal gracefully with an invalid course id" do
         @course2.enrollments.scoped.delete_all
         @course2.course_account_associations.scoped.delete_all
+        @course2.course_sections.scoped.delete_all
         @course2.destroy!
         json = api_call(:put, @path + "?event=offer&course_ids[]=#{@course1.id}&course_ids[]=#{@course2.id}",
                         @params.merge(:event => 'offer', :course_ids => [@course1.id.to_s, @course2.id.to_s]))
@@ -720,6 +790,7 @@ describe CoursesController, :type => :integration do
       it "should report a failure if no updates succeeded" do
         @course2.enrollments.scoped.delete_all
         @course2.course_account_associations.scoped.delete_all
+        @course2.course_sections.scoped.delete_all
         @course2.destroy!
         json = api_call(:put, @path + "?event=offer&course_ids[]=#{@course2.id}",
                         @params.merge(:event => 'offer', :course_ids => [@course2.id.to_s]))
@@ -770,6 +841,7 @@ describe CoursesController, :type => :integration do
       'id' => @course1.enrollment_term_id,
       'name' => @course1.enrollment_term.name,
       'sis_term_id' => nil,
+      'workflow_state' => 'active',
     )
 
     # course2
@@ -780,6 +852,7 @@ describe CoursesController, :type => :integration do
       'id' => @course2.enrollment_term_id,
       'name' => @course2.enrollment_term.name,
       'sis_term_id' => nil,
+      'workflow_state' => 'active',
     )
   end
 
@@ -886,7 +959,7 @@ describe CoursesController, :type => :integration do
       json = api_call(:get, "/api/v1/courses.json?enrollment_role=SuperTeacher",
                       { :controller => 'courses', :action => 'index', :format => 'json', :enrollment_role => 'SuperTeacher' })
       json.collect{ |c| c['id'].to_i }.should == [@course3.id]
-      json[0]['enrollments'].should == [{ 'type' => 'teacher', 'role' => 'SuperTeacher' }]
+      json[0]['enrollments'].should == [{ 'type' => 'teacher', 'role' => 'SuperTeacher', 'enrollment_state' => 'invited' }]
     end
   end
 
@@ -935,7 +1008,7 @@ describe CoursesController, :type => :integration do
                       { :controller => 'courses', :action => 'index', :format => 'json', :enrollment_role => 'SuperTeacher' },
                       { :state => ['unpublished'] })
       json.collect{ |c| c['id'].to_i }.should == [@course3.id]
-      json[0]['enrollments'].should == [{ 'type' => 'teacher', 'role' => 'SuperTeacher' }]
+      json[0]['enrollments'].should == [{ 'type' => 'teacher', 'role' => 'SuperTeacher', 'enrollment_state' => 'invited' }]
       json.collect{ |c| c['workflow_state']}.each do |s|
         %w{unpublished}.should include(s)
       end
@@ -1201,7 +1274,7 @@ describe CoursesController, :type => :integration do
           course_id: @course1.id.to_s,
           page: 'invalid',
           format: 'json')
-        response.status.should == "404 Not Found"
+        assert_status(404)
       end
 
       it "returns a list of users" do
@@ -1215,7 +1288,7 @@ describe CoursesController, :type => :integration do
         test_student = @course1.student_view_student
         json = api_call(:get, "/api/v1/courses/#{@course1.id}/users.json",
                         { :controller => 'courses', :action => 'users', :course_id => @course1.id.to_s, :format => 'json' })
-        json.map{ |s| s["name"] }.should_not contain("Test Student")
+        json.map{ |s| s["name"] }.should_not include("Test Student")
       end
 
       it "includes the test student if told to do so" do
@@ -1223,7 +1296,7 @@ describe CoursesController, :type => :integration do
         json = api_call(:get, "/api/v1/courses/#{@course1.id}/users.json",
                         { :controller => 'courses', :action => 'users', :course_id => @course1.id.to_s, :format => 'json'},
                           :include => ['test_student'] )
-        json.map{ |s| s["name"] }.should contain("Test Student")
+        json.map{ |s| s["name"] }.should include("Test Student")
       end
 
       it "returns a list of users with emails" do
@@ -1398,7 +1471,7 @@ describe CoursesController, :type => :integration do
       describe "as a student" do
         append_before do
           @other_user = user_with_pseudonym(:name => 'Waldo', :username => 'dontfindme@example.com')
-          @other_user.pseudonym.update_attribute(:sis_user_id, '8675309')
+          @other_user.pseudonym.update_attribute(:sis_user_id, 'mysis_8675309')
           @course1.enroll_student(@other_user).accept!
 
           @user = user
@@ -1440,7 +1513,7 @@ describe CoursesController, :type => :integration do
           json = api_call(:get, "/api/v1/courses/#{@course1.to_param}/users",
                           { :controller => 'courses', :action => 'users',
                             :course_id => @course1.to_param, :format => 'json' },
-                          { :search_term => '867' })
+                          { :search_term => 'mysis' })
           json.should be_empty
         end
       end
@@ -1571,7 +1644,7 @@ describe CoursesController, :type => :integration do
         'name' => @course1.name,
         'account_id' => @course1.account_id,
         'course_code' => @course1.course_code,
-        'enrollments' => [{'type' => 'teacher', 'role' => 'TeacherEnrollment'}],
+        'enrollments' => [{'type' => 'teacher', 'role' => 'TeacherEnrollment', 'enrollment_state' => 'active'}],
         'sis_course_id' => @course1.sis_course_id,
         'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/course_#{@course1.uuid}.ics" },
         'hide_final_grades' => @course1.hide_final_grades,
@@ -1619,7 +1692,7 @@ describe CoursesController, :type => :integration do
       @course.update_attribute('sis_source_id', 'OTHER-SIS')
       raw_api_call(:get, "/api/v1/courses/sis_course_id:OTHER-SIS",
                    :controller => "courses", :action => "show", :id => "sis_course_id:OTHER-SIS", :format => "json")
-      response.status.should == "404 Not Found"
+      assert_status(404)
     end
 
     it 'should include permissions' do
@@ -1718,8 +1791,8 @@ describe CoursesController, :type => :integration do
 
 
   context "course files" do
-    it_should_behave_like "file uploads api with folders"
-    it_should_behave_like "file uploads api with quotas"
+    include_examples "file uploads api with folders"
+    include_examples "file uploads api with quotas"
 
     before :each do
       @context = @course
@@ -1868,7 +1941,7 @@ def each_copy_option
    [:modules, :context_modules], [:outcomes, :created_learning_outcomes]].each{|o| yield o}
 end
 
-describe ContentImportsController, :type => :integration do
+describe ContentImportsController, type: :request do
   before(:each) do
     course_with_teacher_logged_in(:active_all => true, :name => 'origin story')
     @copy_from = @course
@@ -1941,7 +2014,7 @@ describe ContentImportsController, :type => :integration do
     status = raw_api_call(:post, "/api/v1/courses/#{to_id}/course_copy",
             { :controller => 'content_imports', :action => 'copy_course_content', :course_id => to_id, :format => 'json' },
     {:source_course => from_id})
-    response.status.should == "404 Not Found"
+    assert_status(404)
   end
 
   def run_only_copy(option)
@@ -1991,14 +2064,14 @@ describe ContentImportsController, :type => :integration do
   it "should return 404 for an import that isn't found" do
     raw_api_call(:get, "/api/v1/courses/#{@copy_to.id}/course_copy/444",
                  { :controller => 'content_imports', :action => 'copy_course_status', :course_id => @copy_to.to_param, :id => '444', :format => 'json' })
-    response.status.should == "404 Not Found"
+    assert_status(404)
   end
 
   it "shouldn't allow both only and except options" do
     raw_api_call(:post, "/api/v1/courses/#{@copy_to.id}/course_copy",
             { :controller => 'content_imports', :action => 'copy_course_content', :course_id => @copy_to.to_param, :format => 'json' },
     {:source_course => @copy_from.to_param, :only => [:topics], :except => [:assignments]})
-    response.status.to_i.should == 400
+    assert_status(400)
     json = JSON.parse(response.body)
     json['errors'].should == 'You can not use "only" and "except" options at the same time.'
   end

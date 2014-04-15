@@ -32,7 +32,7 @@
     <%= item_class %>
   "
 >
-  <div class="ig-row <%= 'ig-published' if module_item_published?(module_item) %>">
+  <div class="ig-row <%= 'ig-published' if module_item_published?(module_item) %> <%= 'student-view' unless editable %>">
     <div class="ig-title ellipses">
       <% if editable || module_item.nil? %>
       <span
@@ -50,8 +50,8 @@
       </span>
 
       <span class="item_name">
-        <a class="title <%= '_explicit_external_link' if tag && tag.content_type == 'ExternalUrl' %>" href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>"><%= tag && tag.title %></a>
-        <span class="title locked_title"><%= tag && tag.title %></span>
+        <a title="<%= tag && tag.title %>" class="title <%= '_explicit_external_link' if tag && tag.content_type == 'ExternalUrl' %>" href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>"><%= truncate_text(tag && tag.title, :max_length => 98) %></a>
+        <span title="<%= tag && tag.title %>" class="title locked_title"><%= truncate_text(tag && tag.title, :max_length => 98) %></span>
         <span class="points_possible" style="display: none;"><%= tag.try_rescue(:assignment).try_rescue(:points_possible) || nbsp %></span>
         <span class="requirement" style="display: none;">&nbsp;</span>
         <span class="completion_requirement" style="display: none;">&nbsp;</span>
@@ -120,14 +120,14 @@
           <i class="icon-<%= published_status %>"></i>
         </span>
 
-        <a class="al-trigger al-trigger-gray">
+        <a role="button" class="al-trigger al-trigger-gray" tabindex="0">
           <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>
           <span class="screenreader-only"><%= t('settings', 'Settings') %></span>
         </a>
 
         <ul class="al-options">
-          <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="outdent_item_link" title="<%= t('links.outdent_item', %{Outdent item}) %>"><%= @module_item_image_tags['outdent'] %> <%= t('links.outdent', %{Outdent}) %></a></li>
-          <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="indent_item_link" title="<%= t('links.indent_item', %{Indent item}) %>"><%= @module_item_image_tags['indent'] %> <%= t('links.indent', %{Indent}) %></a></li>
+          <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="outdent_item_link" title="<%= t('links.outdent_item', %{Decrease indent}) %>"><%= @module_item_image_tags['outdent'] %> <%= t('links.outdent', %{Decrease indent}) %></a></li>
+          <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="indent_item_link" title="<%= t('links.indent_item', %{Increase indent}) %>"><%= @module_item_image_tags['indent'] %> <%= t('links.indent', %{Increase indent}) %></a></li>
           <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="edit_item_link edit_link" title="<%= t('links.edit_item_details', %{Edit item details}) %>"><%= @module_item_image_tags['edit'] %> <%= t('links.edit_item', %{Edit}) %></a></li>
           <li><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= tag ? tag.id : "{{ id }}" %>" class="delete_item_link delete_link" title="<%= t('links.remove_item_from_module', %{Remove this item from the module}) %>"><%= @module_item_image_tags['delete'] %> <%= t('links.remove_item', %{Remove}) %></a></li>
         </ul>

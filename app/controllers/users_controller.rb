@@ -51,9 +51,14 @@
 #           "type": "string"
 #         },
 #         "sis_user_id": {
-#           "description": "The SIS ID associated with the user.  This field is only included if the user came from a SIS import.",
+#           "description": "The SIS ID associated with the user.  This field is only included if the user came from a SIS import and has permissions to view SIS information.",
 #           "example": "SHEL93921",
 #           "type": "string"
+#         },
+#         "sis_import_id": {
+#           "description": "The id of the SIS import.  This field is only included if the user came from a SIS import and has permissions to manage SIS information.",
+#           "example": "18",
+#           "type": "int64"
 #         },
 #         "sis_login_id": {
 #           "description": "DEPRECATED: The SIS login ID associated with the user. Please use the sis_user_id or login_id. This field will be removed in a future version of the API.",
@@ -149,7 +154,7 @@ class UsersController < ApplicationController
     elsif params[:service] == "facebook"
       oauth_request = OauthRequest.create(
         :service => 'facebook',
-        :secret => AutoHandle.generate("fb", 10),
+        :secret => CanvasUuid::Uuid.generate("fb", 10),
         :return_url => return_to_url,
         :user => @current_user,
         :original_host_with_port => request.host_with_port
@@ -227,10 +232,11 @@ class UsersController < ApplicationController
         if @context && @context.is_a?(Account) && @query
           @users = @context.users_name_like(@query)
         elsif params[:enrollment_term_id].present? && @root_account == @context
-          # fast_all_users already specifies a select for the distinct to work on
-          @users = @context.fast_all_users.joins(:courses).
-              where(:courses => { :enrollment_term_id => params[:enrollment_term_id] })
-          @users = @users.uniq
+          @users = @context.fast_all_users.
+              where("EXISTS (?)", Enrollment.where("enrollments.user_id=users.id").
+                joins(:course).
+                where(User.enrollment_conditions(:active)).
+                where(courses: { enrollment_term_id: params[:enrollment_term_id]}))
         elsif !api_request?
           @users = @context.fast_all_users
         end
@@ -249,7 +255,7 @@ class UsersController < ApplicationController
           return render :json => users.map { |u| user_json(u, @current_user, session) }
         else
           @users ||= []
-          @users = @users.paginate(:page => params[:page], :per_page => @per_page, :total_entries => @users.size)
+          @users = @users.paginate(:page => params[:page])
         end
 
         respond_to do |format|
@@ -277,7 +283,7 @@ class UsersController < ApplicationController
 
   before_filter :require_password_session, :only => [:masquerade]
   def masquerade
-    @user = User.find_by_id(params[:user_id])
+    @user = api_find(User, params[:user_id])
     return render_unauthorized_action unless @user.can_masquerade?(@real_current_user || @current_user, @domain_root_account)
     if request.post?
       if @user == @real_current_user
@@ -293,6 +299,9 @@ class UsersController < ApplicationController
   end
 
   def user_dashboard
+    if custom_dash = @domain_root_account.settings[:dashboard_url]
+      return redirect_to custom_dash
+    end
     check_incomplete_registration
     get_context
 
@@ -453,14 +462,6 @@ class UsersController < ApplicationController
   #   {
   #     'type': 'Collaboration',
   #     'collaboration_id': 1234
-  #   }
-  #
-  # CollectionItem:
-  #
-  #   !!!javascript
-  #   {
-  #     'type': 'CollectionItem',
-  #     'collection_item' { ... full CollectionItem data ... }
   #   }
   def activity_stream
     if @current_user
@@ -667,7 +668,7 @@ class UsersController < ApplicationController
   #     }
   def ignore_stream_item
     @current_user.shard.activate do # can't just pass in the user's shard to relative_id_for, since local ids will be incorrectly scoped to the current shard, not the user's
-      if item = @current_user.stream_item_instances.where(stream_item_id: Shard.relative_id_for(params[:id])).first
+      if item = @current_user.stream_item_instances.where(stream_item_id: Shard.relative_id_for(params[:id], Shard.current, Shard.current)).first
         item.update_attribute(:hidden, true) # observer handles cache invalidation
       end
     end
@@ -876,6 +877,12 @@ class UsersController < ApplicationController
   # @argument communication_channel[address] [Optional, String]
   #   The communication channel address, e.g. the user's email address.
   #
+  # @argument skip_confirmation [Optional, Boolean]
+  #   Only valid for site admins and account admins making requests; If true, the channel is
+  #   automatically validated and no confirmation email or SMS is sent.
+  #   Otherwise, the user must respond to a confirmation message to confirm the
+  #   channel.
+  #
   # @returns User
   def create
     # Look for an incomplete registration with this pseudonym
@@ -895,6 +902,8 @@ class UsersController < ApplicationController
     if params[:communication_channel]
       cc_type = params[:communication_channel][:type] || CommunicationChannel::TYPE_EMAIL
       cc_addr = params[:communication_channel][:address]
+      skip_confirmation = value_to_boolean(params[:communication_channel][:skip_confirmation]) &&
+          (Account.site_admin.grants_right?(@current_user, :manage_students) || Account.default.grants_right?(@current_user, :manage_students))
     else
       cc_type = CommunicationChannel::TYPE_EMAIL
       cc_addr = params[:pseudonym].delete(:path) || params[:pseudonym][:unique_id]
@@ -962,7 +971,7 @@ class UsersController < ApplicationController
       @user.communication_channels.where(:path_type => cc_type).by_path(cc_addr).first ||
       @user.communication_channels.build(:path_type => cc_type, :path => cc_addr)
     @cc.user = @user
-    @cc.workflow_state = 'unconfirmed' unless @cc.workflow_state == 'confirmed'
+    @cc.workflow_state = skip_confirmation ? 'active' : 'unconfirmed' unless @cc.workflow_state == 'confirmed'
 
     if @user.valid? && @pseudonym.valid? && @observee.nil?
       # saving the user takes care of the @pseudonym and @cc, so we can't call
@@ -1024,11 +1033,11 @@ class UsersController < ApplicationController
   def settings
     user = api_find(User, params[:id])
 
-    case request.request_method
-    when :get
+    case
+    when request.get?
       return unless authorized_action(user, @current_user, :read)
       render(json: { manual_mark_as_read: @current_user.manual_mark_as_read? })
-    when :put
+    when request.put?
       return unless authorized_action(user, @current_user, [:manage, :manage_user_details])
       unless params[:manual_mark_as_read].nil?
         mark_as_read = value_to_boolean(params[:manual_mark_as_read])
@@ -1096,7 +1105,7 @@ class UsersController < ApplicationController
     params[:user] ||= {}
     @user = api_request? ?
       api_find(User, params[:id]) :
-      params[:id] ? User.find(params[:id]) : @current_user
+      params[:id] ? api_find(User, params[:id]) : @current_user
 
     if params[:default_pseudonym_id] && authorized_action(@user, @current_user, :manage)
       @default_pseudonym = @user.pseudonyms.find(params[:default_pseudonym_id])
@@ -1308,7 +1317,7 @@ class UsersController < ApplicationController
   #
   # @returns User
   def destroy
-    @user = api_request? ? api_find(User, params[:id]) : User.find(params[:id])
+    @user = api_find(User, params[:id])
     if authorized_action(@user, @current_user, [:manage, :manage_logins])
       @user.destroy(@user.grants_right?(@current_user, session, :manage_logins))
       if @user == @current_user
@@ -1444,75 +1453,22 @@ class UsersController < ApplicationController
       user_id = User.user_id_from_avatar_key(params[:user_id])
     end
     account_avatar_setting = service_enabled?(:avatars) ? @domain_root_account.settings[:avatars] || 'enabled' : 'disabled'
-    url = Rails.cache.fetch(Cacher.avatar_cache_key(user_id, account_avatar_setting)) do
-      user = User.find_by_id(user_id) if user_id.present?
-      if user
-        user.avatar_url(nil, account_avatar_setting, "%{fallback}")
-      else
-        '%{fallback}'
+    user_id, user_shard = Shard.local_id_for(user_id)
+    user_shard ||= Shard.current
+    url = user_shard.activate do
+      Rails.cache.fetch(Cacher.avatar_cache_key(user_id, account_avatar_setting)) do
+        user = User.find_by_id(user_id) if user_id.present?
+        if user
+          user.avatar_url(nil, account_avatar_setting, "%{fallback}")
+        else
+          '%{fallback}'
+        end
       end
     end
     fallback = User.avatar_fallback_url(params[:fallback], request)
     redirect_to (url.blank? || url == "%{fallback}") ?
       fallback :
       url.sub(CGI.escape("%{fallback}"), CGI.escape(fallback))
-  end
-
-  include Api::V1::UserFollow
-
-  # @API Follow a user
-  # @beta
-  #
-  # Follow this user. If the current user is already following the
-  # target user, nothing happens. The target user must have a public profile in
-  # order to follow it.
-  #
-  # On success, returns the User object. Responds with a 401 if the user
-  # doesn't have permission to follow the target user, or a 400 if the user
-  # can't follow the target user (if the user and target user are the same, for
-  # example).
-  #
-  # @example_request
-  #     curl https://<canvas>/api/v1/users/<user_id>/followers/self \ 
-  #          -X PUT \ 
-  #          -H 'Content-Length: 0' \ 
-  #          -H 'Authorization: Bearer <token>'
-  #
-  # @example_response
-  #     {
-  #       following_user_id: 5,
-  #       followed_user_id: 6,
-  #       created_at: <timestamp>
-  #     }
-  def follow
-    @user = api_find(User, params[:user_id])
-    if authorized_action(@user, @current_user, :follow)
-      user_follow = UserFollow.create_follow(@current_user, @user)
-      if !user_follow.new_record?
-        render :json => user_follow_json(user_follow, @current_user, session)
-      else
-        render :json => user_follow.errors, :status => :bad_request
-      end
-    end
-  end
-
-  # @API Un-follow a user
-  # @beta
-  #
-  # Stop following this user. If the current user is not already following the
-  # target user, nothing happens.
-  #
-  # @example_request
-  #     curl https://<canvas>/api/v1/users/<user_id>/followers/self \ 
-  #          -X DELETE \ 
-  #          -H 'Authorization: Bearer <token>'
-  def unfollow
-    @user = api_find(User, params[:user_id])
-    if authorized_action(@user, @current_user, :follow)
-      user_follow = @current_user.user_follows.where(:followed_item_id => @user, :followed_item_type => 'User').first
-      user_follow.try(:destroy)
-      render :json => { "ok" => true }
-    end
   end
 
   # @API Merge user into another user

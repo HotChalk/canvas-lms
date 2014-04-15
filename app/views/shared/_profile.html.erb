@@ -9,12 +9,12 @@
   <div class="image-block">
     <div class="image-block-image profile-avatar-wrapper">
       <% if @user_data[:can_edit] && !(@user == @current_user && @user.avatar_state == :locked) %>
-        <a href="#" class="profile-link">
-          <%= avatar_image @user_data[:id], 128 %>
+        <a href="#" class="profile-link" title="<%= t('titles.click_to_change_profile_pic', "Click to change profile pic") %>">
+          <%= square_avatar_image @user_data[:id], 128 %>
           <i class="icon-edit"></i>
         </a>
       <% else %>
-        <%= avatar_image @user_data[:id], 128 %>
+        <%= square_avatar_image @user_data[:id], 128 %>
       <% end %>
     </div>
     <div class="image-block-content row-fluid">
@@ -134,6 +134,7 @@
       </div>
 
       <% if @user_data[:can_edit] %>
+        <input type="hidden" name="delete_links" value="1">
         <div class="show-if-editing">
           <table id="edit_links_table">
             <thead>

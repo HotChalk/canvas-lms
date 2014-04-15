@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 - 2013 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -23,6 +23,11 @@ class Attachment < ActiveRecord::Base
     best_unicode_collation_key(col)
   end
   attr_accessible :context, :folder, :filename, :display_name, :user, :locked, :position, :lock_at, :unlock_at, :uploaded_data, :hidden
+
+  include PolymorphicTypeOverride
+  override_polymorphic_types context_type: {'QuizStatistics' => 'Quizzes::QuizStatistics',
+                                            'QuizSubmission' => 'Quizzes::QuizSubmission'}
+
   include HasContentTags
   include ContextModuleItem
   include SearchTermHelper
@@ -128,8 +133,14 @@ class Attachment < ActiveRecord::Base
       # attachment in the same context and the same full path, we return that
       # instead, to emulate replacing a file without having to update every
       # by-id reference in every user content field.
-      if att.deleted?
-        new_att = Folder.find_attachment_in_context_with_path(proxy_owner, att.full_display_path)
+      if CANVAS_RAILS2
+        owner = proxy_owner
+      elsif self.respond_to?(:proxy_association)
+        owner = proxy_association.owner
+      end
+
+      if att.deleted? && owner
+        new_att = Folder.find_attachment_in_context_with_path(owner, att.full_display_path)
         new_att || att
       else
         att
@@ -151,6 +162,19 @@ class Attachment < ActiveRecord::Base
   end
 
   def before_attachment_saved
+    run_before_attachment_saved
+  end
+
+  def after_attachment_saved
+    run_after_attachment_saved
+  end
+
+  unless CANVAS_RAILS2
+    before_attachment_saved :run_before_attachment_saved
+    after_attachment_saved :run_after_attachment_saved
+  end
+
+  def run_before_attachment_saved
     @after_attachment_saved_workflow_state = self.workflow_state
     self.workflow_state = 'unattached'
   end
@@ -161,7 +185,7 @@ class Attachment < ActiveRecord::Base
   # It blocks and makes the user wait.  The good thing is that sending
   # it to scribd from that point does not make the user wait since that
   # does happen asynchronously and the data goes directly from s3 to scribd.
-  def after_attachment_saved
+  def run_after_attachment_saved
     if workflow_state == 'unattached' && @after_attachment_saved_workflow_state
       self.workflow_state = @after_attachment_saved_workflow_state
       @after_attachment_saved_workflow_state = nil
@@ -225,11 +249,8 @@ class Attachment < ActiveRecord::Base
     existing ||= self.cloned_item_id ? context.attachments.find_by_cloned_item_id(self.cloned_item_id) : nil
     dup ||= Attachment.new
     dup = existing if existing && options[:overwrite]
-    if CANVAS_RAILS2
-      dup.send(:attributes=, self.attributes.except(*%w[id root_attachment_id uuid folder_id user_id filename namespace]), false)
-    else
-      dup.assign_attributes(self.attributes.except(*%w[id root_attachment_id uuid folder_id user_id filename namespace]), :without_protection => true)
-    end
+    dup.assign_attributes(self.attributes.except(*%w[id root_attachment_id uuid folder_id user_id filename namespace
+                                                     scribd_doc workflow_state submitted_to_scribd_at scribd_attempts]), :without_protection => true)
     dup.write_attribute(:filename, self.filename)
     # avoid cycles (a -> b -> a) and self-references (a -> a) in root_attachment_id pointers
     if dup.new_record? || ![self.id, self.root_attachment_id].include?(dup.id)
@@ -479,9 +500,10 @@ class Attachment < ActiveRecord::Base
     self.scribd_attempts ||= 0
     self.folder_id ||= Folder.root_folders(context).first.id rescue nil
     if self.root_attachment && self.new_record?
-      [:md5, :size, :content_type, :scribd_mime_type_id, :submitted_to_scribd_at, :workflow_state, :scribd_doc].each do |key|
+      [:md5, :size, :content_type, :scribd_mime_type_id].each do |key|
         self.send("#{key.to_s}=", self.root_attachment.send(key))
       end
+      self.workflow_state = 'processed'
       self.write_attribute(:filename, self.root_attachment.filename)
     end
     self.context = self.folder.context if self.folder && (!self.context || (self.context.respond_to?(:is_a_context? ) && self.context.is_a_context?))
@@ -561,8 +583,13 @@ class Attachment < ActiveRecord::Base
     write_attribute(:namespace, new_namespace)
 
     if Attachment.s3_storage?
-      bucket.objects[old_full_filename].rename_to(self.full_filename,
+      # copying rather than moving to avoid unhappy accidents
+      # note that GC of the S3 bucket isn't yet implemented,
+      # so there's a bit of a cost here
+      if !s3object.exists?
+        bucket.objects[old_full_filename].copy_to(self.full_filename,
                                                   :acl => attachment_options[:s3_access])
+      end
     else
       FileUtils.mv old_full_filename, full_filename
     end
@@ -580,35 +607,35 @@ class Attachment < ActiveRecord::Base
     self.content_type = details[:content_type]
     self.size = details[:content_length]
 
-    if existing_attachment = find_existing_attachment_for_md5
-      if existing_attachment.s3object.exists?
-        # deduplicate. the existing attachment's s3object should be the same as
-        # that just uploaded ('cuz md5 match). delete the new copy and just
-        # have this attachment inherit from the existing attachment.
-        s3object.delete rescue nil
-        self.root_attachment = existing_attachment
-        write_attribute(:filename, nil)
-        clear_cached_urls
-      else
-        # it looks like we had a duplicate, but the existing attachment doesn't
-        # actually have an s3object (probably from an earlier bug). update it
-        # and all its inheritors to inherit instead from this attachment.
-        existing_attachment.root_attachment = self
-        existing_attachment.write_attribute(:filename, nil)
-        existing_attachment.clear_cached_urls
-        existing_attachment.save!
-        Attachment.where(root_attachment_id: existing_attachment).update_all(
-          root_attachment_id: self,
-          filename: nil,
-          cached_scribd_thumbnail: nil,
-          updated_at: Time.zone.now)
+    self.shard.activate do
+      if existing_attachment = find_existing_attachment_for_md5
+        if existing_attachment.s3object.exists?
+          # deduplicate. the existing attachment's s3object should be the same as
+          # that just uploaded ('cuz md5 match). delete the new copy and just
+          # have this attachment inherit from the existing attachment.
+          s3object.delete rescue nil
+          self.root_attachment = existing_attachment
+          write_attribute(:filename, nil)
+          clear_cached_urls
+        else
+          # it looks like we had a duplicate, but the existing attachment doesn't
+          # actually have an s3object (probably from an earlier bug). update it
+          # and all its inheritors to inherit instead from this attachment.
+          existing_attachment.root_attachment = self
+          existing_attachment.write_attribute(:filename, nil)
+          existing_attachment.clear_cached_urls
+          existing_attachment.save!
+          Attachment.where(root_attachment_id: existing_attachment).update_all(
+            root_attachment_id: self,
+            filename: nil,
+            cached_scribd_thumbnail: nil,
+            updated_at: Time.zone.now)
+        end
       end
+      save!
+      # normally this would be called by attachment_fu after it had uploaded the file to S3.
+      after_attachment_saved
     end
-
-    save!
-
-    # normally this would be called by attachment_fu after it had uploaded the file to S3.
-    after_attachment_saved
   end
 
   CONTENT_LENGTH_RANGE = 10.gigabytes
@@ -764,7 +791,7 @@ class Attachment < ActiveRecord::Base
 
   before_save :assign_uuid
   def assign_uuid
-    self.uuid ||= AutoHandle.generate_securish_uuid
+    self.uuid ||= CanvasUuid::Uuid.generate_securish_uuid
   end
   protected :assign_uuid
 
@@ -1069,7 +1096,7 @@ class Attachment < ActiveRecord::Base
   alias_method_chain :thumbnail, :root_attachment
 
   def scribd_doc
-    self.read_attribute(:scribd_doc) || self.root_attachment.try(:scribd_doc)
+    self.root_attachment.try(:scribd_doc) || self.read_attribute(:scribd_doc)
   end
 
   def content_directory
@@ -1375,6 +1402,42 @@ class Attachment < ActiveRecord::Base
     !!@skip_media_object_creation
   end
 
+  def needs_scribd_doc?
+    if self.scribd_attempts >= MAX_SCRIBD_ATTEMPTS
+      self.mark_errored
+      false
+    end
+    if self.scribd_doc?
+      Scribd::API.instance.user = scribd_user
+      begin
+        status = self.scribd_doc.conversion_status
+        if status == 'DONE'
+          false
+        elsif status == 'PROCESSING'
+          false
+        elsif status == 'ERROR'
+          self.resubmit_to_scribd!
+        elsif status == 'DISPLAYABLE'
+          false
+        else #unknow_status, don't send it.
+          false
+        end
+      rescue Scribd::ResponseError => e
+        if e.code == '611' #Insufficient permissions to access this document
+          self.resubmit_to_scribd!
+        elsif e.code == '619' #Document has been deleted from scribd
+          self.resubmit_to_scribd!
+        elsif e.code == '612' #Document could not be found in scribd
+          self.resubmit_to_scribd!
+        else
+          ErrorReport.log_exception(:scribd, e, :attachment_id => self.id)
+        end
+      end
+    else
+      true
+    end
+  end
+
   # This is the engine of the Scribd machine.  Submits the code to
   # scribd when appropriate, otherwise adjusts the state machine. This
   # should be called from another service, creating an asynchronous upload
@@ -1384,29 +1447,33 @@ class Attachment < ActiveRecord::Base
   # state to processed so that it doesn't try to do that again.
   def submit_to_scribd!
     # Newly created record that needs to be submitted to scribd
-    if self.pending_upload? and self.scribdable? and self.filename and ScribdAPI.enabled?
+    a = self.root_attachment if self.root_account_id
+    a ||= self
+    return true unless a.needs_scribd_doc?
+    if a.pending_upload? and a.scribdable? and a.filename and ScribdAPI.enabled?
       Scribd::API.instance.user = scribd_user
       begin
         upload_path = if Attachment.local_storage?
-                 self.full_filename
-               else
-                 self.authenticated_s3_url(:expires => 1.year)
-               end
-        self.write_attribute(:scribd_doc, ScribdAPI.upload(upload_path, self.after_extension || self.scribd_mime_type.extension))
-        self.cached_scribd_thumbnail = self.scribd_doc.thumbnail
-        self.workflow_state = 'processing'
+                        a.full_filename
+                      else
+                        a.authenticated_s3_url(:expires => 1.year)
+                      end
+        return false if upload_path.length > 300
+        a.write_attribute(:scribd_doc, ScribdAPI.upload(upload_path, a.after_extension || a.scribd_mime_type.extension))
+        a.cached_scribd_thumbnail = a.scribd_doc.thumbnail
+        a.workflow_state = 'processing'
       rescue => e
-        self.workflow_state = 'errored'
-        ErrorReport.log_exception(:scribd, e, :attachment_id => self.id)
+        a.workflow_state = 'errored'
+        ErrorReport.log_exception(:scribd, e, :attachment_id => a.id)
       end
-      self.submitted_to_scribd_at = Time.now
-      self.scribd_attempts ||= 0
-      self.scribd_attempts += 1
-      self.save
+      a.submitted_to_scribd_at = Time.now
+      a.scribd_attempts ||= 0
+      a.scribd_attempts += 1
+      a.save
       return true
     # Newly created record that isn't appropriate for scribd
-    elsif self.pending_upload? and not self.scribdable?
-      self.process!
+    elsif a.pending_upload? and not a.scribdable?
+      a.process!
       return true
     else
       return false
@@ -1438,6 +1505,7 @@ class Attachment < ActiveRecord::Base
       Scribd::API.instance.user = scribd_user
       self.scribd_doc.destroy rescue nil
     end
+    self.scribd_doc = nil
     self.workflow_state = 'pending_upload'
     self.submit_to_scribd!
   end
@@ -1508,24 +1576,35 @@ class Attachment < ActiveRecord::Base
     res
   end
 
+
+  def folder_path
+    if folder
+      folder.full_name
+    else
+      Folder.root_folders(self.context).first.try(:name)
+    end
+  end
+
   def full_path
-    folder = (self.folder.full_name + '/') rescue Folder.root_folders(self.context).first.name + '/'
-    folder + self.filename
+    "#{folder_path}/#{filename}"
   end
 
   def matches_full_path?(path)
     f_path = full_path
     f_path == path || URI.unescape(f_path) == path || f_path.downcase == path.downcase || URI.unescape(f_path).downcase == path.downcase
+  rescue
+    false
   end
 
   def full_display_path
-    folder = (self.folder.full_name + '/') rescue Folder.root_folders(self.context).first.name + '/'
-    folder + self.display_name
+    "#{folder_path}/#{display_name}"
   end
 
   def matches_full_display_path?(path)
     fd_path = full_display_path
     fd_path == path || URI.unescape(fd_path) == path || fd_path.downcase == path.downcase || URI.unescape(fd_path).downcase == path.downcase
+  rescue
+    false
   end
 
   def matches_filename?(match)
@@ -1533,6 +1612,8 @@ class Attachment < ActiveRecord::Base
       URI.unescape(filename) == match || URI.unescape(display_name) == match ||
       filename.downcase == match.downcase || display_name.downcase == match.downcase ||
       URI.unescape(filename).downcase == match.downcase || URI.unescape(display_name).downcase == match.downcase
+  rescue
+    false
   end
 
   def protect_for(user)
@@ -1581,12 +1662,12 @@ class Attachment < ActiveRecord::Base
 
   scope :scribdable?, where("scribd_mime_type_id IS NOT NULL")
   scope :recyclable, where("attachments.scribd_attempts<? AND attachments.workflow_state='errored'", MAX_SCRIBD_ATTEMPTS)
-  scope :needing_scribd_conversion_status, lambda { where("attachments.workflow_state='processing' AND attachments.updated_at<?", 30.minutes.ago).limit(50) }
+  scope :needing_scribd_conversion_status, lambda { where("attachments.workflow_state='processing' AND attachments.updated_at<? AND scribd_doc IS NOT NULL", 30.minutes.ago).limit(50) }
   scope :uploadable, where(:workflow_state => 'pending_upload')
   scope :active, where(:file_state => 'available')
   scope :thumbnailable?, where(:content_type => Technoweenie::AttachmentFu.content_types)
-  scope :by_display_name, order(display_name_order_by_clause('attachments'))
-  scope :by_position_then_display_name, order("attachments.position, #{display_name_order_by_clause('attachments')}")
+  scope :by_display_name, lambda { order(display_name_order_by_clause('attachments')) }
+  scope :by_position_then_display_name, lambda { order("attachments.position, #{display_name_order_by_clause('attachments')}") }
   def self.serialization_excludes; [:uuid, :namespace]; end
   def set_serialization_options
     if self.scribd_doc
@@ -1603,7 +1684,7 @@ class Attachment < ActiveRecord::Base
   end
 
   def filter_attributes_for_user(hash, user, session)
-    hash.delete(:scribd_doc) unless grants_right?(user, session, :download)
+    hash.delete('scribd_doc') unless grants_right?(user, session, :download)
   end
 
   def self.process_scribd_conversion_statuses

@@ -23,6 +23,7 @@ define([
   'quiz_timing',
   'compiled/behaviors/autoBlurActiveInput',
   'underscore',
+  'compiled/views/quizzes/LDBLoginPopup',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.toJSON',
   'jquery.instructure_date_and_time' /* friendlyDatetime, friendlyDate */,
@@ -33,10 +34,10 @@ define([
   'redactor.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'compiled/behaviors/quiz_selectmenu'
-], function(FileUploadQuestionView, File, I18n, $, timing, autoBlurActiveInput, _) {
-
+], function(FileUploadQuestionView, File, I18n, $, timing, autoBlurActiveInput, _, LDBLoginPopup) {
   var lastAnswerSelected = null;
   var lastSuccessfulSubmissionData = null;
+  var showDeauthorizedDialog;
   var quizSubmission = (function() {
     var timeMod = 0,
         startedAt =  $(".started_at"),
@@ -70,7 +71,18 @@ define([
       cantGoBack: $("#submit_quiz_form").hasClass("cant_go_back"),
       finalSubmitButtonClicked: false,
       clockInterval: 500,
+      backupsDisabled: document.location.search.search(/backup=false/) > -1,
       updateSubmission: function(repeat, beforeLeave, autoInterval) {
+        /**
+         * Transient: CNVS-9844
+         * Disable auto-backups if backup=true was passed as a query parameter.
+         *
+         * This is required to test updating questions via the API.
+         */
+        if (quizSubmission.backupsDisabled) {
+          return;
+        }
+
         if(quizSubmission.submitting && !repeat) { return; }
         var now = new Date();
         if((now - quizSubmission.lastSubmissionUpdate) < 1000 && !autoInterval) {
@@ -154,28 +166,11 @@ define([
 
                 // has the user logged out?
                 // TODO: support this redirect in LDB, by getting out of high security mode.
-                if (!ENV.LOCKDOWN_BROWSER && (ec.status == 401 || resp['status'] == 'unauthorized')) {
-                  var $dialog = $("#deauthorized_dialog");
-                  if ($dialog.is(':data(dialog)')) {
-                    if (!$dialog.dialog("isOpen")) { $dialog.dialog("open"); }
-                  } else {
-                    $dialog.dialog({
-                      modal: true,
-                      buttons: [{
-                        text: I18n.t("#buttons.cancel", "Cancel"),
-                        'class': "dialog_closer",
-                        click: function() { $(this).dialog("close"); }
-                      }, {
-                        text: I18n.t("#buttons.login", "Login"),
-                        'class': "btn-primary relogin_button button_type_submit",
-                        click: function() {
-                          quizSubmission.navigatingToRelogin = true;
-                          $('#deauthorized_dialog').submit();
-                        }
-                      }]
-                    });
-                  }
-                } else {
+                if (ec.status === 401 || resp['status'] == 'unauthorized') {
+                  showDeauthorizedDialog();
+                }
+                else {
+                  // Connectivity lost?
                   $.ajaxJSON(
                       location.protocol + '//' + location.host + "/simple_response.json?user_id=" + current_user_id + "&rnd=" + Math.round(Math.random() * 9999999),
                       'GET', {},
@@ -432,6 +427,16 @@ define([
       }
     });
 
+    $('.file-upload-question-holder').each(function(i,el) {
+      var $el = $(el);
+      var val = parseInt($el.find('input.attachment-id').val(),10);
+      if (val && val !==  0){
+        $el.find('.file-upload-box').addClass('file-upload-box-with-file');
+      }
+      var model = new File(ENV.ATTACHMENTS[val], {preflightUrl: ENV.UPLOAD_URL});
+      new FileUploadQuestionView({el: el, model: model}).render();
+    });
+
     $questions
       .delegate(":checkbox,:radio,label", 'change mouseup', function(event) {
         var $answer = $(this).parents(".answer");
@@ -633,15 +638,37 @@ define([
     $submit_buttons.removeAttr('disabled');
   });
 
-  $('.file-upload-question-holder').each(function(i,el) {
-    var $el = $(el);
-    var val = parseInt($el.find('input.attachment-id').val(),10);
-    if (val && val !==  0){
-      $el.find('.file-upload-box').addClass('file-upload-box-with-file');
-    }
-    var model = new File(ENV.ATTACHMENTS[val], {preflightUrl: ENV.UPLOAD_URL});
-    new FileUploadQuestionView({el: el, model: model}).render();
-  });
+  showDeauthorizedDialog = function() {
+    $("#deauthorized_dialog").dialog({
+      modal: true,
+      buttons: [{
+        text: I18n.t("#buttons.cancel", "Cancel"),
+        'class': "dialog_closer",
+        click: function() { $(this).dialog("close"); }
+      }, {
+        text: I18n.t("#buttons.login", "Login"),
+        'class': "btn-primary relogin_button button_type_submit",
+        click: function() {
+          quizSubmission.navigatingToRelogin = true;
+          $('#deauthorized_dialog').submit();
+        }
+      }]
+    });
+  };
 
+  if (ENV.LOCKDOWN_BROWSER) {
+    var ldbLoginPopup;
+
+    ldbLoginPopup = new LDBLoginPopup();
+    ldbLoginPopup
+    .on('login_success.take_quiz', function() {
+      $.flashMessage(I18n.t('login_successful', 'Login successful.'));
+    })
+    .on('login_failure.take_quiz', function() {
+      $.flashError(I18n.t('login_failed', 'Login failed.'));
+    });
+
+    showDeauthorizedDialog = _.bind(ldbLoginPopup.exec, ldbLoginPopup);
+  }
 });
 

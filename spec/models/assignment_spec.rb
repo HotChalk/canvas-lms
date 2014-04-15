@@ -52,10 +52,7 @@ describe Assignment do
     group = @course.assignment_groups.create!(:name => "Assignments")
     AssignmentGroup.where(:id => group).update_all(:updated_at => 1.hour.ago)
     orig_time = group.reload.updated_at.to_i
-    a = @course.assignments.build(
-                                          "title"=>"test",
-                                          "external_tool_tag_attributes"=>{"url"=>"", "new_tab"=>""}
-                                  )
+    a = @course.assignments.build("title"=>"test")
     a.assignment_group = group
     a.save!
     @course.assignments.count.should == 1
@@ -82,7 +79,7 @@ describe Assignment do
       @assignment.should_not be_can_unpublish
       @assignment.unpublish
       @assignment.should_not be_valid
-      @assignment.errors['workflow_state'].should == "Can't unpublish if there are student submissions"
+      @assignment.errors['workflow_state'].should == ["Can't unpublish if there are student submissions"]
     end
 
     it "does allow itself to be unpublished if it has nil submissions" do
@@ -639,15 +636,18 @@ describe Assignment do
       @course.enroll_student(@user).update_attribute(:workflow_state, 'accepted')
       @assignment.context.reload
 
+      @assignment.submissions.scoped.delete_all
       real_sub = @assignment.submissions.build(user: @user)
 
-      @assignment.submissions.expects(:where).once.returns(Submission.none)
-      @assignment.submissions.expects(:build).once.returns(real_sub)
+      mock_submissions = Submission.none
+      mock_submissions.stubs(:build).returns(real_sub).once
+      @assignment.stubs(:submissions).returns(mock_submissions)
 
       sub = nil
       lambda {
         sub = yield(@assignment, @user)
       }.should_not raise_error
+      
       sub.should_not be_new_record
       sub.should eql real_sub
     end
@@ -1092,7 +1092,7 @@ describe Assignment do
       @quiz.assignment_id.should eql(@a.id)
       @a.submission_types = 'on_paper'
       @a.save!
-      @quiz = Quiz.find(@quiz.id)
+      @quiz = Quizzes::Quiz.find(@quiz.id)
       @quiz.assignment_id.should eql(nil)
       @quiz.state.should eql(:deleted)
       @a.reload
@@ -1117,7 +1117,7 @@ describe Assignment do
       @a.reload
       @a.quiz.should be_nil
       @a.state.should eql(:published)
-      @quiz = Quiz.find(@quiz.id)
+      @quiz = Quizzes::Quiz.find(@quiz.id)
       @quiz.assignment_id.should eql(nil)
       @quiz.state.should eql(:created)
     end
@@ -1977,7 +1977,7 @@ describe Assignment do
         @asmnt.description = "new description"
         @asmnt.save
         @asmnt.valid?.should == false
-        @asmnt.errors["description"].should == "You don't have permission to edit the locked attribute description"
+        @asmnt.errors["description"].should == ["You don't have permission to edit the locked attribute description"]
       end
 
       it "should allow teacher to edit unlocked attributes" do
@@ -1995,7 +1995,7 @@ describe Assignment do
         @asmnt.save
 
         @asmnt.valid?.should == false
-        @asmnt.errors["description"].should == "You don't have permission to edit the locked attribute description"
+        @asmnt.errors["description"].should == ["You don't have permission to edit the locked attribute description"]
 
         @asmnt.reload
         @asmnt.description.should_not == "new title"
@@ -2258,6 +2258,53 @@ describe Assignment do
 
       json = @assignment.speed_grader_json(@teacher)
       json[:submissions].first['submission_history'].first[:submission]['late'].should be_true
+    end
+
+    it "returns quiz history for records before and after namespace change" do
+      course_with_teacher(:active_all => true)
+      student_in_course
+      quiz_with_graded_submission([], { :course => @course, :user => @student })
+      @quiz.save!
+
+      json = @assignment.speed_grader_json(@teacher)
+      json[:submissions].first['submission_history'].size.should == 1
+
+      Version.update_all("versionable_type = 'QuizSubmission'", "versionable_type = 'Quizzes::QuizSubmission'")
+      json = @assignment.reload.speed_grader_json(@teacher)
+      json[:submissions].first['submission_history'].size.should == 1
+    end
+  end
+
+  describe "#too_many_qs_versions" do
+    it "returns if there are too many versions to load at once" do
+      course_with_teacher :active_all => true
+      student_in_course
+      quiz_with_graded_submission [], :course => @course, :user => @student
+      submissions = @quiz.assignment.submissions
+
+      Setting.set('too_many_quiz_submission_versions', 3)
+      1.times { @quiz_submission.versions.create! }
+      @quiz.assignment.too_many_qs_versions?(submissions).should be_false
+
+      2.times { @quiz_submission.versions.create! }
+      @quiz.reload.assignment.too_many_qs_versions?(submissions).should be_true
+    end
+  end
+
+  describe "#quiz_submission_versions" do
+    it "finds quiz submission versions for submissions" do
+      course_with_teacher(:active_all => true)
+      student_in_course
+      quiz_with_graded_submission([], { :course => @course, :user => @student })
+      @quiz.save!
+
+      assignment  = @quiz.assignment
+      submissions = assignment.submissions
+      too_many    = assignment.too_many_qs_versions?(submissions)
+
+      versions = assignment.quiz_submission_versions(submissions, too_many)
+
+      versions[@quiz_submission.id].size.should == 1
     end
   end
 
@@ -2526,13 +2573,31 @@ describe Assignment do
     end
   end
 
-  describe "restore" do
-    it "should restore to unpublished state if draft_state is enabled" do
-      course(draft_state: true)
+  describe "#restore" do
+    it "should restore assignments with draft state disabled" do
+      course
       assignment_model course: @course
       @a.destroy
       @a.restore
+      @a.reload.should be_published
+    end
+
+    it "should restore to unpublished if draft state w/ no submissions" do
+      course(draft_state: true)
+      assignment_model course: @course
+      @a.context.root_account.enable_feature!(:draft_state)
+      @a.destroy
+      @a.restore
       @a.reload.should be_unpublished
+    end
+
+    it "should restore to published if draft state w/ submissions" do
+      course(draft_state: true)
+      setup_assignment_with_homework
+      @assignment.context.root_account.enable_feature!(:draft_state)
+      @assignment.destroy
+      @assignment.restore
+      @assignment.reload.should be_published
     end
   end
 

@@ -456,11 +456,11 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def otp_remember_me_cookie_domain
-    ActionController::Base.session_options[:domain]
+    CANVAS_RAILS2 ? ActionController::Base.session_options[:domain] : CanvasRails::Application.config.session_options[:domain]
   end
 
   def otp_login(send_otp = false)
-    if !@current_user.otp_secret_key || request.method == :get
+    if !@current_user.otp_secret_key || request.get?
       session[:pending_otp_secret_key] ||= ROTP::Base32.random_base32
     end
     if session[:pending_otp_secret_key] && params[:otp_login].try(:[], :otp_communication_channel_id)
@@ -512,12 +512,12 @@ class PseudonymSessionsController < ApplicationController
 
       if params[:otp_login][:remember_me] == '1'
         now = Time.now.utc
-        self.cookies['canvas_otp_remember_me'] = {
+        cookies['canvas_otp_remember_me'] = {
               :value => @current_user.otp_secret_key_remember_me_cookie(now),
               :expires => now + 30.days,
               :domain => otp_remember_me_cookie_domain,
               :httponly => true,
-              :secure => ActionController::Base.session_options[:secure],
+              :secure => CANVAS_RAILS2 ? ActionController::Base.session_options[:secure] : CanvasRails::Application.config.session_options[:secure],
               :path => '/login'
             }
       end
@@ -557,7 +557,7 @@ class PseudonymSessionsController < ApplicationController
     otp_passed ||= cookies['canvas_otp_remember_me'] &&
         @current_user.validate_otp_secret_key_remember_me_cookie(cookies['canvas_otp_remember_me'])
     if !otp_passed
-      mfa_settings = @current_pseudonym.mfa_settings
+      mfa_settings = @current_user.mfa_settings
       if (@current_user.otp_secret_key && mfa_settings == :optional) ||
           mfa_settings == :required
         session[:pending_otp] = true
@@ -594,7 +594,6 @@ class PseudonymSessionsController < ApplicationController
           redirect_to login_url
         else
           @errored = true
-          @pre_registered = @user if @user && !@user.registered?
           @headers = false
           maybe_render_mobile_login :bad_request
         end
@@ -637,7 +636,7 @@ class PseudonymSessionsController < ApplicationController
         redirect_to oauth2_auth_confirm_url
       end
     else
-      redirect_to login_url(:canvas_login => params[:canvas_login])
+      redirect_to login_url(params.slice(:canvas_login, :pseudonym_session))
     end
   end
 
@@ -661,7 +660,11 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def oauth2_token
-    basic_user, basic_pass = ActionController::HttpAuthentication::Basic.user_name_and_password(request) if ActionController::HttpAuthentication::Basic.authorization(request)
+    if CANVAS_RAILS2
+      basic_user, basic_pass = ActionController::HttpAuthentication::Basic.user_name_and_password(request) if ActionController::HttpAuthentication::Basic.authorization(request)
+    else
+      basic_user, basic_pass = ActionController::HttpAuthentication::Basic.user_name_and_password(request) if request.authorization
+    end
 
     client_id = params[:client_id].presence || basic_user
     secret = params[:client_secret].presence || basic_pass

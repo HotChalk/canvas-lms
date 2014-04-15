@@ -418,7 +418,7 @@ describe "Canvas Cartridge importing" do
     rubric2.data = [{:ratings=>[{:criterion_id=>"309_6312", :points=>5, :description=>"Full Marks", :id=>"blank", :long_description=>""}, {:criterion_id=>"309_6312", :points=>0, :description=>"No Marks", :id=>"blank_2", :long_description=>""}], :points=>5, :description=>"Description of criterion", :id=>"309_6312", :long_description=>""}, {:ignore_for_scoring=>false, :mastery_points=>3, :learning_outcome_id=>lo.id, :ratings=>[{:criterion_id=>"309_343", :points=>5, :description=>"Exceeds Expectations", :id=>"309_6516", :long_description=>""}, {:criterion_id=>"309_343", :points=>0, :description=>"Does Not Meet Expectations", :id=>"309_9962", :long_description=>""}], :points=>5, :description=>"Learning Outcome", :id=>"309_343", :long_description=>"<p>Outcome</p>"}]
     rubric2.save!
 
-    assoc = RubricAssociation.create!(:context => @copy_from, :rubric => rubric2, :association => @copy_from, :title => rubric2.title, :purpose => 'bookmark')
+    assoc = RubricAssociation.create!(:context => @copy_from, :rubric => rubric2, :association_object => @copy_from, :title => rubric2.title, :purpose => 'bookmark')
 
     #export to xml
     builder = Builder::XmlMarkup.new(:indent=>2)
@@ -868,6 +868,54 @@ XML
     a.discussion_topic.should == dt_2
     a.assignment_group.id.should == ag1.id
   end
+
+  it "should not fail when importing discussion topic when both group_id and assignment are specified" do
+    body = "<p>What do you think about the stuff?</p>"
+    group = @copy_from.groups.create!(:name => "group")
+    dt = group.discussion_topics.new
+    dt.title = "Topic"
+    dt.message = body
+    dt.posted_at = 1.day.ago
+    dt.save!
+
+    assignment = @copy_from.assignments.build
+    assignment.submission_types = 'discussion_topic'
+    assignment.assignment_group = @copy_from.assignment_groups.find_or_create_by_name("Stupid Group")
+    assignment.title = dt.title
+    assignment.points_possible = 13.37
+    assignment.due_at = 1.week.from_now
+    assignment.saved_by = :discussion_topic
+    assignment.save
+
+    dt.assignment = assignment
+    dt.save
+
+    #export to xml
+    migration_id = CC::CCHelper.create_key(dt)
+    cc_topic_builder = Builder::XmlMarkup.new(:indent=>2)
+    cc_topic_builder.topic("identifier" => migration_id) {|t| @resource.create_cc_topic(t, dt)}
+    canvas_topic_builder = Builder::XmlMarkup.new(:indent=>2)
+    canvas_topic_builder.topicMeta {|t| @resource.create_canvas_topic(t, dt)}
+    #convert to json
+    cc_doc = Nokogiri::XML(cc_topic_builder.target!)
+    meta_doc = Nokogiri::XML(canvas_topic_builder.target!)
+    hash = @converter.convert_topic(cc_doc, meta_doc)
+    hash = hash.with_indifferent_access
+    @copy_to.groups.create!(:name => "whatevs")
+
+    group2 = @copy_to.groups.create!(:name => "group")
+    group2.migration_id = CC::CCHelper.create_key(group)
+    group2.save!
+    hash[:group_id] = group2.migration_id
+
+    cm = ContentMigration.new(:context => @copy_to, :copy_options => {:everything => "1"})
+    DiscussionTopic.process_discussion_topics_migration([hash], cm)
+
+    dt_2 = group2.discussion_topics.find_by_migration_id(migration_id)
+    dt_2.title.should == dt.title
+    dt_2.message.should == body
+    dt_2.type.should == dt.type
+  end
   
   it "should import quizzes into correct assignment group" do
     quiz_hash = {"lock_at"=>nil,
@@ -916,7 +964,7 @@ XML
     ag.migration_id = "i713e960ab2685259505efeb08cd48a1d"
     ag.save!
     
-    Quiz.import_from_migration(quiz_hash, @copy_to, {})
+    Quizzes::Quiz.import_from_migration(quiz_hash, @copy_to, {})
     q = @copy_to.quizzes.find_by_migration_id("ie3d8f8adfad423eb225229c539cdc450")
     a = q.assignment
     a.assignment_group.id.should == ag.id

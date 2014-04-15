@@ -27,7 +27,7 @@ class AssignmentOverride < ActiveRecord::Base
   attr_accessor :dont_touch_assignment
 
   belongs_to :assignment
-  belongs_to :quiz
+  belongs_to :quiz, class_name: 'Quizzes::Quiz'
   belongs_to :set, :polymorphic => true
   has_many :assignment_override_students, :dependent => :destroy
 
@@ -190,6 +190,7 @@ class AssignmentOverride < ActiveRecord::Base
   def as_hash
     { :title => title,
       :due_at => due_at,
+      :id => id,
       :all_day => all_day,
       :set_type => set_type,
       :set_id => set_id,

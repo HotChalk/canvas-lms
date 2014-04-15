@@ -37,7 +37,8 @@ class Assignment < ActiveRecord::Base
     :peer_reviews, :automatic_peer_reviews, :grade_group_students_individually,
     :notify_of_update, :time_zone_edited, :turnitin_enabled,
     :turnitin_settings, :context, :position, :allowed_extensions,
-    :external_tool_tag_attributes, :freeze_on_copy, :assignment_group_id
+    :external_tool_tag_attributes, :freeze_on_copy, :assignment_group_id,
+    :only_visible_to_overrides
 
   attr_accessor :previous_id, :updating_user, :copying
 
@@ -45,7 +46,7 @@ class Assignment < ActiveRecord::Base
 
   has_many :submissions, :dependent => :destroy
   has_many :attachments, :as => :context, :dependent => :destroy
-  has_one :quiz
+  has_one :quiz, class_name: 'Quizzes::Quiz'
   belongs_to :assignment_group
   has_one :discussion_topic, :conditions => ['discussion_topics.root_topic_id IS NULL'], :order => 'created_at'
   has_many :learning_outcome_alignments, :as => :content, :class_name => 'ContentTag', :conditions => ['content_tags.tag_type = ? AND content_tags.workflow_state != ?', 'learning_outcome', 'deleted'], :include => :learning_outcome
@@ -72,8 +73,13 @@ class Assignment < ActiveRecord::Base
       assignment.external_tool_tag.context = assignment
       assignment.external_tool_tag.content_type = "ContextExternalTool"
     else
-      assignment.external_tool_tag = nil
+      if CANVAS_RAILS2
+        assignment.external_tool_tag = nil
+      else
+        assignment.association(:external_tool_tag).reset
+      end
     end
+    true
   end
 
   API_NEEDED_FIELDS = %w(
@@ -106,6 +112,8 @@ class Assignment < ActiveRecord::Base
     copied
     all_day
     all_day_date
+    created_at
+    updated_at
   )
   # create a shim for plugins that use the old association name. this is
   # TEMPORARY. the plugins should update to use the new association name, and
@@ -126,7 +134,7 @@ class Assignment < ActiveRecord::Base
 
   acts_as_list :scope => :assignment_group
   simply_versioned :keep => 5
-  sanitize_field :description, Instructure::SanitizeField::SANITIZE
+  sanitize_field :description, CanvasSanitize::SANITIZE
   copy_authorized_links( :description) { [self.context, nil] }
 
   def root_account
@@ -373,7 +381,7 @@ class Assignment < ActiveRecord::Base
   def update_quiz_or_discussion_topic
     return true if self.deleted?
     if self.submission_types == "online_quiz" && @saved_by != :quiz
-      quiz = Quiz.find_by_assignment_id(self.id) || self.context.quizzes.build
+      quiz = Quizzes::Quiz.find_by_assignment_id(self.id) || self.context.quizzes.build
       quiz.assignment_id = self.id
       quiz.title = self.title
       quiz.description = self.description
@@ -538,10 +546,14 @@ class Assignment < ActiveRecord::Base
   end
 
   def restore(from=nil)
-    self.workflow_state = self.context.feature_enabled?(:draft_state) ? 'unpublished' : 'published'
+    if !self.context.feature_enabled?(:draft_state) || self.has_student_submissions?
+      self.workflow_state = "published"
+    elsif self.context.feature_enabled?(:draft_state)
+      self.workflow_state = "unpublished"
+    end
     self.save
-    self.discussion_topic.restore if self.discussion_topic && from != :discussion_topic
-    self.quiz.restore if self.quiz && from != :quiz
+    self.discussion_topic.restore(:assignment) if from != :discussion_topic && self.discussion_topic
+    self.quiz.restore(:assignment) if from != :quiz && self.quiz
   end
 
   def participants
@@ -768,6 +780,12 @@ class Assignment < ActiveRecord::Base
     end
   end
 
+  def clear_locked_cache(user)
+    super
+    Rails.cache.delete(discussion_topic.locked_cache_key(user)) if self.submission_types == 'discussion_topic' && discussion_topic
+    Rails.cache.delete(quiz.locked_cache_key(user)) if self.submission_types == 'online_quiz' && quiz
+  end
+
   def submission_types_array
     (self.submission_types || "").split(",")
   end
@@ -899,7 +917,7 @@ class Assignment < ActiveRecord::Base
     raise "Student must be enrolled in the course as a student to be graded" unless context.includes_student?(original_student)
     raise "Grader must be enrolled as a course admin" if opts[:grader] && !self.context.grants_right?(opts[:grader], nil, :manage_grades)
     opts.delete(:id)
-    group_comment = opts.delete :group_comment
+    group_comment = Canvas::Plugin.value_to_boolean(opts.delete(:group_comment))
     group, students = group_students(original_student)
     grader = opts.delete :grader
     comment = {
@@ -909,6 +927,7 @@ class Assignment < ActiveRecord::Base
       :media_comment_id => (opts.delete :media_comment_id),
       :media_comment_type => (opts.delete :media_comment_type),
     }
+    comment[:group_comment_id] = CanvasUuid::Uuid.generate_securish_uuid if group_comment && group
     submissions = []
     find_or_create_submissions(students) do |submission|
       submission_updated = false
@@ -939,8 +958,8 @@ class Assignment < ActiveRecord::Base
         submission.graded_at = Time.zone.now if did_grade
         previously_graded ? submission.with_versioning(:explicit => true) { submission.save! } : submission.save!
       end
-      submission.add_comment(comment) if comment && (group_comment == "1" || student == original_student)
-      submissions << submission if group_comment == "1" || student == original_student || submission_updated
+      submission.add_comment(comment) if comment && (group_comment || student == original_student)
+      submissions << submission if group_comment || student == original_student || submission_updated
     end
 
     submissions
@@ -1016,6 +1035,7 @@ class Assignment < ActiveRecord::Base
       res = find_or_create_submissions(students) do |s|
         s.group = group
         s.save! if s.changed?
+        opts[:group_comment_id] = CanvasUuid::Uuid.generate_securish_uuid if group
         s.add_comment(opts)
         # this is lame, SubmissionComment updates the submission directly in the db
         # in an after_save, and of course Rails doesn't preload the reverse association
@@ -1086,7 +1106,11 @@ class Assignment < ActiveRecord::Base
     end
     homeworks.each do |homework|
       context_module_action(homework.student, :submitted)
-      homework.add_comment({:comment => comment, :author => original_student}) if comment && (group_comment || homework == primary_homework)
+      if comment && (group_comment || homework == primary_homework)
+        hash = {:comment => comment, :author => original_student}
+        hash[:group_comment_id] = CanvasUuid::Uuid.generate_securish_uuid if group_comment && group
+        homework.add_comment(hash)
+      end
     end
     touch_context
     return primary_homework
@@ -1096,7 +1120,11 @@ class Assignment < ActiveRecord::Base
     self.submissions_downloads && self.submissions_downloads > 0
   end
 
-  def as_json(options=nil)
+  def serializable_hash(opts = {})
+    super(opts.reverse_merge include_root: true)
+  end
+
+  def as_json(options={})
     json = super(options)
     if json && json['assignment']
       # remove anything coming automatically from deprecated db column
@@ -1156,23 +1184,14 @@ class Assignment < ActiveRecord::Base
         map{|s| s.as_json(:include_root => false, :only => [:user_id, :course_section_id]) }
     res[:context][:quiz] = self.quiz.as_json(:include_root => false, :only => [:anonymous_submissions])
 
-
     submissions = self.submissions.where(:user_id => students)
                   .includes(:submission_comments,
                             :attachments,
                             :versions,
-                            {:quiz_submission => :versions})
+                            :quiz_submission)
 
-    # quiz submission versions are too expensive to de-serialize so we have to
-    # cap the number we will do
-    qs_threshold = Setting.get("too_many_quiz_submission_versions", "150").to_i
-    too_many_qs_versions = qs_threshold <= submissions.inject(0) { |sum,s|
-      if s.quiz_submission
-        sum + s.quiz_submission.versions.size
-      else
-        sum
-      end
-    }
+    too_many = too_many_qs_versions?(submissions)
+    qs_versions = quiz_submission_versions(submissions, too_many)
 
     res[:submissions] = submissions.map do |sub|
       json = sub.as_json(:include_root => false,
@@ -1188,7 +1207,7 @@ class Assignment < ActiveRecord::Base
         :methods => [:scribdable?, :scribd_doc, :submission_history, :late],
         :only => submission_fields
       )
-      json['submission_history'] = if json['submission_history'] && (quiz.nil? || too_many_qs_versions)
+      json['submission_history'] = if json['submission_history'] && (quiz.nil? || too_many)
                                      json['submission_history'].map do |version|
                                        version.as_json(
                                          :include => {
@@ -1208,8 +1227,7 @@ class Assignment < ActiveRecord::Base
                                        end
                                      end
                                    elsif quiz && sub.quiz_submission
-                                     quiz_submission_versions = sub.quiz_submission.versions.reverse
-                                     quiz_submission_versions.map do |v|
+                                     qs_versions[sub.quiz_submission.id].map do |v|
                                        qs = v.model
                                        {submission: {
                                          grade: qs.score,
@@ -1226,6 +1244,34 @@ class Assignment < ActiveRecord::Base
     res
   ensure
     Attachment.skip_thumbnails = nil
+  end
+
+  # quiz submission versions are too expensive to de-serialize so we have to
+  # cap the number we will do
+  def too_many_qs_versions?(student_submissions)
+    qs_threshold = Setting.get("too_many_quiz_submission_versions", "150").to_i
+    qs_threshold <= student_submissions.inject(0) do |sum, s|
+      s.quiz_submission ? sum + s.quiz_submission.versions.size : sum
+    end
+  end
+
+  # :including quiz submission versions won't work for records in the
+  # database before namespace changes. This does a bulk pre-query to prevent
+  # n+1 queries. replace this with an :include again after namespaced
+  # polymorphic data is migrated
+  def quiz_submission_versions(student_submissions, too_many_qs_versions)
+    submissions_with_qs = student_submissions.select do |sub|
+      quiz && sub.quiz_submission && !too_many_qs_versions
+    end
+    qs_versions = Version.where(
+      "versionable_type IN ('QuizSubmission', 'Quizzes::QuizSubmission') AND versionable_id IN (?)",
+      submissions_with_qs.map {|submission| submission.quiz_submission.id }
+    ).order("number")
+
+    qs_versions.each_with_object({}) do |version, hash|
+      hash[version.versionable_id] ||= []
+      hash[version.versionable_id] << version
+    end
   end
 
   def grade_as_group?
@@ -1307,6 +1353,7 @@ class Assignment < ActiveRecord::Base
         attachments: attachments,
       }
       group, students = group_students(user)
+      comment[:group_comment_id] = CanvasUuid::Uuid.generate_securish_uuid if group
       find_or_create_submissions(students).map do |submission|
         submission.add_comment(comment)
       end
@@ -1489,23 +1536,35 @@ class Assignment < ActiveRecord::Base
 
   # This should only be used in the course drop down to show assignments needing a submission
   scope :need_submitting_info, lambda { |user_id, limit|
-    api_needed_fields.
-      select("(SELECT name FROM courses WHERE courses.id = assignments.context_id) AS context_name").
+    chain = api_needed_fields.
       where("(SELECT COUNT(id) FROM submissions
             WHERE assignment_id = assignments.id
             AND submission_type IS NOT NULL
             AND user_id = ?) = 0", user_id).
       limit(limit).
       order("assignments.due_at")
+
+    # select doesn't work with include() in rails3, and include(:context)
+    # doesn't work because of the polymorphic association. So we'll preload
+    # context for the assignments in a single query.
+    if CANVAS_RAILS2
+      chain.select("(SELECT name FROM courses WHERE id = assignments.context_id) AS context_name, needs_grading_count")
+    else
+      chain.preload(:context)
+    end
   }
 
   # This should only be used in the course drop down to show assignments not yet graded.
   scope :need_grading_info, lambda { |limit|
-    api_needed_fields.
-        select("(SELECT name FROM courses WHERE id = assignments.context_id) AS context_name, needs_grading_count").
+    chain = api_needed_fields.
         where("assignments.needs_grading_count>0").
         limit(limit).
         order("assignments.due_at")
+    if CANVAS_RAILS2
+      chain.select("(SELECT name FROM courses WHERE id = assignments.context_id) AS context_name, needs_grading_count")
+    else
+      chain.preload(:context)
+    end
   }
 
   scope :expecting_submission, where("submission_types NOT IN ('', 'none', 'not_graded', 'on_paper') AND submission_types IS NOT NULL")
@@ -1527,6 +1586,12 @@ class Assignment < ActiveRecord::Base
 
   def overdue?
     due_at && due_at <= Time.now
+  end
+
+  # We can replace context_name with context.name in _menu_assignment.html.erb
+  # and remove this once the rails3 switch is complete
+  def context_name
+    CANVAS_RAILS2 ? read_attribute('context_name') : context.name
   end
 
   def readable_submission_types
@@ -1713,7 +1778,7 @@ class Assignment < ActiveRecord::Base
       hash[:missing_links].each do |field, missing_links|
         context.content_migration.add_missing_content_links(:class => item.class.to_s,
           :id => item.id, :field => field, :missing_links => missing_links,
-          :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/#{item.class.to_s.underscore.pluralize}/#{item.id}")
+          :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/#{item.class.to_s.demodulize.underscore.pluralize}/#{item.id}")
       end
     end
 
@@ -1722,7 +1787,11 @@ class Assignment < ActiveRecord::Base
       tag.content_type = 'ContextExternalTool'
       if !tag.save
         context.add_migration_warning(t('errors.import.external_tool_url', "The url for the external tool assignment \"%{assignment_name}\" wasn't valid.", :assignment_name => item.title)) if tag.errors["url"]
-        item.external_tool_tag = nil
+        if CANVAS_RAILS2
+          item.external_tool_tag = nil
+        else
+          item.association(:external_tool_tag).target = nil # otherwise it will trigger destroy on the tag
+        end
       end
     end
 

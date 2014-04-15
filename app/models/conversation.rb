@@ -40,6 +40,7 @@ class Conversation < ActiveRecord::Base
 
   def reload(options = nil)
     @current_context_strings = {}
+    @participants = nil
     super
   end
 
@@ -388,7 +389,7 @@ class Conversation < ActiveRecord::Base
         cps = cps.where("user_id NOT IN (?)", skip_users.map(&:user_id)) if skip_users.present?
       end
 
-      cps = cps.where(:user_id => options[:only_users].map(&:id)) if options[:only_users]
+      cps = cps.where(:user_id => (options[:only_users]+[message.author]).map(&:id)) if options[:only_users]
 
       next unless cps.exists?
 
@@ -415,7 +416,8 @@ class Conversation < ActiveRecord::Base
             cp.update_attribute(:tags, updated_tags)
             if cp.user.shard != self.shard
               cp.user.shard.activate do
-                ConversationParticipant.where(:conversation_id => self, :user_id => cp.user_id).update_all(:tags => serialized_tags(cp.tags))
+                ConversationParticipant.where(:conversation_id => self, :user_id => cp.user_id).
+                  update_all(:tags => serialized_tags(cp.tags))
               end
             end
           end
@@ -581,10 +583,12 @@ class Conversation < ActiveRecord::Base
   def regenerate_private_hash!(user_ids = nil)
     return unless private?
     self.private_hash = Conversation.private_hash_for(user_ids ||
-      Shard.birth.activate { self.conversation_participants.map(&:user_id) } )
+      Shard.birth.activate { self.conversation_participants.reload.map(&:user_id) } )
     return unless private_hash_changed?
     existing = self.shard.activate do
-      ConversationParticipant.find_by_private_hash(private_hash).try(:conversation)
+      ConversationParticipant.send(:with_exclusive_scope) do
+        ConversationParticipant.find_by_private_hash(private_hash).try(:conversation)
+      end
     end
     if existing
       merge_into(existing)
@@ -607,7 +611,7 @@ class Conversation < ActiveRecord::Base
   def merge_into(other)
     transaction do
       new_participants = other.conversation_participants.index_by(&:user_id)
-      ConversationParticipant.skip_callback(:destroy_conversation_message_participants) do
+      ConversationParticipant.suspend_callbacks(:destroy_conversation_message_participants) do
         conversation_participants(true).each do |cp|
           if new_cp = new_participants[cp.user_id]
             new_cp.update_attribute(:workflow_state, cp.workflow_state) if cp.unread? || new_cp.archived?
@@ -636,7 +640,7 @@ class Conversation < ActiveRecord::Base
             if cp.user.shard != self.shard
               cp.user.shard.activate do
                 ConversationParticipant.where(:conversation_id => self, :user_id => cp.user_id).
-                    update_all(:conversation_id => other)
+                  update_all(:conversation_id => other)
               end
             end
             # create a new duplicate cp on the target conversation's shard
@@ -651,7 +655,6 @@ class Conversation < ActiveRecord::Base
           end
         end
       end
-
       if other.shard == self.shard
         conversation_messages.update_all(:conversation_id => other)
       else
@@ -769,12 +772,7 @@ class Conversation < ActiveRecord::Base
   def delete_for_all
     stream_item.try(:destroy_stream_item_instances)
     shard.activate do
-      if CANVAS_RAILS2
-        # bare scoped call avoid Rails 2 HasManyAssociation loading all objects
-        conversation_message_participants.scoped.delete_all
-      else
-        conversation_message_participants.delete_all
-      end
+      conversation_message_participants.scoped.delete_all
     end
     conversation_participants.with_each_shard { |scope| scope.scoped.delete_all; nil }
   end

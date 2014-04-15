@@ -153,13 +153,17 @@ describe UserMerge do
 
     it "should move and uniquify enrollments" do
       enrollment1 = course1.enroll_user(user1)
-      enrollment2 = course1.enroll_user(user2, 'StudentEnrollment', :enrollment_state => 'active')
-      enrollment3 = StudentEnrollment.create!(:course => course1, :course_section => course1.course_sections.create!, :user => user1)
+      enrollment2 = course1.enroll_student(user2, enrollment_state: 'active')
+      section = course1.course_sections.create!
+      enrollment3 = course1.enroll_student(user1,
+                                           enrollment_state: 'invited',
+                                           allow_multiple_enrollments: true,
+                                           section: section)
       enrollment4 = course1.enroll_teacher(user1)
 
       UserMerge.from(user1).into(user2)
       enrollment1.reload
-      enrollment1.user.should == user2
+      enrollment1.user.should == user1
       enrollment1.should be_deleted
       enrollment2.reload
       enrollment2.should be_active
@@ -171,7 +175,7 @@ describe UserMerge do
       enrollment4.should be_invited
 
       user1.reload
-      user1.enrollments.should be_empty
+      user1.enrollments.should == [enrollment1]
     end
 
     it "should remove conflicting module progressions" do
@@ -207,8 +211,8 @@ describe UserMerge do
 
     it "should move and uniquify observee enrollments" do
       course2
-      enrollment1 = course1.enroll_user(user1)
-      enrollment2 = course1.enroll_user(user2)
+      course1.enroll_user(user1)
+      course1.enroll_user(user2)
 
       observer1 = user_model
       observer2 = user_model
@@ -217,8 +221,9 @@ describe UserMerge do
       ObserverEnrollment.count.should eql 3
 
       UserMerge.from(user1).into(user2)
-      user1.observee_enrollments.should be_empty
-      user2.observee_enrollments.size.should eql 3 # 1 deleted
+      user1.observee_enrollments.size.should eql 1 #deleted
+      user1.observee_enrollments.active_or_pending.should be_empty
+      user2.observee_enrollments.size.should eql 2
       user2.observee_enrollments.active_or_pending.size.should eql 2
       observer1.observer_enrollments.active_or_pending.size.should eql 1
       observer2.observer_enrollments.active_or_pending.size.should eql 1
@@ -277,6 +282,26 @@ describe UserMerge do
       oe.update_attribute(:associated_user_id, user1.id)
       UserMerge.from(user1).into(user2)
       oe.reload.associated_user_id.should == user2.id
+    end
+
+    it "should move appointments" do
+      enrollment1 = course1.enroll_user(user1, 'StudentEnrollment', :enrollment_state => 'active')
+      enrollment2 = course1.enroll_user(user2, 'StudentEnrollment', :enrollment_state => 'active')
+      ag = AppointmentGroup.create(:title => "test",
+       :contexts => [course1],
+       :participants_per_appointment => 1,
+       :min_appointments_per_participant => 1,
+       :new_appointments => [
+         ["#{Time.now.year + 1}-01-01 12:00:00", "#{Time.now.year + 1}-01-01 13:00:00"],
+         ["#{Time.now.year + 1}-01-01 13:00:00", "#{Time.now.year + 1}-01-01 14:00:00"]
+       ]
+      )
+      res1 = ag.appointments.first.reserve_for(user1, @teacher)
+      res2 = ag.appointments.last.reserve_for(user2, @teacher)
+      UserMerge.from(user1).into(user2)
+      res1.reload
+      res1.context_id.should == user2.id
+      res1.context_code.should == user2.asset_string
     end
   end
 
@@ -452,6 +477,7 @@ describe UserMerge do
 
       cc1 = @user2.communication_channels.sms.create!(:path => 'abc')
       cc1.retire!
+      @user2.reload
 
       UserMerge.from(@user2).into(user1)
       user1.communication_channels.reload.length.should == 1

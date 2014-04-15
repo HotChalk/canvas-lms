@@ -30,9 +30,7 @@ define([
         required: ['name'],
         property_validations: {
           'name': function(value){
-                        if (value && value.length > 255) {
-                            return I18n.t("account_name_too_long", "Account Name is too long")
-                        }
+            if (value && value.length > 255) { return I18n.t("account_name_too_long", "Account Name is too long")}
           }
         }
       };
@@ -215,9 +213,8 @@ define([
 
     $(".open_report_description_link").click(function(event) {
       event.preventDefault();
-            var title = $(this).parents(".title").find("span.title").text(),
-                report = $(this).data("report");
-            $("#" + report + "_description").dialog({
+      var title = $(this).parents(".title").find("span.title").text();
+      $(this).parent(".reports").find(".report_description").dialog({
         title: title,
         width: 800
       });
@@ -258,7 +255,6 @@ define([
           width: 400,
           title: I18n.t('titles.configure_report', 'Configure Report')
         });
-        $dialog.find(".datetime_field").datetime_field()
       }
       $dialog.dialog('open');
     })
@@ -287,7 +283,6 @@ define([
       }
       $('#custom_default_name_display').text(displayText);
     }
-
     $('.notification_from_name_option').on('change', function(){
       var $useCustom = $('#account_settings_outgoing_email_default_name_option_custom');
       var $customName = $('#account_settings_outgoing_email_default_name');
@@ -305,6 +300,10 @@ define([
     // Setup initial display state
     displayCustomEmailFromName();
     $('.notification_from_name_option').trigger('change');
+
+    $('#account_settings_self_registration').change(function() {
+      $('#self_registration_type_radios').toggle(this.checked);
+    }).trigger('change');
 
     $("#account_settings_enable_resources_link").change(function() {
       $("#show_resources_link_input").toggle(!!$("#account_settings_enable_resources_link").attr('checked'));

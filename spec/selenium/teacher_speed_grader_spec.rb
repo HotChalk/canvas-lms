@@ -44,7 +44,7 @@ describe "speed grader" do
     @assignment.submission_types = 'online_quiz'
     @assignment.title = 'Anonymous Graded Quiz'
     @assignment.save!
-    @quiz = Quiz.find_by_assignment_id(@assignment.id)
+    @quiz = Quizzes::Quiz.find_by_assignment_id(@assignment.id)
     @quiz.update_attribute(:anonymous_submissions, true)
     student_in_course
     qs = @quiz.generate_submission(@student)
@@ -63,7 +63,7 @@ describe "speed grader" do
     @assignment.submission_types = 'online_quiz'
     @assignment.title = 'Anonymous Graded Quiz'
     @assignment.save!
-    q = Quiz.find_by_assignment_id(@assignment.id)
+    q = Quizzes::Quiz.find_by_assignment_id(@assignment.id)
     q.quiz_questions.create!(:quiz => q, :question_data => {:position => 1, :question_type => "true_false_question", :points_possible => 3, :question_name => "true false question"})
     q.quiz_questions.create!(:quiz => q, :question_data => {:position => 2, :question_type => "essay_question", :points_possible => 7, :question_name => "essay question"})
     q.generate_quiz_data
@@ -92,7 +92,7 @@ describe "speed grader" do
     @assignment.title = 'Anonymous Graded Quiz'
     @assignment.save!
 
-    q = Quiz.find_by_assignment_id(@assignment.id)
+    q = Quizzes::Quiz.find_by_assignment_id(@assignment.id)
     q.quiz_questions.create!(:quiz => q, :question_data => {
         :position => 1,
         :question_type => "true_false_question",
@@ -122,12 +122,12 @@ describe "speed grader" do
     @assignment.update_attributes! points_possible: 10,
                                    submission_types: 'online_quiz',
                                    title: "Quiz"
-    @quiz = Quiz.find_by_assignment_id(@assignment.id)
+    @quiz = Quizzes::Quiz.find_by_assignment_id(@assignment.id)
 
     student_in_course
     2.times do |i|
       qs = @quiz.generate_submission(@student)
-      opts = i == 0 ? {finished_at: Date.today - 7} : {}
+      opts = i == 0 ? {finished_at: (Date.today - 7) + 30.minutes} : {}
       qs.grade_submission(opts)
     end
 
@@ -419,7 +419,7 @@ describe "speed grader" do
   end
 
   it "should be able to change sorting and hide student names" do
-    student_submission
+    student_submission(name: 'student@example.com')
 
     get "/courses/#{@course.id}/gradebook/speed_grader?assignment_id=#{@assignment.id}"
     wait_for_ajaximations
