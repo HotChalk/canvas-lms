@@ -610,10 +610,10 @@ define([
       tinyMCE.get(id).selection.moveToBookmark(this.data('last_bookmark'));
     }
     var anchor = editor.getSelection().anchorNode;
-    while(anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
+    while(anchor && anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
       anchor = anchor.parentNode;
     }
-    if(anchor.nodeName != 'A') { anchor = null; }
+    if(anchor && anchor.nodeName != 'A') { anchor = null; }
 
     var sel = editor.getSelection();
     if(sel && sel.toString() !== '') {
