@@ -281,7 +281,8 @@ define([
         require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
           new InsertUpdateImageView(editor, el);
         });
-      }
+      },
+      imageResizable: false
     }, options.redactorOptions || {});
 
     // Add custom editor buttons
