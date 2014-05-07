@@ -20,14 +20,14 @@
     <%= form_for :user, :url => account_add_user_url(@account), :html => {:id => "add_user_form"} do |f| %>
     <table class="formtable">
       <tr>
-        <td><%= f.blabel :name, :full_name, :en => "Full Name" %></td>
+        <td><%= f.blabel :name, :full_name, :en => "Name" %></td>
         <td>
           <%= f.text_field :name %>
           <div class="hint-text"><%= t :full_name_description, 'This name will be used by teachers for grading.' %></div>
         </td>
       </tr>
       <tr>
-        <td><%= f.blabel :short_name, :en => "Display Name" %></td>
+        <td><%= f.blabel :short_name, :en => "Short Name" %></td>
         <td>
           <%= f.text_field :short_name %>
           <div class="hint-text"><%= t(:display_name_help, "People will see this name in discussions, messages and comments.") %></div>
