@@ -52,7 +52,7 @@ define([
     inputMethods.disableInputs('[type=radio], [type=checkbox]');
     inputMethods.setWidths();
 
-    $('form.edit_quizzes_quiz').on('submit', function(e) {
+    $('#save_draft_form').on('submit', function(e) {
       e.preventDefault();
       e.stopImmediatePropagation();
       $(this).find('.loading').removeClass('hidden');
@@ -63,7 +63,7 @@ define([
         data: data,
         type: 'POST',
         success: function() {
-          $('.edit_quizzes_quiz').parents('.alert').hide();
+          $('#save_draft_form').parents('.alert').hide();
         }
       });
     });
