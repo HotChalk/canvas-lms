@@ -440,6 +440,7 @@ define([
       } else if(options == "is_dirty") {
         return $instructureEditorBoxList._getEditor(id).isDirty();
       } else if(options == "sync") {
+        $instructureEditorBoxList._getEditor(id).observeImages();
         return $instructureEditorBoxList._getEditor(id).sync();
       }
       return this;
