@@ -43,6 +43,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       'click .removeAttachment' : 'removeAttachment'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
       'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
+      'click .cancel_button': 'cancel'
     )
 
     @optionProperty 'permissions'
@@ -224,6 +225,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         missingDateDialog.render()
       else
         super
+
+    cancel: (e) ->
+      e.preventDefault()
+      window.location = ENV.CANCEL_TO if ENV.CANCEL_TO?
 
     fieldSelectors: _.extend({},
       AssignmentGroupSelector::fieldSelectors,

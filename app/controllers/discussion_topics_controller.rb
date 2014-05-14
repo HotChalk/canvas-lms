@@ -365,7 +365,8 @@ class DiscussionTopicsController < ApplicationController
                      map { |category| { id: category.id, name: category.name } },
                  CONTEXT_ID: @context.id,
                  CONTEXT_ACTION_SOURCE: :discussion_topic,
-                 DRAFT_STATE: @topic.draft_state_enabled?}
+                 DRAFT_STATE: @topic.draft_state_enabled?,
+                 CANCEL_TO: named_context_url(@context, (@topic.is_a?(Announcement) ? :context_announcements_url : :context_discussion_topics_url))}
       append_sis_data(js_hash)
       js_env(js_hash)
       render :action => "edit"
