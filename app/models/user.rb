@@ -902,6 +902,7 @@ class User < ActiveRecord::Base
       self.pseudonyms.each{|p| p.destroy(even_if_managed_passwords) }
       self.communication_channels.each{|cc| cc.destroy }
       self.delete_enrollments
+      self.account_users.each{|au| au.destroy }
     end
   end
 
