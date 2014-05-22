@@ -41,6 +41,7 @@
 /node_modules
 /spec/javascripts/tests.js
 /spec/javascripts/requirejs_config.js
+/vendor/bundle
 
 /.vagrant/
 # generated plugin stuff
