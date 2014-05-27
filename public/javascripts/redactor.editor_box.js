@@ -266,6 +266,9 @@ define([
     var redactorOptions = $.extend({
       autoresize: false,
       iframe: true,
+      removeEmptyTags: false,      
+      cleanSpaces: false,
+      invisibleSpace: '&nbsp;',
       css: '/assets/redactor-iframe.css',
       buttons: ['html', 'formatting',
           'bold', 'italic', 'underline', 'deleted',

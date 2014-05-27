@@ -224,7 +224,6 @@ class UserList
     # Search for matching emails on the communication channels, 
     # for users without pseudonyms
     emails.each do |address|
-      #puts "Root account #{@root_account.inspect}"              
       cc = CommunicationChannel.find_by_path(address[:address]) if !address[:user_id]
       address[:existing_user_id] = cc.user_id if cc      
     end        
