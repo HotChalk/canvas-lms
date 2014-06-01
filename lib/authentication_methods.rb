@@ -302,16 +302,9 @@ module AuthenticationMethods
 
   def initiate_cas_login(cas_client = nil)
     reset_session_for_login
-    config = { 
-      :cas_base_url => @domain_root_account.account_authorization_config.auth_base\
-    }
-    cas_client ||= CASClient::Client.new(config)    
-    service_url = cas_login_url
-    if @domain_root_account != LoadAccount.default_domain_root_account
-       service_url << "?account_id="
-       service_url << "#{@domain_root_account.id}"
-    end    
-    delegated_auth_redirect(cas_client.add_service_to_login_url(service_url))    
+    config = { :cas_base_url => @domain_root_account.account_authorization_config.auth_base }
+    cas_client ||= CASClient::Client.new(config)
+    delegated_auth_redirect(cas_client.add_service_to_login_url(cas_login_url :account_id => @domain_root_account.id))
   end
 
   def initiate_saml_login(current_host=nil, aac=nil)
