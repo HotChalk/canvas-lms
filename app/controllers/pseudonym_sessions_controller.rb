@@ -43,6 +43,8 @@ class PseudonymSessionsController < ApplicationController
       params[:pseudonym_session][:unique_id] ||= @current_pseudonym.unique_id
     end
 
+    load_root_account(params[:account_id])              
+
     @pseudonym_session = PseudonymSession.new
     @headers = false
     @is_delegated = delegated_authentication_url?
@@ -112,6 +114,15 @@ class PseudonymSessionsController < ApplicationController
     else
       flash[:delegated_message] = session.delete :delegated_message if session[:delegated_message]
       maybe_render_mobile_login
+    end
+  end
+
+  def load_root_account(account_id)
+    if account_id
+      account = Account.find_by_id(params[:account_id])
+      if account
+        @domain_root_account = account
+      end      
     end
   end
 
