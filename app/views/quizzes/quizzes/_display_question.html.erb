@@ -16,6 +16,7 @@
   unanswered = (%w{multiple_choice_question true_false_question}.include?(hash_get(question, 'question_type')) && incorrect && hash_get(user_answer, 'text').blank?) ||
     (hash_get(question, 'question_type') == 'multiple_answers_question' && incorrect && user_answer.select{|k, v| k.to_s.match(/answer_/) && v.to_s != '0' }.length == 0) ||
     (hash_get(question, 'question_type') == 'file_upload_question' && hash_get(user_answer, 'attachment_ids').blank?) ||
+    (hash_get(question, 'question_type') == 'learnosity_question' && hash_get(user_answer, 'responses').blank?) ||
     false
   partial_credit = user_answer && hash_get(user_answer, :correct) == 'partial'
   asset_string ||= (question_bank_id ? 'assessment_question' : 'quiz_question') + "_#{hash_get(question, :id)}"
@@ -23,6 +24,7 @@
     right_answers = hash_get(question, :answers, {})
     right_answers = (hash_get(question, :matches) || hash_get(question, :answers).sort_by{|a| rand }) if question_type.entry_type == "matching" rescue {}
   end
+  is_learnosity_question = hash_get(question, 'question_type') == 'learnosity_question'
 %>
 <div class="question_holder <%= "group" if in_group %>" id="<%= "question_template" unless question %>" style="<%= hidden unless question %>">
   <div style="display: block; height: 1px; overflow: hidden;">&nbsp;</div>
@@ -77,7 +79,9 @@
     <div class="links" style="<%= hidden if user_answer || assessing %>">
       <% edit_question_title = t('links.edit_question', 'Edit this Question') %>
       <% delete_question_title = t('links.delete_question', 'Delete this Question') %>
-      <a href="#" class="edit_question_link no-hover" title="<%= edit_question_title %>"><i class="icon-edit standalone-icon"><span class="screenreader-only"><%= edit_question_title %></span></i></a>
+      <% unless editing && is_learnosity_question %>
+        <a href="#" class="edit_question_link no-hover" title="<%= edit_question_title %>"><i class="icon-edit standalone-icon"><span class="screenreader-only"><%= edit_question_title %></span></i></a>
+      <% end %>
       <a href="#" class="delete_question_link no-hover" title="<%= delete_question_title %>"><i class="icon-end standalone-icon"><span class="screenreader-only"><%= delete_question_title %></span></i></a>
     </div>
     <div style="display: none;">
@@ -135,6 +139,12 @@
              end
           %>
           <%= multiple_dropdowns_question :question => question, :answers => @stored_params, :answer_list => answer_list %>
+        <% elsif question && hash_get(question, :question_type) == "learnosity_question" %>
+          <% if Canvas::Plugin.find(:learnosity).enabled? %>
+            <%= learnosity_question :question => question, :answers => hash_get(user_answer, 'responses'), :assessing => assessing, :assessment_results => assessment_results, :display_correct_answers => display_correct_answers %>
+          <% else %>
+            <%= t(:learnosity_not_enabled, 'This question requires the Learnosity plugin. Please contact your System Administrator.') %>
+          <% end %>
         <% else %>
           <%= user_content(hash_get(question, :question_text)) %>
         <% end %>

@@ -1,0 +1,16 @@
+<%= fields_for :settings, OpenObject.new(settings) do |f| %>
+  <table style="width: 500px;">
+    <tr>
+      <td><%= f.blabel :consumer_key, :en => "Consumer Key" %></td>
+      <td><%= f.text_field :consumer_key %></td>
+    </tr>
+    <tr>
+      <td><%= f.blabel :consumer_secret, :en => "Consumer Secret" %></td>
+      <td><%= f.text_field :consumer_secret %></td>
+    </tr>
+    <tr>
+      <td><%= f.blabel :domain, :en => "Domain" %></td>
+      <td><%= f.text_field :domain %></td>
+    </tr>
+  </table>
+<% end %>
