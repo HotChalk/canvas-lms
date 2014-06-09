@@ -222,11 +222,11 @@ class UserList
     end if @search_method != :open && !emails.empty?
 
     # Search for matching emails on the communication channels, 
-    # for users without pseudonyms
+    # for users without pseudonyms  
     emails.each do |address|
       cc = CommunicationChannel.find_by_path(address[:address]) if !address[:user_id]
       address[:existing_user_id] = cc.user_id if cc      
-    end        
+    end unless emails.nil?        
 
     # Search for matching SMS
     smses = @addresses.select { |a| a[:type] == :sms }
