@@ -156,7 +156,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     getFormData: ->
       data = super
-      data.title ||= I18n.t 'default_discussion_title', 'No Title'
+      #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
 
@@ -236,6 +236,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     )
 
     validateBeforeSave: (data, errors) =>
+      if data.title == ''
+        errors["title"] = [
+          message: I18n.t 'title_required', 'Title is required'
+        ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
       if @isTopic() && data.set_assignment is '1'
