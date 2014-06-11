@@ -41,7 +41,10 @@ define [
           @$assignmentGroupId.prepend $newGroup
           @$assignmentGroupId.val(group.id)
         @dialog.on 'assignmentGroup:canceled', =>
-          @$assignmentGroupId.val(@assignmentGroups[0].id)
+          if @assignmentGroups[0]
+            @$assignmentGroupId.val(@assignmentGroups[0].id)
+          else
+            @$assignmentGroupId.val("none")
 
     toJSON: =>
       assignmentGroups: @assignmentGroups
@@ -63,7 +66,7 @@ define [
       else
         data.assignment_group_id
 
-      if agid == 'new'
+      if agid == 'new' or agid == 'none'
         errors["assignmentGroupSelector"] = [
           message: I18n.t 'assignment_group_must_have_group', 'Please select an assignment group for this assignment'
         ]
