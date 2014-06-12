@@ -951,7 +951,6 @@ define([
       $("#context_modules").sortable({
         handle: '.reorder_module_link',
         helper: 'clone',
-        containment: '#context_modules_sortable_container',
         axis: 'y',
         update: modules.updateModulePositions
       });
