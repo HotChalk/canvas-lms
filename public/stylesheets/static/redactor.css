@@ -59,7 +59,6 @@
   outline: none;
 }
 .redactor_box,
-.redactor_toolbar,
 .redactor_box textarea {
   z-index: auto !important;
 }
