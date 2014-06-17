@@ -268,6 +268,7 @@ define([
       iframe: true,
       removeEmptyTags: false,      
       cleanSpaces: false,
+      cleanup: false,
       invisibleSpace: '&nbsp;',
       css: '/assets/redactor-iframe.css',
       buttons: ['html', 'formatting',
