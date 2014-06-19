@@ -88,7 +88,7 @@ define([
 
   var $dialog = null;
 
-  var _externalToolCallback = function(toolId, toolTitle, toolWidth, toolHeight) {
+  var _externalToolCallback = function(toolId, toolTitle, toolWidth, toolHeight, editor) {
     var frameHeight = Math.max(Math.min($(window).height() - 100, 550), 100);
     if(!$dialog) {
       $dialog = $('<div id="external_tool_button_dialog" style="padding: 0; overflow-y: hidden;"/>')
@@ -183,7 +183,7 @@ define([
       .dialog('option', 'height', toolHeight || frameHeight || 400)
       .dialog('open');
     $dialog.triggerHandler('dialogresize');
-    $dialog.data('editor', this.$element);
+    $dialog.data('editor', editor);
     var url = $.replaceTags($("#context_external_tool_resource_selection_url").attr('href'), 'id', toolId);
     if (url === null || typeof url === 'undefined') {
       // if we don't have a url on the page, build one using the current context.
@@ -297,7 +297,7 @@ define([
             this.buttonAdd('extbtn' + button.id, button.name, this.invoke);
           },
           invoke: function(buttonName, buttonDOM, buttonObject, e) {
-            _externalToolCallback(button.id, button.name, button.width, button.height)
+            _externalToolCallback(button.id, button.name, button.width, button.height, $textarea)
           }
         };
         pluginsList.push('extbtn' + button.id);
