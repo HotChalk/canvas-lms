@@ -240,6 +240,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         errors["title"] = [
           message: I18n.t 'title_required', 'Title is required'
         ]
+      if data.message == ''
+        errors["message_area"] = [
+          message: I18n.t 'message_required', 'Message is required'
+        ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
       if @isTopic() && data.set_assignment is '1'
