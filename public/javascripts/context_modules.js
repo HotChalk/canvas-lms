@@ -952,6 +952,7 @@ define([
         handle: '.reorder_module_link',
         helper: 'clone',
         axis: 'y',
+        tolerance: 'pointer',
         update: modules.updateModulePositions
       });
       modules.refreshModuleList();
