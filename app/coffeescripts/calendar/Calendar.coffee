@@ -284,9 +284,11 @@ define [
         # show the actual time instead of the midnight fudged time
         time = element.find('.fc-event-time')
         html = time.html()
-        # the time element also contains the title for calendar events
-        html = html.replace(/^\d+:\d+\w?/, @calendar.fullCalendar('formatDate', event.startDate(), 'h(:mm)t'))
-        time.html(html)
+        
+        if html          
+          # the time element also contains the title for calendar events
+          html = html.replace(/^\d+:\d+\w?/, @calendar.fullCalendar('formatDate', event.startDate(), 'h(:mm)t'))
+          time.html(html)
       if event.eventType.match(/assignment/) && view.name == "agendaWeek"
         element.height('') # this fixes it so it can wrap and not be forced onto 1 line
           .find('.ui-resizable-handle').remove()
