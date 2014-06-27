@@ -438,8 +438,8 @@ define([
         .data('current_criterion', $criterion)
         .fillTemplateData({data: data, htmlValues: ( is_learning_outcome ? ['long_description'] : [] )})
         .fillFormData(data)
-        .find(".editing").showIf(editing && !$criterion.hasClass('learning_outcome_criterion')).end()
-        .find(".displaying").showIf(!editing || $criterion.hasClass('learning_outcome_criterion')).end()
+        .find(".editing").showIf(editing).end()
+        .find(".displaying").showIf(!editing).end()
         .dialog({
           title: I18n.t('titles.criterion_long_description', "Criterion Long Description"),
           width: 400
