@@ -17,7 +17,7 @@
   <% end %>
 </div>
 <%= t(:no_aligned_items, "No aligned items") if @alignments.empty? %>
-<ul id="alignments" class="<%= 'orderable' if @context.is_a?(Course) %>">
+<ul id="alignments" data-id="<%= @outcome.id %>" class="<%= 'orderable' if @context.is_a?(Course) %>">
 <% @alignments.each do |alignment| %>
   <%= render :partial => "outcome_alignment", :object => alignment %>
 <% end %>

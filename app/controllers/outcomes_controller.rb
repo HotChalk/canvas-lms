@@ -61,7 +61,7 @@ class OutcomesController < ApplicationController
           codes = @context.all_courses.select(:id).map(&:asset_string)
         end
       end
-      @alignments = @outcome.alignments.active.for_context(@context)
+      @alignments = @outcome.alignments.active.order(:position).for_context(@context)
       add_crumb(@outcome.short_description, named_context_url(@context, :context_outcome_url, @outcome.id))
       @results = @outcome.learning_outcome_results.for_context_codes(codes).custom_ordering(params[:sort]).paginate(:page => params[:page], :per_page => 10)
     end
