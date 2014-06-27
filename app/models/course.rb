@@ -2503,10 +2503,11 @@ class Course < ActiveRecord::Base
   TAB_MODULES = 10
   TAB_FILES = 11
   TAB_CONFERENCES = 12
-  TAB_SETTINGS = 13
-  TAB_ANNOUNCEMENTS = 14
-  TAB_OUTCOMES = 15
-  TAB_COLLABORATIONS = 16
+  TAB_EMBER = 13
+  TAB_SETTINGS = 14
+  TAB_ANNOUNCEMENTS = 15
+  TAB_OUTCOMES = 16
+  TAB_COLLABORATIONS = 17
 
   def self.default_tabs
     [
@@ -2521,6 +2522,7 @@ class Course < ActiveRecord::Base
       { :id => TAB_SYLLABUS, :label => t('#tabs.syllabus', "Syllabus"), :css_class => 'syllabus', :href => :syllabus_course_assignments_path },
       { :id => TAB_OUTCOMES, :label => t('#tabs.outcomes', "Outcomes"), :css_class => 'outcomes', :href => :course_outcomes_path },
       { :id => TAB_QUIZZES, :label => t('#tabs.quizzes', "Quizzes"), :css_class => 'quizzes', :href => :course_quizzes_path },
+      { :id => TAB_EMBER, :label => t('#tabs.ember', "Ember Data"), :css_class => 'ember', :href => :course_ember_path },
       { :id => TAB_MODULES, :label => t('#tabs.modules', "Modules"), :css_class => 'modules', :href => :course_context_modules_path },
       { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :course_conferences_path },
       { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :course_collaborations_path },

@@ -214,6 +214,7 @@ routes.draw do
     match 'undelete' => 'context#undelete_index', :as => :undelete_items
     match 'undelete/:asset_string' => 'context#undelete_item', :as => :undelete_item
     match 'settings' => 'courses#settings', :as => :settings
+    match 'ember' => 'courses#ember', :as => :ember
     match 'details' => 'courses#settings', :as => :details
     match 're_send_invitations' => 'courses#re_send_invitations', :as => :re_send_invitations, :via => :post
     match 'enroll_users' => 'courses#enroll_users', :as => :enroll_users

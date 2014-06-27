@@ -12,6 +12,10 @@
       <td><%= f.blabel :cl_proxy_url, :en => "Course Library Proxy URL" %></td>
       <td><%= f.text_field :cl_proxy_url%></td>
     </tr>
+    <tr>
+      <td><%= f.blabel :analytics_url, :en => "Course Analytics URL" %></td>
+      <td><%= f.text_field :analytics_url%></td>
+    </tr>
   </table>
   <!-- Had to include this here to work around the fact that dynamic properties overwrite the defaults -->
   <input id="settings_worker" name="settings[worker]" type="hidden" value="CCWorker">
