@@ -14,6 +14,8 @@
 
 	Index:
 	- 01: added imageEdit callback option
+  - 02: [30/06/14] change to integrate "Open in new tab" functionality with canvas
+    Bug: https://hotchalk.atlassian.net/browse/CNS-498
  */
 
 (function($)
@@ -6436,7 +6438,7 @@
 			}
 
 			this.linkInsertPressed = true;
-			var target = '', targetBlank = '';
+			var target = ' class="not_external"', targetBlank = '';
 
 			var link = $('#redactor_link_url').val();
 			var text = $('#redactor_link_url_text').val();
@@ -6490,10 +6492,12 @@
 
 					if (target !== '')
 					{
+            $(this.insert_link_node).removeClass('not_external');
 						$(this.insert_link_node).attr('target', target);
 					}
 					else
 					{
+            $(this.insert_link_node).addClass('not_external');
 						$(this.insert_link_node).removeAttr('target');
 					}
 				}
@@ -6883,10 +6887,11 @@
 
 				if (parent.get(0).tagName !== 'A')
 				{
-					var a = $('<a href="' + link + '">' + this.outerHtml(el) + '</a>');
+					var a = $('<a href="' + link + '" class="not_external">' + this.outerHtml(el) + '</a>');
 
 					if (target)
 					{
+            a.removeClass('not_external');
 						a.attr('target', '_blank');
 					}
 
@@ -6897,10 +6902,12 @@
 					parent.attr('href', link);
 					if (target)
 					{
+            parent.removeClass('not_external');
 						parent.attr('target', '_blank');
 					}
 					else
 					{
+            parent.addClass('not_external');
 						parent.removeAttr('target');
 					}
 				}
