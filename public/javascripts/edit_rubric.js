@@ -442,8 +442,13 @@ define([
         .find(".displaying").showIf(!editing).end()
         .dialog({
           title: I18n.t('titles.criterion_long_description', "Criterion Long Description"),
-          width: 400
-        }).fixDialogButtons().find("textarea:visible:first").focus().select();
+          width: 400,
+          buttons: [{ text: "Close", click: function() { $( this ).dialog( "close" ); } }]
+        }).find("textarea:visible:first").focus().select();
+
+        if(editing){
+          $rubric_long_description_dialog.fixDialogButtons();
+        }        
 
     })
     .delegate(".find_rubric_link", 'click', function(event) {
