@@ -16,6 +16,9 @@
 	- 01: added imageEdit callback option
   - 02: [30/06/14] change to integrate "Open in new tab" functionality with canvas
     Bug: https://hotchalk.atlassian.net/browse/CNS-498
+  - 03: [02/07/14] add class "redactor_table" to created tables
+    Bug: https://hotchalk.atlassian.net/browse/CNS-560
+         https://hotchalk.atlassian.net/browse/CNS-416
  */
 
 (function($)
@@ -6048,7 +6051,7 @@
 				columns = $('#redactor_table_columns').val(),
 				$table_box = $('<div></div>'),
 				tableId = Math.floor(Math.random() * 99999),
-				$table = $('<table id="table' + tableId + '"><tbody></tbody></table>'),
+				$table = $('<table id="table' + tableId + '" class="redactor_table"><tbody></tbody></table>'),
 				i, $row, z, $column;
 
 			for (i = 0; i < rows; i++)
