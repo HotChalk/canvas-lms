@@ -719,6 +719,7 @@ define([
         $rubric.find(".rubric_table caption .title").text(data['rubric[title]']);
         $rubric.find(".rubric_total").text(data['points_possible']);
         $rubric.removeClass('editing');
+        $(".add_rubric_link").show().focus();
         if($rubric.attr('id') == 'rubric_new') {
           $rubric.attr('id', 'rubric_adding');
         } else {
