@@ -1,4 +1,13 @@
 /*
+  Patches by Edify
+
+  Index:
+  - 01: [01/07/2014] Change to fix table borders added to custom css section
+    Bug: https://hotchalk.atlassian.net/browse/CNS-560
+         https://hotchalk.atlassian.net/browse/CNS-416
+*/
+
+/*
 	Icon font
 */
 @font-face {
@@ -11,6 +20,14 @@
   font-weight: normal;
   font-style: normal;
 }
+
+/** Custom CSS *********/
+.redactor_table td {
+  padding: 5px !important;
+  border: 1px solid #ddd;
+  vertical-align: top;
+}
+
 /* =Selection
 -----------------------------------------------------------------------------*/
 .redactor_box ::selection {

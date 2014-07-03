@@ -77,6 +77,12 @@ define([
     },
     _getEditor: function(id) {
       var textArea = this._getTextArea(id);
+      if(textArea){
+        var real_text_area = $(document).find(textArea.selector);
+        if(real_text_area.length > 0 && !real_text_area.parent().hasClass('redactor_box')){
+          return null;
+        }
+      }
       return textArea ? textArea.redactor('getObject') : null;
     },
     _getEditorBox: function(id) {
