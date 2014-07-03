@@ -222,7 +222,7 @@ define([
             $ratingsContainers.css('height', (maxHeight - 10) + 'px');
           }
         });
-        rubricEditing.htmlBody.scrollTop(scrollTop);
+        //rubricEditing.htmlBody.scrollTop(scrollTop);
       }
     },
 
