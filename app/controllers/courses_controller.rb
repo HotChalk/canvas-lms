@@ -1911,11 +1911,13 @@ class CoursesController < ApplicationController
 
   def ember
     get_context
-    @active_tab = "ember"
-    add_crumb(t('#crumbs.ember', "Ember Data"))
-    if Canvas::Plugin.find(:hotchalk).enabled?
-      @analytics_url = "#{PluginSetting.settings_for_plugin(:hotchalk)['analytics_url']}/#{params[:course_id]}"
-     end 
+    if authorized_action(@context, @current_user, :view_ember)
+      @active_tab = "ember"
+      add_crumb(t('#crumbs.ember', "Ember Data"))
+      if Canvas::Plugin.find(:hotchalk).enabled?
+        @analytics_url = "#{PluginSetting.settings_for_plugin(:hotchalk)['analytics_url']}/#{params[:course_id]}"
+       end 
+   end
   end
 
 end
