@@ -60,6 +60,19 @@ define [
       @$empty.hide()
 
     updated: (conversation, $node) ->
+
+      # update inbox notification
+      current_unread = parseInt($("#identity .unread-messages-count").text(), 10) || 0
+      new_unread = $('.conversations li.unread').length
+      if(current_unread != new_unread)
+        if (new_unread <= 0) 
+          $("#identity .unread-messages-count").remove()
+        else
+          if($("#identity .unread-messages-count").length > 0)
+            $("#identity .unread-messages-count").text(new_unread)
+          else
+            $("#identity .first a").append('<b class="unread-messages-count">'+new_unread+'</b>')
+
       @emptyCheck()
       if @isActive(conversation.id) and conversation.get('workflow_state') is 'unread'
         @markAsUnread = setTimeout =>
