@@ -31,6 +31,14 @@
 //   options.url is used for the href of the link, and options.title
 //   will be the body of the link if no text is currently selected.
 
+/*
+  Patches by Edify
+
+  Index:
+  - 01: [08/07/2014] fix duplicate error messages on embed video
+    Bug: https://hotchalk.atlassian.net/browse/CNS-536
+ */
+
 define([
   'INST',
   'i18nObj',
@@ -243,7 +251,9 @@ define([
               var urlRegex = /http:/i;
               var valid = !isSecure || !urlRegex.test(data);
               if (!valid) {
-                area.after('<label style="color: red;">Invalid video embed code</label>');
+                if($('#label_error').length == 0) {
+                  area.after('<label id="label_error" style="color: red;">Invalid video embed code</label>');
+                }
               } else {
                 this.videoInsert();
               }
