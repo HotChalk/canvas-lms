@@ -29,6 +29,7 @@ require [
   assignmentGroupSelector = new AssignmentGroupSelector
     parentModel: assignment
     assignmentGroups: ENV?.ASSIGNMENT_GROUPS || []
+    basePrefix: 'assignment'
   gradingTypeSelector = new GradingTypeSelector
     parentModel: assignment
   groupCategorySelector = new GroupCategorySelector
