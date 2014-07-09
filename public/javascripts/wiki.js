@@ -26,6 +26,8 @@ define([
 ], function($, wikiSidebar) {
 
   // private variables & methods
+  var content = '';
+
   function initEditViewSecondary(){
     wikiSidebar.init();
     wikiSidebar.attachToEditor($("#wiki_page_body"));
@@ -34,6 +36,7 @@ define([
   function initShowViewSecondary(){
     $("#wiki_show_view_secondary a.edit_link").click(function(event){
       event.preventDefault();
+      content = $("#wiki_page_body").val();
       toggleView();
     });
   }
@@ -49,6 +52,7 @@ define([
     $("#wiki_edit_view_main").hide();
     $('#wiki_edit_view_main #cancel_editing').click(function(event){
       event.preventDefault();
+      $("#wiki_page_body").editorBox('set_code', content);
       toggleView();
     });
     $('#wiki_edit_view_main .wiki_switch_views_link').click(function(event) {
