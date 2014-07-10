@@ -1856,6 +1856,11 @@ define([
       if ($("#student_submissions_warning").length > 0 && !loading && !isNew) {
         disableRegrade(holder);
       }
+      if (!loading) {
+        var question_content = $(this).parents(".question_form").find('.question_content');
+        question_content.editorBox('destroy');
+        question_content.editorBox();
+      }
     });
 
     $("#question_form_template .cancel_link").click(function(event) {
@@ -3121,7 +3126,7 @@ define([
         $question_type = $question.find(".question_type");
     if ($question.data('multiple_sets_question_bindings')) { return; }
     $question.data('multiple_sets_question_bindings', true);
-    $question_content.redactor('getObject').opts.changeCallback = function(html) {
+    var textChange = function(html) {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
         return;
@@ -3156,6 +3161,10 @@ define([
       $select.find("option.to_be_removed").remove();
       $select.change();
     };
+    $question_content.data('redactorCallbacks', {'change': textChange });
+    $question_content.change(function(e) {
+      textChange($question_content.val());
+    });
     $select.change(function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {

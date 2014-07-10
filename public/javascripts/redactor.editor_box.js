@@ -305,6 +305,14 @@ define([
       imageResizable: false
     }, options.redactorOptions || {});
 
+    if ($textarea.data('redactorCallbacks')) {
+      $.each($textarea.data('redactorCallbacks'), function(event, callback) {
+        var newCallback = {};
+        newCallback[event + 'Callback'] = callback;
+        $.extend(redactorOptions, newCallback);
+      });
+    }
+
     // Add custom editor buttons
     if (INST && INST.editorButtons) {
       $.each(INST.editorButtons, function (i, button) {
