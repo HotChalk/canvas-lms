@@ -19,6 +19,8 @@
   - 03: [02/07/14] add class "redactor_table" to created tables
     Bug: https://hotchalk.atlassian.net/browse/CNS-560
          https://hotchalk.atlassian.net/browse/CNS-416
+  - 04: [15/07/14] change to allow insert horizontal rule on IE
+    Bug: https://hotchalk.atlassian.net/browse/CNS-483
  */
 
 (function($)
@@ -401,11 +403,12 @@
 				}
 			}
 
+      // - 04: change to allow insert horizontal rule on IE
 			// ie & opera
-			if (this.browser('msie') || this.browser('opera'))
-			{
-				this.opts.buttons = this.removeFromArrayByValue(this.opts.buttons, 'horizontalrule');
-			}
+			//if (this.browser('msie') || this.browser('opera'))
+			//{
+			//	this.opts.buttons = this.removeFromArrayByValue(this.opts.buttons, 'horizontalrule');
+			//}
 
 			// load lang
 			this.opts.curLang = this.opts.langs[this.opts.lang];
@@ -6051,6 +6054,7 @@
 				columns = $('#redactor_table_columns').val(),
 				$table_box = $('<div></div>'),
 				tableId = Math.floor(Math.random() * 99999),
+        // - 03: [02/07/14] add class "redactor_table" to created tables
 				$table = $('<table id="table' + tableId + '" class="redactor_table"><tbody></tbody></table>'),
 				i, $row, z, $column;
 
@@ -6441,6 +6445,7 @@
 			}
 
 			this.linkInsertPressed = true;
+      // - 02: change to integrate "Open in new tab"
 			var target = ' class="not_external"', targetBlank = '';
 
 			var link = $('#redactor_link_url').val();
@@ -6495,11 +6500,13 @@
 
 					if (target !== '')
 					{
+            // - 02: change to integrate "Open in new tab"
             $(this.insert_link_node).removeClass('not_external');
 						$(this.insert_link_node).attr('target', target);
 					}
 					else
 					{
+            // - 02: change to integrate "Open in new tab"
             $(this.insert_link_node).addClass('not_external');
 						$(this.insert_link_node).removeAttr('target');
 					}
@@ -6890,10 +6897,12 @@
 
 				if (parent.get(0).tagName !== 'A')
 				{
+          // - 02: change to integrate "Open in new tab"
 					var a = $('<a href="' + link + '" class="not_external">' + this.outerHtml(el) + '</a>');
 
 					if (target)
 					{
+            // - 02: change to integrate "Open in new tab"
             a.removeClass('not_external');
 						a.attr('target', '_blank');
 					}
@@ -6905,11 +6914,13 @@
 					parent.attr('href', link);
 					if (target)
 					{
+            // - 02: change to integrate "Open in new tab"
             parent.removeClass('not_external');
 						parent.attr('target', '_blank');
 					}
 					else
 					{
+            // - 02: change to integrate "Open in new tab"
             parent.addClass('not_external');
 						parent.removeAttr('target');
 					}
