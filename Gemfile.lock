@@ -183,6 +183,9 @@ GEM
     builder (3.0.0)
     bullet (4.5.0)
       uniform_notifier
+    byebug (2.4.1)
+      columnize (~> 0.3.6)
+      debugger-linecache (~> 1.2.0)
     canvas_connect (0.3.5)
       adobe_connect (~> 1.0.0)
       rake (>= 0.9.6)
@@ -196,6 +199,7 @@ GEM
       execjs
     coffee-script-source (1.6.2)
     colored (1.2)
+    columnize (0.3.6)
     compass (0.12.2)
       chunky_png (~> 1.2)
       fssm (>= 0.2.7)
@@ -208,6 +212,12 @@ GEM
       json
     cssmin (1.0.3)
     daemons (1.1.0)
+    debugger (1.5.0)
+      columnize (>= 0.3.1)
+      debugger-linecache (~> 1.2.0)
+      debugger-ruby_core_source (~> 1.2.0)
+    debugger-linecache (1.2.0)
+    debugger-ruby_core_source (1.2.4)
     diff-lcs (1.1.3)
     docile (1.1.3)
     dress_code (1.0.2)
@@ -431,6 +441,7 @@ DEPENDENCIES
   builder (= 3.0.0)
   bullet (= 4.5.0)
   bundler (>= 1.5.1, <= 1.5.3)
+  byebug (= 2.4.1)
   canvas_breach_mitigation!
   canvas_cassandra!
   canvas_color!
@@ -456,6 +467,7 @@ DEPENDENCIES
   crocodoc-ruby (= 0.0.1)
   cssmin (= 1.0.3)
   daemons (= 1.1.0)
+  debugger (= 1.5.0)
   diff-lcs (= 1.1.3)
   docile (= 1.1.3)
   dress_code (= 1.0.2)
