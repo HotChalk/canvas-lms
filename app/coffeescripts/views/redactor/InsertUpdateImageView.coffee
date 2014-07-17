@@ -26,9 +26,6 @@ define [
 
     initialize: (@editor, selectedNode) ->
       @$editor = @editor.$element;
-      @prevSelection = null
-      if @editor.selection
-        @prevSelection = @editor.selection.getBookmark()
       @$selectedNode = $(selectedNode)
       super
       @render()
@@ -135,8 +132,7 @@ define [
       img_tag
 
     update: =>
-      if @editor.selection
-        @editor.selection.moveToBookmark(@prevSelection)
+      @editor.selectionRestore()
       if @$selectedNode.prop('nodeName') is 'IMG'
         new_attr = @getAttributes()
         if @$selectedNode.parent().prop('nodeName') is 'A' &&
