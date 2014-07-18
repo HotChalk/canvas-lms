@@ -23,6 +23,8 @@
     Bug: https://hotchalk.atlassian.net/browse/CNS-483
   - 05: [18/07/14] fix problem with content sync after modal closed on IE
     Bug: https://hotchalk.atlassian.net/browse/CNS-560
+  - 06: [18/07/14] fix problem to allow insert text afeter a table on IE
+    Bug: https://hotchalk.atlassian.net/browse/CNS-451
  */
 
 (function($)
@@ -6083,7 +6085,8 @@
 			$table_box.append($table);
 			var html = $table_box.html();
 
-			if (this.opts.linebreaks === false && this.browser('mozilla'))
+      // - 06: fix problem to allow insert text afeter a table on IE
+			if (this.opts.linebreaks === false && (this.browser('mozilla') || this.browser('msie')))
 			{
 				html += '<p>' + this.opts.invisibleSpace + '</p>';
 			}
