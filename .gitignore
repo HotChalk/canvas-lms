@@ -56,3 +56,4 @@
 .ruby-version
 
 /vendor/plugins/*/public/javascripts/compiled/
+/nbproject/

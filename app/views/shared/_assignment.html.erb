@@ -10,6 +10,14 @@
   end
 
   assignment = assignment.overridden_for(@current_user)
+
+  if assignment.discussion_topic != nil 
+    icon_class = "icon-discussion"
+  elsif assignment.quiz != nil    
+    icon_class = "icon-quiz"
+  else
+    icon_class = "icon-assignment"  
+  end
 %>
 <% cache(['assignment_render',
           context,
@@ -42,8 +50,8 @@
                                     :tabindex => 0 %>
         <% end %>
       </div>
-
       <div class="data assignment_title ellipsis">
+        <i class="<%= icon_class  %>" style="opacity: 0.5;"></i>
         <a href="<%= assignment_url %>" class="title" title="<%= assignment.title %>">
           <% if assignment.muted? %>
             <%= image_tag 'sound_mute.png',
