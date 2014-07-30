@@ -17,7 +17,7 @@ require [
         responses = lrnObject.getResponses()
         scores = lrnObject.getScores()
         newResponse = ''
-        if !!responses && responses[id] && responses[id].value && responses[id].value.length
+        if !!responses && responses[id] && responses[id].value && (responses[id].value.length || typeof responses[id].value == 'object')
           newVal = {
             'responses': responses,
             'scores': scores
