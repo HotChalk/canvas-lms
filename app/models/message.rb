@@ -307,6 +307,13 @@ class Message < ActiveRecord::Base
 
     @i18n_scope = "messages." + filename.sub(/\.erb\z/, '')
 
+    # Hotchalk - check message root account for template overrides
+    current_account = self.root_account_id ? Account.find(self.root_account_id) : context_root_account
+    if current_account
+      template_overrides = current_account.settings[:message_template_overrides]
+      return template_overrides[filename] if template_overrides && template_overrides[filename]
+    end
+
     if (File.exist?(path) rescue false)
       File.read(path)
     else
@@ -349,6 +356,14 @@ class Message < ActiveRecord::Base
   def load_html_template
     html_file = template_filename('email.html')
     html_path = Canvas::MessageHelper.find_message_path(html_file)
+
+    # Hotchalk - check message root account for template overrides
+    current_account = self.root_account_id ? Account.find(self.root_account_id) : context_root_account
+    if current_account
+      template_overrides = current_account.settings[:message_template_overrides]
+      return template_overrides[html_file] if template_overrides && template_overrides[html_file]
+    end
+
     File.read(html_path) if File.exist?(html_path)
   end
 

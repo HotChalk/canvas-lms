@@ -1,31 +1,33 @@
+<% define_content :link do %>
+  <%= HostUrl.protocol %>://<%= HostUrl.context_host(asset.course) %>/<%= asset.course.class.to_s.downcase.pluralize %>/<%= asset.course_id %>
+<% end %>
+
 <% define_content :subject do %>
   <%= t :subject, "Course Enrollment" %>
 <% end %>
 
-<%= t :body, "Dear %{name},", :name => asset.user.name %>
-
 <%=
     case asset.type
     when 'TeacherEnrollment'
-      t :body_teacher, "You have been enrolled in %{course} as an instructor.", :course => asset.course.name
+      t :body_teacher, "You've been enrolled in the course, %{course}, as a teacher.", :course => asset.course.name
     when 'TaEnrollment'
-      t :body_ta, "You have been enrolled in %{course} as a TA.", :course => asset.course.name
+      t :body_ta, "You've been enrolled in the course, %{course}, as a TA.", :course => asset.course.name
     when 'ObserverEnrollment'
-      t :body_observer, "You have been enrolled in %{course} as an observer.", :course => asset.course.name
+      t :body_observer, "You've been enrolled in the course, %{course}, as an observer.", :course => asset.course.name
     when 'DesignerEnrollment'
-      t :body_designer, "You have been enrolled in %{course} as a designer.", :course => asset.course.name
+      t :body_designer, "You've been enrolled in the course, %{course}, as a designer.", :course => asset.course.name
     else
-      t :body_student, "You have been enrolled in %{course} as a student.", :course => asset.course.name
+      t :body_student, "You've been enrolled in the course, %{course}, as a student.", :course => asset.course.name
     end
 %>
+<% email = asset.user.email; login = (asset.user.pseudonym.unique_id rescue "none") %>
+<%= before_label :name, "Name" %> <%= asset.user.name %>
+<%= before_label :email, "Email" %> <%= asset.user.email %>
+<% if email != login %><%= before_label :username, "Username" %> <%= asset.user.pseudonym.unique_id rescue t(:none, "none") %><% end %>
 
-To access the course:
+<% if !asset.user.registered? && asset.user.communication_channel %>
+<%= t :register, "Visit %{link} to complete registration", :link => registration_confirmation_url(asset.user.communication_channel.confirmation_code, :host => HostUrl.context_host(asset.course)) %>
+<% end %>
 
-   • Login to http://login.cu-portland.edu/canvas with your network username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your Canvas courses.
-
-   • <%= t :body_course_name, "To view your newly added course, hover over the Courses tab at the top of the page. You will see all of your courses listed.  Choose %{course}.", :course => asset.course.name %>
-
-   • If you are unable to access Canvas or your course, please submit a help ticket at http://support.hotchalklearn.com/support.html and our support team will get back to you promptly.
-
-Warm regards,
-Canvas Support
+<%= t :details, "Visit the course page here:" %>
+<%= content :link %>

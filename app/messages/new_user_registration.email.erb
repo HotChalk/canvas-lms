@@ -1,16 +1,22 @@
 <% p = asset.is_a?(Pseudonym) ? asset : asset.pseudonym %>
 
+<% define_content :link do %>
+  <a href="<%= HostUrl.protocol %>://<%= HostUrl.default_host %>">
+    <%= HostUrl.protocol %>://<%= HostUrl.default_host %>
+  </a>
+<% end %>
+
 <% define_content :subject do %>
   <%= t :subject, "Canvas Account Created" %>
 <% end %>
 
 <%= t :body, "Dear %{name},", :name => p.user.name %>
 
-Welcome to the Canvas Learning Management System (LMS) platform at Concordia University - Portland.
+Welcome to the Canvas Learning Management System (LMS) platform.
 
 To access Canvas:
 
-   • Login to http://login.cu-portland.edu/canvas with your network username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your Canvas courses.
+   • Login to <%= content :link %> with your username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your Canvas courses.
 
    • To view your courses, hover over the Courses tab at the top of the page. You will see all courses you are enrolled in that have been published.
 
