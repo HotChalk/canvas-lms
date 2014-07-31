@@ -72,6 +72,9 @@ class TermsApiController < ApplicationController
   # @argument workflow_state[] [Optional, String, 'active'| 'deleted'| 'all']
   #   If set, only returns terms that are in the given state.
   #   Defaults to 'active'.
+  # @argument sis_term_id [Optional, String]
+  #   If set, returns the specified term
+  #   Defaults to nil.
   #
   # @returns [EnrollmentTerm]
   #
@@ -82,7 +85,15 @@ class TermsApiController < ApplicationController
     state = nil if Array(state).include?('all')
     terms = terms.where(workflow_state: state) if state.present?
 
-    terms = Api.paginate(terms, self, api_v1_enrollment_terms_url)
-    render json: {enrollment_terms: enrollment_terms_json(terms, @current_user, session)}
+    sis_term_id = params[:sis_term_id] || nil
+    if sis_term_id.present?
+      terms = terms.where(sis_source_id: sis_term_id)
+
+      render json: {enrollment_term: enrollment_term_json(terms.first, @current_user, session)} if terms.size == 1
+      render json: {errors: [{message: 'The requested term was not found.'}]}, status: 400 if terms.size != 1      
+    else
+      terms = Api.paginate(terms, self, api_v1_enrollment_terms_url)
+      render json: {enrollment_terms: enrollment_terms_json(terms, @current_user, session)}
+    end
   end
 end
