@@ -135,4 +135,4 @@ gem 'utf8_cleaner', :path => 'gems/utf8_cleaner'
 gem 'workflow', :path => 'gems/workflow'
 
 # New Relic Monitoring
-gem 'newrelic_rpm', '3.7.3.204'
+gem 'newrelic_rpm', '3.9.1.236'
