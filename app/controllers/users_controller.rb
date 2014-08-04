@@ -1161,6 +1161,48 @@ class UsersController < ApplicationController
             @user.avatar_state = (old_avatar_state == :locked ? old_avatar_state : 'approved')
             @user.save
           end
+
+          # Handle request for new user's email
+          if params[:pseudonym][:unique_id]
+            # If a new pseudonym is requested, build (but don't save) a pseudonym to ensure
+            # that the unique_id is valid. The pseudonym will be created on approval of the
+            # communication channel.
+            if params[:build_pseudonym]
+              @pseudonym = @domain_root_account.pseudonyms.build(:user => @user,
+                :unique_id => params[:pseudonym][:unique_id])
+              @pseudonym.generate_temporary_password
+
+              unless @pseudonym.valid?
+                return render :json => @pseudonym.errors.as_json, :status => :bad_request
+              end
+            end
+
+            skip_confirmation = false
+
+            # Find or create the communication channel.
+            @cc ||= @user.communication_channels.by_path(params[:pseudonym][:unique_id]).
+              find_by_path_type(CommunicationChannel::TYPE_EMAIL)
+            @cc ||= @user.communication_channels.build(:path => params[:pseudonym][:unique_id],
+              :path_type => CommunicationChannel::TYPE_EMAIL)
+
+            if (!@cc.new_record? && !@cc.retired? && @cc.path_type != CommunicationChannel::TYPE_PUSH)
+              @cc.errors.add(:path, 'unique!')
+              return render :json => @cc.errors.as_json, :status => :bad_request
+            end
+
+            @cc.user = @user
+            @cc.re_activate! if @cc.retired?
+            @cc.workflow_state = skip_confirmation ? 'active' : 'unconfirmed'
+            @cc.build_pseudonym_on_confirm = params[:build_pseudonym].to_i > 0
+
+            # Save channel and continue or return response on error
+            if @cc.save
+              @cc.send_confirmation!(@domain_root_account) unless skip_confirmation                
+            else
+              render :json => @cc.errors.as_json, :status => :bad_request
+            end
+          end
+
           session.delete(:require_terms)
           flash[:notice] = t('user_updated', 'User was successfully updated.')
           format.html { redirect_to user_url(@user) }
