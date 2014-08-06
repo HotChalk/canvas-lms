@@ -22,7 +22,7 @@ class Quizzes::QuizQuestion::LearnosityQuestion < Quizzes::QuizQuestion::Base
     responses.each do |response|
       stats[:learnosity_responses] << {
         :user_id => response[:user_id],
-        :points_awarded => (response['scores']["#{response[:question_id]}"]['score'] rescue 0),
+        :points_awarded => (response[:points] rescue 0),
       }
     end
 
