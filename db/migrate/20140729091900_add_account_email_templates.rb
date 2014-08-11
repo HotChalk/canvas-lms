@@ -90,7 +90,7 @@ Canvas Support
 <% p = asset.is_a?(Pseudonym) ? asset : asset.pseudonym %>
 
 <% define_content :subject do %>
-  <%= t :subject, "Canvas Account Created" %>
+  <%= t :subject, "HotChalk Ember Account Created" %>
 <% end %>
 
 <%= t :body, "Dear %{name},", :name => p.user.name %>
@@ -115,7 +115,7 @@ Canvas Support
 <% p = asset.is_a?(Pseudonym) ? asset : asset.pseudonym %>
 
 <% define_content :subject do %>
-  <%= t :subject, "Canvas Account Created" %>
+  <%= t :subject, "HotChalk Ember Account Created" %>
 <% end %>
 
 <p><%= t :body, "Dear %{name},", :name => p.user.name %></p>

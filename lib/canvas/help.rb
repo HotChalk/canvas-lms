@@ -10,7 +10,7 @@ module Canvas
         },
         {
           :available_to => ['user', 'student', 'teacher', 'admin'],
-          :text => I18n.t('#help_dialog.search_the_canvas_guides', 'Search the Canvas Guides'),
+          :text => I18n.t('#help_dialog.search_the_canvas_guides', 'Search the HotChalk Ember Guides'),
           :subtext => I18n.t('#help_dialog.canvas_help_sub', 'Find answers to common questions'),
           :url => 'http://guides.instructure.com'
         },

@@ -43,7 +43,7 @@ end
 Feature.register('draft_state' => {
     display_name: lambda { I18n.t('features.draft_state', 'Draft State') },
     description: lambda { I18n.t('draft_state_description', <<END) },
-This beta feature redesigns many parts of Canvas and allows content to exist in
+This beta feature redesigns many parts of HotChalk Ember and allows content to exist in
 a new unpublished state that is invisible to students and excluded from grade
 calculations. Caution--disabling this feature may delete newly created or edited
 content from the teacher's view.
