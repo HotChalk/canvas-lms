@@ -1,0 +1,396 @@
+@keyframes page-changed-alert {
+  from {
+    height: 0; }
+
+  to {
+    height: 39px; } }
+
+@-webkit-keyframes page-changed-alert {
+  from {
+    height: 0; }
+
+  to {
+    height: 39px; } }
+
+@keyframes page-changed-header-bar {
+  from {
+    height: 64px; }
+
+  to {
+    height: 103px; } }
+
+@-webkit-keyframes page-changed-header-bar {
+  from {
+    height: 64px; }
+
+  to {
+    height: 103px; } }
+
+.pages .sticky-toolbar .sticky {
+  position: fixed;
+  z-index: 1000;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  margin-left: 1px;
+  background: white;
+  height: 33px;
+  max-width: 1100px;
+  border-color: #cccccc; }
+
+.pages.with-left-side .sticky-toolbar .sticky {
+  margin-left: 176px; }
+
+.pages.with-right-side .sticky-toolbar .sticky {
+  margin-right: 287px; }
+
+.pages:not(.revisions) #breadcrumbs {
+  border-bottom: 1px solid #c1c7cf; }
+
+.pages .header-bar-outer-container {
+  height: 64px;
+  clear: right; }
+  .pages .header-bar-outer-container .header-bar-container {
+    min-width: 508px;
+    height: 64px; }
+    .pages .header-bar-outer-container .header-bar-container .page-changed-alert {
+      overflow: hidden;
+      height: 0; }
+    .pages .header-bar-outer-container .header-bar-container .page-changed-alert .alert {
+      border-radius: 0; }
+    .pages .header-bar-outer-container .header-bar-container .header-bar {
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15); }
+.pages .header-bar-outer-container.page-changed {
+  height: 103px;
+  animation: page-changed-header-bar 1.15s;
+  -webkit-animation: page-changed-header-bar 1.15s; }
+  .pages .header-bar-outer-container.page-changed .header-bar-container {
+    height: 103px;
+    animation: page-changed-header-bar 1.15s;
+    -webkit-animation: page-changed-header-bar 1.15s; }
+    .pages .header-bar-outer-container.page-changed .header-bar-container .page-changed-alert {
+      margin: -1px 0 0 0;
+      border-bottom: 1px solid #c1c7cf;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+      height: 39px;
+      animation: page-changed-alert 1.15s;
+      -webkit-animation: page-changed-alert 1.15s; }
+
+.pages.index #main {
+  background: #e8ecef; }
+.pages.index .index-content-container {
+  margin-top: 1px; }
+.pages.index .page-edit-dialog .edit-content {
+  margin: 8px 5px; }
+  .pages.index .page-edit-dialog .edit-content .edit-label {
+    padding-top: 5px;
+    width: 75px;
+    float: left;
+    text-align: right; }
+  .pages.index .page-edit-dialog .edit-content .edit-controls {
+    margin-left: 85px; }
+  .pages.index .page-edit-dialog .edit-content .edit-control-text {
+    width: 270px; }
+.pages.index .index-content {
+  padding: 0 1em 1em; }
+  .pages.index .index-content .table {
+    margin-bottom: 0;
+    border-collapse: separate;
+    border-spacing: 0; }
+    .pages.index .index-content .table td:first-child, .pages.index .index-content .table th:first-child {
+      padding-left: 12px; }
+    .pages.index .index-content .table td:last-child, .pages.index .index-content .table th:last-child {
+      padding-right: 12px; }
+    .pages.index .index-content .table .header-row {
+      text-transform: uppercase; }
+      .pages.index .index-content .table .header-row a.sort-field {
+        cursor: pointer;
+        user-select: none;
+        color: inherit;
+        white-space: nowrap; }
+        .pages.index .index-content .table .header-row a.sort-field i {
+          color: #cccccc; }
+      .pages.index .index-content .table .header-row a.sort-field:hover {
+        text-decoration: none; }
+        .pages.index .index-content .table .header-row a.sort-field:hover i {
+          color: #0088cc; }
+      .pages.index .index-content .table .header-row a.sort-field-active i {
+        color: black; }
+  .pages.index .index-content .table thead {
+    background: #e8ecef; }
+    .pages.index .index-content .table thead tr {
+      height: 40px; }
+    .pages.index .index-content .table thead th {
+      vertical-align: middle; }
+  .pages.index .index-content .table tbody .page_title {
+    font-weight: bold; }
+  .pages.index .index-content .table tbody .front-page {
+    margin: auto 0.5em; }
+  .pages.index .index-content .table tbody .al-trigger {
+    color: #b4b7ba; }
+  .pages.index .index-content .table tbody .al-trigger:hover {
+    color: #4d4d4d; }
+  .pages.index .index-content .table tbody tr {
+    background: white;
+    text-decoration: inherit;
+    color: inherit; }
+    .pages.index .index-content .table tbody tr.clickable:hover {
+      background: #eef7ff;
+      text-decoration: inherit;
+      color: inherit; }
+    .pages.index .index-content .table tbody tr td:first-child {
+      border-left: 1px solid #c1c7cf; }
+    .pages.index .index-content .table tbody tr td:last-child {
+      border-right: 1px solid #c1c7cf; }
+  .pages.index .index-content .table tbody tr:first-child td {
+    border-top: 1px solid #c1c7cf; }
+  .pages.index .index-content .table tbody tr:first-child td:first-child {
+    border-top-left-radius: 3px; }
+  .pages.index .index-content .table tbody tr:first-child td:last-child {
+    border-top-right-radius: 3px; }
+  .pages.index .index-content .table tbody tr:last-child td {
+    border-bottom: 1px solid #c1c7cf;
+    box-shadow: 0 1px 0 #dde0e4; }
+  .pages.index .index-content .table tbody tr:last-child td:first-child {
+    border-bottom-left-radius: 3px; }
+  .pages.index .index-content .table tbody tr:last-child td:last-child {
+    border-bottom-right-radius: 3px; }
+  .pages.index .index-content .table tbody td {
+    font-size: 11px;
+    color: dimgrey;
+    border-top: 1px solid #e1e3e4; }
+    .pages.index .index-content .table tbody td .wiki-page-link {
+      font-size: 13px;
+      font-weight: bold;
+      color: #4d4d4d; }
+    .pages.index .index-content .table tbody td .wiki-page-link.published {
+      color: #33802a; }
+    .pages.index .index-content .table tbody td .wiki-page-link.unpublished {
+      color: dimgrey; }
+    .pages.index .index-content .table tbody td .icon-publish {
+      color: #33802a; }
+    .pages.index .index-content .table tbody td .icon-unpublished {
+      color: #b4b7ba; }
+  .pages.index .index-content .table .no-pages .no-pages-cell {
+    border: 1px dashed #c1c7cf; }
+  .pages.index .index-content .loading {
+    text-align: center;
+    color: #8f9295; }
+    .pages.index .index-content .loading img {
+      margin-top: -3px;
+      opacity: 0.75; }
+    .pages.index .index-content .loading.loading {
+      border: 1px solid transparent; }
+    .pages.index .index-content .loading.loading-more {
+      border: 1px dashed #c1c7cf;
+      border-top-width: 0;
+      border-bottom-left-radius: 3px;
+      border-bottom-right-radius: 3px;
+      margin-top: 1px;
+      padding: 4px 12px;
+      background: #f4f6f8; }
+
+.pages.show .course-title {
+  display: none;
+  font-size: 1.8em;
+  font-weight: bold;
+  line-height: 30px;
+  margin: 0;
+  color: #666666; }
+.pages.show .page-title {
+  font-size: 2.5em;
+  font-weight: 200;
+  margin: 15px 0;
+  color: #666666; }
+.pages.show .header-bar .publish-button {
+  margin: 0 12px 0 0; }
+.pages.show .header-bar .front-page.label {
+  margin: 6px 12px 6px 0; }
+.pages.show .header-bar .published, .pages.show .header-bar .unpublished {
+  display: inline-block;
+  margin: 6px 8px 6px 5px; }
+.pages.show .locked-alert ul {
+  margin: 4px 0 6px 25px; }
+.pages.show .show-content {
+  padding: 15px 25px; }
+.pages.show .floating_links {
+  margin-right: 15px; }
+.pages.show .public-license {
+  margin-left: 15px;
+  margin-bottom: 15px; }
+
+.pages.show.home .course-title {
+  display: block; }
+.pages.show.home .page-title {
+  display: none; }
+.pages.show.home .show-content {
+  padding-top: 25px; }
+
+.pages.edit .form-actions {
+  padding-left: 1em; }
+.pages.edit .edit-form {
+  margin: 0; }
+  .pages.edit .edit-form .edit-content {
+    padding: 1em; }
+    .pages.edit .edit-form .edit-content .edit-header {
+      position: relative;
+      margin-bottom: 1em; }
+    .pages.edit .edit-form .edit-content .edit-header h2 {
+      margin: 0; }
+    .pages.edit .edit-form .edit-content .switch_views {
+      right: 5px;
+      bottom: 0px;
+      position: absolute; }
+    .pages.edit .edit-form .edit-content .body {
+      width: 98.5%; }
+    .pages.edit .edit-form .edit-content .mceLayout {
+      margin: 0; }
+    .pages.edit .edit-form .edit-content .options {
+      margin-top: 1em; }
+  .pages.edit .edit-form .form-actions {
+    margin-top: 0;
+    margin-bottom: 0; }
+
+.pages.show.revisions .revision:first-child {
+  border-top: 1px solid #e1e3e4; }
+.pages.show.revisions #wiki_page_revisions {
+  position: relative;
+  min-height: 502px; }
+.pages.show.revisions .show-content {
+  float: left;
+  margin-right: 271px; }
+.pages.show.revisions .show-revisions {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 270px;
+  background-color: #f6f8fa;
+  border-left: 1px solid #c1c7cf; }
+  .pages.show.revisions .show-revisions aside {
+    width: 270px;
+    position: fixed; }
+  .pages.show.revisions .show-revisions .revision-history {
+    text-transform: uppercase;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 40px;
+    padding: 4px 11px;
+    margin-top: -1px;
+    margin-left: -1px;
+    border-left: 1px solid #c1c7cf;
+    border-top: 1px solid #c1c7cf;
+    border-bottom: none;
+    color: dimgrey;
+    position: relative; }
+  .pages.show.revisions .show-revisions .revision-history .close-button {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    right: 3px;
+    width: 42px;
+    text-align: center;
+    color: dimgrey; }
+    .pages.show.revisions .show-revisions .revision-history .close-button:hover {
+      color: #2590cf; }
+    .pages.show.revisions .show-revisions .revision-history .close-button i.icon-x {
+      position: absolute;
+      top: 50%;
+      margin-top: -8px;
+      right: 13px; }
+  .pages.show.revisions .show-revisions ul.revisions-list {
+    margin: 0 0 0 -1px;
+    height: 400px; }
+.pages.show.revisions .revision {
+  list-style-type: none;
+  overflow: hidden;
+  width: 271px;
+  margin-top: -1px;
+  border-left: none;
+  border-right: none;
+  border-top: 1px solid transparent;
+  border-bottom: 1px solid transparent;
+  height: 34px;
+  transition: height 400ms; }
+  .pages.show.revisions .revision.selected {
+    border-top: 1px solid #c1c7cf;
+    border-bottom: 1px solid #c1c7cf; }
+  .pages.show.revisions .revision.selected, .pages.show.revisions .revision.latest {
+    height: 56px;
+    transition: height 400ms; }
+  .pages.show.revisions .revision .revision-content {
+    margin-left: 1px;
+    padding: 7px 8px; }
+    .pages.show.revisions .revision .revision-content .revision-details {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis; }
+  .pages.show.revisions .revision:not(.selected):hover .revision-content {
+    background-color: #eef1f3;
+    cursor: pointer; }
+  .pages.show.revisions .revision .revision-actions {
+    margin-top: 2px;
+    font-style: italic;
+    color: #999999; }
+  .pages.show.revisions .revision .revision-actions a.restore-link {
+    font-style: normal;
+    cursor: pointer; }
+  .pages.show.revisions .revision.selected {
+    background-color: white; }
+.pages.show.revisions .revision-nav-buttons {
+  position: relative;
+  padding: 0;
+  height: 40px;
+  margin-top: 14px;
+  border-top: 1px solid #e1e3e4; }
+  .pages.show.revisions .revision-nav-buttons a {
+    user-select: none;
+    font-weight: bold;
+    font-size: 12px;
+    text-transform: uppercase;
+    padding: 10px 10px;
+    color: #999999; }
+  .pages.show.revisions .revision-nav-buttons a:hover {
+    text-decoration: none;
+    cursor: pointer;
+    color: #2590cf;
+    border-radius: 3px; }
+  .pages.show.revisions .revision-nav-buttons .prev-button {
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    padding: 7px 10px 7px 5px; }
+  .pages.show.revisions .revision-nav-buttons .next-button {
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    padding: 7px 5px 7px 10px; }
+
+@media print {
+  #breadcrumbs, .header-bar-outer-container {
+    display: none; }
+
+  .pages.show.revisions .show-revisions {
+    display: none; }
+  .pages.show.revisions .show-content {
+    margin-right: 0; } }
+#wiki_show_view_main {
+  overflow: auto; }
+
+#last_edited_by {
+  border: solid #eeeeee;
+  border-width: 0 0 1px 0;
+  font-size: 0.8em;
+  margin-bottom: 10px;
+  margin-right: 2px; }
+  #last_edited_by h3, #last_edited_by .h3 {
+    margin: 0px 20px 10px;
+    font-size: 1.5em;
+    color: #444444; }
+
+#page_history {
+  float: right; }
+
+#wiki_page_body_parent.mceEditor {
+  display: block;
+  overflow: auto; }

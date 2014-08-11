@@ -1,3 +1,21 @@
+#
+# Copyright (C) 2012 - 2014 Instructure, Inc.
+#
+# This file is part of Canvas.
+#
+# Canvas is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, version 3 of the License.
+#
+# Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+# A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
 class GradeSummaryPresenter
 
   attr_reader :groups_assignments
@@ -10,7 +28,7 @@ class GradeSummaryPresenter
   end
 
   def user_has_elevated_permissions?
-    (@context.grants_right?(@current_user, nil, :manage_grades) || @context.grants_right?(@current_user, nil, :view_all_grades))
+    @context.grants_any_right?(@current_user, :manage_grades, :view_all_grades)
   end
 
   def user_needs_redirection?
@@ -47,13 +65,13 @@ class GradeSummaryPresenter
   end
 
   def linkable_observed_students
-    observed_students.keys.select{ |student| observed_students[student].all? { |e| e.grants_right?(@current_user, nil, :read_grades) } }
+    observed_students.keys.select{ |student| observed_students[student].all? { |e| e.grants_right?(@current_user, :read_grades) } }
   end
 
   def selectable_courses
     courses_with_grades.to_a.select do |course|
       student_enrollment = course.all_student_enrollments.find_by_user_id(student)
-      student_enrollment.grants_right?(@current_user, nil, :read_grades)
+      student_enrollment.grants_right?(@current_user, :read_grades)
     end
   end
 

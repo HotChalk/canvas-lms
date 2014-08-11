@@ -20,6 +20,10 @@ require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 require File.expand_path(File.dirname(__FILE__) + '/../../cassandra_spec_helper')
 
 describe "CourseAudit API", type: :request do
+  before do
+    pending 'Audit Search is disabled.'
+  end
+
   context "not configured" do
     before do
       Canvas::Cassandra::DatabaseBuilder.stubs(:configured?).with('auditors').returns(false)
@@ -36,7 +40,7 @@ describe "CourseAudit API", type: :request do
     include_examples "cassandra audit logs"
 
     before do
-      @request_id = UUIDSingleton.instance.generate
+      @request_id = CanvasUUID.generate
       RequestContextGenerator.stubs( :request_id => @request_id )
 
       @domain_root_account = Account.default
@@ -117,7 +121,7 @@ describe "CourseAudit API", type: :request do
         record = Auditors::Course::Record.new(
           'course' => @course,
           'user' => @teacher,
-          'event_type' => 'settings',
+          'event_type' => 'updated',
           'event_data' => @course.changes,
           'created_at' => 1.day.ago
         )
@@ -153,6 +157,14 @@ describe "CourseAudit API", type: :request do
         RoleOverride.manage_role_override(@account_user.account, @account_user.membership_type, :view_course_changes.to_s, :override => false)
 
         fetch_for_context(@course, expected_status: 401)
+      end
+
+      it "should not allow other account models" do
+        new_root_account = Account.create!(name: 'New Account')
+        LoadAccount.stubs(:default_domain_root_account).returns(new_root_account)
+        @viewing_user = user_with_pseudonym(account: new_root_account)
+
+        fetch_for_context(@course, expected_status: 404)
       end
     end
 

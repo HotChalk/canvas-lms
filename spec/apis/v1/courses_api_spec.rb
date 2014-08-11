@@ -276,12 +276,14 @@ describe CoursesController, type: :request do
         course_response = post_params['course'].merge({
           'account_id' => @account.id,
           'root_account_id' => @account.id,
+          'integration_id' => nil,
           'start_at' => '2011-01-01T07:00:00Z',
           'end_at' => '2011-05-01T07:00:00Z',
           'workflow_state' => 'available',
           'default_view' => 'feed',
           'storage_quota_mb' => @account.default_storage_quota_mb
         })
+        Auditors::Course.expects(:record_created).once
         json = api_call(:post, @resource_path, @resource_params, post_params)
         new_course = Course.find(json['id'])
         [:name, :course_code, :start_at, :end_at,
@@ -332,6 +334,7 @@ describe CoursesController, type: :request do
         course_response = post_params['course'].merge({
           'account_id' => @account.id,
           'root_account_id' => @account.id,
+          'integration_id' => nil,
           'start_at' => '2011-01-01T07:00:00Z',
           'end_at' => '2011-05-01T07:00:00Z',
           'workflow_state' => 'available',
@@ -361,6 +364,7 @@ describe CoursesController, type: :request do
       end
 
       it "should offer a course if passed the 'offer' parameter" do
+        Auditors::Course.expects(:record_published).once
         json = api_call(:post, @resource_path,
           @resource_params,
           { :account_id => @account.id, :offer => true, :course => { :name => 'Test Course' } }
@@ -370,6 +374,8 @@ describe CoursesController, type: :request do
       end
 
       it "should allow setting sis_course_id without offering the course" do
+        Auditors::Course.expects(:record_created).once
+        Auditors::Course.expects(:record_published).never
         json = api_call(:post, @resource_path,
           @resource_params,
           { :account_id => @account.id, :course => { :name => 'Test Course', :sis_course_id => '9999' } }
@@ -402,7 +408,7 @@ describe CoursesController, type: :request do
           @account.role_overrides.create! :permission => 'manage_courses', :enabled => true,
                                           :enrollment_type => 'lamer'
           user
-          @account.add_user @user, 'lamer'
+          @account.account_users.create!(user: @user, membership_type: 'lamer')
           user_session @user
         end
 
@@ -455,6 +461,7 @@ describe CoursesController, type: :request do
         'name' => 'New Name',
         'course_code' => 'NEW-001',
         'sis_course_id' => 'NEW12345',
+        'integration_id' => nil,
         'start_at' => '2012-03-01T00:00:00Z',
         'end_at' => '2012-03-30T23:59:59Z',
         'license' => 'public_domain',
@@ -475,6 +482,8 @@ describe CoursesController, type: :request do
 
     context "an account admin" do
       it "should be able to update a course" do
+        Auditors::Course.expects(:record_updated).once
+
         json = api_call(:put, @path, @params, @new_values)
         @course.reload
 
@@ -699,6 +708,7 @@ describe CoursesController, type: :request do
     end
     context "an authorized user" do
       it "should be able to delete a course" do
+        Auditors::Course.expects(:record_deleted).once
         json = api_call(:delete, @path, @params, { :event => 'delete' })
         json.should == { 'delete' => true }
         @course.reload
@@ -716,6 +726,7 @@ describe CoursesController, type: :request do
       end
 
       it "should conclude when completing a course" do
+        Auditors::Course.expects(:record_concluded).once
         json = api_call(:delete, @path, @params, { :event => 'conclude' })
         json.should == { 'conclude' => true }
 
@@ -763,32 +774,39 @@ describe CoursesController, type: :request do
     end
 
     context "an authorized user" do
+      let(:course_ids){ [@course1.id, @course2.id, @course3.id] }
       it "should delete multiple courses" do
-        api_call(:put, @path, @params, { :event => 'delete', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_deleted).times(course_ids.length)
+        api_call(:put, @path, @params, { :event => 'delete', :course_ids => course_ids })
         run_jobs
         [@course1, @course2, @course3].each { |c| c.reload.should be_deleted }
       end
 
       it "should conclude multiple courses" do
-        api_call(:put, @path, @params, { :event => 'conclude', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_concluded).times(course_ids.length)
+        api_call(:put, @path, @params, { :event => 'conclude', :course_ids => course_ids })
         run_jobs
         [@course1, @course2, @course3].each { |c| c.reload.should be_completed }
       end
 
       it "should publish multiple courses" do
-        api_call(:put, @path, @params, { :event => 'offer', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_published).times(course_ids.length)
+        api_call(:put, @path, @params, { :event => 'offer', :course_ids => course_ids })
         run_jobs
         [@course1, @course2, @course3].each { |c| c.reload.should be_available }
       end
 
       it "should accept sis ids" do
-        api_call(:put, @path, @params, { :event => 'offer', :course_ids => ['sis_course_id:course1', 'sis_course_id:course2', 'sis_course_id:course3'] })
+        course_ids = ['sis_course_id:course1', 'sis_course_id:course2', 'sis_course_id:course3']
+        Auditors::Course.expects(:record_published).times(course_ids.length)
+        api_call(:put, @path, @params, { :event => 'offer', :course_ids => course_ids })
         run_jobs
         [@course1, @course2, @course3].each { |c| c.reload.should be_available }
       end
 
       it 'should undelete courses' do
         [@course1, @course2].each { |c| c.destroy }
+        Auditors::Course.expects(:record_restored).twice
         api_call(:put, @path, @params, { :event => 'undelete', :course_ids => [@course1.id, 'sis_course_id:course2'] })
         run_jobs
         [@course1, @course2].each { |c| c.reload.should be_claimed }
@@ -796,6 +814,7 @@ describe CoursesController, type: :request do
 
       it "should not conclude deleted courses" do
         @course1.destroy
+        Auditors::Course.expects(:record_concluded).once
         api_call(:put, @path, @params, { :event => 'conclude', :course_ids => [@course1.id, @course2.id] })
         run_jobs
         @course1.reload.should be_deleted
@@ -804,6 +823,7 @@ describe CoursesController, type: :request do
 
       it "should not publish deleted courses" do
         @course1.destroy
+        Auditors::Course.expects(:record_published).once
         api_call(:put, @path, @params, { :event => 'offer', :course_ids => [@course1.id, @course2.id] })
         run_jobs
         @course1.reload.should be_deleted
@@ -876,7 +896,8 @@ describe CoursesController, type: :request do
 
       it "should succeed when publishing already published courses" do
         @course1.offer!
-        json = api_call(:put, @path, @params, { :event => 'offer', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_published).twice
+        json = api_call(:put, @path, @params, { :event => 'offer', :course_ids => course_ids })
         run_jobs
         progress = Progress.find(json['id'])
         progress.message.should be_include "3 courses processed"
@@ -886,7 +907,8 @@ describe CoursesController, type: :request do
       it "should succeed when concluding already concluded courses" do
         @course1.complete!
         @course2.complete!
-        json = api_call(:put, @path, @params, { :event => 'conclude', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_concluded).once
+        json = api_call(:put, @path, @params, { :event => 'conclude', :course_ids => course_ids })
         run_jobs
         progress = Progress.find(json['id'])
         progress.message.should be_include "3 courses processed"
@@ -896,7 +918,8 @@ describe CoursesController, type: :request do
       it "should be able to unconclude courses" do
         @course1.complete!
         @course2.complete!
-        json = api_call(:put, @path, @params, { :event => 'offer', :course_ids => [@course1.id, @course2.id, @course3.id] })
+        Auditors::Course.expects(:record_unconcluded).twice
+        json = api_call(:put, @path, @params, { :event => 'offer', :course_ids => course_ids })
         run_jobs
         progress = Progress.find(json['id'])
         progress.message.should be_include "3 courses processed"
@@ -936,6 +959,32 @@ describe CoursesController, type: :request do
                  {}, {:expected_status => 401})
       end
     end
+  end
+
+  it "includes section enrollments if requested" do
+    json = api_call(:get, "/api/v1/courses.json",
+      { :controller => 'courses', :action => 'index', :format => 'json' },
+      { :include => ['sections'] })
+
+    course1_section_json = json.first['sections']
+
+    section = @course1.course_sections.first
+    course1_section_json.size.should == 1
+    course1_section_json.first['id'].should == section.id
+    course1_section_json.first['enrollment_role'].should == 'TeacherEnrollment'
+    course1_section_json.first['name'].should == section.name
+    course1_section_json.first['start_at'].should == section.start_at
+    course1_section_json.first['end_at'].should == section.end_at
+
+    course2_section_json = json.last['sections']
+
+    section = @course2.course_sections.first
+    course2_section_json.size.should == 1
+    course2_section_json.first['id'].should == section.id
+    course2_section_json.first['enrollment_role'].should == 'StudentEnrollment'
+    course2_section_json.first['name'].should == section.name
+    course2_section_json.first['start_at'].should == section.start_at
+    course2_section_json.first['end_at'].should == section.end_at
   end
 
   it "should include term name in course list if requested" do
@@ -1130,7 +1179,7 @@ describe CoursesController, type: :request do
       end
     end
 
-    it "should not return courses with StudentEnrollment or ObserverEnrollment when state[] param" do
+    it "should not return courses with invited StudentEnrollment or ObserverEnrollment when state[]=unpublished" do
       @course4.enrollments.each do |e|
         e.type = 'StudentEnrollment'
         e.save
@@ -1138,7 +1187,7 @@ describe CoursesController, type: :request do
       json = api_call(:get, "/api/v1/courses.json",
                       { :controller => 'courses', :action => 'index', :format => 'json' },
                       { :state => ['unpublished'] })
-      json.collect{ |c| c['id'].to_i }.sort.should ==[@course3.id]
+      json.collect{ |c| c['id'].to_i }.sort.should == [@course3.id]
 
       @course3.enrollments.each do |e|
         e.type = 'ObserverEnrollment'
@@ -1147,7 +1196,65 @@ describe CoursesController, type: :request do
       json = api_call(:get, "/api/v1/courses.json",
                       { :controller => 'courses', :action => 'index', :format => 'json' },
                       { :state => ['unpublished'] })
-      json.collect{ |c| c['id'].to_i }.should ==[]
+      json.collect{ |c| c['id'].to_i }.should == []
+    end
+
+    it "should return courses with active StudentEnrollment or ObserverEnrollment when state[]=unpublished" do
+      @course3.enrollments.each do |e|
+        e.type = 'ObserverEnrollment'
+        e.workflow_state = "active"
+        e.save
+      end
+      @course4.enrollments.each do |e|
+        e.type = 'StudentEnrollment'
+        e.workflow_state = "active"
+        e.save
+      end
+      json = api_call(:get, "/api/v1/courses.json",
+                      { :controller => 'courses', :action => 'index', :format => 'json' },
+                      { :state => ['unpublished'] })
+      json.collect{ |c| c['id'].to_i }.sort.should == [@course3.id, @course4.id]
+    end
+  end
+
+  describe "root account filter" do
+    before do
+      @course1 = course_with_student(account: Account.default, active_all: true).course
+      @course2 = course_with_student(account: account_model(name: 'other root account'), user: @student, active_all: true).course
+    end
+
+    it "should not filter by default" do
+      json = api_call(:get, "/api/v1/courses.json",
+                      { :controller => 'courses', :action => 'index', :format => 'json' })
+      json.map { |c| c['id'] }.should =~ [@course1.id, @course2.id]
+    end
+
+    it "should accept current_domain_only=true" do
+      json = api_call(:get, "/api/v1/courses.json?current_domain_only=true",
+                      { :controller => 'courses', :action => 'index', :format => 'json',
+                        :current_domain_only => 'true' })
+      json.map { |c| c['id'] }.should eql [@course1.id]
+    end
+
+    it "should accept root_account_id=self" do
+      json = api_call(:get, "/api/v1/courses.json?root_account_id=self",
+                      { :controller => 'courses', :action => 'index', :format => 'json',
+                        :root_account_id => 'self' })
+      json.map { |c| c['id'] }.should eql [@course1.id]
+    end
+
+    it "should accept root_account_id=id" do
+      json = api_call(:get, "/api/v1/courses.json?root_account_id=#{@course2.root_account.id}",
+                      { :controller => 'courses', :action => 'index', :format => 'json',
+                        :root_account_id => @course2.root_account.to_param })
+      json.map { |c| c['id'] }.should eql [@course2.id]
+    end
+
+    it "should return an empty result if the given root account does not exist" do
+      json = api_call(:get, "/api/v1/courses.json?root_account_id=0",
+                      { :controller => 'courses', :action => 'index', :format => 'json',
+                        :root_account_id => '0' })
+      json.should eql([])
     end
   end
 
@@ -1179,7 +1286,7 @@ describe CoursesController, type: :request do
     end
 
     it "should include user sis id and login id if account admin" do
-      @course2.account.add_user(@me)
+      @course2.account.account_users.create!(user: @me)
       first_user = @user
       new_user = user_with_pseudonym(:name => 'Zombo', :username => 'nobody2@example.com')
       @course2.enroll_student(new_user).accept!
@@ -1211,7 +1318,7 @@ describe CoursesController, type: :request do
     end
 
     it "should include user sis id and login id if site admin" do
-      Account.site_admin.add_user(@me)
+      Account.site_admin.account_users.create!(user: @me)
       first_user = @user
       new_user = user_with_pseudonym(:name => 'Zombo', :username => 'nobody2@example.com')
       @course2.enroll_student(new_user).accept!
@@ -1535,7 +1642,7 @@ describe CoursesController, type: :request do
       end
 
       it "should include user sis id and login id if account admin" do
-        @course2.account.add_user(@me)
+        @course2.account.account_users.create!(user: @me)
         first_user = @user
         new_user = user_with_pseudonym(:name => 'Zombo', :username => 'nobody2@example.com')
         @course2.enroll_student(new_user).accept!
@@ -1569,7 +1676,7 @@ describe CoursesController, type: :request do
       end
 
       it "should include user sis id and login id if site admin" do
-        Account.site_admin.add_user(@me)
+        Account.site_admin.account_users.create!(user: @me)
         first_user = @user
         new_user = user_with_pseudonym(:name => 'Zombo', :username => 'nobody2@example.com')
         @course2.enroll_student(new_user).accept!
@@ -1723,6 +1830,19 @@ describe CoursesController, type: :request do
     end
   end
 
+  describe "user" do
+    it "should allow searching for user by sis id" do
+      student = student_in_course(course: @course1, name: "student").user
+      pseudonym = pseudonym(student)
+      pseudonym.sis_user_id = "sis_1"
+      pseudonym.save!
+
+      json = api_call(:get, "/api/v1/courses/#{@course1.id}/users/sis_user_id:#{pseudonym.sis_user_id}.json",
+        { controller: 'courses', action: 'user', course_id: @course1.id.to_s, id: "sis_user_id:#{pseudonym.sis_user_id}", :format => 'json' })
+      response.code.should == '200'
+    end
+  end
+
   it "should return the needs_grading_count for all assignments" do
     @group = @course1.assignment_groups.create!({:name => "some group"})
     @assignment = @course1.assignments.create!(:title => "some assignment", :assignment_group => @group, :points_possible => 12)
@@ -1762,6 +1882,7 @@ describe CoursesController, type: :request do
         'course_code' => @course1.course_code,
         'enrollments' => [{'type' => 'teacher', 'role' => 'TeacherEnrollment', 'enrollment_state' => 'active'}],
         'sis_course_id' => @course1.sis_course_id,
+        'integration_id' => nil,
         'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/course_#{@course1.uuid}.ics" },
         'hide_final_grades' => @course1.hide_final_grades,
         'start_at' => @course1.start_at,
@@ -1803,7 +1924,7 @@ describe CoursesController, type: :request do
 
     it "should not find courses in other root accounts" do
       acct = account_model(:name => 'root')
-      acct.add_user(@user)
+      acct.account_users.create!(user: @user)
       course(:account => acct)
       @course.update_attribute('sis_source_id', 'OTHER-SIS')
       raw_api_call(:get, "/api/v1/courses/sis_course_id:OTHER-SIS",
@@ -1957,6 +2078,8 @@ describe CoursesController, type: :request do
     end
 
     it "should update settings" do
+      Auditors::Course.expects(:record_updated).with(anything, anything, anything, source: :api)
+
       json = api_call(:put, "/api/v1/courses/#{@course.id}/settings", {
         :controller => 'courses',
         :action => 'update_settings',
@@ -2048,6 +2171,16 @@ describe CoursesController, type: :request do
     json = api_call(:get, "/api/v1/courses/#{@course.id}/activity_stream/summary.json",
                     { controller: "courses", course_id: @course.id.to_s, action: "activity_stream_summary", format: 'json' })
     json.should == [{"type" => "DiscussionTopic", "count" => 1, "unread_count" => 1, "notification_category" => nil}]
+  end
+
+  it "should update activity time" do
+    course_with_teacher(:active_all => true, :user => user_with_pseudonym)
+    @context = @course
+    @enrollment.last_activity_at.should be_nil
+    api_call(:post, "/api/v1/courses/#{@course.id}/ping",
+                    { controller: "courses", course_id: @course.id.to_s, action: "ping", format: 'json' })
+    @enrollment.reload
+    @enrollment.last_activity_at.should_not be_nil
   end
 end
 
@@ -2152,6 +2285,11 @@ describe ContentImportsController, type: :request do
   it "should copy a course with canvas id" do
     run_copy
     check_counts 1
+  end
+
+  it "should log copied event to course activity" do
+    Auditors::Course.expects(:record_copied).once
+    run_copy
   end
 
   it "should copy a course using sis ids" do

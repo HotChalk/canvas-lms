@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011-2013 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -43,6 +43,10 @@ class PseudonymSessionsController < ApplicationController
       params[:pseudonym_session][:unique_id] ||= @current_pseudonym.unique_id
     end
 
+    if cookies['canvas_sa_delegated'] && !params['canvas_login']
+      @domain_root_account = Account.site_admin
+    end
+
     load_root_account(params[:account_id])              
 
     @pseudonym_session = PseudonymSession.new
@@ -65,7 +69,7 @@ class PseudonymSessionsController < ApplicationController
         end
         if st.is_valid?
           @pseudonym = nil
-          @pseudonym = @domain_root_account.pseudonyms.custom_find_by_unique_id(st.response.user)
+          @pseudonym = @domain_root_account.pseudonyms.custom_find_by_unique_id(st.user)
           if @pseudonym
             # Successful login and we have a user
             @domain_root_account.pseudonym_sessions.create!(@pseudonym, false)
@@ -76,9 +80,9 @@ class PseudonymSessionsController < ApplicationController
             successful_login(@user, @pseudonym)
             return
           else
-            logger.warn "Received CAS login for unknown user: #{st.response.user}"
+            logger.warn "Received CAS login for unknown user: #{st.user}"
             reset_session
-            session[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => st.response.user
+            session[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => st.user                        
             redirect_to(cas_client.logout_url(cas_login_url :no_auto => true, :account_id => @domain_root_account.id))
             return
           end
@@ -93,6 +97,7 @@ class PseudonymSessionsController < ApplicationController
       initiate_cas_login(cas_client)
     elsif @is_saml && !params[:no_auto]
       if params[:account_authorization_config_id]
+        raise ActiveRecord::RecordNotFound if params[:account_authorization_config_id] !~ Api::ID_REGEX
         if aac = @domain_root_account.account_authorization_configs.find_by_id(params[:account_authorization_config_id])
           initiate_saml_login(request.host_with_port, aac)
         else
@@ -211,14 +216,26 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def destroy
+    logout_user_action
+  end
+
+  def logout_user_action
     # the saml message has to survive a couple redirects and reset_session calls
     message = session[:delegated_message]
 
-    if @domain_root_account.saml_authentication? and session[:saml_unique_id]
+    if @domain_root_account == Account.site_admin && cookies['canvas_sa_delegated']
+      cookies.delete('canvas_sa_delegated',
+                     domain: otp_remember_me_cookie_domain,
+                     httponly: true,
+                     secure: CANVAS_RAILS2 ? ActionController::Base.session_options[:secure] : CanvasRails::Application.config.session_options[:secure])
+    end
+
+    account = @current_pseudonym.try(:account) || @domain_root_account
+    if account.saml_authentication? and session[:saml_unique_id]
       increment_saml_stat("logout_attempt")
       # logout at the saml identity provider
       # once logged out it'll be redirected to here again
-      if aac = @domain_root_account.account_authorization_configs.find_by_id(session[:saml_aac_id])
+      if aac = account.account_authorization_configs.find_by_id(session[:saml_aac_id])
         settings = aac.saml_settings(request.host_with_port)
         request = Onelogin::Saml::LogOutRequest.new(settings, session)
         forward_url = request.generate_request
@@ -238,10 +255,10 @@ class PseudonymSessionsController < ApplicationController
         logout_current_user
         flash[:message] = t('errors.logout_errors.no_idp_found', "Canvas was unable to log you out at your identity provider")
       end
-    elsif @domain_root_account.cas_authentication? and session[:cas_session]
+    elsif account.cas_authentication? and session[:cas_session]
       logout_current_user
       session[:delegated_message] = message if message
-      redirect_to(cas_client.logout_url(cas_login_url :account_id => @domain_root_account.id))
+      redirect_to(cas_client(@domain_root_account).logout_url(cas_login_url(:account_id => @domain_root_account.id), nil, cas_login_url(:account_id => @domain_root_account.id)))
       return
     else
       logout_current_user
@@ -374,7 +391,7 @@ class PseudonymSessionsController < ApplicationController
             aac.debug_set(:canvas_login_fail_message, message) if debugging
             # the saml message has to survive a couple redirects
             session[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => unique_id
-            redirect_to :action => :destroy
+            logout_user_action
           end
         elsif response.auth_failure?
           increment_saml_stat("normal.login_failure")
@@ -403,7 +420,7 @@ class PseudonymSessionsController < ApplicationController
           aac.debug_set(:is_valid_login_response, 'false')
           aac.debug_set(:login_response_validation_error, response.validation_error)
         end
-        logger.error "Failed to verify SAML signature."
+        logger.error "Failed to verify SAML signature: #{response.validation_error}"
         destroy_session
         flash[:delegated_message] = login_error_message
         redirect_to login_url(:no_auto=>'true')
@@ -438,12 +455,12 @@ class PseudonymSessionsController < ApplicationController
         end
       end
     end
-    redirect_to :action => :destroy
+    logout_user_action
   end
 
-  def cas_client
+  def cas_client(account = @domain_root_account)
     return @cas_client if @cas_client
-    config = { :cas_base_url => @domain_root_account.account_authorization_config.auth_base }
+    config = { :cas_base_url => account.account_authorization_config.auth_base }
     @cas_client = CASClient::Client.new(config)
   end
 
@@ -472,7 +489,7 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def otp_login(send_otp = false)
-    if !@current_user.otp_secret_key || request.get?
+    if !@current_user.otp_secret_key || (params[:action] == 'otp_login' && request.get?)
       session[:pending_otp_secret_key] ||= ROTP::Base32.random_base32
     end
     if session[:pending_otp_secret_key] && params[:otp_login].try(:[], :otp_communication_channel_id)
@@ -501,7 +518,7 @@ class PseudonymSessionsController < ApplicationController
 
     verification_code = params[:otp_login][:verification_code]
     if Canvas.redis_enabled?
-      key = "otp_used:#{verification_code}"
+      key = "otp_used:#{@current_user.global_id}:#{verification_code}"
       if Canvas.redis.get(key)
         force_fail = true
       else
@@ -524,8 +541,10 @@ class PseudonymSessionsController < ApplicationController
 
       if params[:otp_login][:remember_me] == '1'
         now = Time.now.utc
+        old_cookie = cookies['canvas_otp_remember_me']
+        old_cookie = nil unless @current_user.validate_otp_secret_key_remember_me_cookie(old_cookie)
         cookies['canvas_otp_remember_me'] = {
-              :value => @current_user.otp_secret_key_remember_me_cookie(now),
+              :value => @current_user.otp_secret_key_remember_me_cookie(now, old_cookie, request.remote_ip),
               :expires => now + 30.days,
               :domain => otp_remember_me_cookie_domain,
               :httponly => true,
@@ -566,8 +585,7 @@ class PseudonymSessionsController < ApplicationController
     @current_pseudonym = pseudonym
     Auditors::Authentication.record(@current_pseudonym, 'login')
 
-    otp_passed ||= cookies['canvas_otp_remember_me'] &&
-        @current_user.validate_otp_secret_key_remember_me_cookie(cookies['canvas_otp_remember_me'])
+    otp_passed ||= @current_user.validate_otp_secret_key_remember_me_cookie(cookies['canvas_otp_remember_me'], request.remote_ip)
     if !otp_passed
       mfa_settings = @current_user.mfa_settings
       if (@current_user.otp_secret_key && mfa_settings == :optional) ||
@@ -577,6 +595,14 @@ class PseudonymSessionsController < ApplicationController
       end
     end
 
+    if pseudonym.account_id == Account.site_admin.id && Account.site_admin.account_authorization_config.try(:delegated_authentication?)
+      cookies['canvas_sa_delegated'] = {
+          :value => '1',
+          :domain => otp_remember_me_cookie_domain,
+          :httponly => true,
+          :secure => CANVAS_RAILS2 ? ActionController::Base.session_options[:secure] : CanvasRails::Application.config.session_options[:secure]
+      }
+    end
     session[:require_terms] = true if @domain_root_account.require_acceptance_of_terms?(@current_user)
 
     respond_to do |format|
@@ -660,7 +686,6 @@ class PseudonymSessionsController < ApplicationController
 
   def oauth2_accept
     redirect_params = final_oauth2_redirect_params(:remember_access => params[:remember_access])
-    redirect_params[:state] = session[:oauth2][:state] if session[:oauth2][:state]
     final_oauth2_redirect(session[:oauth2][:redirect_uri], redirect_params)
   end
 
@@ -710,6 +735,8 @@ class PseudonymSessionsController < ApplicationController
     options = {:scopes => session[:oauth2][:scopes], :remember_access => options[:remember_access], :purpose => session[:oauth2][:purpose]}
     code = Canvas::Oauth::Token.generate_code_for(@current_user.global_id, session[:oauth2][:client_id], options)
     redirect_params = { :code => code }
+    redirect_params[:state] = session[:oauth2][:state] if session[:oauth2][:state]
+    redirect_params
   end
 
   def final_oauth2_redirect(redirect_uri, opts = {})

@@ -75,9 +75,19 @@ describe TextHelper do
       th.datetime_string(today).split.size.should == (datestring.split.size - 1)
     end
 
+    it "accepts a timezone override" do
+      datetime = Time.zone.parse("#{Time.zone.now.year}-01-01 12:00:00")
+      mountain = th.datetime_string(datetime, :event, nil, false, ActiveSupport::TimeZone["America/Denver"])
+      central = th.datetime_string(datetime, :event, nil, false, ActiveSupport::TimeZone["America/Chicago"])
+      mountain.should == "Jan 1 at  5am"
+      central.should == "Jan 1 at  6am"
+    end
+
   end
 
   context "time_string" do
+    before { Timecop.freeze(Time.utc(2010, 8, 18, 12, 21)) }
+    after { Timecop.return }
 
     it "should be formatted properly" do
       time = Time.zone.now
@@ -89,6 +99,14 @@ describe TextHelper do
       time = Time.zone.now
       time -= time.min.minutes
       th.time_string(time).should == I18n.l(time, :format => :tiny_on_the_hour)
+    end
+
+    it "accepts a timezone override" do
+      time = Time.zone.now
+      mountain = th.time_string(time, nil, ActiveSupport::TimeZone["America/Denver"])
+      central = th.time_string(time, nil, ActiveSupport::TimeZone["America/Chicago"])
+      mountain.should == " 6:21am"
+      central.should == " 7:21am"
     end
 
   end
@@ -137,33 +155,6 @@ describe TextHelper do
       start_date = Time.parse("2012-01-01 12:00:00")
       end_date = Time.parse("2012-01-08 12:00:00")
       th.date_string(start_date, end_date).should == "#{th.date_string(start_date)} to #{th.date_string(end_date)}"
-    end
-  end
-
-  context "truncate_text" do
-    it "should not split if max_length is exact text length" do
-      str = "I am an exact length"
-      th.truncate_text(str, :max_length => str.length).should == str
-    end
-
-    it "should split on multi-byte character boundaries" do
-      str = "This\ntext\nhere\n获\nis\nutf-8"
-      
-      th.truncate_text(str, :max_length => 9).should ==  "This\nt..."
-      th.truncate_text(str, :max_length => 18).should == "This\ntext\nhere\n..."
-      th.truncate_text(str, :max_length => 19).should == "This\ntext\nhere\n获..."
-      th.truncate_text(str, :max_length => 20).should == "This\ntext\nhere\n获\n..."
-      th.truncate_text(str, :max_length => 21).should == "This\ntext\nhere\n获\ni..."
-      th.truncate_text(str, :max_length => 22).should == "This\ntext\nhere\n获\nis..."
-      th.truncate_text(str, :max_length => 23).should == "This\ntext\nhere\n获\nis\n..."
-      th.truncate_text(str, :max_length => 80).should == str
-    end
-
-    it "should split on words if specified" do
-      str = "I am a sentence with areallylongwordattheendthatcantbesplit and then a few more words"
-      th.truncate_text(str, :max_words => 4, :max_length => 30).should == "I am a sentence"
-      th.truncate_text(str, :max_words => 6, :max_length => 30).should == "I am a sentence with areall..."
-      th.truncate_text(str, :max_words => 5, :max_length => 20).should == "I am a sentence with"
     end
   end
 

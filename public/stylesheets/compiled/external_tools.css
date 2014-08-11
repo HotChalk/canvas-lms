@@ -1,0 +1,134 @@
+.star-sprite {
+  display: block;
+  width: 46px;
+  height: 8px;
+  margin-top: 5px;
+  overflow: hidden;
+  background-image: url(/images/star-sprite.png);
+  background-position: 0px 0px; }
+  .star-sprite.star-sprite-1 {
+    background-position: 0 -8px; }
+  .star-sprite.star-sprite-2 {
+    background-position: 0 -16px; }
+  .star-sprite.star-sprite-3 {
+    background-position: 0 -24px; }
+  .star-sprite.star-sprite-4 {
+    background-position: 0 -32px; }
+  .star-sprite.star-sprite-5 {
+    background-position: 0 -40px; }
+
+#wrapper-container {
+  min-width: 1280px; }
+
+#external_tools h2 {
+  margin: 10px 0; }
+#external_tools p.description {
+  margin-bottom: 15px; }
+#external_tools .well {
+  border: none; }
+#external_tools .text-right {
+  text-align: right; }
+#external_tools .lm {
+  margin-left: 5px; }
+#external_tools .app-full-view td {
+  border: none; }
+#external_tools .app-full-view td.app-full-view-left {
+  width: 255px; }
+#external_tools .app-full-view h2 {
+  margin: 0; }
+#external_tools .app-full-view .add_app {
+  margin: 10px 0 5px; }
+#external_tools .app-full-view .app_cancel {
+  font-size: 12px; }
+#external_tools .reviews {
+  margin-top: 5px; }
+  #external_tools .reviews .avatar {
+    padding-left: 65px;
+    min-height: 65px; }
+  #external_tools .reviews .review-item {
+    border-top: thin solid #eeeeee;
+    padding-top: 10px; }
+  #external_tools .reviews .review-item-header {
+    margin-top: 0px;
+    font-size: 12px;
+    color: #a1a3a2; }
+    #external_tools .reviews .review-item-header span {
+      color: #666666; }
+#external_tools .app_center .app_list .app {
+  cursor: pointer;
+  width: 260px;
+  height: 145px;
+  position: relative;
+  float: left;
+  border: thin solid #eeeeee;
+  margin: 0 2px 2px 0; }
+  #external_tools .app_center .app_list .app .banner_image {
+    width: 220px;
+    height: 105px;
+    position: relative;
+    top: 20px;
+    left: 20px; }
+  #external_tools .app_center .app_list .app .details {
+    position: absolute;
+    top: 0px;
+    width: 260px;
+    height: 145px;
+    background-color: black;
+    color: white;
+    display: none; }
+    #external_tools .app_center .app_list .app .details .content {
+      padding: 15px; }
+      #external_tools .app_center .app_list .app .details .content .name {
+        font-weight: bold;
+        font-size: 14px;
+        color: #d6ecfc; }
+      #external_tools .app_center .app_list .app .details .content .desc {
+        margin-top: 5px;
+        font-size: 11px;
+        line-height: 17px; }
+#external_tools .individual-app .gray-box-centered {
+  text-align: center;
+  color: #666666;
+  background-color: #efefef;
+  padding: 10px; }
+#external_tools .individual-app .individual-app-left {
+  width: 250px;
+  padding-right: 20px;
+  text-align: center; }
+  #external_tools .individual-app .individual-app-left .add_app {
+    margin-top: 10px; }
+  #external_tools .individual-app .individual-app-left .app_cancel {
+    display: block;
+    margin-top: 5px; }
+#external_tools .individual-app .individual-app-right h2 {
+  margin: 0px; }
+#external_tools .individual-app .individual-app-right .data-label {
+  color: #888888;
+  text-align: right;
+  padding-right: 10px; }
+#external_tools .individual-app .individual-app-right .data-value ul {
+  margin: 0px;
+  padding: 0px;
+  list-style: none; }
+#external_tools .individual-app .individual-app-right .star-table {
+  margin-bottom: 10px; }
+  #external_tools .individual-app .individual-app-right .star-table td {
+    padding: 0px; }
+#external_tools .add-review {
+  margin-top: 20px;
+  padding-top: 5px;
+  border-top: thin solid #eeeeee; }
+  #external_tools .add-review .rate_app {
+    font-weight: bold; }
+#external_tools .review-item {
+  margin: 0 0 10px 0; }
+  #external_tools .review-item td.image-and-stars {
+    padding: 10px 0 0 10px;
+    width: 58px; }
+    #external_tools .review-item td.image-and-stars img {
+      max-width: 50px; }
+  #external_tools .review-item td.review-content .review-item-header {
+    font-size: 12px; }
+
+fieldset.rate_app_wrapper {
+  margin: 0px; }

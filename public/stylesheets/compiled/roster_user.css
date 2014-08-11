@@ -1,0 +1,35 @@
+.avatar {
+  display: inline-block;
+  vertical-align: middle; }
+
+fieldset {
+  border: 1px solid #cccccc;
+  -webkit-border-radius: 3px;
+  -moz-border-radius: 3px;
+  -ms-border-radius: 3px;
+  -o-border-radius: 3px;
+  border-radius: 3px;
+  padding: 5px 10px;
+  margin-bottom: 5px; }
+  fieldset legend {
+    font-weight: bold;
+    border: none;
+    width: auto;
+    margin-left: 20px;
+    font-size: 1.2em;
+    margin-bottom: 0; }
+
+table.details td {
+  padding: 1px 5px; }
+table.details th {
+  text-align: left; }
+
+.user-switch-alert {
+  border: 1px solid black;
+  background-color: #ffffdd;
+  margin: 5px 0;
+  padding: 20px; }
+  .user-switch-alert .warning-text {
+    font-weight: bold; }
+  .user-switch-alert .links, .user-switch-alert .add_holder {
+    display: none; }

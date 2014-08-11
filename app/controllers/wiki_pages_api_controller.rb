@@ -194,7 +194,8 @@ class WikiPagesApiController < ApplicationController
   #
   # @example_request
   #     curl -X PUT -H 'Authorization: Bearer <token>' \
-  #     https://<canvas>/api/v1/courses/123/front_page?wiki_page[body]=Updated+body+text
+  #     https://<canvas>/api/v1/courses/123/front_page \
+  #     -d wiki_page[body]=Updated+body+text
   #
   # @returns Page
   def update_front_page
@@ -298,7 +299,9 @@ class WikiPagesApiController < ApplicationController
   #
   # @example_request
   #     curl -X POST -H 'Authorization: Bearer <token>' \ 
-  #     https://<canvas>/api/v1/courses/123/pages?wiki_page[title]=New+page&wiki_page[body]=New+body+text
+  #     https://<canvas>/api/v1/courses/123/pages \
+  #     -d wiki_page[title]=New+page
+  #     -d wiki_page[body]=New+body+text
   #
   # @returns Page
   def create
@@ -377,7 +380,8 @@ class WikiPagesApiController < ApplicationController
   #
   # @example_request
   #     curl -X PUT -H 'Authorization: Bearer <token>' \ 
-  #     https://<canvas>/api/v1/courses/123/pages/the-page-url?wiki_page[body]=Updated+body+text
+  #     https://<canvas>/api/v1/courses/123/pages/the-page-url \
+  #     -d 'wiki_page[body]=Updated+body+text'
   #
   # @returns Page
   def update
@@ -565,7 +569,10 @@ class WikiPagesApiController < ApplicationController
 
     hide_from_students_provided = page_params.has_key?(:hide_from_students)
     if page_params.has_key?(:published)
-      workflow_state = value_to_boolean(page_params.delete(:published)) ? 'active' : 'unpublished'
+      published_value = page_params.delete(:published)
+      if published_value != ''
+        workflow_state = value_to_boolean(published_value) ? 'active' : 'unpublished'
+      end
     elsif hide_from_students_provided
       workflow_state = value_to_boolean(page_params.delete(:hide_from_students)) ? 'unpublished' : 'active'
     end

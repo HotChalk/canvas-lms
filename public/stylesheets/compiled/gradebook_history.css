@@ -1,0 +1,61 @@
+#gradebook-history {
+  margin: 0;
+  padding: 1em; }
+  #gradebook-history li {
+    list-style: none; }
+  #gradebook-history h4, #gradebook-history .h4 {
+    margin: 0; }
+  #gradebook-history .assignment_header {
+    cursor: pointer; }
+    #gradebook-history .assignment_header a {
+      color: #124b87;
+      padding-right: 5px;
+      float: left; }
+    #gradebook-history .assignment_header .changes {
+      font-size: 10px;
+      width: 65px;
+      float: left;
+      text-align: center;
+      margin-right: 7px;
+      vertical-align: top;
+      line-height: 10px;
+      margin-top: 4px;
+      filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=50);
+      opacity: 0.5; }
+    #gradebook-history .assignment_header .ui-icon {
+      float: left;
+      filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=0);
+      opacity: 0; }
+    #gradebook-history .assignment_header:hover a {
+      text-decoration: underline; }
+    #gradebook-history .assignment_header:hover .ui-icon, #gradebook-history .assignment_header:hover .changes {
+      filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=80);
+      opacity: 0.8; }
+  #gradebook-history .assignment_details table {
+    width: 100%;
+    text-align: center; }
+  #gradebook-history .revert-grade-link {
+    font-weight: normal;
+    padding: 0 3px;
+    line-height: 20px;
+    text-decoration: none; }
+    #gradebook-history .revert-grade-link .revert, #gradebook-history .revert-grade-link .ui-icon {
+      filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=0);
+      opacity: 0; }
+    #gradebook-history .revert-grade-link .ui-icon {
+      display: inline;
+      padding: 0 0 0 18px; }
+    #gradebook-history .revert-grade-link .grade {
+      padding: 0 3px;
+      border-color: transparent; }
+    #gradebook-history .revert-grade-link:hover .revert, #gradebook-history .revert-grade-link:hover .ui-icon, #gradebook-history .revert-grade-link:focus .revert, #gradebook-history .revert-grade-link:focus .ui-icon {
+      filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=100);
+      opacity: 1; }
+    #gradebook-history .revert-grade-link:hover .grade, #gradebook-history .revert-grade-link:focus .grade {
+      border-color: inherit;
+      background-color: white; }
+  #gradebook-history .current_grade {
+    padding-left: 17px; }
+  #gradebook-history .loading {
+    background: #f5f8f9 url(/images/blue_small_loading.gif) no-repeat left center;
+    color: #bbbbbb; }

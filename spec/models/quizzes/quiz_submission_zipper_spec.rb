@@ -28,9 +28,12 @@ describe Quizzes::QuizSubmissionZipper do
   end
   let(:zip_attachment) { stub(:id => 1, :user => nil) }
 
-  before :each do
+  before :once do
     @student = course_with_student
     @quiz = course_quiz !!:active
+  end
+
+  before :each do
     @quiz.stubs(:quiz_submissions).returns submission_stubs
     Attachment.stubs(:where).with(:id => ["1","2"]).returns [attachments.first,attachments.second]
     @zipper = Quizzes::QuizSubmissionZipper.new(:quiz => @quiz,
@@ -82,12 +85,14 @@ describe Quizzes::QuizSubmissionZipper do
         :question_type => 'file_upload_question',
         :question_text => 'ohai mark'
       }
-      quiz.generate_quiz_data; quiz.save!
+      quiz.generate_quiz_data
+      quiz.save!
       submission = quiz.generate_submission @student
       attach = create_attachment_for_file_upload_submission!(submission)
       submission.submission_data["question_#{question.id}".to_sym] = [ attach.id.to_s ]
       submission.save!
-      submission.grade_submission; quiz.reload
+      Quizzes::SubmissionGrader.new(submission).grade_submission
+      quiz.reload
       attachment = quiz.attachments.build(:filename => 'submissions.zip',
                                   :display_name => 'submissions.zip')
       attachment.workflow_state = 'to_be_zipped'; attachment.save!

@@ -1,8 +1,8 @@
 #!/bin/bash
 result=0
 
-
-bundle install
+echo "################ canvas_mimetype_fu ################"
+bundle check || bundle install
 bundle exec rspec spec
 let result=$result+$?
 

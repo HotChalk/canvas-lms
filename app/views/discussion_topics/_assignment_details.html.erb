@@ -30,8 +30,9 @@
           <a href="#" class="toggle_due_dates"><%= t(:show_due_dates, 'Show Due Dates') %></a>
 
         <% else %>
-          <b><%= t(:due_date, 'due %{date}',
-                   :date => OverrideListPresenter.new.due_at(current_assignment)) %></b>
+          <b <%= context_sensitive_datetime_title(current_assignment.due_at, current_assignment.context) %> >
+            <%= t(:due_date, 'due %{date}', :date => OverrideListPresenter.new.due_at(current_assignment)) %>
+          </b>
         <% end %>
       </div>
     </div>
@@ -71,23 +72,7 @@
     </div>
   </div>
 
-  <% if @topic.for_group_assignment? %>
-    <p>
-      <%= t :separated_conversation_notice, "Since this is a group assignment, each group has its own conversation for this topic. Here are the ones you have access to:" %>
-      <ul>
-        <% @group_topics.each do |group_and_topic| %>
-          <li>
-            <a href="<%= context_url(group_and_topic[:group], :context_discussion_topics_url, :root_discussion_topic_id => @topic.id) %>"><%= group_and_topic[:group].name %></a>
-            <%= render :partial => 'new_and_total_badge', :locals => {
-                       :unread_count => group_and_topic[:topic].unread_count(@current_user),
-                       :reply_count => group_and_topic[:topic].discussion_entries.active.size } if group_and_topic[:topic] %>
-          </li>
-        <% end %>
-      </ul>
-    </p>
-  <% end %>
-
-  <% if presenter.can_grade? %>
+  <% if @presenter.can_grade? %>
     <div class="row-fluid">
       <div class="span12 hidden due_date_wrapper">
         <table class="discussion-topic-due-dates">

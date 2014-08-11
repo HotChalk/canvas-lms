@@ -28,6 +28,13 @@ class EnrollmentTerm < ActiveRecord::Base
   has_many :enrollments, :through => :courses
   has_many :course_sections
   validate :end_at_date_cannot_be_before_start_at_date
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :root_account_id, :name, :term_code, :sis_source_id, :sis_batch_id, :start_at, :end_at, :accepting_enrollments, :can_manually_enroll, :created_at,
+    :updated_at, :workflow_state, :ignore_term_date_restrictions
+  ]
+  EXPORTABLE_ASSOCIATIONS = [:root_account, :enrollment_dates_overrides, :courses, :course_sections]
+
   validates_presence_of :root_account_id, :workflow_state
   before_validation :verify_unique_sis_source_id
   before_save :update_courses_later_if_necessary
@@ -143,6 +150,6 @@ class EnrollmentTerm < ActiveRecord::Base
     self.workflow_state = 'deleted'
     save!
   end
-
-  scope :active, where("enrollment_terms.workflow_state<>'deleted'")
+  
+  scope :active, -> { where("enrollment_terms.workflow_state<>'deleted'") }
 end

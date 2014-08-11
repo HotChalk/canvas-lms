@@ -619,8 +619,8 @@ describe 'Submissions API', type: :request do
     @course.enroll_student(student1).accept!
     a1 = @course.assignments.create!(:title => 'assignment1', :grading_type => 'letter_grade', :points_possible => 15)
     media_object(:media_id => "54321", :context => student1, :user => student1)
-    mock_kaltura = mock('Kaltura::ClientV3')
-    Kaltura::ClientV3.stubs(:new).returns(mock_kaltura)
+    mock_kaltura = mock('CanvasKaltura::ClientV3')
+    CanvasKaltura::ClientV3.stubs(:new).returns(mock_kaltura)
     mock_kaltura.expects(:media_sources).returns([{:height => "240", :bitrate => "382", :isOriginal => "0", :width => "336", :content_type => "video/mp4",
                                                    :containerFormat => "isom", :url => "https://kaltura.example.com/some/url", :size =>"204", :fileExt=>"mp4"}])
 
@@ -903,8 +903,10 @@ describe 'Submissions API', type: :request do
 
     course_with_teacher(:active_all => true)
 
-    @course.enroll_student(student1).accept!
-    @course.enroll_student(student2).accept!
+    enrollment1 = @course.enroll_student(student1)
+    enrollment1.accept!
+    enrollment2 = @course.enroll_student(student2)
+    enrollment2.accept!
 
     json = api_call(:get,
           "/api/v1/courses/#{@course.id}/students/submissions.json",
@@ -914,10 +916,13 @@ describe 'Submissions API', type: :request do
     json.sort_by { |h| h['user_id'] }.should == [
       {
         'user_id' => student1.id,
+        "section_id" => enrollment1.course_section_id,
         'submissions' => [],
       },
       {
         'user_id' => student2.id,
+        "section_id" => enrollment2.course_section_id,
+        'integration_id' => nil,
         'submissions' => [],
       },
     ]
@@ -927,6 +932,25 @@ describe 'Submissions API', type: :request do
           { :controller => 'submissions_api', :action => 'for_students',
             :format => 'json', :course_id => @course.to_param },
           { :student_ids => [student1.to_param, student2.to_param] })
+    json.should == []
+  end
+
+  it "should return integration_id for user and assignment" do
+    student1 = user(:active_all => true)
+    student2 = user_with_pseudonym(:active_all => true)
+    student2.pseudonym.update_attribute(:sis_user_id, 'my-student-id')
+    student2.pseudonym.update_attribute(:integration_id, 'xyz')
+
+    course_with_teacher(:active_all => true)
+
+    @course.enroll_student(student1).accept!
+    @course.enroll_student(student2).accept!
+    
+    json = api_call(:get,
+          "/api/v1/courses/#{@course.id}/students/submissions.json",
+          { :controller => 'submissions_api', :action => 'for_students',
+            :format => 'json', :course_id => @course.to_param },
+          { :student_ids => 'all' })
     json.should == []
   end
 

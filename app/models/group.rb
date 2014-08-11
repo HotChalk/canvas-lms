@@ -21,7 +21,7 @@ class Group < ActiveRecord::Base
   include Workflow
   include CustomValidations
 
-  attr_accessible :name, :context, :max_membership, :group_category, :join_level, :default_view, :description, :is_public, :avatar_attachment, :storage_quota_mb
+  attr_accessible :name, :context, :max_membership, :group_category, :join_level, :default_view, :description, :is_public, :avatar_attachment, :storage_quota_mb, :leader
   validates_presence_of :context_id, :context_type, :account_id, :root_account_id, :workflow_state
   validates_allowed_transitions :is_public, false => true
 
@@ -33,6 +33,7 @@ class Group < ActiveRecord::Base
   has_many :participating_group_memberships, :class_name => "GroupMembership", :conditions => ['group_memberships.workflow_state = ?', 'accepted']
   has_many :participating_users, :source => :user, :through => :participating_group_memberships
   belongs_to :context, :polymorphic => true
+  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Account']
   belongs_to :group_category
   belongs_to :account
   belongs_to :root_account, :class_name => "Account"
@@ -59,11 +60,27 @@ class Group < ActiveRecord::Base
   has_many :collaborations, :as => :context, :order => 'title, created_at', :dependent => :destroy
   has_many :media_objects, :as => :context
   has_many :zip_file_imports, :as => :context
+  has_many :content_migrations, :as => :context
   belongs_to :avatar_attachment, :class_name => "Attachment"
+  belongs_to :leader, :class_name => "User"
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :name, :workflow_state, :created_at, :updated_at, :context_id, :context_type, :category, :max_membership, :hashtag, :show_public_context_messages, :is_public,
+    :account_id, :default_wiki_editing_roles, :wiki_id, :deleted_at, :join_level, :default_view, :storage_quota, :uuid, :root_account_id, :sis_source_id, :sis_batch_id,
+    :group_category_id, :description, :avatar_attachment_id
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [
+    :users, :group_memberships, :users, :context, :group_category, :account, :root_account, :calendar_events, :discussion_topics, :discussion_entries, :announcements,
+    :attachments, :folders, :collaborators, :wiki, :web_conferences, :collaborations, :media_objects, :avatar_attachment
+  ]
 
   before_validation :ensure_defaults
   before_save :maintain_category_attribute
   after_save :close_memberships_if_deleted
+  after_save :update_max_membership_from_group_category
+
+  delegate :time_zone, :to => :context
 
   include StickySisFields
   are_sis_sticky :name
@@ -74,6 +91,11 @@ class Group < ActiveRecord::Base
     elsif value.length > maximum_string_length
       record.errors.add attr, t(:name_too_long, "Enter a shorter group name")
     end
+  end
+
+  validates_each :max_membership do |record, attr, value|
+    next if value.nil?
+    record.errors.add attr, t(:greater_than_1, "Must be greater than 1") unless value.to_i > 1
   end
 
   alias_method :participating_users_association, :participating_users
@@ -90,13 +112,13 @@ class Group < ActiveRecord::Base
   alias_method_chain :wiki, :create
 
   def auto_accept?
-    self.group_category && 
+    self.group_category &&
     self.group_category.allows_multiple_memberships? &&
     self.join_level == 'parent_context_auto_join'
   end
 
   def allow_join_request?
-    self.group_category && 
+    self.group_category &&
     self.group_category.allows_multiple_memberships? &&
     ['parent_context_auto_join', 'parent_context_request'].include?(self.join_level)
   end
@@ -108,7 +130,23 @@ class Group < ActiveRecord::Base
   end
 
   def full?
+    !student_organized? && ((!max_membership && group_category_limit_met?) || (max_membership && participating_users.size >= max_membership))
+  end
+
+  def group_category_limit_met?
     group_category && group_category.group_limit && participating_users.size >= group_category.group_limit
+  end
+  private :group_category_limit_met?
+
+  def student_organized?
+    group_category && group_category.student_organized?
+  end
+
+  def update_max_membership_from_group_category
+    if group_category && group_category.group_limit && (!max_membership || max_membership == 0)
+      self.max_membership = group_category.group_limit
+      self.save
+    end
   end
 
   def free_association?(user)
@@ -213,9 +251,9 @@ class Group < ActiveRecord::Base
 
   Bookmarker = BookmarkedCollection::SimpleBookmarker.new(Group, :name, :id)
 
-  scope :active, where("groups.workflow_state<>'deleted'")
-  scope :by_name, lambda { order(Bookmarker.order_by) }
-  scope :uncategorized, where("groups.group_category_id IS NULL")
+  scope :active, -> { where("groups.workflow_state<>'deleted'") }
+  scope :by_name, -> { order(Bookmarker.order_by) }
+  scope :uncategorized, -> { where("groups.group_category_id IS NULL") }
 
   def full_name
     res = before_label(self.name) + " "
@@ -251,7 +289,7 @@ class Group < ActiveRecord::Base
       member = self.group_memberships.create(attrs)
     end
     # permissions for this user in the group are probably different now
-    Rails.cache.delete(permission_cache_key_for(user))
+    clear_permissions_cache(user)
     return member
   end
 
@@ -266,7 +304,7 @@ class Group < ActiveRecord::Base
     users.sort_by!(&:id)
     notification_name = options[:notification_name] || "New Context Group Membership"
     notification = Notification.by_name(notification_name)
-    users.each {|user| Rails.cache.delete(permission_cache_key_for(user))}
+    users.each {|user| clear_permissions_cache(user) }
 
     users.each_with_index do |user, index|
       Instructure::BroadcastPolicy::NotificationPolicy.send_later_enqueue_args(:send_notification,
@@ -289,7 +327,7 @@ class Group < ActiveRecord::Base
         :updated_at => current_time
     }.merge(options)
     GroupMembership.bulk_insert(users.map{ |user|
-      options.merge({:user_id => user.id, :uuid => CanvasUuid::Uuid.generate_securish_uuid})
+      options.merge({:user_id => user.id, :uuid => CanvasSlug.generate_securish_uuid})
     })
   end
 
@@ -343,8 +381,8 @@ class Group < ActiveRecord::Base
   end
 
   def ensure_defaults
-    self.name ||= CanvasUuid::Uuid.generate_securish_uuid
-    self.uuid ||= CanvasUuid::Uuid.generate_securish_uuid
+    self.name ||= CanvasSlug.generate_securish_uuid
+    self.uuid ||= CanvasSlug.generate_securish_uuid
     self.group_category ||= GroupCategory.student_organized_for(self.context)
     self.join_level ||= 'invitation_only'
     self.is_public ||= false
@@ -375,11 +413,11 @@ class Group < ActiveRecord::Base
     can :create_collaborations and
     can :create_conferences and
     can :manage_calendar and
-    can :manage_content and 
+    can :manage_content and
     can :manage_files and
     can :manage_wiki and
     can :post_to_forum and
-    can :read and 
+    can :read and
     can :read_roster and
     can :send_messages and
     can :send_messages_all and
@@ -396,6 +434,9 @@ class Group < ActiveRecord::Base
     can :manage_admin_users and
     can :manage_students and
     can :moderate_forum and
+    can :update
+
+    given { |user| user && self.leader == user }
     can :update
 
     given { |user| self.group_category.try(:communities?) }
@@ -425,7 +466,7 @@ class Group < ActiveRecord::Base
     given { |user, session| self.context && self.context.grants_right?(user, session, :view_group_pages) }
     can :read and can :read_roster
 
-    # Participate means the user is connected to the group somehow and can be  
+    # Participate means the user is connected to the group somehow and can be
     given { |user| user && can_participate?(user) }
     can :participate
 
@@ -438,7 +479,7 @@ class Group < ActiveRecord::Base
   end
 
   def users_visible_to(user)
-    grants_rights?(user, :read) ? users : users.none
+    grants_right?(user, :read) ? users : users.none
   end
 
   # Helper needed by several permissions, use grants_right?(user, :participate)
@@ -492,11 +533,11 @@ class Group < ActiveRecord::Base
   def storage_quota_mb
     quota / 1.megabyte
   end
-  
+
   def storage_quota_mb=(val)
     self.storage_quota = val.try(:to_i).try(:megabytes)
   end
-  
+
   TAB_HOME, TAB_PAGES, TAB_PEOPLE, TAB_DISCUSSIONS, TAB_FILES,
     TAB_CONFERENCES, TAB_ANNOUNCEMENTS, TAB_PROFILE, TAB_SETTINGS, TAB_COLLABORATIONS = *1..20
   def tabs_available(user=nil, opts={})
@@ -512,46 +553,15 @@ class Group < ActiveRecord::Base
     if root_account.try :canvas_network_enabled?
       available_tabs << {:id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path}
     end
-    available_tabs << { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path } if user && self.grants_right?(user, nil, :read)
-    available_tabs << { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path } if user && self.grants_right?(user, nil, :read)
-    if root_account.try(:canvas_network_enabled?) && user && grants_right?(user, nil, :manage)
-      available_tabs << { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :edit_group_path } 
+    available_tabs << { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path } if user && self.grants_right?(user, :read)
+    available_tabs << { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path } if user && self.grants_right?(user, :read)
+    if root_account.try(:canvas_network_enabled?) && user && grants_right?(user, :manage)
+      available_tabs << { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :edit_group_path }
     end
     available_tabs
   end
 
   def self.serialization_excludes; [:uuid]; end
-
-  def self.process_migration(data, migration)
-    groups = data['groups'] || []
-    groups.each do |group|
-      if migration.import_object?("groups", group['migration_id'])
-        begin
-          import_from_migration(group, migration.context)
-        rescue
-          migration.add_import_warning(t('#migration.group_type', "Group"), group[:title], $!)
-        end
-      end
-    end
-  end
-
-  def self.import_from_migration(hash, context, item=nil)
-    hash = hash.with_indifferent_access
-    return nil if hash[:migration_id] && hash[:groups_to_import] && !hash[:groups_to_import][hash[:migration_id]]
-    item ||= find_by_context_id_and_context_type_and_id(context.id, context.class.to_s, hash[:id])
-    item ||= find_by_context_id_and_context_type_and_migration_id(context.id, context.class.to_s, hash[:migration_id]) if hash[:migration_id]
-    item ||= context.groups.new
-    context.imported_migration_items << item if context.imported_migration_items && item.new_record?
-    item.migration_id = hash[:migration_id]
-    item.name = hash[:title]
-    item.group_category = hash[:group_category].present? ?
-      context.group_categories.find_or_initialize_by_name(hash[:group_category]) :
-      GroupCategory.imported_for(context)
-
-    item.save!
-    context.imported_migration_items << item
-    item
-  end
 
   def allow_media_comments?
     true
@@ -619,4 +629,5 @@ class Group < ActiveRecord::Base
       create_discussion_topic: DiscussionTopic.context_allows_user_to_create?(self, user, session)
     )
   end
+
 end

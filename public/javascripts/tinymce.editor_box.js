@@ -144,7 +144,7 @@ define([
       buttons2 = "table,instructure_links,unlink" + instructure_buttons + ",fontsizeselect,formatselect";
     }
 
-    var editor_css = "/javascripts/tinymce/jscripts/tiny_mce/themes/advanced/skins/default/ui.css,/stylesheets/compiled/tiny_like_ck_with_external_tools.css";
+    var editor_css = "/javascripts/tinymce/jscripts/tiny_mce/themes/advanced/skins/default/ui.css,/stylesheets_compiled/legacy_normal_contrast/tiny_like_ck_with_external_tools.css";
 
     var tinyOptions = $.extend({
       mode : "exact",
@@ -168,7 +168,7 @@ define([
       theme_advanced_blockformats : "p,h2,h3,h4,pre",
       theme_advanced_more_colors: false,
       extended_valid_elements : "iframe[src|width|height|name|align|style|class|sandbox]",
-      content_css: "/stylesheets/compiled/instructure_style.css,/stylesheets/compiled/tinymce.editor_box.css",
+      content_css: "/stylesheets_compiled/legacy_normal_contrast/instructure_style.css,/stylesheets_compiled/legacy_normal_contrast/tinymce.editor_box.css",
       editor_css: editor_css,
       auto_focus: options.focus ? id : null,
 
@@ -386,6 +386,8 @@ define([
         this._removeEditor(more_options);
       } else if(options == "is_dirty") {
         return $instructureEditorBoxList._getEditor(id).isDirty();
+      } else if(options == 'exists?') {
+        return !!$instructureEditorBoxList._getEditor(id);
       }
       return this;
     }
@@ -623,6 +625,7 @@ define([
       if(anchor) {
         $(anchor).attr({
           href: url,
+          'data-mce-href': url,
           '_mce_href': url,
           title: title || '',
           id: link_id,

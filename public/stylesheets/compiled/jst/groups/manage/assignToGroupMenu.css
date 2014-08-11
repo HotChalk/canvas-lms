@@ -1,0 +1,12 @@
+.assign-to-groups a.set-group {
+  display: block; }
+
+.popover-content {
+  overflow: auto;
+  max-height: 400px; }
+  .popover-content .form-search {
+    padding-right: 16px; }
+  .popover-content p {
+    line-height: 20px; }
+    .popover-content p.separated {
+      margin-bottom: 10px; }

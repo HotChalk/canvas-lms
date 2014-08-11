@@ -1,0 +1,40 @@
+#editCalendarEventFull label.label_with_checkbox {
+  margin-bottom: 10px; }
+  #editCalendarEventFull label.label_with_checkbox input[type="checkbox"] {
+    margin: 0 5px 0 0; }
+#editCalendarEventFull .date_start_end_row {
+  overflow: hidden;
+  *zoom: 1; }
+  #editCalendarEventFull .date_start_end_row th, #editCalendarEventFull .date_start_end_row td {
+    vertical-align: top;
+    padding: 0 5px 0 0; }
+    #editCalendarEventFull .date_start_end_row th:first-child, #editCalendarEventFull .date_start_end_row td:first-child {
+      padding-left: 0px; }
+    #editCalendarEventFull .date_start_end_row th label.row_header, #editCalendarEventFull .date_start_end_row td label.row_header {
+      padding-top: 10px; }
+  #editCalendarEventFull .date_start_end_row input[type="text"], #editCalendarEventFull .date_start_end_row div.input-append {
+    margin-bottom: 0px; }
+  #editCalendarEventFull .date_start_end_row span {
+    float: left;
+    padding: 0 5px;
+    min-height: 40px; }
+  #editCalendarEventFull .date_start_end_row label {
+    font-weight: bold; }
+  #editCalendarEventFull .date_start_end_row .date_field {
+    width: 120px; }
+  #editCalendarEventFull .date_start_end_row .time_field {
+    width: 95px; }
+  #editCalendarEventFull .date_start_end_row .time_separator {
+    width: 6px;
+    line-height: 28px;
+    padding: 0px;
+    text-align: center; }
+  #editCalendarEventFull .date_start_end_row .datetime_suggest {
+    margin-top: 0px;
+    padding-top: 0px; }
+#editCalendarEventFull .show_if_using_sections {
+  display: none; }
+#editCalendarEventFull.use_section_dates .show_if_using_sections {
+  display: block; }
+#editCalendarEventFull.use_section_dates .hide_if_using_sections {
+  display: none; }

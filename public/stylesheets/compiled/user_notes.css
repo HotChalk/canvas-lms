@@ -1,0 +1,36 @@
+.page-header {
+  margin-bottom: 15px; }
+
+.communication_message {
+  margin-left: 0px;
+  margin-bottom: 1em;
+  padding-bottom: 1em;
+  border-bottom: 0px; }
+  .communication_message:first-child {
+    margin-top: 0px; }
+  .communication_message .header {
+    margin-left: 0px;
+    background-color: #efefef;
+    padding: 25px;
+    line-height: 20px; }
+    .communication_message .header .header_title {
+      float: none;
+      padding: 5px;
+      line-height: 1.8em; }
+      .communication_message .header .header_title .title {
+        margin-left: 0px;
+        padding-left: 0px; }
+      .communication_message .header .header_title .sub_title {
+        margin-left: 0px;
+        padding: 0 0 5px 0;
+        color: #888888; }
+    .communication_message .header .delete_user_note_link {
+      position: relative;
+      top: 3px;
+      color: #777; }
+    .communication_message .header .delete_user_note_link:hover {
+      color: #06a9ee; }
+  .communication_message .content {
+    padding: 10px !important; }
+    .communication_message .content .inner-content {
+      position: static; }

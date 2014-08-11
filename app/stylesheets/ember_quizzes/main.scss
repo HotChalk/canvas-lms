@@ -1,5 +1,7 @@
 @import "environment.sass";
 @import "show";
+@import "moderate";
+@import "statistics";
 $backgroundColor: #dfe9f0;
 $borderColor: #AAA;
 $questionHeaderBackground: #F5F5F5;
@@ -19,6 +21,14 @@ div#content {
   background-color: #FFF;
   border-bottom: 1px solid #C1C7CF;
   min-height: 33px;
+}
+
+//===== Progressive Loading Index =========
+.paginated-loading {
+  padding: 10px;
+  text-align: center;
+  min-height: 33px;
+  border: none;
 }
 
 //===== Index Page ===========
@@ -59,6 +69,10 @@ li.quiz .ig-title {
     &:last-of-type {
       border-bottom: 0;
     }
+  }
+
+  .publish-icon i {
+    padding: 6px;
   }
 }
 

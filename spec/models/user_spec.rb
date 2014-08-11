@@ -131,7 +131,7 @@ describe User do
   it "should update account associations when a user is associated to an account just by account_users" do
     account = account_model
     @user = User.create
-    account.add_user(@user)
+    account.account_users.create!(user: @user)
 
     @user.reload
     @user.associated_accounts.length.should eql(1)
@@ -153,6 +153,15 @@ describe User do
     google_docs_collaboration_model(:user_id => @user.id)
     @user.recent_stream_items.size.should == 1
     StreamItem.delete_all
+    @user.recent_stream_items.size.should == 0
+  end
+
+  it "should ignore stream item instances from concluded courses" do
+    course_with_teacher(:active_all => true)
+    google_docs_collaboration_model(:user_id => @user.id)
+    @user.recent_stream_items.size.should == 1
+    @course.soft_conclude!
+    @course.save
     @user.recent_stream_items.size.should == 0
   end
 
@@ -220,8 +229,8 @@ describe User do
     p2.account = account2
     p1.save!
     p2.save!
-    account1.add_user(user)
-    account2.add_user(user)
+    account1.account_users.create!(user: user)
+    account2.account_users.create!(user: user)
     course1 = account1.courses.create
     course2 = account2.courses.create
     course1.offer!
@@ -343,7 +352,7 @@ describe User do
       enrollment = course.enroll_student(user)
       enrollment.should be_invited
       user.user_account_associations.should == []
-      Account.default.add_user(user)
+      Account.default.account_users.create!(user: user)
       user.user_account_associations(true).should == []
       user.pseudonyms.create!(:unique_id => 'test@example.com')
       user.user_account_associations(true).should == []
@@ -386,12 +395,12 @@ describe User do
 
       it "should create associations for a user in multiple shards" do
         user
-        Account.site_admin.add_user(@user)
+        Account.site_admin.account_users.create!(user: @user)
         @user.user_account_associations.map(&:account).should == [Account.site_admin]
 
         @shard1.activate do
           @account = Account.create!
-          au = @account.add_user(@user)
+          au = @account.account_users.create!(user: @user)
           @user.user_account_associations.with_each_shard.map(&:account).sort_by(&:id).should ==
               [Account.site_admin, @account].sort_by(&:id)
           @account.user_account_associations.map(&:user).should == [@user]
@@ -401,7 +410,7 @@ describe User do
           @user.user_account_associations.with_each_shard.map(&:account).should == [Account.site_admin]
           @account.reload.user_account_associations.map(&:user).should == []
 
-          @account.add_user(@user)
+          @account.account_users.create!(user: @user)
 
           @user.user_account_associations.with_each_shard.map(&:account).sort_by(&:id).should ==
               [Account.site_admin, @account].sort_by(&:id)
@@ -597,8 +606,8 @@ describe User do
       user = user_with_pseudonym(:username => 'nobody1@example.com')
       @admin = user_with_pseudonym(:username => 'nobody2@example.com')
       @site_admin = user_with_pseudonym(:username => 'nobody3@example.com', :account => Account.site_admin)
-      Account.site_admin.add_user(@site_admin)
-      Account.default.add_user(@admin)
+      Account.site_admin.account_users.create!(user: @site_admin)
+      Account.default.account_users.create!(user: @admin)
       user.can_masquerade?(@site_admin, Account.default).should be_true
       @admin.can_masquerade?(@site_admin, Account.default).should be_true
       user.can_masquerade?(@admin, Account.default).should be_true
@@ -614,7 +623,7 @@ describe User do
       @restricted_admin = user_with_pseudonym(:username => 'nobody3@example.com')
       account_admin_user_with_role_changes(:user => @restricted_admin, :membership_type => 'Restricted', :role_changes => { :become_user => true })
       @admin = user_with_pseudonym(:username => 'nobody2@example.com')
-      Account.default.add_user(@admin)
+      Account.default.account_users.create!(user: @admin)
       user.can_masquerade?(@restricted_admin, Account.default).should be_true
       @admin.can_masquerade?(@restricted_admin, Account.default).should be_false
       @restricted_admin.can_masquerade?(@admin, Account.default).should be_true
@@ -626,21 +635,21 @@ describe User do
       user.pseudonyms.create!(:unique_id => 'nobodyelse@example.com', :account => @account2)
       @admin = user_with_pseudonym(:username => 'nobody2@example.com')
       @site_admin = user_with_pseudonym(:username => 'nobody3@example.com')
-      Account.default.add_user(@admin)
-      Account.site_admin.add_user(@site_admin)
+      Account.default.account_users.create!(user: @admin)
+      Account.site_admin.account_users.create!(user: @site_admin)
       user.can_masquerade?(@admin, Account.default).should be_true
       user.can_masquerade?(@admin, @account2).should be_false
       user.can_masquerade?(@site_admin, Account.default).should be_true
       user.can_masquerade?(@site_admin, @account2).should be_true
-      @account2.add_user(@admin)
+      @account2.account_users.create!(user: @admin)
     end
 
     it "should allow site admin when they don't otherwise qualify for :create_courses" do
       user = user_with_pseudonym(:username => 'nobody1@example.com')
       @admin = user_with_pseudonym(:username => 'nobody2@example.com')
       @site_admin = user_with_pseudonym(:username => 'nobody3@example.com', :account => Account.site_admin)
-      Account.default.add_user(@admin)
-      Account.site_admin.add_user(@site_admin)
+      Account.default.account_users.create!(user: @admin)
+      Account.site_admin.account_users.create!(user: @site_admin)
       course
       @course.enroll_teacher(@admin)
       Account.default.update_attribute(:settings, {:teachers_can_create_courses => true})
@@ -687,6 +696,31 @@ describe User do
       RoleOverride.readonly_for(Account.default, :manage_role_overrides, AccountUser::BASE_ROLE_NAME, 'AccountAdmin').should be_true
       RoleOverride.readonly_for(Account.default, :manage_account_memberships, AccountUser::BASE_ROLE_NAME, 'AccountAdmin').should be_true
       RoleOverride.readonly_for(Account.default, :manage_account_settings, AccountUser::BASE_ROLE_NAME, 'AccountAdmin').should be_true
+    end
+  end
+
+  context "check_courses_right?" do
+    before do
+      course_with_teacher(:active_all => true)
+      @student = user_model
+      @course.stubs(:grants_right?).returns(true)
+    end
+
+    it "should require parameters" do
+      @student.check_courses_right?(nil, :some_right).should be_false
+      @student.check_courses_right?(@teacher, nil).should be_false
+    end
+
+    it "should check current courses" do
+      @student.expects(:courses).once.returns([@course])
+      @student.expects(:concluded_courses).never
+      @student.check_courses_right?(@teacher, :some_right).should be_true
+    end
+
+    it "should check concluded courses" do
+      @student.expects(:courses).once.returns([])
+      @student.expects(:concluded_courses).once.returns([@course])
+      @student.check_courses_right?(@teacher, :some_right).should be_true
     end
   end
 
@@ -1352,6 +1386,31 @@ describe User do
       @user.find_pseudonym_for_account(@account2).should == nil
     end
 
+    describe 'with cross-sharding' do
+      specs_require_sharding
+      it "should only search trusted shards" do
+        @account1 = Account.create!
+        @user = user(:active_all => 1, :account => @account1)
+        @shard1.activate do
+          @account2 = Account.create!
+          @pseudonym1 = pseudonym(@user, :account => @account2)
+        end
+
+        @shard2.activate do
+          @account3 = Account.create!
+          @pseudonym2 = pseudonym(@user, :account => @account3)
+        end
+
+        @account1.stubs(:trusted_account_ids).returns([@account3.id])
+
+        @shard1.expects(:activate).never
+        @shard2.expects(:activate).once
+
+        pseudonym = @user.find_pseudonym_for_account(@account1)
+        pseudonym.should == @psuedonym2
+      end
+    end
+
     it "should create a copy of an existing pseudonym" do
       @account1 = Account.create!
       @account2 = Account.create!
@@ -1553,6 +1612,17 @@ describe User do
       (lambda {User.create!.sis_pseudonym_for(context)}).should raise_error("could not resolve root account")
     end
 
+    it "should include a pseudonym from a trusted account" do
+      account1 = account_model
+      account2 = account_model
+      u = User.create!
+      p = account2.pseudonyms.create!(user: u, unique_id: 'user') { |p| p.sis_user_id = 'abc' }
+      account1.stubs(:trust_exists?).returns(true)
+      account1.stubs(:trusted_account_ids).returns([account2.id])
+      u.sis_pseudonym_for(account1).should be_nil
+      u.sis_pseudonym_for(account1, true).should == p
+    end
+
     context "sharding" do
       specs_require_sharding
 
@@ -1568,52 +1638,6 @@ describe User do
           @user.sis_pseudonym_for(Account.default).should == @pseudonym
         end
       end
-    end
-  end
-
-  describe "flag_as_admin" do
-    it "should add an AccountUser" do
-      @account = account_model
-      u = User.create!
-      u.account_users.should be_empty
-      u.flag_as_admin(@account)
-      u.reload
-      u.account_users.size.should == 1
-      admin = u.account_users.first
-      admin.account.should == @account
-    end
-
-    it "should default to the AccountAdmin role" do
-      @account = account_model
-      u = User.create!
-      u.flag_as_admin(@account)
-      u.reload
-      admin = u.account_users.first
-      admin.membership_type.should == 'AccountAdmin'
-    end
-
-    it "should respect a provided role" do
-      @account = account_model
-      u = User.create!
-      u.flag_as_admin(@account, "CustomAccountUser")
-      u.reload
-      admin = u.account_users.first
-      admin.membership_type.should == 'CustomAccountUser'
-    end
-
-    it "should send an account registration email for users that haven't registered yet" do
-      AccountUser.any_instance.expects(:account_user_registration!)
-      @account = account_model
-      u = User.create!
-      u.flag_as_admin(@account)
-    end
-
-    it "should send the pre-registered account registration email for users the have already registered" do
-      AccountUser.any_instance.expects(:account_user_notification!)
-      @account = account_model
-      u = User.create!
-      u.register
-      u.flag_as_admin(@account)
     end
   end
 
@@ -1706,7 +1730,7 @@ describe User do
       user = User.new
       assignments.each do |assignment|
         assignment.stubs(:due_at => time)
-        assignment.expects(:grants_right?).with(user,nil,:delete).returns false
+        assignment.expects(:grants_right?).with(user, :delete).returns false
       end
       user.select_upcoming_assignments(assignments,{:end_at => time}).should == assignments
     end
@@ -1720,7 +1744,7 @@ describe User do
         due_date3 = {:due_at => 2.weeks.from_now }
         due_date4 = {:due_at => nil }
         assignments.each do |assignment|
-          assignment.expects(:grants_right?).with(user,nil,:delete).returns true
+          assignment.expects(:grants_right?).with(user, :delete).returns true
         end
         assignments.first.expects(:dates_hash_visible_to).with(user).
           returns [due_date1]
@@ -2019,7 +2043,7 @@ describe User do
       user.pseudonyms.create!(:account => account, :unique_id => 'user')
 
       user.mfa_settings.should == :optional
-      account.add_user(user)
+      account.account_users.create!(user: user)
       user.reload
       user.mfa_settings.should == :required
     end
@@ -2030,7 +2054,7 @@ describe User do
       user.pseudonyms.create!(:account => account, :unique_id => 'user')
       user.pseudonyms.create!(:account => Account.default, :unique_id => 'user')
 
-      Account.default.add_user(user)
+      Account.default.account_users.create!(user: user)
 
       user.mfa_settings.should == :optional
     end
@@ -2201,10 +2225,10 @@ describe User do
 
     it "should include accounts from multiple shards" do
       user
-      Account.site_admin.add_user(@user)
+      Account.site_admin.account_users.create!(user: @user)
       @shard1.activate do
         @account2 = Account.create!
-        @account2.add_user(@user)
+        @account2.account_users.create!(user: @user)
       end
 
       @user.all_accounts.map(&:id).sort.should == [Account.site_admin, @account2].map(&:id).sort
@@ -2241,52 +2265,24 @@ describe User do
     end
   end
 
-  describe "prefers_gradebook2?" do
+  describe "preferred_gradebook_version" do
     let(:user) { User.new }
-    subject { user.prefers_gradebook2?(@ctx) }
-    before {
-      @ctx = mock()
-      @ctx.stubs(:feature_enabled?).with(:screenreader_gradebook).returns(false)
-    }
+    let(:course) { mock('course') }
+    subject { user.preferred_gradebook_version }
 
-    context "by default" do
-      it { should be_true }
+    context "prefers gb2" do
+      before { user.stubs(:preferences => { :gradebook_version => '2' }) }
+      it { should == '2' }
     end
 
-    context "with an explicit preference for gradebook 2" do
-      before { user.stubs(:preferences => { :use_gradebook2 => true }) }
-      it { should be_true }
+    context "prefers srgb" do
+      before { user.stubs(:preferences => { :gradebook_version => 'srgb' }) }
+      it { should == 'srgb' }
     end
 
-    context "with an truthy preference for gradebook 2" do
-      before { user.stubs(:preferences => { :use_gradebook2 => '1' }) }
-      it { should be_true }
-    end
-
-    context "with an explicit preference for gradebook 1" do
-      before { user.stubs(:preferences => { :use_gradebook2 => false }) }
-      it { should be_false }
-    end
-
-    context "with screenreader_gradebook enabled" do
-      before {
-        @ctx.stubs(:feature_enabled?).with(:screenreader_gradebook).returns(true)
-      }
-
-      context "prefers gb2" do
-        before { user.stubs(:preferences => { :gradebook_version => '2' }) }
-        it {should be_true}
-      end
-
-      context "prefers srgb" do
-        before { user.stubs(:preferences => { :gradebook_version => 'srgb' }) }
-        it {should be_false}
-      end
-
-      context "nil preference" do
-        before { user.stubs(:preferences => { :gradebook_version => nil }) }
-        it {should be_true}
-      end
+    context "nil preference" do
+      before { user.stubs(:preferences => { :gradebook_version => nil }) }
+      it { should == '2' }
     end
   end
 
@@ -2329,21 +2325,21 @@ describe User do
 
     let(:site_admin) do
       user = User.create!
-      Account.site_admin.add_user(user)
-      Account.default.add_user(user)
+      Account.site_admin.account_users.create!(user: user)
+      Account.default.account_users.create!(user: user)
       user
     end
 
     let(:local_admin) do
       user = User.create!
-      Account.default.add_user(user)
-      subaccount.add_user(user)
+      Account.default.account_users.create!(user: user)
+      subaccount.account_users.create!(user: user)
       user
     end
 
     let(:user) do
       user = User.create!
-      subaccount.add_user(user)
+      subaccount.account_users.create!(user: user)
       user
     end
 
@@ -2472,5 +2468,28 @@ describe User do
       test_student.destroy
       test_student.reload.enrollments.each { |e| e.should be_deleted }
     end
+  end
+
+  describe "otp remember me cookie" do
+    before do
+      @user = User.new
+      @user.otp_secret_key = ROTP::Base32.random_base32
+    end
+
+    it "should add an ip to an existing cookie" do
+      cookie1 = @user.otp_secret_key_remember_me_cookie(Time.now.utc, nil, 'ip1')
+      cookie2 = @user.otp_secret_key_remember_me_cookie(Time.now.utc, cookie1, 'ip2')
+      @user.validate_otp_secret_key_remember_me_cookie(cookie1, 'ip1').should be_true
+      @user.validate_otp_secret_key_remember_me_cookie(cookie1, 'ip2').should be_false
+      @user.validate_otp_secret_key_remember_me_cookie(cookie2, 'ip1').should be_true
+      @user.validate_otp_secret_key_remember_me_cookie(cookie2, 'ip2').should be_true
+    end
+  end
+
+  it "should reset its conversation counter when told to" do
+    user = user_model
+    user.stubs(:conversations).returns Struct.new(:unread).new(Array.new(5))
+    user.reset_unread_conversations_counter
+    user.reload.unread_conversations_count.should == 5
   end
 end

@@ -1,0 +1,41 @@
+.report_description {
+  display: none; }
+
+table.report_example, table.report {
+  border-collapse: collapse;
+  page-break-inside: avoid; }
+  table.report_example thead, table.report_example th, table.report thead, table.report th {
+    background-color: #cccccc; }
+  table.report_example td, table.report_example th, table.report td, table.report th {
+    border: 1px solid #aaaaaa;
+    padding: 2px 5px; }
+
+#tab-reports .report_dialog {
+  padding: 15px; }
+#tab-reports table.reports {
+  margin: 5px 15px;
+  width: 90%;
+  border-collapse: collapse; }
+  #tab-reports table.reports tr.reports {
+    border-bottom: 1px solid #dddddd; }
+    #tab-reports table.reports tr.reports th.reports {
+      padding: 5px;
+      background-color: #dddddd;
+      font-weight: bold; }
+    #tab-reports table.reports tr.reports td.reports {
+      padding: 5px; }
+      #tab-reports table.reports tr.reports td.reports.title {
+        font-weight: bold; }
+      #tab-reports table.reports tr.reports td.reports.action {
+        text-align: center; }
+
+table.report.sortable th.header {
+  padding-right: 20px;
+  cursor: pointer;
+  background: url(/images/tablesorter/bg.png) no-repeat right center; }
+  table.report.sortable th.header:hover {
+    background-image: url(/images/tablesorter/bg_hover.png); }
+  table.report.sortable th.header.headerSortDown {
+    background-image: url(/images/tablesorter/asc.gif); }
+  table.report.sortable th.header.headerSortUp {
+    background-image: url(/images/tablesorter/desc.gif); }

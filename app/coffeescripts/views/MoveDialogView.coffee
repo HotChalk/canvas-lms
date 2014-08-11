@@ -46,6 +46,11 @@ define [
     # required if @nested
     @optionProperty 'childKey'
 
+    # {jQuery selector}
+    # link to focus on after dialog is closed
+    # without taking any action
+    @optionProperty 'closeTarget'
+
     # {string or function}
     # url to post to when saving the form
     #
@@ -104,6 +109,7 @@ define [
       @listView?.remove()
       @parentListView = @listView = null
       @dialog.option "close", null
+      @closeTarget?.focus()
 
     #lookup new collection, and set it on
     #the nested view
@@ -165,15 +171,11 @@ define [
         # if we know how
         if @parentKey
           @model.set @parentKey, collID
-
-        positions = [1..newCollection.length]
       else
         newCollection = @model.collection
-        #unfortunate thing we have to do for AssignmentGroups,
-        #not sure about others...
-        positions = newCollection.pluck 'position'
 
       #update all of the position attributes
+      positions = [1..newCollection.length]
       _.each data.order, (id, index) ->
         newCollection.get(id)?.set 'position', positions[index]
 

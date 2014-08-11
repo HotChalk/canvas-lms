@@ -28,7 +28,6 @@ end
 def submit
   @course.reload
   count = @course.content_migrations.count
-
   driver.execute_script("$('#migrationConverterContainer').submit()")
   keep_trying_until do
     @course.content_migrations.count.should == count + 1
@@ -39,6 +38,8 @@ end
 def run_migration(cm=nil)
   cm ||= @course.content_migrations.last
   cm.reload
+  cm.skip_job_progress = false
+  cm.reset_job_progress
   worker_class = Canvas::Migration::Worker.const_get(Canvas::Plugin.find(cm.migration_type).settings['worker'])
   worker_class.new(cm.id).perform
 end
@@ -318,7 +319,9 @@ describe "content migrations", :non_parallel do
       end
 
       el = f('.ui-autocomplete li a')
-      el.text.should == @copy_from.name
+      divs = ff('div', el)
+      divs[0].text.should == @copy_from.name
+      divs[1].text.should == @copy_from.enrollment_term.name
       el.click
 
       ff('[name=selective_import]')[0].click
@@ -326,6 +329,8 @@ describe "content migrations", :non_parallel do
 
       cm = @course.content_migrations.last
       cm.migration_settings["source_course_id"].should == @copy_from.id
+      cm.source_course.should == @copy_from
+      cm.initiated_source.should == :api
 
       source_link = f('.migrationProgressItem .sourceLink a')
       source_link.text.should == @copy_from.name
@@ -489,6 +494,87 @@ describe "content migrations", :non_parallel do
       expected.each do |k, v|
         Date.parse(opts[k].to_s).should == Date.parse(v)
       end
+    end
+  end
+
+  context "importing LTI content" do
+    let(:import_course) { course_with_teacher_logged_in.course }
+    let(:import_tool) do
+      tool = import_course.context_external_tools.new({
+        name: "test lti import tool",
+        consumer_key: "key",
+        shared_secret: "secret",
+        url: "http://www.example.com/ims/lti",
+      })
+      tool.migration_selection = {
+        url: "http://#{HostUrl.default_host}/selection_test",
+        text: "LTI migration text",
+        selection_width: 500,
+        selection_height: 500,
+        icon_url: "/images/add.png",
+      }
+      tool.save!
+      tool
+    end
+    let(:other_tool) do
+      tool = import_course.context_external_tools.new({
+        name: "other lti tool",
+        consumer_key: "key",
+        shared_secret: "secret",
+        url: "http://www.example.com/ims/lti",
+      })
+      tool.resource_selection = {
+        url: "http://#{HostUrl.default_host}/selection_test",
+        text: "other resource text",
+        selection_width: 500,
+        selection_height: 500,
+        icon_url: "/images/add.png",
+      }
+      tool.save!
+      tool
+    end
+
+    it "should show LTI tools with migration_selection in the select control" do
+      import_tool
+      other_tool
+      visit_page
+      migration_type_options = ff('#chooseMigrationConverter option')
+      migration_type_values = migration_type_options.map { |op| op['value'] }
+      migration_type_texts = migration_type_options.map { |op| op.text }
+      migration_type_values.should include(import_tool.asset_string)
+      migration_type_texts.should include(import_tool.name)
+      migration_type_values.should_not include(other_tool.asset_string)
+      migration_type_texts.should_not include(other_tool.name)
+    end
+
+    it "should show LTI view when LTI tool selected" do
+      import_tool
+      visit_page
+      select_migration_type(import_tool.asset_string)
+      f("#converter .externalToolLaunch").should be_displayed
+      f("#converter .selectContent").should be_displayed
+    end
+
+    it "should launch LTI tool on browse and get content link" do
+      import_tool
+      visit_page
+      select_migration_type(import_tool.asset_string)
+      f("button#externalToolLaunch").click
+      tool_iframe = keep_trying_until { f(".tool_launch") }
+      f('.ui-dialog-title').text.should == import_tool.label_for(:migration_selection)
+
+      driver.switch_to.frame(tool_iframe)
+      keep_trying_until { f("#basic_lti_link") }.click
+
+      driver.switch_to.default_content
+      file_name_elt = keep_trying_until { f("#converter .file_name").text.should == "lti embedded link" }
+    end
+
+    it "should have content selection option" do
+      import_tool
+      visit_page
+      select_migration_type(import_tool.asset_string)
+      ff('input[name=selective_import]').size.should == 2
     end
   end
 end

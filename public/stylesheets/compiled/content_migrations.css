@@ -1,0 +1,110 @@
+[type=radio].styled-radio {
+  margin: 4px 7px 2px 2px;
+  float: left; }
+
+.muted-margin {
+  margin-left: 20px; }
+
+.top-margin {
+  margin-top: 5px; }
+
+.bottomMargin {
+  margin-bottom: 5px; }
+
+.top-padding {
+  padding-top: 5px; }
+
+.migrationProgressItem {
+  padding-top: 5px;
+  padding-bottom: 5px; }
+
+.controlMargin {
+  padding-top: 8px; }
+
+.centerText {
+  text-align: center; }
+
+.cancelBtn {
+  margin-left: 0; }
+
+.rightAlign {
+  text-align: right; }
+
+.progress {
+  margin-bottom: 0; }
+
+#progress {
+  margin-left: 20px;
+  margin-top: 100px; }
+
+.noMargin {
+  margin: 0; }
+
+.icon-folder {
+  font-size: 24px !important; }
+
+hr {
+  margin-bottom: 0 !important; }
+
+.plain {
+  color: black; }
+
+.control-height {
+  height: 30px; }
+
+.selectContentDialog ul {
+  margin: 0;
+  list-style: none; }
+  .selectContentDialog ul .checkbox-title {
+    padding-left: 5px; }
+  .selectContentDialog ul .checkbox-caret {
+    color: black; }
+  .selectContentDialog ul .no-caret {
+    margin-left: 20px; }
+  .selectContentDialog ul .treeitem-heading {
+    min-height: 22px; }
+  .selectContentDialog ul input[type=checkbox] {
+    margin: 0 10px 3px 0px;
+    float: none;
+    padding-right: 5px; }
+  .selectContentDialog ul label.checkbox {
+    display: inline;
+    padding-left: 0px; }
+  .selectContentDialog ul li.top-level-treeitem {
+    margin: 10px 0px 10px 0px;
+    border: 1px solid lightgrey;
+    border-radius: 5px; }
+    .selectContentDialog ul li.top-level-treeitem > .treeitem-heading {
+      padding: 5px; }
+  .selectContentDialog ul li.normal-treeitem {
+    min-height: 32px; }
+  .selectContentDialog ul li {
+    list-style: none; }
+    .selectContentDialog ul li > .treeitem-heading {
+      padding: 5px;
+      padding-left: 33px; }
+      .selectContentDialog ul li > .treeitem-heading:hover {
+        background-color: #e5f3ff; }
+  .selectContentDialog ul li li li li li > .treeitem-heading {
+    padding: 5px;
+    padding-left: 63px; }
+  .selectContentDialog ul li.small-spacing {
+    margin: 5px 0px 5px 0px; }
+  .selectContentDialog ul li[aria-selected=true] {
+    border-radius: 5px; }
+    .selectContentDialog ul li[aria-selected=true] > .treeitem-heading {
+      background-color: #06a9ee; }
+      .selectContentDialog ul li[aria-selected=true] > .treeitem-heading label, .selectContentDialog ul li[aria-selected=true] > .treeitem-heading a {
+        color: white; }
+  .selectContentDialog ul li[aria-expanded=true] .icon-forward {
+    display: none; }
+  .selectContentDialog ul li[aria-expanded=true] .icon-arrow-down {
+    display: inline-block; }
+  .selectContentDialog ul li[aria-expanded=true] > ul {
+    display: block; }
+  .selectContentDialog ul li[aria-expanded=false] .icon-forward {
+    display: inline-block; }
+  .selectContentDialog ul li[aria-expanded=false] .icon-arrow-down {
+    display: none; }
+  .selectContentDialog ul li[aria-expanded=false] > ul {
+    display: none; }

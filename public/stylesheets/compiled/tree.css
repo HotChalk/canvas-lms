@@ -1,0 +1,45 @@
+.folderTree, .folderTree ul {
+  margin: 0;
+  padding: 0;
+  list-style: none; }
+  .folderTree li, .folderTree ul li {
+    margin: 0;
+    padding: 0; }
+.folderTree ul {
+  margin-left: 8px; }
+.folderTree .folderContents ul.hidden {
+  display: none; }
+.folderTree li a {
+  padding: 1px 7px 1px 35px;
+  display: block;
+  background: url(/images/inst_tree/file_types/page_white.png) no-repeat 13px 3px;
+  position: relative; }
+  .folderTree li a.folderLabel {
+    background-image: url(/images/inst_tree/folder.png); }
+    .folderTree li a.folderLabel:before {
+      position: absolute;
+      top: 5px;
+      left: 4px;
+      border: solid transparent;
+      border-width: 5px;
+      border-left-color: #525252;
+      content: ''; }
+    .folderTree li a.folderLabel.expanded:before {
+      left: 0;
+      top: 7px;
+      border-left-color: transparent;
+      border-top-color: #525252; }
+    .folderTree li a.folderLabel.loading:after {
+      width: 16px;
+      height: 11px;
+      background: url(/images/ajax-loader-linear.gif);
+      content: '';
+      display: inline-block;
+      margin-left: 7px; }
+  .folderTree li a:focus {
+    background-color: #f2fafd; }
+.folderTree .preview-thumbnail {
+  margin-left: -23px;
+  max-width: 200px;
+  height: 30px;
+  vertical-align: middle; }

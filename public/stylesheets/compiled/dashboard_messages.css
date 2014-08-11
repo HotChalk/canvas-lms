@@ -1,0 +1,58 @@
+.global-message {
+  padding: 10px;
+  border-bottom: 1px solid #b3b3b3; }
+  .global-message .title {
+    font-weight: bold; }
+  .global-message .image-block-image {
+    margin-right: 20px; }
+  .global-message .warning-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -4px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .error-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -40px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .information-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -76px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .question-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -112px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .calendar-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -148px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .announcement-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -184px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .invitation-icon {
+    background-image: url(/images/dashboard_message_icons.png);
+    background-position: -220px -4px;
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    line-height: 32px; }
+  .global-message .btn {
+    min-width: 100px; }

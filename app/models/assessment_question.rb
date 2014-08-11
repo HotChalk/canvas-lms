@@ -19,6 +19,13 @@
 class AssessmentQuestion < ActiveRecord::Base
   include Workflow
   attr_accessible :name, :question_data, :form_question_data
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :name, :question_data, :context_id, :context_type, :workflow_state,
+    :created_at, :updated_at, :assessment_question_bank_id, :deleted_at, :position
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:quiz_questions, :attachments, :context, :assessment_question_bank]
+
   has_many :quiz_questions, :class_name => 'Quizzes::QuizQuestion'
   has_many :attachments, :as => :context
   delegate :context, :context_id, :context_type, :to => :assessment_question_bank
@@ -41,7 +48,7 @@ class AssessmentQuestion < ActiveRecord::Base
   serialize :question_data
 
   set_policy do
-    given{|user, session| cached_context_grants_right?(user, session, :manage_assignments) }
+    given{|user, session| self.context.grants_right?(user, session, :manage_assignments) }
     can :read and can :create and can :update and can :delete
   end
 
@@ -377,8 +384,8 @@ class AssessmentQuestion < ActiveRecord::Base
     prep_for_import(hash, context)
     if id = hash['assessment_question_id']
       AssessmentQuestion.where(id: id).update_all(name: hash[:question_name], question_data: hash.to_yaml,
-                                                  workflow_state: 'active', created_at: Time.now.utc, updated_at: Time.now.utc,
-                                                  assessment_question_bank_id: bank.id)
+          workflow_state: 'active', created_at: Time.now.utc, updated_at: Time.now.utc,
+          assessment_question_bank_id: bank.id)
     else
       query = AssessmentQuestion.send(:sanitize_sql, [<<-SQL, hash[:question_name], hash.to_yaml, Time.now.utc, Time.now.utc, bank.id, hash[:migration_id]])
           INSERT INTO assessment_questions (name, question_data, workflow_state, created_at, updated_at, assessment_question_bank_id, migration_id)
@@ -391,8 +398,8 @@ class AssessmentQuestion < ActiveRecord::Base
     if context.respond_to?(:content_migration) && context.content_migration
       hash[:missing_links].each do |field, missing_links|
         context.content_migration.add_missing_content_links(:class => self.to_s,
-         :id => hash['assessment_question_id'], :field => field, :missing_links => missing_links,
-         :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/question_banks/#{bank.id}#question_#{hash['assessment_question_id']}_question_text")
+                                                            :id => hash['assessment_question_id'], :field => field, :missing_links => missing_links,
+                                                            :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/question_banks/#{bank.id}#question_#{hash['assessment_question_id']}_question_text")
       end
       if hash[:import_warnings]
         hash[:import_warnings].each do |warning|
@@ -431,5 +438,5 @@ class AssessmentQuestion < ActiveRecord::Base
     hash
   end
 
-  scope :active, where("assessment_questions.workflow_state<>'deleted'")
+  scope :active, -> { where("assessment_questions.workflow_state<>'deleted'") }
 end

@@ -1,0 +1,85 @@
+#help-dialog {
+  padding: 0;
+  width: 400px;
+  overflow: visible;
+  position: relative; }
+  #help-dialog #help-dialog-options {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow: auto;
+    background: #e6e7e9; }
+    #help-dialog #help-dialog-options li a {
+      border-top: 1px solid #fafafa;
+      border-bottom: 1px solid #d4d5d7;
+      display: block;
+      padding: 10px 25px;
+      text-decoration: none; }
+      #help-dialog #help-dialog-options li a .text {
+        color: #1e7eca;
+        font-size: 1.1em; }
+      #help-dialog #help-dialog-options li a .subtext {
+        color: #a2a2a3;
+        font-style: italic;
+        display: block;
+        font-size: 0.9em;
+        line-height: 1.1em; }
+      #help-dialog #help-dialog-options li a:hover {
+        border-top-color: #d7eefb;
+        border-bottom-color: #297fd1;
+        background-color: #05a6ea;
+        background-image: -webkit-gradient(linear, left top, left bottom, from(#0abdff), to(#008fd6));
+        background-image: -webkit-linear-gradient(top, #0abdff, #008fd6);
+        background-image: -moz-linear-gradient(top, #0abdff, #008fd6);
+        background-image: -ms-linear-gradient(top, #0abdff, #008fd6);
+        background-image: -o-linear-gradient(top, #0abdff, #008fd6);
+        background-image: linear-gradient(top, #0abdff, #008fd6);
+        -ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorStr='#0abdff',EndColorStr='#008fd6')";
+        zoom: 1;
+        text-decoration: none; }
+        .ie9 #help-dialog #help-dialog-options li a:hover {
+          border-radius: 0 !important; }
+        #help-dialog #help-dialog-options li a:hover .text {
+          color: white; }
+        #help-dialog #help-dialog-options li a:hover .subtext {
+          color: #015f99; }
+    #help-dialog #help-dialog-options li.user li.user, #help-dialog #help-dialog-options li.student li.student, #help-dialog #help-dialog-options li.teacher li.teacher, #help-dialog #help-dialog-options li.admin li.admin {
+      display: block; }
+  #help-dialog form {
+    padding: 10px 10px 6px;
+    width: 380px;
+    position: absolute;
+    left: 400px;
+    top: 0; }
+  #help-dialog textarea {
+    height: 100px;
+    resize: none; }
+  #help-dialog small {
+    font-size: 10px;
+    display: block;
+    color: #555555;
+    margin-top: -6px; }
+  #help-dialog .ui-state-error, #help-dialog .ui-state-highlight {
+    border-radius: 4px !important;
+    padding: 10px 10px 10px 35px;
+    position: relative; }
+    #help-dialog .ui-state-error a, #help-dialog .ui-state-highlight a {
+      text-decoration: underline; }
+    #help-dialog .ui-state-error .ui-icon, #help-dialog .ui-state-highlight .ui-icon {
+      position: absolute;
+      left: 10px;
+      top: 10px; }
+
+.ui-dialog-header-backlink {
+  display: block;
+  float: left;
+  overflow: hidden;
+  text-indent: -999px;
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  margin-top: 2px;
+  margin-right: 10px;
+  background: url(/images/jqueryui/icon_sprite.png) no-repeat left -32px; }
+  .ui-dialog-header-backlink:hover {
+    background-position: left -48px; }

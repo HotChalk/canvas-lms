@@ -1,0 +1,22 @@
+.course_details {
+  border-collapse: collapse;
+  min-width: 400px;
+  margin-left: 20px;
+  border-spacing: 0; }
+  .course_details th {
+    text-align: left; }
+  .course_details tr:hover td {
+    background-color: #eeeeee; }
+  .course_details td {
+    border-bottom: 1px solid #cccccc; }
+  .course_details .course {
+    font-size: 1.2em;
+    padding: 6px 50px 6px 5px;
+    vertical-align: top; }
+  .course_details .percent {
+    text-align: right;
+    font-size: 1.2em;
+    font-weight: bold;
+    padding-right: 5px; }
+  .course_details .report {
+    padding: 12px; }

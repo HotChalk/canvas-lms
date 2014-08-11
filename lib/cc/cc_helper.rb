@@ -53,6 +53,11 @@ module CCHelper
   # imsqti_xmlv1p2/imscc_xmlv1p2/question-bank
   # imsbasiclti_xmlv1p0
 
+  # Common Cartridge 1.3
+  ASSIGNMENT_TYPE = "assignment_xmlv1p0"
+  ASSIGNMENT_NAMESPACE = "http://www.imsglobal.org/xsd/imscc_extensions/assignment"
+  ASSIGNMENT_XSD_URI = "http://www.imsglobal.org/profile/cc/cc_extensions/cc_extresource_assignmentv1p0_v1p0.xsd"
+
   # QTI-only export
   QTI_ASSESSMENT_TYPE = 'imsqti_xmlv1p2'
   
@@ -85,7 +90,8 @@ module CCHelper
   MEDIA_OBJECTS_FOLDER = 'media_objects'
   CANVAS_EXPORT_FLAG = 'canvas_export.txt'
   MEDIA_TRACKS = 'media_tracks.xml'
-  
+  ASSIGNMENT_XML = 'assignment.xml'
+
   def create_key(object, prepend="")
     CCHelper.create_key(object, prepend)
   end
@@ -176,10 +182,14 @@ module CCHelper
           end
           next(match.url) unless obj && @rewriter.user_can_view_content?(obj)
           folder = obj.folder.full_name.gsub(/course( |%20)files/, WEB_CONTENT_TOKEN)
+          folder = folder.split("/").map{|part| URI.escape(part)}.join("/")
+
           @referenced_files[obj.id] = CCHelper.create_key(obj) if @track_referenced_files && !@referenced_files[obj.id]
           # for files, turn it into a relative link by path, rather than by file id
           # we retain the file query string parameters
-          "#{folder}/#{URI.escape(obj.display_name)}#{CCHelper.file_query_string(match.rest)}"
+          path = "#{folder}/#{URI.escape(obj.display_name)}"
+          path = HtmlTextHelper.escape_html(path)
+          "#{path}#{CCHelper.file_query_string(match.rest)}"
         end
       end
       wiki_handler = Proc.new do |match|
@@ -223,7 +233,7 @@ module CCHelper
 
       protocol = HostUrl.protocol
       host = HostUrl.context_host(@course)
-      port = Setting.from_config("domain").try(:[], :domain).try(:split, ':').try(:[], 1)
+      port = ConfigFile.load("domain").try(:[], :domain).try(:split, ':').try(:[], 1)
       @url_prefix = "#{protocol}://#{host}"
       @url_prefix += ":#{port}" if !host.include?(':') && port.present?
     end
@@ -254,8 +264,8 @@ module CCHelper
       doc.css('a.instructure_inline_media_comment').each do |anchor|
         next unless anchor['id']
         media_id = anchor['id'].gsub(/^media_comment_/, '')
-        obj = course.media_objects.by_media_id(media_id).first
-        if obj && obj.context == course && migration_id = CCHelper.create_key(obj)
+        obj = MediaObject.by_media_id(media_id).first
+        if obj && migration_id = CCHelper.create_key(obj)
           @used_media_objects << obj
           info = CCHelper.media_object_info(obj, nil, media_object_flavor)
           @media_object_infos[obj.id] = info
@@ -289,8 +299,8 @@ module CCHelper
 
   def self.media_object_info(obj, client = nil, flavor = nil)
     unless client
-      client = Kaltura::ClientV3.new
-      client.startSession(Kaltura::SessionType::ADMIN)
+      client = CanvasKaltura::ClientV3.new
+      client.startSession(CanvasKaltura::SessionType::ADMIN)
     end
     if flavor
       assets = client.flavorAssetGetByEntryId(obj.media_id)

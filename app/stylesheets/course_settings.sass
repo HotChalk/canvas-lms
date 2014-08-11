@@ -14,6 +14,10 @@
 #course_form .date_entry
   width: 165px
 
+#course-status
+  font-size: 14px !important
+  font-weight: normal
+
 .users-wrapper
   border: 1px solid #CCC
   margin-bottom: 1.4em
@@ -143,13 +147,13 @@ ul.user_list div.enrollment_type.pending
 #sections .section .section_links
   float: right
   a
-    +opacity(0.3)
+    opacity: 0.3
 
 #sections .section:hover
   background-color: #eee
 
 #sections .section:hover .section_links a
-  +opacity(1)
+  opacity: 1
 
 #sections .section .users_count
   font-size: 0.8em
@@ -229,6 +233,14 @@ ul.user_list div.enrollment_type.pending
     line-height: inherit
     margin: inherit
 
+.course-settings-sub-navigation-lti .new_badge
+  background-color: #BC3AA6
+  color: white
+  font-size: 10px
+  font-weight: normal
+  text-transform: uppercase
+  top: 1px
+
 #course_form table.coursesettings
   td.form-label
     text-align: left
@@ -239,7 +251,7 @@ ul.user_list div.enrollment_type.pending
     font-size: 0.9em
   .checklabelfix
     vertical-align: -4px
-  .license_help_link img, #course_locale, #course_default_wiki_editing_roles 
+  .license_help_link img, #course_locale, #course_default_wiki_editing_roles
     vertical-align: baseline
   #course_locale
     width: 360px
@@ -248,8 +260,12 @@ ul.user_list div.enrollment_type.pending
     margin-bottom: 10px
   select#course_locale + span
     white-space: nowrap
+  i.date-warning
+    padding: 8px 0 0 8px
+    color: $btnWarningBackground
 
 #course_form.editing table.coursesettings
   td.form-label
     vertical-align: top
     padding-top: 5px
+

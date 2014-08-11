@@ -37,7 +37,7 @@
       </a>
     </div>
     <div style="clear:both;"></div>
-    <div name="message_area">
+    <div>
       <textarea name="message"
                 class="input-block-level"
                 style="width: 100%; min-height: 200px;">{{convertApiUserContent message forEditing=1}}</textarea>
@@ -73,14 +73,14 @@
     <label class="control-label">{{#t "options"}}Options{{/t}}</label>
     <div class="controls">
       {{#if isTopic}}
-        <label class="checkbox">
+        <label class="checkbox" for="threaded">
           {{checkbox "threaded"}}
           {{#t "allow_threaded_replies"}}Allow threaded replies{{/t}}
         </label>
       {{/if}}
       {{#if contextIsCourse}}
         {{#if isAnnouncement}}
-          <label class="checkbox">
+          <label class="checkbox" for="delay_posting">
             {{checkbox "delay_posting"
               checked=delayed_post_at
               class="element_toggler"
@@ -98,13 +98,13 @@
                    value="{{datetimeFormatted delayed_post_at false}}">
           </label>
         {{/if}}
-        <label class="checkbox">
+        <label class="checkbox" for="require_initial_post">
           {{checkbox "require_initial_post"}}
           {{#t "users_must_post_before_seeing_replies"}}Users must post before seeing replies{{/t}}
         </label>
       {{/if}}
       {{#if canModerate}}
-        <label class="checkbox">
+        <label class="checkbox" for="podcast_enabled">
           {{checkbox "podcast_enabled"
             checked=podcast_url
             class="element_toggler"
@@ -114,13 +114,13 @@
   
         <label id="podcast_has_student_posts_container"
                style="{{hiddenUnless podcast_url}}"
-               class="checkbox">
+               class="checkbox" for="podcast_has_student_posts">
           {{checkbox "podcast_has_student_posts"}}
           {{#t "include_replies_in_podcast_feed"}}Include Replies in podcast feed{{/t}}
         </label>
       {{/if}}
       {{#if showAssignment}}
-        <label class="checkbox">
+        <label class="checkbox" for="use_for_grading">
           {{checkbox "assignment.set_assignment"
             id="use_for_grading"
             class="element_toggler"
@@ -136,6 +136,10 @@
 </fieldset>
 
 {{#if isTopic}}
+  {{#unless isLargeRoster}}
+    <div id="group_category_options" class="control-group"></div>
+  {{/unless}}
+
   {{#if contextIsCourse}}
     <div id="availability_options" style="{{hiddenIf set_assignment}}">
       <fieldset>
@@ -186,10 +190,6 @@
       <div id="grading_type_options" class="control-group"></div>
 
       <div id="assignment_group_options" class="control-group"></div>
-
-      {{#unless isLargeRoster}}
-        <!--<div id="group_category_options" class="control-group"></div>-->
-      {{/unless}}
 
       {{#unless isLargeRoster}}
         <!--<div id="peer_review_options" class="control-group"></div>-->

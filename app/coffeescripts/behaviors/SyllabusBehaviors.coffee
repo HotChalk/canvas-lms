@@ -118,7 +118,7 @@ define [
       $('tr.selected').removeClass('selected')
       $row.addClass('selected')
       $('html, body').scrollTo $row
-      $row.find('a').focus() if e.screenX == 0
+      $row.find('a').first().focus()
 
   selectDate = (date) ->
     $('.mini_month .day.selected').removeClass('selected')

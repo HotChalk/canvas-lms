@@ -20,6 +20,10 @@ require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 require File.expand_path(File.dirname(__FILE__) + '/../../cassandra_spec_helper')
 
 describe "AuthenticationAudit API", type: :request do
+  before do
+    pending 'Audit Search is disabled.'
+  end
+
   context "not configured" do
     before do
       Canvas::Cassandra::DatabaseBuilder.stubs(:configured?).with('auditors').returns(false)
@@ -37,7 +41,7 @@ describe "AuthenticationAudit API", type: :request do
 
     before do
       Setting.set('enable_page_views', 'cassandra')
-      @request_id = UUIDSingleton.instance.generate
+      @request_id = CanvasUUID.generate
       RequestContextGenerator.stubs( :request_id => @request_id )
 
       @viewing_user = site_admin_user(user: user_with_pseudonym(account: Account.site_admin))
@@ -263,7 +267,7 @@ describe "AuthenticationAudit API", type: :request do
       before do
         @event2 = @pseudonym.shard.activate do
           record = Auditors::Authentication::Record.new(
-            'id' => UUIDSingleton.instance.generate,
+            'id' => CanvasUUID.generate,
             'created_at' => 1.day.ago,
             'pseudonym' => @pseudonym,
             'event_type' => 'logout')
@@ -324,6 +328,16 @@ describe "AuthenticationAudit API", type: :request do
     describe "permissions" do
       before do
         @user, @viewing_user = @user, user_model
+      end
+
+      it "should not allow other account models" do
+        new_root_account = Account.create!(name: 'New Account')
+        LoadAccount.stubs(:default_domain_root_account).returns(new_root_account)
+        @user, @pseudonym, @viewing_user = @user, @pseudonym, user_with_pseudonym(account: new_root_account)
+
+        fetch_for_context(@pseudonym, expected_status: 401, type: 'login')
+        fetch_for_context(@account, expected_status: 401)
+        fetch_for_context(@user, expected_status: 401)
       end
 
       context "no permission on account" do
@@ -466,7 +480,7 @@ describe "AuthenticationAudit API", type: :request do
     end
 
     describe "per-account with sharding when fetching by user" do
-      specs_require_sharding
+      # specs_require_sharding
 
       before do
         @shard2.activate do

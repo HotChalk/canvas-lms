@@ -1,0 +1,42 @@
+#standards .grading_standard {
+  border-bottom: 1px dotted #cccccc;
+  margin-bottom: 25px; }
+  #standards .grading_standard .links {
+    filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=50);
+    opacity: 0.5; }
+  #standards .grading_standard:hover .links {
+    filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=100);
+    opacity: 1; }
+  #standards .grading_standard .standard_title {
+    font-weight: bold;
+    font-size: 1.2em; }
+  #standards .grading_standard .display_grading_standard .data_holder {
+    max-height: 175px;
+    margin-left: 20px; }
+
+.grading_standard .data_holder {
+  max-height: 175px;
+  overflow: auto;
+  padding-bottom: 10px; }
+.grading_standard .read_only {
+  display: none; }
+.grading_standard .editing_box {
+  display: none; }
+.grading_standard .editing_td {
+  display: none; }
+.grading_standard .editing_tr {
+  display: none; }
+.grading_standard .min_score, .grading_standard .max_score {
+  width: 100px; }
+.grading_standard.editing .displaying {
+  display: none; }
+.grading_standard.editing .editing_box {
+  display: block; }
+.grading_standard.editing td.editing_box {
+  display: table-cell; }
+.grading_standard.editing tr.editing_box {
+  display: table-row; }
+.grading_standard.editing .data_holder {
+  max-height: 125px; }
+.grading_standard.editing .standard_title div {
+  float: left; }

@@ -11,7 +11,7 @@ define [
   $buffer = $("#flash_message_buffer")
   $holder = $("#flash_message_holder")
   $screenreader_holder = $("#flash_screenreader_holder")
-  $holder.on 'click', '.close_link', preventDefault
+  $holder.on 'click', '.close_link', preventDefault(->)
   $holder.on 'click', 'li', ->
     $this = $(this)
     return if $this.hasClass('no_close')
@@ -45,7 +45,7 @@ define [
       animate({'z-index': 1}, 0).
       fadeOut('slow', -> $(this).slideUp('fast', -> $(this).remove()))
 
-    screenReaderFlashBox(type, content)
+    setTimeout((-> screenReaderFlashBox(type, content)), 100)
 
   # Pops up a small notification box at the top of the screen.
   $.flashMessage = (content, timeout = 3000) ->
@@ -54,6 +54,10 @@ define [
   # Pops up a small error box at the top of the screen.
   $.flashError = (content, timeout) ->
     flashBox("error", content, timeout)
+
+  # Pops up a small warning box at the top of the screen.
+  $.flashWarning = (content, timeout = 3000) ->
+    flashBox("warning", content, timeout)
 
   $.screenReaderFlashMessage = (content) ->
     screenReaderFlashBox('success', content)

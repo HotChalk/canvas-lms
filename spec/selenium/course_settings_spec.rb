@@ -35,6 +35,26 @@ describe "course settings" do
       f('.grading_scheme_set').should include_text @standard.title
     end
 
+    it 'should show the correct course status when published' do
+      get "/courses/#{@course.id}/settings"
+      f('#course-status').text.should == 'Course is Published'
+    end
+
+    it 'should show the correct course status when unpublished' do
+      @course.workflow_state = 'claimed'
+      @course.save!
+      get "/courses/#{@course.id}/settings"
+      f('#course-status').text.should == 'Course is Unpublished'
+    end
+
+    it "should show the correct status with a tooltip when published and graded submissions" do
+      course_with_student_submissions({submission_points: true, draft_state: true})
+      get "/courses/#{@course.id}/settings"
+      course_status = f('#course-status')
+      course_status.text.should == 'Course is Published'
+      course_status.should have_attribute('title', 'You cannot unpublish this course if there are graded student submissions')
+    end
+
     it "should allow selection of existing course grading standard" do
       test_select_standard_for @course
     end
@@ -90,6 +110,7 @@ describe "course settings" do
       course_name = 'new course name'
       course_code = 'new course-101'
       locale_text = 'English'
+      time_zone_value = 'Central Time (US & Canada)'
 
       get "/courses/#{@course.id}/settings"
 
@@ -100,6 +121,7 @@ describe "course settings" do
       code_input = course_form.find_element(:id, 'course_course_code')
       replace_content(code_input, course_code)
       click_option('#course_locale', locale_text)
+      click_option('#course_time_zone', time_zone_value, :value)
       f('.course_form_more_options_link').click
       wait_for_ajaximations
       f('.course_form_more_options').should be_displayed
@@ -109,6 +131,7 @@ describe "course settings" do
       f('.course_info').should include_text(course_name)
       f('.course_code').should include_text(course_code)
       f('span.locale').should include_text(locale_text)
+      f('span.time_zone').should include_text(time_zone_value)
     end
 
     it "should add a section" do
@@ -175,9 +198,9 @@ describe "course settings" do
       disabled_div = f('#nav_disabled_list')
       announcements_nav = f('#nav_edit_tab_id_14')
       driver.action.click_and_hold(announcements_nav).
-          move_to(disabled_div).
-          release(disabled_div).
-          perform
+        move_to(disabled_div).
+        release(disabled_div).
+        perform
       f('#nav_disabled_list').should include_text(announcements_nav.text)
     end
   end

@@ -34,7 +34,7 @@ module AuthenticationMethods
   def load_pseudonym_from_policy
     if (policy_encoded = params['Policy']) &&
         (signature = params['Signature']) &&
-        signature == Base64.encode64(OpenSSL::HMAC.digest(OpenSSL::Digest::Digest.new('sha1'), Attachment.shared_secret, policy_encoded)).gsub(/\n/, '') &&
+        signature == Base64.encode64(OpenSSL::HMAC.digest(OpenSSL::Digest.new('sha1'), Attachment.shared_secret, policy_encoded)).gsub(/\n/, '') &&
         (policy = JSON.parse(Base64.decode64(policy_encoded)) rescue nil) &&
         policy['conditions'] &&
         (credential = policy['conditions'].detect{ |cond| cond.is_a?(Hash) && cond.has_key?("pseudonym_id") })
@@ -94,7 +94,11 @@ module AuthenticationMethods
         # if the session was created before the last time the user explicitly
         # logged out (of any session for any of their pseudonyms), invalidate
         # this session
-        if (invalid_before = @current_pseudonym.user.last_logged_out) &&
+        invalid_before = @current_pseudonym.user.last_logged_out
+        # they logged out in the future?!? something's busted; just ignore it -
+        # either my clock is off or whoever set this value's clock is off
+        invalid_before = nil if invalid_before && invalid_before > Time.now.utc
+        if invalid_before &&
           (session_refreshed_at = request.env['encrypted_cookie_store.session_refreshed_at']) &&
           session_refreshed_at < invalid_before
 
@@ -202,7 +206,11 @@ module AuthenticationMethods
 
   def clean_return_to(url)
     return nil if url.blank?
-    uri = URI.parse(url)
+    begin
+      uri = URI.parse(url)
+    rescue URI::InvalidURIError
+      return nil
+    end
     return nil unless uri.path[0] == ?/
     return "#{request.protocol}#{request.host_with_port}#{uri.path}#{uri.query && "?#{uri.query}"}#{uri.fragment && "##{uri.fragment}"}"
   end
@@ -281,6 +289,9 @@ module AuthenticationMethods
   end
 
   def initiate_delegated_login(current_host=nil)
+    if cookies['canvas_sa_delegated'] && !params[:canvas_login]
+      @domain_root_account = Account.site_admin
+    end
     is_delegated = @domain_root_account.delegated_authentication? && !params[:canvas_login]
     is_cas = is_delegated && @domain_root_account.cas_authentication?
     is_saml = is_delegated && @domain_root_account.saml_authentication?

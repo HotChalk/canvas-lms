@@ -1,8 +1,11 @@
 # loading all the locales has a significant (>30%) impact on the speed of initializing canvas
 # so we skip it in situations where we don't need the locales, such as in development mode and in rails console
 skip_locale_loading = (Rails.env.development? || Rails.env.test? || $0 == 'irb') && !ENV['RAILS_LOAD_ALL_LOCALES']
+load_path = CANVAS_RAILS2 ? I18n.load_path : Rails.application.config.i18n.railties_load_path
 if skip_locale_loading
-  I18n.load_path = I18n.load_path.grep(%r{/(locales|en)\.yml\z})
+  load_path.replace(load_path.grep(%r{/(locales|en)\.yml\z}))
+else
+  load_path << (Rails.root + "config/locales/locales.yml").to_s # add it at the end, to trump any weird/invalid stuff in locale-specific files
 end
 
 I18n.backend = I18nema::Backend.new
@@ -11,7 +14,10 @@ I18n.backend.init_translations
 
 I18n.enforce_available_locales = true
 
-I18n.send :extend, I18n::Lolcalize if ENV['LOLCALIZE']
+if ENV['LOLCALIZE']
+  require 'i18n_tasks'
+  I18n.send :extend, I18nTasks::Lolcalize
+end
 
 module I18nUtilities
   def before_label(text_or_key, default_value = nil, *args)
@@ -141,7 +147,17 @@ I18n.class_eval do
         default
       end
 
-      result = translate_without_default_and_count_magic(key.to_s.sub(/\A#/, ''), options)
+      begin
+        result = translate_without_default_and_count_magic(key.to_s.sub(/\A#/, ''), options)
+      rescue I18n::MissingInterpolationArgument
+        # if we change an en default and its interpolation logic without
+        # changing its key, we might have broken translations during the
+        # window where we're waiting for updated translations. broken as in
+        # crashy, not just missing. if that's the case, just fall back to
+        # english, rather than asploding
+        raise if (options[:locale] || I18n.locale) == I18n.default_locale
+        return translate_with_default_and_count_magic(key, options.merge(locale: I18n.default_locale))
+      end
 
       # it's assumed that if you're using any wrappers, you're going
       # for html output. so the result will be escaped before being
@@ -169,7 +185,7 @@ I18n.class_eval do
   end
 
   def self.qualified_locale
-    I18n.t("qualified_locale", "en-US")
+    I18n.backend.direct_lookup(I18n.locale.to_s, "qualified_locale") || "en-US"
   end
 end
 
@@ -214,9 +230,19 @@ else
 end
 
 ActionView::Base.class_eval do
-  def translate(key, default, options = {})
+  # can accept either translate(key, default: "default text", option: ...) or
+  # translate(key, "default text", option: ...). when using the former (default
+  # in the options), it's treated as if prepended with a # anchor.
+  def translate(key, *rest)
+    options = rest.extract_options!
+    default_in_options = options.has_key?(:default)
+    default_in_args = !rest.empty?
+    raise ArgumentError, "wrong arity" if rest.size > 1
+    raise ArgumentError, "didn't provide default in args or options" if !default_in_args && !default_in_options
+    raise ArgumentError, "can't provide default in both args and options" if default_in_args && default_in_options
+    default = default_in_options ? options[:default] : rest.first
     key = key.to_s
-    key = "#{i18n_scope}.#{key}" unless key.sub!(/\A#/, '')
+    key = "#{i18n_scope}.#{key}" unless default_in_options || key.sub!(/\A#/, '')
     I18n.translate(key, default, options)
   end
   alias :t :translate

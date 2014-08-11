@@ -521,6 +521,34 @@ define [
     title: "Notes"
   ]
 
+  outcomesRaw = [
+    { outcome: { id: '1', title: 'Eating' } }
+    { outcome: { id: '2', title: 'Drinking' } }
+  ]
+
+  outcomes = [
+    { id: '1', title: 'Eating' }
+    { id: '2', title: 'Drinking' }
+  ]
+
+  outcomeRollupsRaw = {
+    rollups: [
+      { links: { user: '1' }, scores: [
+        { links: {outcome: '1'}, score: 5 }
+        { links: {outcome: '2'}, score: 4 }
+      ]}
+      { links: { user: '2' }, scores: [
+        { links: {outcome: '2'}, score: 3 }
+      ]}
+    ]
+  }
+
+  outcomeRollups = [
+    { outcome_id: '1', user_id: '1', score: 5 }
+    { outcome_id: '2', user_id: '1', score: 4 }
+    { outcome_id: '2', user_id: '2', score: 3 }
+  ]
+
   custom_columns: customColumns
   set_default_grade_response: default_grade_response
   students: students
@@ -528,6 +556,8 @@ define [
   assignment_groups: assignmentGroups
   submissions: submissions
   sections: sections
+  outcomes: outcomes
+  outcome_rollups: outcomeRollups
   create: (overrides) ->
 
     window.ENV =
@@ -547,41 +577,53 @@ define [
           custom_columns_url: 'api/v1/courses/1/custom_gradebook_columns'
           custom_column_data_url: 'api/v1/courses/1/custom_gradebook_columns/:id'
           setting_update_url: 'api/v1/courses/1/settings'
+          outcome_gradebook_enabled: true
+          outcome_links_url: 'api/v1/courses/1/outcome_group_links'
+          outcome_rollups_url: 'api/v1/courses/1/outcome_rollups'
         }
       }
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.students_url,
       response: clone students
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.students_url_with_concluded_enrollments,
       response: clone concludedStudents
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.assignment_groups_url,
       response: clone assignmentGroups
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.submissions_url,
       response: clone submissions
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.sections_url,
       response: clone sections
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.custom_columns_url,
       response: clone customColumns
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
     ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.setting_update_url,
       response: true
       jqXHR: { getResponseHeader: -> {} }
-      textStatus: ''
+      textStatus: 'success'
 
+    ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.outcome_links_url,
+      response: clone outcomesRaw
+      jqXHR: { getResponseHeader: -> {} }
+      textStatus: 'success'
+
+    ajax.defineFixture window.ENV.GRADEBOOK_OPTIONS.outcome_rollups_url,
+      response: clone outcomeRollupsRaw
+      jqXHR: { getResponseHeader: -> {} }
+      textStatus: 'success'

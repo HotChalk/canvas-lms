@@ -1,0 +1,126 @@
+#quiz-show {
+  background-color: #FFF;
+  font-family: "Helvetica Neue", "Helvetica", "Arial", sans-serif; }
+  #quiz-show .teacher-action-buttons {
+    text-align: right;
+    display: table-cell;
+    vertical-align: bottom;
+    min-height: 60px;
+    padding-top: 15px; }
+    #quiz-show .teacher-action-buttons div {
+      display: inline-block; }
+  #quiz-show .tabs-content {
+    border-top: 1px solid #CAD0D7;
+    z-index: 1;
+    position: relative;
+    padding-top: 10px;
+    width: 100%; }
+  #quiz-show #quiz-show-tabs {
+    position: relative;
+    z-index: 5;
+    top: 1px; }
+    #quiz-show #quiz-show-tabs ol li {
+      background: white;
+      position: relative;
+      display: inline-block;
+      list-style-type: none;
+      min-width: 105px;
+      text-align: center;
+      font-size: 14px; }
+      #quiz-show #quiz-show-tabs ol li a {
+        padding: 10px 5px 10px 5px;
+        display: block;
+        color: #5B6369; }
+      #quiz-show #quiz-show-tabs ol li.active {
+        font-weight: bold;
+        border: 1px solid #CAD0D7;
+        color: black;
+        -moz-border-radius-topleft: 3px;
+        -webkit-border-top-left-radius: 3px;
+        border-top-left-radius: 3px;
+        -moz-border-radius-topright: 3px;
+        -webkit-border-top-right-radius: 3px;
+        border-top-right-radius: 3px;
+        border-bottom: 1px solid white; }
+    #quiz-show #quiz-show-tabs ol {
+      width: 100%;
+      margin-bottom: 0; }
+  #quiz-show .quiz-description {
+    font-family: "HelveticaNeue-Light", "Helvetica Neue Light", Helvetica, Arial, sans-serif;
+    font-size: 14px; }
+  #quiz-show #quiz-attribute-table {
+    overflow: hidden; }
+    #quiz-show #quiz-attribute-table dl dt, #quiz-show #quiz-attribute-table dl dd {
+      float: left;
+      margin: 0 0.5em 10px 0; }
+    #quiz-show #quiz-attribute-table dl dd + dt, #quiz-show #quiz-attribute-table dl dd + dd {
+      clear: left; }
+    #quiz-show #quiz-attribute-table dl dd + dd {
+      float: none; }
+    #quiz-show #quiz-attribute-table dl dt {
+      font-weight: bold; }
+    #quiz-show #quiz-attribute-table dl dd {
+      position: relative;
+      top: 1px; }
+    #quiz-show #quiz-attribute-table .quiz-attribute-column {
+      text-align: center;
+      border-right: 1px solid #F1F2F2;
+      margin-bottom: -99999px;
+      padding-bottom: 99999px; }
+      #quiz-show #quiz-attribute-table .quiz-attribute-column:last-of-type {
+        border-right: none; }
+  #quiz-show #due-dates-table {
+    margin-top: 20px; }
+    #quiz-show #due-dates-table thead {
+      background-color: #F4F5F6;
+      font-weight: bold; }
+    #quiz-show #due-dates-table tr {
+      border-bottom: 1px solid #E1E2E3; }
+      #quiz-show #due-dates-table tr td {
+        width: 20%; }
+      #quiz-show #due-dates-table tr td:nth-of-type(2) {
+        text-align: center;
+        width: 60%; }
+    #quiz-show #due-dates-table tbody {
+      font-family: "HelveticaNeue-Light", "Helvetica Neue Light", Helvetica, Arial, sans-serif; }
+
+div#content {
+  overflow: visible;
+  padding: 0;
+  min-width: 763px; }
+
+#ember-loading {
+  padding: 10px;
+  text-align: center;
+  background-color: #FFF;
+  border-bottom: 1px solid #C1C7CF;
+  min-height: 33px; }
+
+li.quiz .ig-title {
+  right: 554px; }
+
+.header-bar {
+  overflow: visible; }
+
+.item-group-container .ig-admin {
+  top: 4px; }
+.item-group-container .ig-list .quiz:first-of-type {
+  margin-top: 5px; }
+  .item-group-container .ig-list .quiz:first-of-type .ig-row {
+    border-top: 1px solid #C1C7CF;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px; }
+.item-group-container .ig-list .quiz:last-of-type .ig-row {
+  border-bottom: 1px solid #C1C7CF;
+  border-bottom-left-radius: 3px;
+  border-bottom-right-radius: 3px; }
+.item-group-container .item-group-condensed .ig-header-title {
+  cursor: pointer; }
+.item-group-container .item-group-condensed:last-of-type {
+  border-bottom: 0; }
+
+li.quiz {
+  cursor: pointer; }
+  li.quiz .ig-details {
+    right: 110px;
+    width: 425px; }

@@ -123,7 +123,7 @@ describe "enrollment_date_restrictions" do
     html = Nokogiri::HTML(response.body)
     html.css('.course').length.should == 2
 
-    Account.default.add_user(@user)
+    Account.default.account_users.create!(user: @user)
     get "/users/#{@user.id}"
     response.body.should match /Inactive/
     response.body.should match /Completed/
@@ -141,8 +141,8 @@ describe "enrollment_date_restrictions" do
     @course.save!
     @enrollment.reload.state_based_on_date.should == :inactive
 
-    get '/calendar'
+    get '/calendar2'
     html = Nokogiri::HTML(response.body)
-    html.css("#group_course_#{@course.id}").length.should == 0
+    html.css(".group_course_#{@course.id}").length.should == 0
   end
 end

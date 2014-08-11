@@ -1,0 +1,17 @@
+/** Custom CSS *********/
+.redactor_table {
+  border-collapse: collapse;
+  font-size: 1em !important;
+  line-height: 1.6em;
+  margin: 0;
+  margin-bottom: 10px !important;
+  border: none;
+  background: none !important;
+  box-shadow: none !important; }
+  .redactor_table td {
+    padding: 5px !important;
+    border: 1px solid #ddd;
+    vertical-align: top; }
+  .redactor_table thead td {
+    border-bottom: 2px solid #000 !important;
+    font-weight: bold !important; }

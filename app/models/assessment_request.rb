@@ -19,9 +19,18 @@
 class AssessmentRequest < ActiveRecord::Base
   include Workflow
   attr_accessible :rubric_assessment, :user, :asset, :assessor_asset, :comments, :rubric_association, :assessor
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :rubric_assessment_id, :user_id, :asset_id, :asset_type, :assessor_asset_id, :assessor_asset_type,
+    :comments, :workflow_state, :created_at, :updated_at, :uuid, :rubric_association_id, :assessor_id
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:user, :asset, :assessor_asset, :submission, :submission_comments, :rubric_assessment]
+
   belongs_to :user
   belongs_to :asset, :polymorphic => true
+  validates_inclusion_of :asset_type, :allow_nil => true, :in => ['Submission']
   belongs_to :assessor_asset, :polymorphic => true
+  validates_inclusion_of :assessor_asset_type, :allow_nil => true, :in => ['Submission', 'User']
   belongs_to :assessor, :class_name => 'User'
   belongs_to :submission, :foreign_key => 'asset_id'
   belongs_to :rubric_association
@@ -34,7 +43,7 @@ class AssessmentRequest < ActiveRecord::Base
   has_a_broadcast_policy
 
   def infer_uuid
-    self.uuid ||= CanvasUuid::Uuid.generate_securish_uuid
+    self.uuid ||= CanvasSlug.generate_securish_uuid
   end
   protected :infer_uuid
 

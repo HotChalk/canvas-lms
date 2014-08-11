@@ -21,7 +21,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 describe CourseProgress do
   let(:progress_error) { {:error=>{:message=>'no progress available because this course is not module based (has modules and module completion requirements) or the user is not enrolled as a student in this course'}} }
 
-  before do
+  before :each do
     class CourseProgress
       def course_context_modules_item_redirect_url(opts = {})
         "course_context_modules_item_redirect_url(:course_id => #{opts[:course_id]}, :id => #{opts[:id]}, :host => HostUrl.context_host(Course.find(#{opts[:course_id]}))"
@@ -29,7 +29,7 @@ describe CourseProgress do
     end
   end
 
-  before(:each) do
+  before :once do
     course_with_teacher(:active_all => true)
   end
 
@@ -47,7 +47,7 @@ describe CourseProgress do
   end
 
   context "module based and for student" do
-    before do
+    before :once do
       @module = @course.context_modules.create!(:name => "some module", :require_sequential_progress => true)
       @module2 = @course.context_modules.create!(:name => "another module", :require_sequential_progress => true)
       @module3 = @course.context_modules.create!(:name => "another module again", :require_sequential_progress => true)
@@ -148,6 +148,18 @@ describe CourseProgress do
 
       # assert that assignment 2 doesn't count toward the total (2 -> 1)
       progress[:requirement_completed_count].should == 1
+    end
+
+    it "does not query destroyed ContentTags" do
+      @tag.destroy
+      progress = CourseProgress.new(@course, @user)
+      progress.current_content_tag.id.should_not == @tag.id
+    end
+
+    it "does not query unpublished ContentTags" do
+      @tag.unpublish
+      progress = CourseProgress.new(@course, @user)
+      progress.current_content_tag.id.should_not == @tag.id
     end
   end
 end

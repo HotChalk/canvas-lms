@@ -19,73 +19,42 @@
 require 'spec_helper'
 
 describe LtiOutbound::VariableSubstitutor do
-  class TestLtiModel < LtiOutbound::LTIModel
-    attr_accessor :field, :new_field
-    add_variable_mapping '$Custom.mapper', :field
-    add_variable_mapping '$Custom.newField', :new_field
-  end
+  describe "#substitute" do
 
-  let(:lti_model) do
-    TestLtiModel.new.tap do |model|
-      model.field = 'blah'
-    end
-  end
-
-  describe '#substitute!' do
-    it 'substitutes variable' do
-      params = {'field' => '$Custom.mapper'}
-      subject.substitute!(params, lti_model)
-      expect(params).to eq({'field' => 'blah'})
+    it "leaves the value unchanged for unkown keys" do
+      data_hash = {'canvas_course_id' => '$Invalid.key'}
+      expect(subject.substitute!(data_hash)['canvas_course_id']).to eq '$Invalid.key'
     end
 
-    it 'does not replace invalid mappings' do
-      params = {'field' => '$Custom.mapper.wrong'}
-      subject.substitute!(params, lti_model)
-      expect(params).to eq({'field' => '$Custom.mapper.wrong'})
+    it "leaves the value unchanged for missing models" do
+      data_hash = {'canvas_course_id' => '$Canvas.account.id'}
+      expect(subject.substitute!(data_hash)['canvas_course_id']).to eq '$Canvas.account.id'
     end
 
-    it 'does not replace nil mappings' do
-      lti_model.field = nil
-      params = {'field' => '$Custom.mapper'}
-      subject.substitute!(params, lti_model)
-      expect(params).to eq({'field' => '$Custom.mapper'})
-    end
-  end
+    describe 'variable_substitutions' do
 
-  describe '#substitute_all!' do
-    it 'substitutes any number of LTIModels' do
-      model1 = lti_model
-      model2 = TestLtiModel.new.tap do |model|
-        model.new_field = 'new stuff'
+      it 'can accept variable substitutions' do
+        subject.add_substitution '$My.custom.variable', 'blah'
+        data_hash = {custom_var: '$My.custom.variable'}
+        subject.substitute!(data_hash)
+
+        expect(data_hash).to eq({custom_var: 'blah'})
       end
 
-      params =  {'field' => '$Custom.mapper', 'new_field' => '$Custom.newField' }
-      subject.substitute_all!(params, model1, model2)
+      it 'can evaluate a proc' do
+        subject.add_substitution '$My.custom.proc', Proc.new {'blah'}
+        data_hash = {custom_var: '$My.custom.proc'}
+        subject.substitute!(data_hash)
 
-      expect(params).to eq({'field' => 'blah', 'new_field' => 'new stuff' })
-    end
-
-    it 'substitutes variable mappings for objects in order' do
-      model1 = lti_model
-      model2 = TestLtiModel.new.tap do |model|
-        model.field = 'blahblah'
-        model.new_field = 'new stuff'
+        expect(data_hash).to eq({custom_var: 'blah'})
       end
-
-      params =  {'field' => '$Custom.mapper', 'new_field' => '$Custom.newField' }
-      subject.substitute_all!(params, model1, model2)
-
-      expect(params).to eq({'field' => 'blah', 'new_field' => 'new stuff' })
     end
 
-    it 'can handle nil objects' do
-      model1 = lti_model
-      model2 = nil
+    it '#has_key?' do
+      subject.add_substitution '$My.custom.variable', 'value'
 
-      params =  {'field' => '$Custom.mapper', 'new_field' => '$Custom.newField' }
-      subject.substitute_all!(params, model1, model2)
-
-      expect(params).to eq({'field' => 'blah', 'new_field' => '$Custom.newField' })
+      expect(subject.has_key?('$My.custom.variable')).to eq true
+      expect(subject.has_key?('$My.fake.variable')).to eq false
     end
   end
 end

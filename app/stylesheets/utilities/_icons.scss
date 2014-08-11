@@ -1,5 +1,4 @@
 /* @styleguide Icons
-
 ### Icons in links
 
 ```html
@@ -246,6 +245,19 @@ Either use `<a>` with icon desired icon class added or insert `<i>` inside `<but
 <div class="row-fluid">
   <span class="span3"><i class="icon-arrow-open-right"></i> icon-arrow-open-right</span>
   <span class="span3"><i class="icon-arrow-open-left"></i> icon-arrow-open-left</span>
+  <span class="span3"><i class="icon-hamburger"></i> icon-hamburger</span>
+  <span class="span3"><i class="icon-expand-items"></i> icon-expand-items</span>
+</div>
+<div class="row-fluid">
+  <span class="span3"><i class="icon-forward"></i> icon-forward</span>
+  <span class="span3"><i class="icon-target"></i> icon-target</span>
+  <span class="span3"><i class="icon-quiz-stats-avg"></i> icon-quiz-stats-avg</span>
+  <span class="span3"><i class="icon-quiz-stats-low"></i> icon-quiz-stats-low</span>
+</div>
+<div class="row-fluid">
+  <span class="span3"><i class="icon-quiz-stats-high"></i> icon-quiz-stats-high</span>
+  <span class="span3"><i class="icon-quiz-stats-deviation"></i> icon-quiz-stats-deviation</span>
+  <span class="span3"><i class="icon-quiz-stats-time"></i> icon-quiz-stats-time</span>
 </div>
 */
 
@@ -324,7 +336,13 @@ a[class*=icon-], a[class^=icon-] {
 
 .standalone-icon {
   // use to make standalone icons within links display as dark gray, not default link blue
-  &:before { color: #555; }
+  &:before {
+    @if $use_high_contrast {
+      color: #444;
+    } @else {
+      color: #555;
+    }
+  }
 }
 
 // change vertical alignment of icons used with common typographic elements to line them up better
@@ -338,7 +356,12 @@ h1, h2, h3, h4, .h1, .h2, .h3, .h4, p {
 
 
 // define specific icon classes, mapped to the "canvasregular" icon font above
-
+.icon-trouble:before { content: "\e600"; }
+.icon-partial:before { content: "\e601"; }
+.icon-expand:before { content: "\e602"; }
+.icon-empty:before { content: "\e603"; }
+.icon-complete:before { content: "\e604"; }
+.icon-collapse:before { content: "\e605"; }
 .icon-stats:before { content: "\e06a" }
 .icon-paperclip:before { content: "\e03d" }
 .icon-media:before { content: "\e062" }
@@ -490,6 +513,16 @@ h1, h2, h3, h4, .h1, .h2, .h3, .h4, p {
 .icon-remove-from-collection:before { content: "\e106" }
 .icon-arrow-open-right:before { content: "\e107" }
 .icon-arrow-open-left:before { content: "\e108" }
+.icon-hamburger:before { content: "\e109" }
+.icon-expand-items:before { content: "\e110" }
+.icon-forward:before { content: "\e112" }
+.icon-target:before { content: "\e113" }
+
+.icon-quiz-stats-avg:before { content: "\e114" }
+.icon-quiz-stats-low:before { content: "\e117" }
+.icon-quiz-stats-high:before { content: "\e116" }
+.icon-quiz-stats-deviation:before { content: "\e115" }
+.icon-quiz-stats-time:before { content: "\e118" }
 
 // deprecated in favor of .screenreader-only, which is meant to be usable anywhere
 span.screen-reader-text {

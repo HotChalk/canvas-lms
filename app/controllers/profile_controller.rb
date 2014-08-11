@@ -136,7 +136,7 @@
 #
 class ProfileController < ApplicationController
   before_filter :require_registered_user, :except => [:show, :settings, :communication, :communication_update]
-  before_filter :require_user, :only => [:settings, :communication, :communication_update]
+  before_filter :require_user, :only => [:settings, :communication, :communication_update, :observees]
   before_filter :require_user_for_private_profile, :only => :show
   before_filter :reject_student_view_student
   before_filter :require_password_session, :only => [:settings, :communication, :communication_update, :update]
@@ -221,7 +221,6 @@ class ProfileController < ApplicationController
 
   def communication
     @user = @current_user
-    @user = User.find(params[:id]) if params[:id]
     @current_user.used_feature(:cc_prefs)
     @context = @user.profile
     @active_tab = 'notifications'
@@ -307,10 +306,6 @@ class ProfileController < ApplicationController
   def update
     @user = @current_user
 
-    if params[:user] && params[:user][:enabled_theme]
-      @user.enabled_theme = params[:user].delete(:enabled_theme)
-    end
-
     if params[:privacy_notice].present?
       @user.preferences[:read_notification_privacy_info] = Time.now.utc.to_s
       @user.save
@@ -378,8 +373,11 @@ class ProfileController < ApplicationController
     @context = @profile
 
     short_name = params[:user] && params[:user][:short_name]
-    @user.short_name = short_name if short_name
-    @profile.attributes = params[:user_profile]
+    @user.short_name = short_name if short_name && @user.user_can_edit_name?
+    if params[:user_profile]
+      params[:user_profile].delete(:title) unless @user.user_can_edit_name?
+      @profile.attributes = params[:user_profile]
+    end
 
     if params[:link_urls] && params[:link_titles]
       @profile.links = []
@@ -424,4 +422,13 @@ class ProfileController < ApplicationController
     require_user
   end
   private :require_user_for_private_profile
+
+  def observees
+    @user ||= @current_user
+    @active_tab = 'observees'
+    @context = @user.profile if @user == @current_user
+
+    add_crumb(@user.short_name, profile_path)
+    add_crumb(t('crumbs.observees', "Observing"))
+  end
 end

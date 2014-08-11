@@ -1,0 +1,21 @@
+#message_students_dialog .student_list {
+  max-height: 100px;
+  overflow: auto;
+  font-size: 0.8em;
+  padding: 5px 0;
+  margin: 0;
+  list-style-type: none; }
+  #message_students_dialog .student_list li {
+    float: left;
+    padding: 2px 4px;
+    margin: 1px 2px;
+    background-color: #ccddff;
+    border: 1px solid #aaaaaa;
+    -moz-border-radius: 3px; }
+    #message_students_dialog .student_list li .score {
+      display: none;
+      padding-left: 5px;
+      font-size: 0.9em;
+      color: #444444; }
+  #message_students_dialog .student_list.show_score li .score {
+    display: inline; }

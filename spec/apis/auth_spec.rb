@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 - 2013 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -247,7 +247,7 @@ describe "API Authentication", type: :request do
 
       it "should execute for saml login" do
         pending("requires SAML extension") unless AccountAuthorizationConfig.saml_enabled
-        Setting.set_config("saml", {})
+        ConfigFile.stub('saml', {})
         account = account_with_saml(:account => Account.default)
         flow do
           Onelogin::Saml::Response.any_instance.stubs(:settings=)
@@ -271,7 +271,10 @@ describe "API Authentication", type: :request do
           cas = CASClient::Client.new(:cas_base_url => account.account_authorization_config.auth_base)
           cas.instance_variable_set(:@stub_user, @user)
           def cas.validate_service_ticket(st)
-            st.response = CASClient::ValidationResponse.new("yes\n#{@stub_user.pseudonyms.first.unique_id}\n")
+            response = CASClient::ValidationResponse.new("yes\n#{@stub_user.pseudonyms.first.unique_id}\n")
+            st.user = response.user
+            st.success = response.is_success?
+            return st
           end
           CASClient::Client.stubs(:new).returns(cas)
 
@@ -492,7 +495,7 @@ describe "API Authentication", type: :request do
 
     it "should allow passing the access token in the post body" do
       @me = @user
-      Account.default.add_user(@user)
+      Account.default.account_users.create!(user: @user)
       u2 = user
       Account.default.pseudonyms.create!(unique_id: 'user', user: u2)
       @user = @me
@@ -573,7 +576,6 @@ describe "API Authentication", type: :request do
     end
 
     it "should allow as_user_id" do
-      @student.pseudonyms.create!(:unique_id => 'student', :account => Account.default)
       account_admin_user(:account => Account.site_admin)
       user_with_pseudonym(:user => @user)
 
@@ -586,14 +588,15 @@ describe "API Authentication", type: :request do
       json.should == {
         'id' => @student.id,
         'name' => 'User',
-        'sortable_name' => 'User',
         'short_name' => 'User',
-        'primary_email' => "blah@example.com",
+        'sortable_name' => 'User',
         'login_id' => "blah@example.com",
-        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
         'title' => nil,
         'bio' => nil,
+        'primary_email' => "blah@example.com",
+        'integration_id' => nil,
         'time_zone' => 'Etc/UTC',
+        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" }
       }
 
       # as_user_id is ignored if it's not allowed
@@ -604,16 +607,17 @@ describe "API Authentication", type: :request do
       assigns['current_user'].should == @student
       assigns['real_current_user'].should be_nil
       json.should == {
-        'id' => @student.id,
-        'name' => 'User',
-        'sortable_name' => 'User',
-        'short_name' => 'User',
-        'primary_email' => "blah@example.com",
-        'login_id' => "blah@example.com",
-        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
-        'bio' => nil,
-        'title' => nil,
-        'time_zone' => 'Etc/UTC',
+          'id' => @student.id,
+          'name' => 'User',
+          'short_name' => 'User',
+          'sortable_name' => 'User',
+          'login_id' => "blah@example.com",
+          'title' => nil,
+          'bio' => nil,
+          'primary_email' => "blah@example.com",
+          'integration_id' => nil,
+          'time_zone' => 'Etc/UTC',
+          'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" }
       }
 
       # as_user_id is ignored if it's blank
@@ -622,16 +626,17 @@ describe "API Authentication", type: :request do
       assigns['current_user'].should == @student
       assigns['real_current_user'].should be_nil
       json.should == {
-        'id' => @student.id,
-        'name' => 'User',
-        'sortable_name' => 'User',
-        'short_name' => 'User',
-        'primary_email' => "blah@example.com",
-        'login_id' => "blah@example.com",
-        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
-        'title' => nil,
-        'bio' => nil,
-        'time_zone' => 'Etc/UTC',
+          'id' => @student.id,
+          'name' => 'User',
+          'short_name' => 'User',
+          'sortable_name' => 'User',
+          'login_id' => "blah@example.com",
+          'title' => nil,
+          'bio' => nil,
+          'primary_email' => "blah@example.com",
+          'integration_id' => nil,
+          'time_zone' => 'Etc/UTC',
+          'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" }
       }
     end
 
@@ -648,16 +653,45 @@ describe "API Authentication", type: :request do
       json.should == {
         'id' => @student.id,
         'name' => 'User',
-        'sortable_name' => 'User',
         'short_name' => 'User',
+        'sortable_name' => 'User',
         'sis_user_id' => '1234',
         'sis_login_id' => 'blah@example.com',
-        'primary_email' => "blah@example.com",
         'login_id' => "blah@example.com",
+        'integration_id' => nil,
         'bio' => nil,
         'title' => nil,
-        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
+        'primary_email' => "blah@example.com",
         'time_zone' => 'Etc/UTC',
+        'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
+      }
+    end
+
+    it "should allow integration_id as an as_user_id" do
+      account_admin_user(:account => Account.site_admin)
+      user_with_pseudonym(:user => @user)
+      @student_pseudonym.update_attribute(:integration_id, "1234")
+      @student_pseudonym.update_attribute(:sis_user_id, "1234")
+
+      json = api_call(:get, "/api/v1/users/self/profile?as_user_id=sis_integration_id:#{@student.pseudonym.integration_id}",
+                      :controller => "profile", :action => "settings", :user_id => 'self', :format => 'json', :as_user_id => "sis_integration_id:#{@student.pseudonym.integration_id.to_param}")
+      assigns['current_user'].should == @student
+      assigns['real_current_pseudonym'].should == @pseudonym
+      assigns['real_current_user'].should == @user
+      json.should == {
+          'id' => @student.id,
+          'name' => 'User',
+          'short_name' => 'User',
+          'sortable_name' => 'User',
+          'sis_user_id' => '1234',
+          'sis_login_id' => 'blah@example.com',
+          'login_id' => "blah@example.com",
+          'integration_id' => '1234',
+          'bio' => nil,
+          'title' => nil,
+          'primary_email' => "blah@example.com",
+          'time_zone' => 'Etc/UTC',
+          'calendar' => { 'ics' => "http://www.example.com/feeds/calendars/user_#{@student.uuid}.ics" },
       }
     end
 

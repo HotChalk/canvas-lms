@@ -1,0 +1,10 @@
+.insertUpdateImage .insertUpdateImageTabpane {
+  height: 200px;
+  overflow: auto; }
+.insertUpdateImage .checkbox.inline {
+  white-space: nowrap; }
+.insertUpdateImage legend {
+  margin-bottom: 0px; }
+.insertUpdateImage legend + * {
+  margin-top: 20px;
+  -webkit-margin-collapse: separate; }

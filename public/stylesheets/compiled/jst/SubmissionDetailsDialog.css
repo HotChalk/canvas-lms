@@ -1,0 +1,75 @@
+.submission_details_dialog .more-details-link {
+  float: right;
+  font-size: 1.2em;
+  line-height: 42px; }
+.submission_details_dialog h1, .submission_details_dialog .h1 {
+  margin: 20px 0 0;
+  padding: 0 12px;
+  font-size: 23px; }
+.submission_details_dialog .submission-details {
+  padding: 10px; }
+  .submission_details_dialog .submission-details h1, .submission_details_dialog .submission-details .h1 {
+    margin: 0 -10px 15px;
+    border-bottom: 1px solid #bbbbbb; }
+  .submission_details_dialog .submission-details h2, .submission_details_dialog .submission-details h2 select, .submission_details_dialog .submission-details .h2, .submission_details_dialog .submission-details .h2 select {
+    font-size: 15px; }
+.submission_details_dialog .submission_detail {
+  font-size: 1.1em;
+  margin: 3px 0 10px; }
+.submission_details_dialog .rubric-link {
+  font-weight: bold; }
+.submission_details_dialog .submisison-attachment {
+  padding: 3px 0; }
+  .submission_details_dialog .submisison-attachment a {
+    font-size: 11px; }
+  .submission_details_dialog .submisison-attachment a.turnitin_similarity_score {
+    font-size: 10px; }
+.submission_details_dialog .submission_details_comments {
+  overflow: auto;
+  max-height: 200px;
+  border-top: 1px solid #bbbbbb;
+  padding: 0 12px;
+  position: relative;
+  background: #a3a3a3 url(/images/messages/messages-background.png) 0 0 repeat; }
+.submission_details_dialog .comment {
+  background: white;
+  clear: both;
+  border-bottom: 1px solid #cccccc;
+  padding: 10px;
+  margin: 10px 0; }
+  .submission_details_dialog .comment:last-child {
+    border-bottom: none; }
+  .submission_details_dialog .comment .middle {
+    padding-left: 69px; }
+  .submission_details_dialog .comment .avatar {
+    float: left; }
+  .submission_details_dialog .comment time {
+    float: right;
+    color: #777777;
+    font-size: 11px; }
+  .submission_details_dialog .comment address {
+    font-style: normal;
+    font-weight: bold;
+    margin: 0; }
+  .submission_details_dialog .comment .comment_attachments a {
+    padding-top: 4px; }
+
+.submission_details_add_comment_form {
+  position: relative;
+  border-top: 1px solid #bbbbbb;
+  background-color: #f2f2f2;
+  margin: 0px;
+  padding: 5px 10px; }
+  .submission_details_add_comment_form label {
+    font-weight: bold;
+    display: block; }
+  .submission_details_add_comment_form #add_a_comment {
+    width: 99%;
+    display: block; }
+  .submission_details_add_comment_form #group-comment-container {
+    float: left; }
+    .submission_details_add_comment_form #group-comment-container label {
+      display: inline;
+      font-weight: normal; }
+  .submission_details_add_comment_form .btn {
+    float: right; }

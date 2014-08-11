@@ -27,6 +27,13 @@ class SisBatch < ActiveRecord::Base
   belongs_to :batch_mode_term, :class_name => 'EnrollmentTerm'
   belongs_to :user
 
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :account_id, :batch_id, :ended_at, :errored_attempts, :workflow_state, :data, :created_at, :updated_at, :attachment_id, :processing_errors,
+    :processing_warnings, :batch_mode, :options, :user_id
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:account, :attachment, :user]
+
   before_save :limit_size_of_messages
 
   validates_presence_of :account_id, :workflow_state
@@ -139,8 +146,8 @@ class SisBatch < ActiveRecord::Base
     self.save
   end
 
-  scope :needs_processing, where(:workflow_state => 'created').order(:created_at)
-  scope :importing, where(:workflow_state => 'importing')
+  scope :needs_processing, -> { where(:workflow_state => 'created').order(:created_at) }
+  scope :importing, -> { where(:workflow_state => 'importing') }
 
   def self.process_all_for_account(account)
     loop do
@@ -217,9 +224,9 @@ class SisBatch < ActiveRecord::Base
       # delete sections who weren't in this batch, whose course was in the selected term
       scope = CourseSection.where("course_sections.workflow_state='active' AND course_sections.root_account_id=? AND course_sections.sis_batch_id IS NOT NULL AND course_sections.sis_batch_id<>?", self.account, self)
       if CANVAS_RAILS2
-        scope = scope.scoped(:joins => "INNER JOIN courses ON courses.id=COALESCE(nonxlist_course_id, course_id)", :select => "course_sections.*")
+        scope = scope.scoped(:joins => "INNER JOIN courses ON courses.id=COALESCE(nonxlist_course_id, course_id)", :select => "course_sections.id, course_sections.*")
       else
-        scope = scope.joins("INNER JOIN courses ON courses.id=COALESCE(nonxlist_course_id, course_id)").select("course_sections.*")
+        scope = scope.joins("INNER JOIN courses ON courses.id=COALESCE(nonxlist_course_id, course_id)").readonly(false)
       end
       scope = scope.where(:courses => { :enrollment_term_id => self.batch_mode_term })
       scope.find_each do |section|
@@ -231,9 +238,9 @@ class SisBatch < ActiveRecord::Base
       # delete enrollments for courses that weren't in this batch, in the selected term
 
       if CANVAS_RAILS2
-        scope = Enrollment.active.scoped(joins: :course, select: "enrollments.*")
+        scope = Enrollment.active.scoped(joins: :course, select: "enrollments.id, enrollments.*")
       else
-        scope = Enrollment.active.joins(:course).select("enrollments.*")
+        scope = Enrollment.active.joins(:course).readonly(false)
       end
 
       params = {root_account: self.account, batch: self, term: self.batch_mode_term}

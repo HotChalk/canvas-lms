@@ -1,0 +1,41 @@
+#minical {
+  background-color: #fff;
+  text-shadow: none;
+  border: 1px solid #ccc;
+  border-radius: 3px; }
+  #minical .fc-header {
+    background: none;
+    border-top: none;
+    color: #666;
+    text-shadow: none;
+    border-bottom: 1px solid #ccc; }
+    #minical .fc-header h2, #minical .fc-header .h2 {
+      color: #666; }
+  #minical thead {
+    display: none; }
+  #minical .fc-content {
+    padding: 6px; }
+    #minical .fc-content table {
+      border-spacing: 8px 2px; }
+  #minical .fc-widget-content {
+    background: none;
+    background-radius: 3px;
+    border-radius: 3px;
+    border: 1px solid #fff; }
+    #minical .fc-widget-content div {
+      min-height: 0 !important; }
+  #minical .fc-day-number {
+    line-height: 20px; }
+  #minical .fc-other-month {
+    background-image: none; }
+  #minical .fc-state-highlight {
+    background: none;
+    color: #666;
+    border-color: #fa0;
+    font-weight: bold;
+    box-shadow: none;
+    text-shadow: none; }
+  #minical .event {
+    background-color: #e4e8ed; }
+    #minical .event .fc-day-content {
+      display: none; }

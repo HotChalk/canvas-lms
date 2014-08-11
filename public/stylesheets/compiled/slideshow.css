@@ -1,0 +1,88 @@
+.slideshow_dialog {
+  border: none !important;
+  background: transparent !important;
+  -webkit-border-radius: 30px;
+  -moz-border-radius: 30px;
+  -ms-border-radius: 30px;
+  -o-border-radius: 30px;
+  border-radius: 30px;
+  box-shadow: 0 0 6px 3px rgba(0, 0, 0, 0.2); }
+  .slideshow_dialog .ui-dialog-titlebar {
+    display: none; }
+  .slideshow_dialog .ui-dialog-content {
+    background-image: url(/images/slideshow/background-slice.png);
+    background-color: #2a2a2a;
+    -webkit-border-radius: 30px;
+    -moz-border-radius: 30px;
+    -ms-border-radius: 30px;
+    -o-border-radius: 30px;
+    border-radius: 30px;
+    margin: 0;
+    padding: 24px; }
+    .slideshow_dialog .ui-dialog-content ul.slides {
+      margin: 0;
+      padding: 0;
+      height: 414px;
+      list-style: none; }
+      .slideshow_dialog .ui-dialog-content ul.slides li {
+        padding: 0 57px;
+        color: white;
+        font-size: 14px; }
+        .slideshow_dialog .ui-dialog-content ul.slides li img.icon {
+          height: 150px;
+          width: 175px;
+          margin-bottom: 24px; }
+        .slideshow_dialog .ui-dialog-content ul.slides li img.screenshot {
+          height: 280px;
+          width: 538px;
+          margin-bottom: 16px; }
+        .slideshow_dialog .ui-dialog-content ul.slides li p.large {
+          font-size: 16px; }
+        .slideshow_dialog .ui-dialog-content ul.slides li p.large_and_blue {
+          font-size: 16px;
+          color: #5eb0e4; }
+    .slideshow_dialog .ui-dialog-content div.separator {
+      margin: 16px 0;
+      padding: 0;
+      height: 3px;
+      width: 652px;
+      background-image: url(/images/slideshow/separator.png);
+      background-repeat: repeat-x; }
+    .slideshow_dialog .ui-dialog-content div.navigation {
+      margin: 0;
+      padding: 0;
+      height: 32px;
+      text-align: center; }
+      .slideshow_dialog .ui-dialog-content div.navigation a {
+        text-decoration: none;
+        padding: 0;
+        margin: 0 8px; }
+      .slideshow_dialog .ui-dialog-content div.navigation a.back {
+        float: left;
+        margin-left: 0px;
+        height: 29px;
+        width: 17px;
+        background-image: url(/images/slideshow/back.png); }
+        .slideshow_dialog .ui-dialog-content div.navigation a.back.inactive {
+          background-image: url(/images/slideshow/back-disabled.png); }
+      .slideshow_dialog .ui-dialog-content div.navigation a.forward {
+        float: left;
+        height: 29px;
+        width: 17px;
+        background-image: url(/images/slideshow/forward.png); }
+        .slideshow_dialog .ui-dialog-content div.navigation a.forward.inactive {
+          background-image: url(/images/slideshow/forward-disabled.png); }
+      .slideshow_dialog .ui-dialog-content div.navigation a.slide {
+        display: inline-block;
+        margin-top: 7px;
+        width: 14px;
+        height: 14px;
+        background-image: url(/images/slideshow/white-circle-nav.png); }
+      .slideshow_dialog .ui-dialog-content div.navigation a.current_slide {
+        background-image: url(/images/slideshow/blue-circle-nav.png); }
+      .slideshow_dialog .ui-dialog-content div.navigation a.close {
+        float: right;
+        margin-right: 0px;
+        height: 29px;
+        width: 29px;
+        background-image: url(/images/slideshow/close.png); }

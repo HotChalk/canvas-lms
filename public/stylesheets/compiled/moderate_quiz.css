@@ -1,0 +1,51 @@
+#students {
+  border-collapse: collapse; }
+  #students thead td, #students thead th {
+    border-bottom: 1px dotted #aaaaaa;
+    padding: 3px 8px;
+    font-weight: bold;
+    text-align: center; }
+  #students .student {
+    border-bottom: 1px dotted #dddddd; }
+    #students .student td, #students .student th {
+      padding: 3px 5px;
+      vertical-align: top; }
+    #students .student .number {
+      text-align: center; }
+    #students .student .time_holder {
+      color: #888888;
+      font-size: 0.8em;
+      text-align: left;
+      vertical-align: middle; }
+      #students .student .time_holder .extend_time_link {
+        display: none; }
+    #students .student .extra_time_allowed {
+      color: #888888;
+      font-size: 0.8em;
+      padding-left: 15px; }
+    #students .student .score_holder {
+      text-align: center; }
+    #students .student .links {
+      text-align: right; }
+    #students .student.in_progress .time_holder {
+      color: #222222;
+      font-size: 1.1em;
+      text-align: right;
+      padding-right: 10px; }
+    #students .student.in_progress.extendable .extend_time_link {
+      display: inline;
+      padding-left: 5px; }
+    #students .student.manually_unlocked .unlocked {
+      display: inline; }
+    #students .student:hover {
+      background-color: #eeeeee; }
+
+#moderate_student_dialog table td {
+  padding-bottom: 10px;
+  padding-right: 5px; }
+
+#extend_time_dialog table {
+  margin: 10px 20px 15px; }
+  #extend_time_dialog table th {
+    font-weight: bold;
+    padding-right: 5px; }

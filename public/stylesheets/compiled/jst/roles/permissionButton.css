@@ -1,0 +1,53 @@
+.table td.permissionButtonView {
+  position: relative; }
+  .table td.permissionButtonView .default_permission {
+    opacity: .5; }
+  .table td.permissionButtonView .icon-x {
+    color: #9B0000; }
+  .table td.permissionButtonView .icon-check {
+    color: green; }
+  .table td.permissionButtonView .btn-group {
+    margin: 0 auto;
+    width: 40px;
+    position: relative; }
+    .table td.permissionButtonView .btn-group .btn.dropdown-toggle {
+      position: relative;
+      min-width: 35px; }
+      .table td.permissionButtonView .btn-group .btn.dropdown-toggle:disabled, .table td.permissionButtonView .btn-group .btn.dropdown-toggle[disabled] {
+        background: none;
+        border: none; }
+        .table td.permissionButtonView .btn-group .btn.dropdown-toggle:disabled .icon-lock, .table td.permissionButtonView .btn-group .btn.dropdown-toggle[disabled] .icon-lock {
+          display: none; }
+  .table td.permissionButtonView .dropdown-menu {
+    text-align: left;
+    /*left: 30%;*/ }
+    .table td.permissionButtonView .dropdown-menu input[type=radio] {
+      /* Display none breaks ie so we position it off the page */
+      position: absolute;
+      left: -9999px; }
+    .table td.permissionButtonView .dropdown-menu label {
+      display: block;
+      padding: 5px; }
+    .table td.permissionButtonView .dropdown-menu span.text {
+      float: right;
+      text-align: left !important;
+      width: 110px; }
+      .table td.permissionButtonView .dropdown-menu span.text:last {
+        float: none;
+        text-align: center;
+        display: block; }
+    .table td.permissionButtonView .dropdown-menu label:hover, .table td.permissionButtonView .dropdown-menu label:focus, .table td.permissionButtonView .dropdown-menu input:checked + label {
+      text-decoration: none;
+      color: white;
+      background-color: #08C;
+      background-color: #0081C2;
+      background-image: -moz-linear-gradient(top, #0088cc, #0077b3);
+      background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#0088cc), to(#0077b3));
+      background-image: -webkit-linear-gradient(top, #0088cc, #0077b3);
+      background-image: -o-linear-gradient(top, #0088cc, #0077b3);
+      background-image: linear-gradient(to bottom, #0088cc, #0077b3);
+      background-repeat: repeat-x;
+      filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#FF0088CC', endColorstr='#FF0077B3', GradientType=0); }
+
+table#course_roles thead, table#account_roles thead {
+  background: #fff; }

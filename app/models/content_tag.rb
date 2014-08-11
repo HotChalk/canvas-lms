@@ -27,13 +27,26 @@ class ContentTag < ActiveRecord::Base
   include Workflow
   include SearchTermHelper
   belongs_to :content, :polymorphic => true
+  validates_inclusion_of :content_type, :allow_nil => true, :in => ['Attachment', 'Assignment', 'WikiPage',
+    'ContextModuleSubHeader', 'Quizzes::Quiz', 'ExternalUrl', 'LearningOutcome', 'DiscussionTopic',
+    'Rubric', 'ContextExternalTool', 'LearningOutcomeGroup', 'AssessmentQuestionBank', 'LiveAssessments::Assessment']
   belongs_to :context, :polymorphic => true
+  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'LearningOutcomeGroup',
+    'Assignment', 'Account', 'Quizzes::Quiz']
   belongs_to :associated_asset, :polymorphic => true
+  validates_inclusion_of :associated_asset_type, :allow_nil => true, :in => ['LearningOutcomeGroup']
   belongs_to :context_module
   belongs_to :learning_outcome
   # This allows doing a has_many_through relationship on ContentTags for linked LearningOutcomes. (see LearningOutcomeContext)
   belongs_to :learning_outcome_content, :class_name => 'LearningOutcome', :foreign_key => :content_id
   has_many :learning_outcome_results
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :content_id, :content_type, :context_id, :context_type, :title, :tag, :url, :created_at, :updated_at, :comments, :tag_type, :context_module_id, :position,
+    :indent, :learning_outcome_id, :context_code, :mastery_score, :rubric_association_id, :workflow_state, :cloned_item_id, :associated_asset_id, :associated_asset_type, :new_tab
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:content, :context, :associated_asset, :context_module, :learning_outcome, :learning_outcome_results, :learning_outcome_content]
   # This allows bypassing loading context for validation if we have
   # context_id and context_type set, but still allows validating when
   # context is not yet saved.
@@ -71,8 +84,8 @@ class ContentTag < ActiveRecord::Base
 
   alias_method :published?, :active?
 
-  scope :active, where(:workflow_state => 'active')
-  scope :not_deleted, where("content_tags.workflow_state<>'deleted'")
+  scope :active, -> { where(:workflow_state => 'active') }
+  scope :not_deleted, -> { where("content_tags.workflow_state<>'deleted'") }
 
   attr_accessor :skip_touch
   def touch_context_module
@@ -88,7 +101,16 @@ class ContentTag < ActiveRecord::Base
   private :touch_context_module_after_transaction
   
   def self.touch_context_modules(ids=[])
-    ContextModule.where(:id => ids).update_all(:updated_at => Time.now.utc) unless ids.empty?
+    if ids.length == 1
+      ContextModule.where(id: ids).update_all(updated_at: Time.now.utc)
+    elsif ids.empty?
+      # do nothing
+    else
+      ContextModule.transaction do
+        ContextModule.where(id: ids).order(:id).lock.pluck(:id)
+        ContextModule.where(id: ids).update_all(updated_at: Time.now.utc)
+      end
+    end
     true
   end
   
@@ -167,6 +189,10 @@ class ContentTag < ActiveRecord::Base
     (self.content_type || "").underscore
   end
 
+  def item_class
+    (self.content_type || "").gsub(/\A[A-Za-z]+::/, '') + '_' + self.content_id.to_s
+  end
+
   def assignment
     return self.content if self.content_type == 'Assignment'
     # Ugly hack to support having Reply Assignments show up in the Modules page
@@ -242,21 +268,13 @@ class ContentTag < ActiveRecord::Base
   def update_asset_workflow_state!
     return unless self.sync_workflow_state_to_asset?
     return unless self.asset_context_matches?
+    return unless self.content && self.content.respond_to?(:publish!)
 
-    new_asset_workflow_state = nil
-    if self.unpublished? && self.content.respond_to?(:unpublished?)
-      new_asset_workflow_state = 'unpublished'
-    elsif self.active?
-      if self.content.respond_to?(:active?)
-        new_asset_workflow_state = 'active'
-      elsif self.content.respond_to?(:available?)
-        new_asset_workflow_state = 'available'
-      elsif self.content.respond_to?(:published?)
-        new_asset_workflow_state = 'published'
-      end
-    end
-    if new_asset_workflow_state
-      self.content.update_attribute(:workflow_state, new_asset_workflow_state)
+    if self.unpublished? && self.content.published? && self.content.can_unpublish?
+      self.content.unpublish!
+      self.class.update_for(self.content)
+    elsif self.active? && !self.content.published?
+      self.content.publish!
       self.class.update_for(self.content)
     end
   end
@@ -398,8 +416,8 @@ class ContentTag < ActiveRecord::Base
       where(:context_type => context.class.to_s, :context_id => context)
     end
   }
-  scope :learning_outcome_alignments, where(:tag_type => 'learning_outcome')
-  scope :learning_outcome_links, where(:tag_type => 'learning_outcome_association', :associated_asset_type => 'LearningOutcomeGroup', :content_type => 'LearningOutcome')
+  scope :learning_outcome_alignments, -> { where(:tag_type => 'learning_outcome') }
+  scope :learning_outcome_links, -> { where(:tag_type => 'learning_outcome_association', :associated_asset_type => 'LearningOutcomeGroup', :content_type => 'LearningOutcome') }
 
   # only intended for learning outcome links
   def self.outcome_title_order_by_clause

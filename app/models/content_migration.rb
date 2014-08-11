@@ -20,6 +20,7 @@ class ContentMigration < ActiveRecord::Base
   include Workflow
   include TextHelper
   belongs_to :context, :polymorphic => true
+  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Account', 'Group', 'User']
   belongs_to :user
   belongs_to :attachment
   belongs_to :overview_attachment, :class_name => 'Attachment'
@@ -32,8 +33,8 @@ class ContentMigration < ActiveRecord::Base
   cattr_accessor :export_file_path
   DATE_FORMAT = "%m/%d/%Y"
 
-  attr_accessible :context, :migration_settings, :user, :source_course, :copy_options, :migration_type
-  attr_accessor :outcome_to_id_map
+  attr_accessible :context, :migration_settings, :user, :source_course, :copy_options, :migration_type, :initiated_source
+  attr_accessor :imported_migration_items, :outcome_to_id_map
 
   workflow do
     state :created
@@ -98,6 +99,14 @@ class ContentMigration < ActiveRecord::Base
 
   def strand
     migration_settings[:strand]
+  end
+
+  def initiated_source
+    migration_settings[:initiated_source] || :manual
+  end
+
+  def initiated_source=(value)
+    migration_settings[:initiated_source] = value
   end
 
   def n_strand
@@ -227,7 +236,7 @@ class ContentMigration < ActiveRecord::Base
   end
 
   def add_import_warning(item_type, item_name, warning)
-    item_name = truncate_text(item_name || "", :max_length => 150)
+    item_name = CanvasTextHelper.truncate_text(item_name || "", :max_length => 150)
     add_warning(t('errors.import_error', "Import Error: ") + "#{item_type} - \"#{item_name}\"", warning)
   end
 
@@ -286,11 +295,11 @@ class ContentMigration < ActiveRecord::Base
     p
   end
 
-  def queue_migration
+  def queue_migration(plugin=nil)
     reset_job_progress
 
     set_default_settings
-    plugin = Canvas::Plugin.find(migration_type)
+    plugin ||= Canvas::Plugin.find(migration_type)
     if plugin
       queue_opts = {:priority => Delayed::LOW_PRIORITY, :max_attempts => 1}
       if self.strand
@@ -349,7 +358,25 @@ class ContentMigration < ActiveRecord::Base
     check_quiz_id_prepender
   end
 
+  def process_domain_substitutions(url)
+    unless @domain_substitution_map
+      @domain_substitution_map = {}
+      (self.migration_settings[:domain_substitution_map] || {}).each do |k, v|
+        @domain_substitution_map[k.to_s] = v.to_s # ensure strings
+      end
+    end
+
+    @domain_substitution_map.each do |from_domain, to_domain|
+      if url.start_with?(from_domain)
+        return url.sub(from_domain, to_domain)
+      end
+    end
+
+    url
+  end
+
   def check_quiz_id_prepender
+    return unless self.context.respond_to?(:assessment_questions)
     if !migration_settings[:id_prepender] && (!migration_settings[:overwrite_questions] || !migration_settings[:overwrite_quizzes])
       # only prepend an id if the course already has some migrated questions/quizzes
       if self.context.assessment_questions.where('assessment_questions.migration_id IS NOT NULL').exists? ||
@@ -404,7 +431,8 @@ class ContentMigration < ActiveRecord::Base
       @zip_file.close
 
       migration_settings[:migration_ids_to_import] ||= {:copy=>{}}
-      self.context.import_from_migration(data, migration_settings[:migration_ids_to_import], self)
+
+      Importers.content_importer_for(self.context_type).import_content(self.context, data, migration_settings[:migration_ids_to_import], self)
 
       if !self.import_immediately?
         update_import_progress(100)
@@ -439,7 +467,7 @@ class ContentMigration < ActiveRecord::Base
   end
 
   def for_course_copy?
-    !!self.source_course || (self.migration_type && self.migration_type == 'course_copy_importer')
+    self.migration_type && self.migration_type == 'course_copy_importer'
   end
 
   def set_date_shift_options(opts)
@@ -454,10 +482,10 @@ class ContentMigration < ActiveRecord::Base
 
   scope :for_context, lambda { |context| where(:context_id => context, :context_type => context.class.to_s) }
 
-  scope :successful, where(:workflow_state => 'imported')
-  scope :running, where(:workflow_state => ['exporting', 'importing'])
-  scope :waiting, where(:workflow_state => 'exported')
-  scope :failed, where(:workflow_state => ['failed', 'pre_process_error'])
+  scope :successful, -> { where(:workflow_state => 'imported') }
+  scope :running, -> { where(:workflow_state => ['exporting', 'importing']) }
+  scope :waiting, -> { where(:workflow_state => 'exported') }
+  scope :failed, -> { where(:workflow_state => ['failed', 'pre_process_error']) }
 
   def complete?
     %w[imported failed pre_process_error].include?(workflow_state)
@@ -465,7 +493,7 @@ class ContentMigration < ActiveRecord::Base
 
   def download_exported_data
     raise "No exported data to import" unless self.exported_attachment
-    config = Setting.from_config('external_migration') || {}
+    config = ConfigFile.load('external_migration') || {}
     @exported_data_zip = self.exported_attachment.open(
       :need_local_file => true,
       :temp_folder => config[:data_folder])
@@ -506,7 +534,7 @@ class ContentMigration < ActiveRecord::Base
   def progress
     return nil if self.workflow_state == 'created'
     mig_prog = read_attribute(:progress) || 0
-    if self.source_course
+    if self.for_course_copy?
       # this is for a course copy so it needs to combine the progress of the export and import
       # The export will count for 40% of progress
       # The importing step (so the value of progress on this object)will be 60%
@@ -560,12 +588,6 @@ class ContentMigration < ActiveRecord::Base
     end
   end
 
-  # returns a list of content for selective content migrations
-  # If no section is specified the top-level areas with content are returned
-  def get_content_list(type=nil, base_url=nil)
-    Canvas::Migration::Helpers::SelectiveContentFormatter.new(self, base_url).get_content_list(type)
-  end
-
   UPLOAD_TIMEOUT = 1.hour
   def check_for_pre_processing_timeout
     if self.pre_processing? && (self.updated_at.utc + UPLOAD_TIMEOUT) < Time.now.utc
@@ -577,19 +599,70 @@ class ContentMigration < ActiveRecord::Base
   end
 
   # strips out the "id_" prepending the migration ids in the form
-  def self.process_copy_params(hash)
-    return {} if hash.blank? || !hash.is_a?(Hash)
-    hash.values.each do |sub_hash|
-      next unless sub_hash.is_a?(Hash) # e.g. second level in :copy => {:context_modules => {:id_100 => true, etc}}
+  # also converts arrays of migration ids (or real ids for course exports) into the old hash format
+  def self.process_copy_params(hash, for_content_export=false)
+    return {} if hash.blank?
+    new_hash = {}
 
-      clean_hash = {}
-      sub_hash.keys.each do |k|
-        if k.is_a?(String) && k.start_with?("id_")
-          clean_hash[k.sub("id_", "")] = sub_hash.delete(k)
+    hash.each do |key, value|
+      case value
+      when Hash # e.g. second level in :copy => {:context_modules => {:id_100 => true, etc}}
+        new_sub_hash = {}
+
+        value.each do |sub_key, sub_value|
+          if for_content_export
+            new_sub_hash[CC::CCHelper.create_key(sub_key)] = sub_value
+          elsif sub_key.is_a?(String) && sub_key.start_with?("id_")
+            new_sub_hash[sub_key.sub("id_", "")] = sub_value
+          else
+            new_sub_hash[sub_key] = sub_value
+          end
         end
+
+        new_hash[key] = new_sub_hash
+      when Array
+        # e.g. :select => {:context_modules => [100, 101]} for content exports
+        # or :select => {:context_modules => [blahblahblah, blahblahblah2]} for normal migration ids
+        sub_hash = {}
+        if for_content_export
+          asset_type = key.to_s.singularize
+          value.each do |id|
+            sub_hash[CC::CCHelper.create_key("#{asset_type}_#{id}")] = '1'
+          end
+        else
+          value.each do |id|
+            sub_hash[id] = '1'
+          end
+        end
+        new_hash[key] = sub_hash
+      else
+        new_hash[key] = value
       end
-      sub_hash.merge!(clean_hash)
     end
-    hash
+    new_hash
+  end
+
+  def imported_migration_items
+    @imported_migration_items_hash ||= {}
+    @imported_migration_items_hash.values.flatten
+  end
+
+  def imported_migration_items_by_class(klass)
+    @imported_migration_items_hash ||= {}
+    @imported_migration_items_hash[klass.name] ||= []
+  end
+
+  def add_imported_item(item)
+    arr = imported_migration_items_by_class(item.class)
+    arr << item unless arr.include?(item)
+  end
+
+  def add_external_tool_translation(migration_id, target_tool, custom_fields)
+    @external_tool_translation_map ||= {}
+    @external_tool_translation_map[migration_id] = [target_tool.id, custom_fields]
+  end
+
+  def find_external_tool_translation(migration_id)
+    @external_tool_translation_map && migration_id && @external_tool_translation_map[migration_id]
   end
 end

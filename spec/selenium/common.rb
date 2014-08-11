@@ -24,7 +24,7 @@ require 'coffee-script'
 require File.expand_path(File.dirname(__FILE__) + '/helpers/custom_selenium_rspec_matchers')
 include I18nUtilities
 
-SELENIUM_CONFIG = Setting.from_config("selenium") || {}
+SELENIUM_CONFIG = ConfigFile.load("selenium") || {}
 SERVER_IP = SELENIUM_CONFIG[:server_ip] || UDPSocket.open { |s| s.connect('8.8.8.8', 1); s.addr.last }
 BIND_ADDRESS = SELENIUM_CONFIG[:bind_address] || '0.0.0.0'
 SECONDS_UNTIL_COUNTDOWN = 5
@@ -312,9 +312,8 @@ shared_examples_for "all selenium tests" do
   end
 
   def login_as(username = "nobody@example.com", password = "asdfasdf", expect_success = true)
-    # log out (just in case)
-    driver.navigate.to(app_host + '/logout')
-
+    destroy_session(true)
+    driver.navigate.to(app_host + '/login')
     if expect_success
       expect_new_page_load { fill_in_login_form(username, password) }
       f('#identity .logout').should be_present
@@ -336,9 +335,12 @@ shared_examples_for "all selenium tests" do
     end
   end
 
-  def destroy_session(pseudonym, real_login)
+  def destroy_session(real_login)
     if real_login
-      driver.navigate.to(app_host + '/logout')
+      logout_link = f('#identity .logout a')
+      if logout_link
+        expect_new_page_load { logout_link.click() }
+      end
     else
       PseudonymSession.any_instance.unstub :session_credentials
       PseudonymSession.any_instance.unstub :record
@@ -695,7 +697,7 @@ shared_examples_for "all selenium tests" do
 
   def stub_kaltura
     # trick kaltura into being activated
-    Kaltura::ClientV3.stubs(:config).returns({
+    CanvasKaltura::ClientV3.stubs(:config).returns({
                                                  'domain' => 'www.instructuremedia.com',
                                                  'resource_domain' => 'www.instructuremedia.com',
                                                  'partner_id' => '100',
@@ -706,9 +708,9 @@ shared_examples_for "all selenium tests" do
                                                  'kcw_ui_conf' => '1',
                                                  'upload_ui_conf' => '1'
                                              })
-    kal = mock('Kaltura::ClientV3')
+    kal = mock('CanvasKaltura::ClientV3')
     kal.stubs(:startSession).returns "new_session_id_here"
-    Kaltura::ClientV3.stubs(:new).returns(kal)
+    CanvasKaltura::ClientV3.stubs(:new).returns(kal)
   end
 
   def page_view(opts={})

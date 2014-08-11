@@ -46,6 +46,11 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       'click .cancel_button': 'cancel'
     )
 
+    messages:
+      group_category_section_label: I18n.t('group_discussion_title', 'Group Discussion')
+      group_category_field_label: I18n.t('this_is_a_group_discussion', 'This is a Group Discussion')
+      group_locked_message: I18n.t('group_discussion_locked', 'Students have already submitted to this discussion, so group settings cannot be changed.')
+
     @optionProperty 'permissions'
 
     initialize: (options) ->
@@ -140,9 +145,12 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     renderGroupCategoryOptions: =>
       @groupCategorySelector = new GroupCategorySelector
         el: '#group_category_options'
-        parentModel: @assignment
+        parentModel: @model
         groupCategories: ENV.GROUP_CATEGORIES
-        nested: true
+        hideGradeIndividually: true
+        sectionLabel: @messages.group_category_section_label
+        fieldLabel: @messages.group_category_field_label
+        lockedMessage: @messages.group_locked_message
 
 #      @groupCategorySelector.render()
 
@@ -159,6 +167,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
+      unless ENV?.IS_LARGE_ROSTER
+        data = @groupCategorySelector.filterFormData data
 
       assign_data = data.assignment
       delete data.assignment
@@ -187,9 +197,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       data
 
-    updateAssignment: (model_key, data) =>
-      unless ENV?.IS_LARGE_ROSTER
-        data = @groupCategorySelector.filterFormData data
+    updateAssignment: (model_key, data) =>      
       @dueDateOverrideView.updateOverrides()
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null

@@ -1,0 +1,29 @@
+#gradebook_importer_resolution_section {
+  margin: 1em 2em; }
+  #gradebook_importer_resolution_section table {
+    border-collapse: collapse;
+    width: 100%; }
+    #gradebook_importer_resolution_section table td, #gradebook_importer_resolution_section table th {
+      border: 1px solid #eeeeee;
+      padding: 0.2em 20px; }
+  #gradebook_importer_resolution_section select {
+    text-align: center; }
+    #gradebook_importer_resolution_section select option {
+      text-align: left; }
+    #gradebook_importer_resolution_section select .new {
+      color: green; }
+    #gradebook_importer_resolution_section select .ignore {
+      color: red; }
+  #gradebook_importer_resolution_section .points_possible_section {
+    filter: progid:DXImageTransform.Microsoft.Alpha(Opacity=0);
+    opacity: 0; }
+  #gradebook_importer_resolution_section input.points_possible {
+    width: 50px; }
+
+.cell-title {
+  font-weight: bold; }
+
+#assignments_without_changes_alert {
+  color: orange;
+  font-size: 0.8em;
+  margin-left: 100px; }

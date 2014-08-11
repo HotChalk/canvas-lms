@@ -1,0 +1,8 @@
+#pageviews {
+  height: 400px;
+  width: 100%;
+  overflow-y: scroll; }
+  #pageviews table {
+    width: 100%; }
+    #pageviews table td {
+      white-space: nowrap; }
