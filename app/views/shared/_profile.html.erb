@@ -17,12 +17,16 @@
     <div class="image-block-content row-fluid">
       <% if @user_data[:can_edit_name] %>
         <h1 class="h1">
-          <span class="hide-if-editing"><%= @user_data[:short_name] %></span>
+          <span class="hide-if-editing"><%= @user_data[:name] %></span>
         </h1>
-        <label class="show-if-editing"><%= t('name', 'Name') %>: <br><input type="text" name="user[short_name]" value="<%= @user_data[:short_name] %>" required></label>
+        <label class="show-if-editing"><%= t('name', 'Name') %>: <br><input type="text" name="user[name]" value="<%= @user_data[:name] %>" required></label>
         <p>
-            <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
-            <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>"></label>
+          <span class="hide-if-editing"><%= @user_data[:short_name] %></span>
+          <label class="show-if-editing"><%= t('short_name', 'Short Name') %>: <br><input type="text" name="user_profile[short_name]" value="<%= @user_data[:short_name] %>"></label>
+        </p>
+        <p>
+          <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
+          <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>"></label>
         </p>
         <p>
           <span class="hide-if-editing"><%= @user_data[:title] %></span>
@@ -30,8 +34,11 @@
         </p>
       <% else %>
         <h1 class="h1">
-          <span><%= @user_data[:short_name] %></span>
+          <span><%= @user_data[:name] %></span>
         </h1>
+        <p>
+          <span><%= @user_data[:short_name] %></span>
+        </p>
         <p>
           <span><%= @user_data[:sortable_name] %></span>
         </p>

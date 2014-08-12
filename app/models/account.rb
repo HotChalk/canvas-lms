@@ -285,7 +285,7 @@ class Account < ActiveRecord::Base
   end
 
   def privacy_policy_url
-    Setting.get_cached('privacy_policy_url', 'http://www.hotchalk.com/privacy-policy/')
+    Setting.get('privacy_policy_url', 'http://www.hotchalk.com/privacy-policy/')
   end
 
   def terms_required?
