@@ -82,10 +82,12 @@ define [
     onMarkUnread: (e) ->
       e.preventDefault()
       @trigger('mark-unread')
+      @updateUnreadCount()
 
     onMarkRead: (e) ->
       e.preventDefault()
       @trigger('mark-read')
+      @updateUnreadCount()
 
     onForward: (e) ->
       e.preventDefault()
@@ -181,3 +183,16 @@ define [
 
     toggleSending: (shouldShow) ->
       @$sendingMessage.toggle(shouldShow)
+
+    updateUnreadCount: ->
+      # update inbox notification
+      current_unread = parseInt($("#identity .unread-messages-count").text(), 10) || 0
+      new_unread = $('.messages a.read-state:not(.read)').length
+      if(current_unread != new_unread)
+        if (new_unread <= 0)
+          $("#identity .unread-messages-count").remove()
+        else
+          if($("#identity .unread-messages-count").length > 0)
+            $("#identity .unread-messages-count").text(new_unread)
+          else
+            $("#identity .first a").append('<b class="unread-messages-count">'+new_unread+'</b>')
