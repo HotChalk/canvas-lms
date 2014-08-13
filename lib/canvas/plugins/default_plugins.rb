@@ -287,7 +287,8 @@ Canvas::Plugin.register('hotchalk', :export_system, {
         :cl_integration_key => nil,
         :cl_proxy_url => nil,
         :analytics_url => nil,
-        :worker => 'CCWorker'
+        :worker => 'CCWorker',
+        :valid_contexts => %w{Course}
     }
 })
 
