@@ -313,7 +313,9 @@ class ContentMigrationsController < ApplicationController
         return render(:json => {:message => t('must_upload_file', "File upload or url is required")}, :status => :bad_request)
       end
     end
-    source_course = lookup_sis_source_course unless params[:migration_type] == 'hotchalk'
+    unless params[:migration_type] == 'hotchalk'
+      source_course = lookup_sis_source_course
+    end
     if validator = settings[:required_options_validator]
       if res = validator.has_error(params[:settings], @current_user, @context)
         return render(:json => { :message => res.respond_to?(:call) ? res.call : res }, :status => :bad_request)
