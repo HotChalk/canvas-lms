@@ -878,7 +878,7 @@ class DiscussionTopicsController < ApplicationController
         end
       elsif (@reply_assignment = @topic.reply_assignment || (@topic.reply_assignment = @context.assignments.build)) &&
              @reply_assignment.grants_right?(@current_user, session, :update)
-        update_api_assignment(@reply_assignment, params[:reply_assignment])
+        update_api_assignment(@reply_assignment, params[:reply_assignment], @current_user)
         @reply_assignment.submission_types = 'discussion_topic'
         @reply_assignment.saved_by = :discussion_topic
         @topic.reply_assignment = @reply_assignment
