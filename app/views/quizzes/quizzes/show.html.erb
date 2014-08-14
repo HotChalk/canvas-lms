@@ -152,13 +152,13 @@
                   <%= hidden_field_tag 'quiz[locked]', false %>
                   <div id="unlock_for_how_long_dialog" title="<%= t('titles.unlock_for_how_long', "How long would you like to unlock the quiz for?") %>" style="display:none;">
                     <label style="float: left;" for="no_time_limit">
-                      <%= f.radio_button('do_lock_at', false, :checked => true) %>
-                      <%= f.label('do_lock_at_false', :no_time_limit, :en => 'No time limit') %>
+                      <%= radio_button_tag 'quiz[do_lock_at]', false, :checked => true %>
+                      <%= label_tag 'quiz_do_lock_at_false', :no_time_limit, :en => 'No time limit' %>
                     </label>
                     <label id="how_long_to_unlock_wrapper" style="float: left; margin-left: 30px;" for="until">
-                      <%= f.radio_button('do_lock_at', true, :checked => false) %>
-                      <%= f.label('do_lock_at', :available_until, :en => 'Until', :value => true) %>
-                      <%= f.text_field :lock_at, :class => "datetime_field", :style => "width: 150px;", :value => unlocalized_datetime_string(@quiz.lock_at) %>
+                      <%= radio_button_tag 'quiz[do_lock_at]', true, :checked => false %>
+                      <%= label_tag 'quiz_do_lock_at_true', :available_until, :en => 'Until', :value => true %>
+                      <%= text_field_tag 'quiz[lock_at]', unlocalized_datetime_string(@quiz.lock_at), :class => "datetime_field", :style => "width: 150px;" %>
                     </label>
                   </div>
                 <% end %>
@@ -251,6 +251,7 @@
               <%= form_for @quiz,
                            url: course_quizzes_publish_path(@context),
                            style: 'display: inline',
+                           id: 'save_draft_form',
                            method: :put do |f| %>
 
                 <%= hidden_field_tag 'quizzes[]', @quiz.id %>
@@ -350,13 +351,13 @@
                       <%= hidden_field_tag 'quiz[locked]', false %>
                       <div id="unlock_for_how_long_dialog" title="<%= t('titles.unlock_for_how_long', "How long would you like to unlock the quiz for?") %>" style="display:none;">
                         <label style="float: left;" for="no_time_limit">
-                          <%= f.radio_button('do_lock_at', false, :checked => true) %>
-                          <%= f.label('do_lock_at_false', :no_time_limit, :en => 'No time limit') %>
+                          <%= radio_button_tag 'quiz[do_lock_at]', false, :checked => true %>
+                          <%= label_tag 'quiz_do_lock_at_false', :no_time_limit, :en => 'No time limit' %>
                         </label>
                         <label id="how_long_to_unlock_wrapper" style="float: left; margin-left: 30px;" for="until">
-                          <%= f.radio_button('do_lock_at', true, :checked => false) %>
-                          <%= f.label('do_lock_at', :available_until, :en => 'Until', :value => true) %>
-                          <%= f.text_field :lock_at, :class => "datetime_field", :style => "width: 150px;", :value => unlocalized_datetime_string(@quiz.lock_at) %>
+                          <%= radio_button_tag 'quiz[do_lock_at]', true, :checked => false %>
+                          <%= label_tag 'quiz_do_lock_at_true', :available_until, :en => 'Until', :value => true %>
+                          <%= text_field_tag 'quiz[lock_at]', unlocalized_datetime_string(@quiz.lock_at), :class => "datetime_field", :style => "width: 150px;" %>
                         </label>
                       </div>
                     <% end %>
