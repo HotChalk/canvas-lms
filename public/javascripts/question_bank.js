@@ -287,11 +287,14 @@ define([
         } else {
           $dialog.find("li.message").hide();
         }
-        var template = $(this).parents(".question_holder").getTemplateData({textValues: ['question_name', 'question_text']});
+        var template = $(this).parents(".question_holder").getTemplateData({textValues: ['question_name', 'question_text', 'question_type']});
         $dialog.fillTemplateData({
           data: template
         });
         $dialog.data('question', $(this).parents(".question_holder"));
+        if (template.question_type == 'learnosity_question') {
+          $dialog.find(".question_text").hide();
+        }
         $dialog.dialog({
           width: 600,
           title: I18n.t('title.move_copy_questions', "Move/Copy Questions")

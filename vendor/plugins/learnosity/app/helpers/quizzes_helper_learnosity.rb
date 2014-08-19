@@ -31,7 +31,7 @@ module QuizzesHelperLearnosity
     if ['resume', 'review'].include? state
       @learnosity_request[:responses] = answers || {}
     end
-    render :partial => 'learnosity_question'
+    render :partial => 'quizzes/quizzes/learnosity_question'
   end
 
   def learnosity_request

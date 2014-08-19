@@ -2784,6 +2784,7 @@ define([
         var $question = $("#question_template").clone().removeAttr('id');
         var question = question_data;
         var questionData = $.extend({}, question, question.question_data);
+        if (questionData.question_type == 'learnosity_question') return;
         $teaser.after($question);
         $teaser.remove();
         $question.show();
