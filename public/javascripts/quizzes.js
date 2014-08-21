@@ -2336,6 +2336,16 @@ define([
           $div.html(question.question_data.question_text);
           question.question_text = TextHelper.truncateText($div.text(), {max: 75});
           question.question_name = question.question_data.question_name;
+          if (question.question_data.question_type == 'learnosity_question') {
+            try {
+              var learnosityObj = JSON.parse($div.text());
+              var newText = learnosityObj['stimulus'] || learnosityObj['description'] || I18n.t('errors.no_preview_available', "No preview available for this question");
+              question.question_text = TextHelper.truncateText(newText, {max: 75});
+            } catch (e) {
+              question.question_text = I18n.t('errors.no_preview_available', "No preview available CNS-622
+              Learnosity quizzes will not open under Course Question Banksfor this question")
+            }
+          }
           var $question = $findQuestionDialog.find(".found_question.blank").clone(true).removeClass('blank');
           $question.toggleClass('already_added', !!existingIDs[question.id]);
           $question.fillTemplateData({data: question});
