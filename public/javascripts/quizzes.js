@@ -2342,8 +2342,7 @@ define([
               var newText = learnosityObj['stimulus'] || learnosityObj['description'] || I18n.t('errors.no_preview_available', "No preview available for this question");
               question.question_text = TextHelper.truncateText(newText, {max: 75});
             } catch (e) {
-              question.question_text = I18n.t('errors.no_preview_available', "No preview available CNS-622
-              Learnosity quizzes will not open under Course Question Banksfor this question")
+              question.question_text = I18n.t('errors.no_preview_available', "No preview available for this question")
             }
           }
           var $question = $findQuestionDialog.find(".found_question.blank").clone(true).removeClass('blank');
