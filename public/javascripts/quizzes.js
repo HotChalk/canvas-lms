@@ -2441,6 +2441,13 @@ define([
       var url = $findQuestionDialog.find(".add_questions_url").attr('href');
       $findQuestionDialog.find("button").attr('disabled', true).filter(".submit_button").text(I18n.t('buttons.adding_questions', "Adding Questions..."));
       $.ajaxJSON(url, 'POST', params, function(question_results) {
+        if ($.grep(question_results, function(question) { return question["question_type"] == 'learnosity_question' }).length) {
+          if (window.location.hash != 'questions_tab') {
+            window.location.hash = 'questions_tab';
+          }
+          window.location.reload();
+          return;
+        }
         $findQuestionDialog.find("button").attr('disabled', false).filter(".submit_button").text(I18n.t('buttons.add_selected_questions', "Add Selected Questions"));
         $findQuestionDialog.find(".selected_side_tab").removeClass('selected_side_tab');
         var counter = 0;
