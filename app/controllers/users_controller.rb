@@ -1163,7 +1163,7 @@ class UsersController < ApplicationController
           end
 
           # Handle request for new user's email
-          if params[:pseudonym][:unique_id]
+          if params[:pseudonym] && params[:pseudonym][:unique_id]
             # If a new pseudonym is requested, build (but don't save) a pseudonym to ensure
             # that the unique_id is valid. The pseudonym will be created on approval of the
             # communication channel.
