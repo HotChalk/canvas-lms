@@ -150,7 +150,27 @@
             <% end %>
           </span>
         </td>
-      </tr><tr>
+      </tr>
+          <tr>
+              <td class="form-label"><%= f.blabel :account_program_id, :en => "Program" %></td>
+              <td>
+          <span class="course_form">
+            <% if can_do(@context.root_account, @current_user, :manage_courses) %>
+              <select name="course[account_program_id]" id="account_program_id">
+                  <% @context.root_account.account_programs.each do |program| %>
+                      <option value="<%= program.id %>" <%= 'selected' if program.id == @context.account_program_id %>><%= program.name %></option>
+                  <% end %>
+              </select>
+            <% elsif @context.account_program.present? %>
+              <%= @context.account_program.name %>
+            <% end %>
+          </span>
+                  <% if @context.account_program.present? %>
+                  <span class="course_info account_program_name"><%= @context.account_program.name %></span>
+                  <% end %>
+              </td>
+          </tr>
+      <tr>
         <td class="form-label"><%= f.blabel :enrollment_term_id, :en => "Term" %></td>
         <td>
           <span class="course_form">

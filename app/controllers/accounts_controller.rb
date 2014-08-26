@@ -454,7 +454,37 @@ class AccountsController < ApplicationController
           @account[:settings][:edit_institution_email] = value_to_boolean(can_edit_email)
         end
 
+        program_delete_problem = false
+        if account_programs = params[:account].delete(:programs)
+          @account.account_programs.each do |program|
+            # delete not present programs
+            unless account_programs.has_key? program.id.to_s
+              if program.courses.empty?
+                program.destroy
+              else
+                program_delete_problem = true
+              end
+            end
+
+            # update program names
+            account_programs.each do |program_id, program_name|
+              program.name = program_name if program_id.to_i == program.id && program_name != program.name
+            end
+          end
+
+        end
+
+        # create new programs
+        if new_programs = params[:account].delete(:new_programs)
+          new_programs.each do |new_program|
+            unless new_program['name'].empty?
+              @account.account_programs.push(AccountProgram.create!(name: new_program['name'], account: @account))
+            end
+          end
+        end
+
         if @account.update_attributes(params[:account])
+          flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted, because of course asociations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
           format.json { render :json => @account }
         else

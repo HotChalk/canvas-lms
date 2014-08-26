@@ -67,14 +67,16 @@ class Course < ActiveRecord::Base
                   :hide_distribution_graphs,
                   :lock_all_announcements,
                   :public_syllabus,
-                  :time_zone
+                  :time_zone,
+                  :account_program
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :name, :account_id, :group_weighting_scheme, :workflow_state, :uuid, :start_at, :conclude_at, :grading_standard_id, :is_public, :allow_student_wiki_edits,
     :created_at, :updated_at, :show_public_context_messages, :syllabus_body, :allow_student_forum_attachments, :default_wiki_editing_roles, :wiki_id, :allow_student_organized_groups,
     :course_code, :default_view, :root_account_id, :enrollment_term_id, :sis_source_id, :sis_batch_id, :show_all_discussion_entries, :open_enrollment, :storage_quota,
     :tab_configuration, :allow_wiki_comments, :turnitin_comments, :self_enrollment, :license, :indexed, :restrict_enrollments_to_course_dates, :template_course_id,
-    :locale, :settings, :replacement_course_id,  :public_description, :self_enrollment_code, :self_enrollment_limit, :abstract_course_id, :course_account_associations, :lti_context_id
+    :locale, :settings, :replacement_course_id,  :public_description, :self_enrollment_code, :self_enrollment_limit, :abstract_course_id, :course_account_associations, :lti_context_id,
+    :account_program_id
   ]
 
   EXPORTABLE_ASSOCIATIONS = [
@@ -82,7 +84,7 @@ class Course < ActiveRecord::Base
     :group_categories, :groups, :assignments, :assignment_groups, :calendar_events, :submissions, :discussion_topics, :discussion_entries, :announcements,
     :attachments, :folders, :wiki, :quizzes, :assessment_question_banks, :grading_standards, :web_conferences,
     :collaborations, :context_modules, :context_module_tags, :media_objects, :page_views, :asset_user_accesses, :role_overrides, :alerts,
-    :appointment_groups, :content_participation_counts
+    :appointment_groups, :content_participation_counts, :account_program
   ]
 
   time_zone_attribute :time_zone
@@ -101,6 +103,7 @@ class Course < ActiveRecord::Base
   belongs_to :root_account, :class_name => 'Account'
   belongs_to :abstract_course
   belongs_to :enrollment_term
+  belongs_to :account_program
   belongs_to :grading_standard
   belongs_to :template_course, :class_name => 'Course'
   has_many :templated_courses, :class_name => 'Course', :foreign_key => 'template_course_id'
@@ -2460,6 +2463,10 @@ class Course < ActiveRecord::Base
 
   def term_name
     self.enrollment_term.name rescue nil
+  end
+
+  def account_program_name
+    self.account_program.name rescue nil
   end
 
   def enable_user_notes

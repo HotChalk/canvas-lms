@@ -21,7 +21,7 @@ class Account < ActiveRecord::Base
   attr_accessible :name, :turnitin_account_id, :turnitin_shared_secret,
     :turnitin_host, :turnitin_comments, :turnitin_pledge,
     :default_time_zone, :parent_account, :settings, :default_storage_quota,
-    :default_storage_quota_mb, :storage_quota, :ip_filters, :default_locale,
+    :default_storage_quota_mb, :storage_quota, :ip_filters, :account_programs, :default_locale,
     :default_user_storage_quota_mb, :default_group_storage_quota_mb, :integration_id
 
   EXPORTABLE_ATTRIBUTES = [:id, :name, :created_at, :updated_at, :workflow_state, :deleted_at,
@@ -35,7 +35,7 @@ class Account < ActiveRecord::Base
   EXPORTABLE_ASSOCIATIONS = [
     :courses, :group_categories, :groups, :enrollment_terms, :enrollments, :account_users, :course_sections,
     :pseudonyms, :attachments, :folders, :active_assignments, :grading_standards, :assessment_question_banks,
-    :roles, :announcements, :alerts, :course_account_associations, :user_account_associations
+    :roles, :announcements, :alerts, :course_account_associations, :user_account_associations, :account_programs
   ]
 
   include Workflow
@@ -70,6 +70,7 @@ class Account < ActiveRecord::Base
   has_many :active_folders_detailed, :class_name => 'Folder', :as => :context, :include => [:active_sub_folders, :active_file_attachments], :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
   has_many :account_authorization_configs, :order => "position"
   has_many :account_reports
+  has_many :account_programs, :foreign_key => 'account_id'
   has_many :grading_standards, :as => :context, :conditions => ['workflow_state != ?', 'deleted']
   has_many :assessment_questions, :through => :assessment_question_banks
   has_many :assessment_question_banks, :as => :context, :include => [:assessment_questions, :assessment_question_bank_users]

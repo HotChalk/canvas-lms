@@ -205,6 +205,37 @@ TEXT
           </fieldset>
         <% end %>
 
+        <% unless @account.site_admin? %>
+            <fieldset>
+                <legend><%= t(:account_programs, "Programs")%>
+                <table class="formtable">
+                  <tbody id="programs">
+                    <tr class="program blank" style="display: none;'">
+                        <td><%= before_label(t(:program_name_label, "Name")) %></td>
+                        <td>
+                            <input type="text" name="account[new_programs][][name]" class="name" value=""/>
+                        </td>
+                        <td>
+                            <a href="#" class="delete_program_link"><i class="icon-end standalone-icon"></i></a>
+                        </td>
+                    </tr>
+                    <% (@account.account_programs || {}).each do |program| %>
+                        <tr class="program <%= raw ' blank" style="display: none;' if program.nil? %>">
+                            <td><%= before_label(t(:program_name_label, "Name")) %></td>
+                            <td>
+                                <input type="text" name="account[programs][<%= program.id %>]" class="name" value="<%= program.name %>"/>
+                            </td>
+                            <td>
+                                <a href="#" class="delete_program_link"><i class="icon-end standalone-icon"></i></a>
+                            </td>
+                        </tr>
+                    <% end %>
+                    </tbody>
+                </table>
+                <a href="#" class="icon-add add_program_link" style="font-size: 0.9em;"><%= t(:add_program_link, "Add another program") %></a>
+            </fieldset>
+        <% end %>
+
         <fieldset>
           <legend><%= t(:features_title, "Features") %></legend>
           <%= f.fields_for :settings do |settings| %>
