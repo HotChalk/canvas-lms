@@ -27,7 +27,7 @@ define([
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.doc_previews' /* loadDocPreview */,
   'jquery.inst_tree' /* instTree */,
-  'jquery.instructure_date_and_time' /* parseFromISO */,
+  'jquery.instructure_date_and_time' /* datetimeString */,
   'jquery.instructure_forms' /* formSubmit, handlesHTML5Files, ajaxFileUpload, fileData, fillFormData, formErrors */,
   'jqueryui/dialog',
   'jquery.instructure_misc_helpers' /* replaceTags, /\$\.underscore/ */,
@@ -42,6 +42,10 @@ define([
   'jqueryui/progressbar' /* /\.progressbar/ */,
   'vendor/scribd.view' /* scribd */
 ], function(_, INST, I18n, $, htmlEscape) {
+
+  if(typeof ENV.contexts === "string"){
+    ENV.contexts = $.parseJSON(ENV.contexts);
+  }
 
   var files = {};
   var fileStructureData = [];
@@ -63,15 +67,15 @@ define([
         $files_content.prepend($swfupload_holder);
         files.clearDataCache.cacheIndex = 0;
 
-        for(var idx in contexts) {
+        for(var idx in ENV.contexts) {
           var obj = {
-            context: contexts[idx],
-            context_name: contexts[idx].name,
-            context_string: contexts[idx].asset_string
+            context: ENV.contexts[idx],
+            context_name: ENV.contexts[idx].name,
+            context_string: ENV.contexts[idx].asset_string
           };
-          if(contexts[idx].asset_string) {
-            var context_type = contexts[idx].asset_string.replace(/_\d+$/, '');
-            obj[context_type] = contexts[idx];
+          if(ENV.contexts[idx].asset_string) {
+            var context_type = ENV.contexts[idx].asset_string.replace(/_\d+$/, '');
+            obj[context_type] = ENV.contexts[idx];
           }
           fileStructureData.push([
             obj, {}
@@ -1435,8 +1439,8 @@ define([
                   $(".download_zip_link").attr('href', download_folder_url);
                   $(".upload_zip_link").attr('href', $("." + data.context_string + "_import_url").attr('href') + "?return_to=" + encodeURIComponent(location.href) + "&folder_id=" + data.id);
 
-                  data.unlock_at_string = $.parseFromISO(data.unlock_at).datetime_formatted;
-                  data.lock_at_string = $.parseFromISO(data.lock_at).datetime_formatted;
+                  data.unlock_at_string = $.datetimeString(data.unlock_at);
+                  data.lock_at_string = $.datetimeString(data.lock_at);
                   $panel.find(".lock_after").showIf(data.lock_at);
                   $panel.find(".lock_until").showIf(data.unlock_at);
                   $panel.find(".currently_locked_box").showIf(data.currently_locked);
@@ -1521,8 +1525,8 @@ define([
                 // show a file control panel with file size, download link, etc.
                 var $panel = $("#file_panel");
                 var $preview = null;
-                data.unlock_at_string = $.parseFromISO(data.unlock_at).datetime_formatted;
-                data.lock_at_string = $.parseFromISO(data.lock_at).datetime_formatted;
+                data.unlock_at_string = $.datetimeString(data.unlock_at);
+                data.lock_at_string = $.datetimeString(data.lock_at);
                 $panel.find(".lock_after").showIf(data.lock_at);
                 $panel.find(".lock_until").showIf(data.unlock_at);
                 $panel.find(".currently_locked_box").showIf(data.currently_locked);
@@ -2021,8 +2025,8 @@ define([
         $("#lock_item_dialog form").hide();
 
         $form.show();
-        data.lock_at = $.parseFromISO(data.last_lock_at).datetime_formatted;
-        data.unlock_at = $.parseFromISO(data.last_unlock_at).datetime_formatted;
+        data.lock_at = $.datetimeString(data.last_lock_at, false);
+        data.unlock_at = $.datetimeString(data.last_unlock_at, false);
         data.locked = (!data.lock_at && !data.unlock_at) ? '1' : '0';
         $("#lock_item_dialog").fillTemplateData({data: {name: data.name}});
 
@@ -2149,6 +2153,9 @@ define([
           cancelImg: '/images/blank.png',
           onInit: function() {
             $add_file_link.text(I18n.t('links.add_files', "Add Files")).triggerHandler('show');
+          },
+          onFallback: function() {
+            $swfupload_holder.hide(); // hide to allow click-through to Add File link when Flash is unavailable
           },
           onSelect: fileUpload.swfFileQueue,
           onCancel: fileUpload.swfCancel,

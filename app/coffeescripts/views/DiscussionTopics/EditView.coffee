@@ -43,6 +43,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       'click .removeAttachment' : 'removeAttachment'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
       'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
+      'click .cancel_button': 'cancel'
     )
 
     @optionProperty 'permissions'
@@ -51,7 +52,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       @assignment = @model.get("assignment")
       @replyAssignment = @model.get("reply_assignment")
       @dueDateOverrideView = options.views['js-assignment-overrides']
-      @model.on 'sync', -> window.location = @get 'html_url'
+      @model.on 'sync', =>
+        @unwatchUnload()
+        window.location = @model.get 'html_url'
       super
 
     isTopic: => @model.constructor is DiscussionTopic
@@ -71,7 +74,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         canModerate: @permissions.CAN_MODERATE
         isLargeRoster: ENV?.IS_LARGE_ROSTER || false
         threaded: data.discussion_type is "threaded"
-        draftStateEnabled: ENV.DRAFT_STATE
+        draftStateEnabled: ENV.DRAFT_STATE && ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_MODERATE
       json.assignment = json.assignment.toView()
       json.reply_assignment = json.reply_assignment.toView()
       json
@@ -85,7 +88,13 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       $textarea = @$('textarea[name=message]').attr('id', _.uniqueId('discussion-topic-message'))
       _.defer ->
         $textarea.editorBox()
-        $('.rte_switch_views_link').click preventDefault -> $textarea.editorBox('toggle')
+        $('.rte_switch_views_link').click (event) ->
+          event.preventDefault()
+          event.stopPropagation()
+          $textarea.editorBox 'toggle'
+          # hide the clicked link, and show the other toggle link.
+          # todo: replace .andSelf with .addBack when JQuery is upgraded.
+          $(event.currentTarget).siblings('.rte_switch_views_link').andSelf().toggle()
       wikiSidebar.attachToEditor $textarea
 
       wikiSidebar.show()
@@ -99,10 +108,12 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
+      _.defer(@watchUnload)
 
       _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
 
       @$(".datetime_field").datetime_field()
+
 
       this
 
@@ -145,7 +156,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     getFormData: ->
       data = super
-      data.title ||= I18n.t 'default_discussion_title', 'No Title'
+      #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
 
@@ -169,7 +180,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # create assignments unless the user checked "Use for Grading".
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
-        data.assignment = {set_assignment: '0'}
+        data.assignment = @model.createAssignment(set_assignment: '0')
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
@@ -187,7 +198,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
 
       assignment = @model.get(model_key)
-      assignment or= new Assignment
+      assignment or= @model.createAssignment()
       assignment.set(data)
 
     removeAttachment: ->
@@ -215,12 +226,24 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       else
         super
 
+    cancel: (e) ->
+      e.preventDefault()
+      window.location = ENV.CANCEL_TO if ENV.CANCEL_TO?
+
     fieldSelectors: _.extend({},
       AssignmentGroupSelector::fieldSelectors,
       GroupCategorySelector::fieldSelectors
     )
 
     validateBeforeSave: (data, errors) =>
+      if data.title == ''
+        errors["title"] = [
+          message: I18n.t 'title_required', 'Title is required'
+        ]
+      if data.message == ''
+        errors["message_area"] = [
+          message: I18n.t 'message_required', 'Message is required'
+        ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
       if @isTopic() && data.set_assignment is '1'
@@ -233,7 +256,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         errors = @dueDateOverrideView.validateBeforeSave(data2, errors)
         errors = @_validatePointsPossible(data, errors)
       else
-        @model.set 'assignment', {set_assignment: false}
+        @model.set 'assignment', @model.createAssignment(set_assignment: false)
       errors
 
     _validatePointsPossible: (data, errors) =>

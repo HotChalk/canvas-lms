@@ -1,7 +1,7 @@
 <%
    @ldap_configs = @account_configs.clone
    while @ldap_configs.length < 2
-    @ldap_configs << @account.account_authorization_configs.new
+    @ldap_configs << @account.account_authorization_configs.scoped.new
     @ldap_configs.last.auth_over_tls = :start_tls
   end
    @account_config = @ldap_configs.first
@@ -17,7 +17,7 @@
       <th style="text-align: left"><%= before_label(t(:auth_type_label, "Type")) %></th>
       <th style="text-align: left"><%= t :setting_type_ldap, 'LDAP' %></th>
     </tr>
-    <%= fields_for @ldap_configs[0], :index => 0 do |f| %>
+    <%= fields_for :account_authorization_config, @ldap_configs[0], :index => 0 do |f| %>
       <%= f.hidden_field :disabled, :value => '0' %>
       <%= render :partial => 'ldap_settings_fields', :locals => { :f => f, :account_config => @ldap_configs[0] } %>
 
@@ -35,7 +35,7 @@
         <td style="vertical-align: top; width: 200px; white-space: nowrap;"><%= f.blabel :change_password_url, :en => "Forgot Password URL" %></td>
         <td style="vertical-align: top;" class="nobr">
           <%= f.text_field :change_password_url, :class => "auth_form", :style => "width: 300px;" %>
-          <div style="font-size: 0.8em;"><span class="auth_form"><%= t(:change_password_url_help, "Leave blank for default Canvas behavior") %></span></div>
+          <div style="font-size: 0.8em;"><span class="auth_form"><%= t(:change_password_url_help, "Leave blank for default HotChalk Ember behavior") %></span></div>
           <span class="auth_info auth_forgot_password_url"><%= @ldap_configs[0].change_password_url || t(:change_password_url_not_specified, "None specified") %></span>
         </td>
       </tr>
@@ -59,7 +59,7 @@
         <% end %>
       </th>
     </tr>
-    <%= fields_for @ldap_configs[1], :index => 1 do |f| %>
+    <%= fields_for :account_authorization_config, @ldap_configs[1], :index => 1 do |f| %>
       <%= f.hidden_field :disabled, :value => @ldap_configs[1].ldap_authentication? ? '0' : '1', :id => 'secondary_ldap_config_disabled' %>
       <%= render :partial => 'ldap_settings_fields', :locals => { :f => f, :account_config => @ldap_configs[1] } %>
     <% end %>
@@ -74,7 +74,7 @@
           <th><%= before_label(t(:auth_type_label, "Type")) %></th>
           <th><%= t(:secondary_ldap_label, "Secondary LDAP") %></th>
         </tr>
-        <%= fields_for aac, :index => i + 2 do |f| %>
+        <%= fields_for :account_authorization_config, aac, :index => i + 2 do |f| %>
           <%= f.hidden_field :disabled, :value => '0' %>
           <%= render :partial => 'ldap_settings_fields', :locals => { :f => f, :account_config => aac } %>
         <% end %>

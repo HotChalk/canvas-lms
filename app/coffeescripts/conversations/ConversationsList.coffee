@@ -1,10 +1,12 @@
 define [
   'i18n!conversations.conversations_list'
+  'jquery'
   'compiled/widget/ScrollableList'
   'compiled/conversations/Conversation'
   'jst/conversations/conversationItem'
   'jquery.instructure_date_and_time'
-], (I18n, ScrollableList, Conversation, conversationItemTemplate) ->
+  'jst/_avatar' # needed by conversationItem template
+], (I18n, $, ScrollableList, Conversation, conversationItemTemplate) ->
 
   class extends ScrollableList
     constructor: (@pane, $scroller) ->
@@ -58,6 +60,19 @@ define [
       @$empty.hide()
 
     updated: (conversation, $node) ->
+
+      # update inbox notification
+      current_unread = parseInt($("#identity .unread-messages-count").text(), 10) || 0
+      new_unread = $('.conversations li.unread').length
+      if(current_unread != new_unread)
+        if (new_unread <= 0) 
+          $("#identity .unread-messages-count").remove()
+        else
+          if($("#identity .unread-messages-count").length > 0)
+            $("#identity .unread-messages-count").text(new_unread)
+          else
+            $("#identity .first a").append('<b class="unread-messages-count">'+new_unread+'</b>')
+
       @emptyCheck()
       if @isActive(conversation.id) and conversation.get('workflow_state') is 'unread'
         @markAsUnread = setTimeout =>
@@ -146,7 +161,7 @@ define [
         @app.formPane.refresh() if @isActive(data.id)
 
       data.lastMessage = data[@lastMessageKey()]
-      data.lastMessageAt = $.friendlyDatetime($.parseFromISO(data[@lastMessageKey() + "_at"]).datetime)
+      data.lastMessageAt = $.friendlyDatetime($.fudgeDateForProfileTimezone(data[@lastMessageKey() + "_at"]))
       data.hideCount = data.message_count is 1
 
       classes = (property for property in data.properties)

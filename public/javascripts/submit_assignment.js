@@ -152,9 +152,11 @@ define([
       checkForHomeworkSubmissionTools();
     });
 
-    $("#switch_text_entry_submission_views").click(function(event) {
+    $(".switch_text_entry_submission_views").click(function(event) {
       event.preventDefault();
       $("#submit_online_text_entry_form textarea:first").editorBox('toggle');
+      //  todo: replace .andSelf with .addBack when JQuery is upgraded.
+      $(this).siblings(".switch_text_entry_submission_views").andSelf().toggle();
     });
 
     $(".submit_assignment_form .cancel_button").click(function() {
@@ -338,7 +340,7 @@ define([
     var width = tool.homework_submission.selection_width || tool.selection_width;
     var height = tool.homework_submission.selection_height || tool.selection_height;
     var title = tool.display_text;
-    var $div = $("<div/>", {id: "homework_selection_dialog"}).appendTo($("body"));
+    var $div = $("<div/>", {id: "homework_selection_dialog", style: "padding: 0; overflow-y: hidden;"}).appendTo($("body"));
     function invalidToolReturn(message) {
       $.flashError(I18n.t("invalid_tool_return", "The launched tool returned an invalid resource for this assignment"));
       console.log(message);

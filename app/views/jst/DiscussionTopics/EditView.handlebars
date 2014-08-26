@@ -27,14 +27,21 @@
            maxlength="254"
            class="input-block-level">
   </div>
-  <div class="control-group">
-      <div style="float: right;">
-        <a href="#" class="rte_switch_views_link">{{#t "#editor.switch_views"}}Switch Views{{/t}}</a>
-      </div>
-      <div style="clear:both;"></div>
+  <div class="control-group" name="message_area">
+    <div style="float: right;">
+      <a href="#" class="rte_switch_views_link">
+        {{#t "#editor.switch_editor_html"}}HTML Editor{{/t}}
+      </a>
+      <a href="#" class="rte_switch_views_link" style="display:none;">
+        {{#t "#editor.switch_editor_visual"}}Visual Editor{{/t}}
+      </a>
+    </div>
+    <div style="clear:both;"></div>
+    <div name="message_area">
       <textarea name="message"
                 class="input-block-level"
                 style="width: 100%; min-height: 200px;">{{convertApiUserContent message forEditing=1}}</textarea>
+    </div>
   </div>
 
 </fieldset>
@@ -88,7 +95,7 @@
                    class="datetime_field input-medium"
                    name="delayed_post_at"
                    {{! TODO: what would be the best way to get this formatted right? }}
-                   value="{{datetimeFormatted delayed_post_at}}">
+                   value="{{datetimeFormatted delayed_post_at false}}">
           </label>
         {{/if}}
         <label class="checkbox">
@@ -139,7 +146,7 @@
                    class="datetime_field input-medium"
                    name="delayed_post_at"
                    {{! TODO: what would be the best way to get this formatted right? }}
-                   value="{{datetimeFormatted delayed_post_at}}">
+                   value="{{datetimeFormatted delayed_post_at false}}">
           </div>
         </div>
       </fieldset>
@@ -153,7 +160,7 @@
                      class="datetime_field input-medium"
                      name="lock_at"
                      {{! TODO: what would be the best way to get this formatted right? }}
-                     value="{{datetimeFormatted lock_at}}">
+                     value="{{datetimeFormatted lock_at false}}">
             </div>
           </div>
         </fieldset>
@@ -239,6 +246,7 @@
 {{/if}}
 
 <div class="form-actions flush">
+  <button type="button" class="btn cancel_button">{{#t "#buttons.cancel"}}Cancel{{/t}}</button>
   <button type="submit"
           data-text-while-loading="{{#t "saving"}}Saving...{{/t}}"
           class="btn btn-primary">{{#t "save"}}Save{{/t}}</button>

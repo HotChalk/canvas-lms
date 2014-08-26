@@ -20,13 +20,14 @@ define([
   'jquery' /* $ */,
   'wikiSidebar',
   'jquery.ajaxJSON' /* ajaxJSON */,
-  'jquery.instructure_date_and_time' /* parseFromISO */,
   'jquery.instructure_forms' /* formSubmit, formErrors */,
   'jquery.instructure_misc_plugins' /* confirmDelete, fragmentChange, showIf */,
   'jquery.templateData' /* fillTemplateData */,
 ], function($, wikiSidebar) {
 
   // private variables & methods
+  var content = '';
+
   function initEditViewSecondary(){
     wikiSidebar.init();
     wikiSidebar.attachToEditor($("#wiki_page_body"));
@@ -35,6 +36,7 @@ define([
   function initShowViewSecondary(){
     $("#wiki_show_view_secondary a.edit_link").click(function(event){
       event.preventDefault();
+      content = $("#wiki_page_body").val();
       toggleView();
     });
   }
@@ -50,11 +52,14 @@ define([
     $("#wiki_edit_view_main").hide();
     $('#wiki_edit_view_main #cancel_editing').click(function(event){
       event.preventDefault();
+      $("#wiki_page_body").editorBox('set_code', content);
       toggleView();
     });
     $('#wiki_edit_view_main .wiki_switch_views_link').click(function(event) {
       event.preventDefault();
       $("#wiki_page_body").editorBox('toggle');
+      // When JQuery is upgraded, use .addBack instead of .andSelf.
+      $(this).siblings(".wiki_switch_views_link").andSelf().toggle();
     });
     if ($("a#page_doesnt_exist_so_start_editing_it_now").length) {
       $("a#page_doesnt_exist_so_start_editing_it_now").click(function(event){

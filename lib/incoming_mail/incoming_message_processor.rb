@@ -21,6 +21,8 @@ module IncomingMail
 
   class IncomingMessageProcessor
 
+    extend HtmlTextHelper
+
     class SilentIgnoreError < StandardError; end
     class ReplyFromError < StandardError; end
     class UnknownAddressError < ReplyFromError; end
@@ -72,7 +74,6 @@ module IncomingMail
       end
       body ||= utf8ify(incoming_message.body.decoded, incoming_message.charset)
       if !html_body
-        self.extend TextHelper
         html_body = format_message(body).first
       end
 
@@ -135,7 +136,7 @@ module IncomingMail
         elsif IncomingMail::DeprecatedSettings.members.map(&:to_sym).include?(key)
           Rails.logger.warn("deprecated setting sent to IncomingMessageProcessor: #{key}")
           self.deprecated_settings.send("#{key}=", value)
-        else 
+        else
           raise "unrecognized setting sent to IncomingMessageProcessor: #{key}"
         end
       end
@@ -188,8 +189,8 @@ module IncomingMail
         # old klugey stuff uses this
         when 'Precedence' then ['bulk', 'list', 'junk'].include?(field.value)
 
-        # Exchange sets this        
-        when 'X-Auto-Response-Suppress' then true 
+        # Exchange sets this
+        when 'X-Auto-Response-Suppress' then true
 
         # some other random headers I found that are easy to check
         when 'X-Autoreply', 'X-Autorespond', 'X-Autoresponder' then true
@@ -205,7 +206,7 @@ module IncomingMail
       encoding ||= 'UTF-8'
       encoding = encoding.upcase
       # change encoding; if it throws an exception (i.e. unrecognized encoding), just strip invalid UTF-8
-      Iconv.conv('UTF-8//TRANSLIT//IGNORE', encoding, string) rescue TextHelper.strip_invalid_utf8(string)
+      Iconv.conv('UTF-8//TRANSLIT//IGNORE', encoding, string) rescue Utf8Cleaner.strip_invalid_utf8(string)
     end
 
 
@@ -264,7 +265,7 @@ module IncomingMail
       return unless secure_id && outgoing_message_id
       self.process_single(message, secure_id, outgoing_message_id, account)
     rescue => e
-      ErrorReport.log_exception(error_report_category, e, 
+      ErrorReport.log_exception(error_report_category, e,
         :from => message.from.try(:first),
         :to => message.to.to_s)
     end
@@ -316,8 +317,8 @@ module IncomingMail
 
       unless outgoing_message_delivered
         # Can't use our usual mechanisms, so just try to send it once now
-        begin 
-          res = Mailer.deliver_message(outgoing_message)
+        begin
+          res = Mailer.create_message(outgoing_message).deliver
         rescue => e
           # TODO: put some kind of error logging here?
         end
@@ -331,7 +332,7 @@ module IncomingMail
       when IncomingMessageProcessor::ReplyToLockedTopicError
         ndr_subject = I18n.t('lib.incoming_message_processor.locked_topic.subject', "Message Reply Failed: %{subject}", :subject => subject)
         ndr_body = I18n.t('lib.incoming_message_processor.locked_topic.body', <<-BODY, :subject => subject).strip_heredoc
-          The message titled "%{subject}" could not be delivered because the discussion topic is locked. If you are trying to contact someone through Canvas you can try logging in to your account and sending them a message using the Inbox tool.
+          The message titled "%{subject}" could not be delivered because the discussion topic is locked. If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
 
           Thank you,
           Canvas Support

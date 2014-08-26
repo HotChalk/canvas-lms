@@ -112,6 +112,7 @@ class UserService < ActiveRecord::Base
     user_service.service_user_name = opts[:service_user_name] if opts[:service_user_name]
     user_service.service_user_url = opts[:service_user_url] if opts[:service_user_url]
     user_service.password = opts[:password] if opts[:password]
+    user_service.visible = opts[:visible] if opts[:visible]
     user_service.type = service_type(service)
     user_service.save!
     user_service
@@ -124,6 +125,7 @@ class UserService < ActiveRecord::Base
     opts[:token] = nil
     opts[:secret] = nil
     opts[:service] = params[:service]
+    opts[:visible] = params[:visible]
     case opts[:service]
       when 'delicious'
         opts[:service_domain] = "delicious.com"

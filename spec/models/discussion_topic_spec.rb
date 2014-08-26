@@ -39,7 +39,7 @@ describe DiscussionTopic do
   it "should require a valid discussion_type" do
     @topic = course_model.discussion_topics.build(:message => 'test', :discussion_type => "gesundheit")
     @topic.save.should == false
-    @topic.errors.detect { |e| e.first == 'discussion_type' }.should be_present
+    @topic.errors.detect { |e| e.first.to_s == 'discussion_type' }.should be_present
   end
 
   it "should update the assignment it is associated with" do
@@ -617,6 +617,7 @@ describe DiscussionTopic do
       # enroll as a student.
       course_with_student(:course => @course, :user => @ta, :active_enrollment => true)
       @topic.reload
+      DiscussionTopic.clear_cached_contexts
       @topic.user_can_see_posts?(@ta).should == false
     end
 

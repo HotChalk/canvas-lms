@@ -222,7 +222,7 @@ define([
             $ratingsContainers.css('height', (maxHeight - 10) + 'px');
           }
         });
-        rubricEditing.htmlBody.scrollTop(scrollTop);
+        //rubricEditing.htmlBody.scrollTop(scrollTop);
       }
     },
 
@@ -419,7 +419,7 @@ define([
 
 
   rubricEditing.init = function() {
-    var limitToOneRubric = true;
+    var limitToOneRubric = false;
     var $rubric_dialog = $("#rubric_dialog"),
         $rubric_long_description_dialog = $("#rubric_long_description_dialog");
 
@@ -438,12 +438,17 @@ define([
         .data('current_criterion', $criterion)
         .fillTemplateData({data: data, htmlValues: ( is_learning_outcome ? ['long_description'] : [] )})
         .fillFormData(data)
-        .find(".editing").showIf(editing && !$criterion.hasClass('learning_outcome_criterion')).end()
-        .find(".displaying").showIf(!editing || $criterion.hasClass('learning_outcome_criterion')).end()
+        .find(".editing").showIf(editing).end()
+        .find(".displaying").showIf(!editing).end()
         .dialog({
           title: I18n.t('titles.criterion_long_description', "Criterion Long Description"),
-          width: 400
-        }).fixDialogButtons().find("textarea:visible:first").focus().select();
+          width: 400,
+          buttons: [{ text: "Close", click: function() { $( this ).dialog( "close" ); } }]
+        }).find("textarea:visible:first").focus().select();
+
+        if(editing){
+          $rubric_long_description_dialog.fixDialogButtons();
+        }        
 
     })
     .delegate(".find_rubric_link", 'click', function(event) {
@@ -543,9 +548,7 @@ define([
       var $rubric = rubricEditing.addRubric();
       $("#rubrics").append($rubric.show());
       $rubric.find(":text:first").focus().select();
-      if(limitToOneRubric) {
-        $(".add_rubric_link").hide();
-      }
+      $(".add_rubric_link").hide();
     });
 
     $("#rubric_dialog")
@@ -714,6 +717,9 @@ define([
         $rubric.find(".rubric_table caption .title").text(data['rubric[title]']);
         $rubric.find(".rubric_total").text(data['points_possible']);
         $rubric.removeClass('editing');
+        if(!limitToOneRubric) {
+          $(".add_rubric_link").show().focus();
+        }
         if($rubric.attr('id') == 'rubric_new') {
           $rubric.attr('id', 'rubric_adding');
         } else {

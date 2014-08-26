@@ -14,9 +14,9 @@ module MigrationImport
                                       context_id: context.id).
                                 where(['id = ? OR (migration_id IS NOT NULL AND migration_id = ?)', options[:id], options[:migration_id]]).first
       topic ||= if options[:type] =~ /announcement/i
-                  context.announcements.new
+                  context.announcements.scoped.new
                 else
-                  context.discussion_topics.new
+                  context.discussion_topics.scoped.new
                 end
       topic
     end
@@ -50,7 +50,9 @@ module MigrationImport
     end
 
     private
+
     def fetch_assignment
+      return nil unless context.respond_to?(:assignments)
       if options[:assignment]
         Assignment.import_from_migration(options[:assignment], context)
       elsif options[:grading]
@@ -72,7 +74,7 @@ module MigrationImport
       if context.try_rescue(:content_migration)
         context.content_migration.add_missing_content_links(class: item.class.to_s,
           id: item.id, missing_links: options[:missing_links],
-          url: "/#{context.class.to_s.underscore.pluralize}/#{context.id}/#{item.class.to_s.underscore.pluralize}/#{item.id}")
+          url: "/#{context.class.to_s.underscore.pluralize}/#{context.id}/#{item.class.to_s.demodulize.underscore.pluralize}/#{item.id}")
       end
     end
   end

@@ -19,7 +19,7 @@ require [
         orderedBy: I18n.t('ordered_by', 'Ordered by')
         recentActivity: I18n.t('recent_activity', 'Recent Activity')
         dueDate: I18n.t('due_date', 'Due Date')
-      toggleMessage: I18n.t('toggle_message', 'toggle discussion visibility')
+      toggleMessage: I18n.t('toggle_message', 'toggle section visibility')
 
     # Public: Routes to respond to.
     routes:
@@ -85,9 +85,7 @@ require [
         pinned: !!options.pinned
         sortable: !!options.sortable
         title: @messages.lists[type]
-        orderedBy: (if _.include(['open', 'locked'], type) then @messages.help.orderedBy else null)
-        recentActivity: @messages.help.recentActivity
-        dueDate: @messages.help.dueDate
+        titleHelp: (if _.include(['open', 'locked'], type) then @messages.help.title else null)
         toggleMessage: @messages.toggleMessage
 
     # Internal: Attach events to the discussion topic collections.
@@ -161,9 +159,11 @@ require [
     #
     # Returns nothing.
     moveModel: (model) =>
-      view.collection.remove(model) for key, view of @discussions
-      @discussions[@_modelBucket(model)].collection.add(model)
+      bucket = @discussions[@_modelBucket(model)].collection
+      return if bucket == model.collection
+      model.collection.remove(model)
+      bucket.add(model)
 
   # Start up the page
-  router = new DiscussionIndexRouter
+  @router = new DiscussionIndexRouter
   Backbone.history.start()

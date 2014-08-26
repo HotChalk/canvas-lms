@@ -3,7 +3,7 @@
 body, html
   height: 100%
 body
-  +bg-image('blue/bg', 'jpg', repeat, left, top, transparent, 150px, 150px)
+  background-color: white
   min-width: $min_main_width
 
   &.no-headers, &.embedded
@@ -21,7 +21,7 @@ body
       box-shadow: none
     #content
       padding-top: 0
-  
+
   &.embedded
     #wrapper-container, #wrapper, #main
       height: 100%
@@ -113,6 +113,8 @@ body
   #right-side-wrapper
     display: block
     float: right
+  #breadcrumbs + #right-side-wrapper
+    margin-top: -28px
   #main
     margin-right: $right_side_width
   #header-inner

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -457,6 +457,26 @@ class RoleOverride < ActiveRecord::Base
           'AccountAdmin'
         ]
       },
+      :view_ember => {
+        :label => lambda { t('permissions.view_ember', "View Ember Data") },
+        :available_to => [
+          'StudentEnrollment',
+          'TaEnrollment',
+          'DesignerEnrollment',
+          'TeacherEnrollment',
+          'TeacherlessStudentEnrollment',
+          'ObserverEnrollment',
+          'AccountAdmin',
+          'AccountMembership'
+        ],
+        :true_for => [
+          'TaEnrollment',
+          'DesignerEnrollment',
+          'ObserverEnrollment',
+          'TeacherEnrollment',
+          'AccountAdmin'
+        ]
+      },
       :manage_assignments => {
         :label => lambda { t('permissions.manage_assignments', "Manage (add / edit / delete) assignments and quizzes") },
         :available_to => [
@@ -487,6 +507,16 @@ class RoleOverride < ActiveRecord::Base
       },
       :view_grade_changes => {
         :label => lambda { t('permissions.view_grade_changes', "View Grade Change Logs") },
+        :admin_tool => true,
+        :account_only => true,
+        :available_to => [
+          'AccountAdmin',
+          'AccountMembership'
+        ],
+        :true_for => [ 'AccountAdmin' ]
+      },
+      :view_course_changes => {
+        :label => lambda { t('permissions.view_course_changes', "View Course Change Logs") },
         :admin_tool => true,
         :account_only => true,
         :available_to => [
@@ -546,7 +576,6 @@ class RoleOverride < ActiveRecord::Base
       :read_reports => {
         :label => lambda { t('permissions.read_reports', "View usage reports for the course") },
         :available_to => [
-          'StudentEnrollment',
           'TaEnrollment',
           'DesignerEnrollment',
           'TeacherEnrollment',

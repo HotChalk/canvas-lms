@@ -119,8 +119,8 @@ module AuthenticationMethods
         @developer_key ||
           request.get? ||
           !allow_forgery_protection ||
-          BreachMitigation::MaskingSecrets.valid_authenticity_token?(session, form_authenticity_param) ||
-          BreachMitigation::MaskingSecrets.valid_authenticity_token?(session, request.headers['X-CSRF-Token']) ||
+          CanvasBreachMitigation::MaskingSecrets.valid_authenticity_token?(session, form_authenticity_param) ||
+          CanvasBreachMitigation::MaskingSecrets.valid_authenticity_token?(session, request.headers['X-CSRF-Token']) ||
           raise(AccessTokenError)
       end
     end
@@ -250,13 +250,13 @@ module AuthenticationMethods
     if @current_user
       render :json => {
                :status => I18n.t('lib.auth.status_unauthorized', 'unauthorized'),
-               :errors => { :message => I18n.t('lib.auth.not_authorized', "user not authorized to perform that action") }
+               :errors => [{ :message => I18n.t('lib.auth.not_authorized', "user not authorized to perform that action") }]
              },
              :status => :unauthorized
     else
       render :json => {
                :status => I18n.t('lib.auth.status_unauthenticated', 'unauthenticated'),
-               :errors => { :message => I18n.t('lib.auth.authentication_required', "user authorization required") }
+               :errors => [{ :message => I18n.t('lib.auth.authentication_required', "user authorization required") }]
              },
              :status => :unauthorized
     end
@@ -304,7 +304,7 @@ module AuthenticationMethods
     reset_session_for_login
     config = { :cas_base_url => @domain_root_account.account_authorization_config.auth_base }
     cas_client ||= CASClient::Client.new(config)
-    delegated_auth_redirect(cas_client.add_service_to_login_url(cas_login_url))
+    delegated_auth_redirect(cas_client.add_service_to_login_url(cas_login_url :account_id => @domain_root_account.id))
   end
 
   def initiate_saml_login(current_host=nil, aac=nil)
@@ -332,6 +332,6 @@ module AuthenticationMethods
   end
 
   def increment_saml_stat(key)
-    Canvas::Statsd.increment("saml.#{Canvas::Statsd.escape(request.host)}.#{key}")
+    CanvasStatsd::Statsd.increment("saml.#{CanvasStatsd::Statsd.escape(request.host)}.#{key}")
   end
 end

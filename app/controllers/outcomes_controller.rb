@@ -61,7 +61,7 @@ class OutcomesController < ApplicationController
           codes = @context.all_courses.select(:id).map(&:asset_string)
         end
       end
-      @alignments = @outcome.alignments.active.for_context(@context)
+      @alignments = @outcome.alignments.active.order(:position).for_context(@context)
       add_crumb(@outcome.short_description, named_context_url(@context, :context_outcome_url, @outcome.id))
       @results = @outcome.learning_outcome_results.for_context_codes(codes).custom_ordering(params[:sort]).paginate(:page => params[:page], :per_page => 10)
     end
@@ -184,7 +184,7 @@ class OutcomesController < ApplicationController
         elsif @result.artifact.is_a?(RubricAssessment) && @result.artifact.artifact && @result.artifact.artifact.is_a?(Submission)
           @submission = @result.artifact.artifact
           redirect_to named_context_url(@result.context, :context_assignment_submission_url, @submission.assignment_id, @submission.user_id)
-        elsif @result.artifact.is_a?(QuizSubmission) && @result.associated_asset
+        elsif @result.artifact.is_a?(Quizzes::QuizSubmission) && @result.associated_asset
           @submission = @result.artifact
           @question = @result.associated_asset
           if @submission.attempt <= @result.attempt

@@ -1,18 +1,22 @@
 <% p = asset.is_a?(Pseudonym) ? asset : asset.pseudonym %>
 
+<% define_content :link do %>
+  <a href="<%= HostUrl.protocol %>://<%= HostUrl.default_host %>">
+    <%= HostUrl.protocol %>://<%= HostUrl.default_host %>
+  </a>
+<% end %>
+
 <% define_content :subject do %>
-  <%= t :subject, "Canvas Account Created" %>
+  <%= t :subject, "HotChalk Ember Account Created" %>
 <% end %>
 
 <%= t :body, "Dear %{name},", :name => p.user.name %>
 
-Congratulations on your acceptance to Concordia University-Portland. Whether, taught online or on-ground, all courses rely upon the Canvas Learning Management System (LMS) to provide students and instructors with an enhanced communication platform (i.e., access to course materials, assignments, the gradebook, integrated e-mail, discussion board, important course-related links, etc.).
-
-Hence, as a newly enrolled user at Concordia University-Portland, you have been provided with an account to access the Canvas LMS platform. Before your courses begin we encourage you to log on and get acquainted with the platform.
+Welcome to the Canvas Learning Management System (LMS) platform.
 
 To access Canvas:
 
-   • Login to http://login.cu-portland.edu/canvas with your my.CU username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your Canvas courses.
+   • Login to <%= content :link %> with your username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your Canvas courses.
 
    • To view your courses, hover over the Courses tab at the top of the page. You will see all courses you are enrolled in that have been published.
 

@@ -24,13 +24,12 @@ require [
   assignment.urlRoot = ENV.URL_ROOT
 
   sectionList = new SectionCollection ENV.SECTION_LIST
-  if !sectionList.length
-    sectionList.add Section.defaultDueDateSection()
   dueDateList = new DueDateList assignment.get('assignment_overrides'), sectionList, assignment
 
   assignmentGroupSelector = new AssignmentGroupSelector
     parentModel: assignment
     assignmentGroups: ENV?.ASSIGNMENT_GROUPS || []
+    basePrefix: 'assignment'
   gradingTypeSelector = new GradingTypeSelector
     parentModel: assignment
   groupCategorySelector = new GroupCategorySelector
@@ -55,6 +54,6 @@ require [
         model: dueDateList
         views:
           'due-date-overrides': new DueDateListView(model: dueDateList)
-      
+
   editHeaderView.render()
   editView.render()

@@ -11,7 +11,7 @@
 %>
 
 <tr id="criterion_<%= criterion ? criterion.id : "blank" %>" class="criterion <%= "blank" unless criterion %> <%= 'ignore_criterion_for_scoring' if criterion && criterion.ignore_for_scoring %> <%= 'learning_outcome_criterion' if learning_outcome_criterion %>" style="<%= hidden unless criterion %>">
-  <td class="criterion_description hover-container">
+  <td class="criterion_description hover-container" style="min-width: 120px;">
     <div class="container">
       <div class="links editing">
         <a href="#" class="edit_criterion_link hide-till-hover"><i class="icon-edit standalone-icon"></i></a>
@@ -57,7 +57,7 @@
         <%= assessment_rating && (assessment_rating[:comments_html] ? assessment_rating[:comments_html].html_safe : assessment_rating[:comments]) %>
       </div>
     <% else %>
-      <table class="ratings" style="<%= hidden if rubric && rubric.free_form_criterion_comments %>"><tr>
+      <table class="ratings" style="table-layout: fixed; <%= hidden if rubric && rubric.free_form_criterion_comments %>"><tr>
         <% ratings = (criterion.ratings rescue nil); ratings = nil if ratings && ratings.length < 2  %>
         <% ratings ||= [OpenObject.new(:id => "blank", :description => t(:full_marks, "Full Marks"), :points => 5), OpenObject.new(:id => "blank_2", :description => t(:no_marks, "No Marks"), :points => 0)] %>
         <% ratings.each_index do |idx| %>

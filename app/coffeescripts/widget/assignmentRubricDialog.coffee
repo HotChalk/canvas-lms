@@ -33,6 +33,8 @@ define [
         modal: false
         resizable: true
         autoOpen: false
+        close: ->
+          window.location.reload()        
 
       $.get url, (html) ->
         # weird hackery because the server returns a <div id="rubrics" style="display:none">

@@ -1,7 +1,10 @@
-<label for="{{basePrefix}}_group_id" class="control-label">
-  {{#t "assignment_group"}}Assignment Group{{/t}}
-</label>
-<div class="controls">
+<div class="form-column-left no-group">
+  <label for="{{basePrefix}}_group_id">
+    {{#t "assignment_group"}}Assignment Group{{/t}}
+  </label>
+</div>
+
+<div class="form-column-right">
   <select id="{{basePrefix}}_group_id"
     name="{{#if nested}}{{basePrefix}}[assignment_group_id]{{else}}assignment_group_id{{/if}}"
     {{disabledIfIncludes frozenAttributes "assignment_group_id"}}>
@@ -9,9 +12,14 @@
       <option value="{{id}}" {{selectedIf ../assignmentGroupId this.id}}>
         {{name}}
       </option>
+    {{else}}  
+      <option value="none" {{selectedIf ../assignmentGroupId "none"}}>
+        Select a group...
+      </option>
     {{/each}}
     <option value="new">
       [ {{#t "assignment_group_options.new_group"}}New Group{{/t}} ]
     </option>
   </select>
 </div>
+

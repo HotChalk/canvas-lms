@@ -68,12 +68,13 @@ class UserList
   end
 
   def users
-    existing = @addresses.select { |a| a[:user_id] }
+    existing = @addresses.select { |a| a[:user_id] || a[:existing_user_id] }
     existing_users = Shard.partition_by_shard(existing, lambda { |a| a[:shard] } ) do |shard_existing|
+      shard_existing.each { |a| a[:user_id] = a[:existing_user_id] if !a[:user_id] && a[:existing_user_id] } 
       User.find_all_by_id(shard_existing.map { |a| a[:user_id] })
     end
 
-    non_existing = @addresses.select { |a| !a[:user_id] }
+    non_existing = @addresses.select { |a| !a[:user_id] && !a[:existing_user_id] }
     non_existing_users = non_existing.map do |a|
       user = User.new(:name => a[:name] || a[:address])
       cc = user.communication_channels.build(:path => a[:address], :path_type => 'email')
@@ -219,6 +220,13 @@ class UserList
         end
       end
     end if @search_method != :open && !emails.empty?
+
+    # Search for matching emails on the communication channels, 
+    # for users without pseudonyms  
+    emails.each do |address|
+      cc = CommunicationChannel.find_by_path(address[:address]) if !address[:user_id]
+      address[:existing_user_id] = cc.user_id if cc      
+    end unless emails.nil?        
 
     # Search for matching SMS
     smses = @addresses.select { |a| a[:type] == :sms }

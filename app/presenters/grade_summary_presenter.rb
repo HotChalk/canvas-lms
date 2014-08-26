@@ -51,7 +51,7 @@ class GradeSummaryPresenter
   end
 
   def selectable_courses
-    courses_with_grades.select do |course|
+    courses_with_grades.to_a.select do |course|
       student_enrollment = course.all_student_enrollments.find_by_user_id(student)
       student_enrollment.grants_right?(@current_user, nil, :read_grades)
     end
@@ -60,14 +60,20 @@ class GradeSummaryPresenter
   def student_enrollment
     @student_enrollment ||= begin
       if @id_param # always use id if given
-        user_id = Shard.relative_id_for(@id_param, @context.shard)
-        @context.all_student_enrollments.find_by_user_id(user_id)
+        validate_id
+        user_id = Shard.relative_id_for(@id_param, @context.shard, @context.shard)
+        @context.shard.activate { @context.all_student_enrollments.find_by_user_id(user_id) }
       elsif observed_students.present? # otherwise try to find an observed student
         observed_student
       else # or just fall back to @current_user
-        @context.all_student_enrollments.find_by_user_id(@current_user)
+        @context.shard.activate { @context.all_student_enrollments.find_by_user_id(@current_user) }
       end
     end
+  end
+
+  def validate_id
+    raise ActiveRecord::RecordNotFound if ( !@id_param.is_a?(User) && (@id_param.to_s =~ Api::ID_REGEX).nil? )
+    true
   end
 
   def student
@@ -110,7 +116,6 @@ class GradeSummaryPresenter
   def submissions
     @submissions ||= begin
       ss = @context.submissions
-      .except(:includes)
       .includes(:visible_submission_comments,
                 {:rubric_assessments => [:rubric, :rubric_association]},
                 :content_participations)
@@ -139,17 +144,25 @@ class GradeSummaryPresenter
     @submission_counts ||= @context.assignments.active
       .except(:order)
       .joins(:submissions)
+      .where("submissions.user_id in (?)", real_and_active_student_ids)
       .group("assignments.id")
       .count("submissions.id")
   end
 
   def assignment_stats
     @stats ||= @context.assignments.active
-    .except(:order)
-    .joins(:submissions)
-    .group("assignments.id")
-    .select("assignments.id, max(score) max, min(score) min, avg(score) avg")
-    .index_by(&:id)
+      .except(:order)
+      .joins(:submissions)
+      .where("submissions.user_id in (?)", real_and_active_student_ids)
+      .group("assignments.id")
+      .select("assignments.id, max(score) max, min(score) min, avg(score) avg")
+      .index_by(&:id)
+  end
+
+  def real_and_active_student_ids
+    @context.all_real_student_enrollments
+      .where("workflow_state not in (?)", ['rejected','inactive'])
+      .pluck(:user_id).uniq
   end
 
   def assignment_presenters

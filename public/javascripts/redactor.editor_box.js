@@ -31,6 +31,14 @@
 //   options.url is used for the href of the link, and options.title
 //   will be the body of the link if no text is currently selected.
 
+/*
+  Patches by Edify
+
+  Index:
+  - 01: [08/07/2014] fix duplicate error messages on embed video
+    Bug: https://hotchalk.atlassian.net/browse/CNS-536
+ */
+
 define([
   'INST',
   'i18nObj',
@@ -77,6 +85,12 @@ define([
     },
     _getEditor: function(id) {
       var textArea = this._getTextArea(id);
+      if(textArea){
+        var real_text_area = $(document).find(textArea.selector);
+        if(real_text_area.length > 0 && !real_text_area.parent().hasClass('redactor_box')){
+          return null;
+        }
+      }
       return textArea ? textArea.redactor('getObject') : null;
     },
     _getEditorBox: function(id) {
@@ -88,7 +102,7 @@ define([
 
   var $dialog = null;
 
-  var _externalToolCallback = function(toolId, toolTitle, toolWidth, toolHeight) {
+  var _externalToolCallback = function(toolId, toolTitle, toolWidth, toolHeight, editor) {
     var frameHeight = Math.max(Math.min($(window).height() - 100, 550), 100);
     if(!$dialog) {
       $dialog = $('<div id="external_tool_button_dialog" style="padding: 0; overflow-y: hidden;"/>')
@@ -183,7 +197,7 @@ define([
       .dialog('option', 'height', toolHeight || frameHeight || 400)
       .dialog('open');
     $dialog.triggerHandler('dialogresize');
-    $dialog.data('editor', this.$element);
+    $dialog.data('editor', editor);
     var url = $.replaceTags($("#context_external_tool_resource_selection_url").attr('href'), 'id', toolId);
     if (url === null || typeof url === 'undefined') {
       // if we don't have a url on the page, build one using the current context.
@@ -237,7 +251,9 @@ define([
               var urlRegex = /http:/i;
               var valid = !isSecure || !urlRegex.test(data);
               if (!valid) {
-                area.after('<label style="color: red;">Invalid video embed code</label>');
+                if($('#label_error').length == 0) {
+                  area.after('<label id="label_error" style="color: red;">Invalid video embed code</label>');
+                }
               } else {
                 this.videoInsert();
               }
@@ -256,6 +272,7 @@ define([
         imageCallback: function(buttonName, buttonDOM, buttonObj, e) {
           var editor = this;
           var selectedNode = this.getCurrent();
+          editor.selectionSave();
           require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
             new InsertUpdateImageView(editor, selectedNode);
           });
@@ -266,6 +283,10 @@ define([
     var redactorOptions = $.extend({
       autoresize: false,
       iframe: true,
+      removeEmptyTags: false,      
+      cleanSpaces: false,
+      cleanup: false,
+      invisibleSpace: '&nbsp;',
       css: '/assets/redactor-iframe.css',
       buttons: ['html', 'formatting',
           'bold', 'italic', 'underline', 'deleted',
@@ -281,8 +302,17 @@ define([
         require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
           new InsertUpdateImageView(editor, el);
         });
-      }
+      },
+      imageResizable: false
     }, options.redactorOptions || {});
+
+    if ($textarea.data('redactorCallbacks')) {
+      $.each($textarea.data('redactorCallbacks'), function(event, callback) {
+        var newCallback = {};
+        newCallback[event + 'Callback'] = callback;
+        $.extend(redactorOptions, newCallback);
+      });
+    }
 
     // Add custom editor buttons
     if (INST && INST.editorButtons) {
@@ -292,7 +322,7 @@ define([
             this.buttonAdd('extbtn' + button.id, button.name, this.invoke);
           },
           invoke: function(buttonName, buttonDOM, buttonObject, e) {
-            _externalToolCallback(button.id, button.name, button.width, button.height)
+            _externalToolCallback(button.id, button.name, button.width, button.height, $textarea)
           }
         };
         pluginsList.push('extbtn' + button.id);
@@ -439,6 +469,7 @@ define([
       } else if(options == "is_dirty") {
         return $instructureEditorBoxList._getEditor(id).isDirty();
       } else if(options == "sync") {
+        $instructureEditorBoxList._getEditor(id).observeImages();
         return $instructureEditorBoxList._getEditor(id).sync();
       }
       return this;
@@ -610,10 +641,10 @@ define([
       tinyMCE.get(id).selection.moveToBookmark(this.data('last_bookmark'));
     }
     var anchor = editor.getSelection().anchorNode;
-    while(anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
+    while(anchor && anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
       anchor = anchor.parentNode;
     }
-    if(anchor.nodeName != 'A') { anchor = null; }
+    if(anchor && anchor.nodeName != 'A') { anchor = null; }
 
     var sel = editor.getSelection();
     if(sel && sel.toString() !== '') {

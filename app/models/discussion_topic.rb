@@ -24,6 +24,7 @@ class DiscussionTopic < ActiveRecord::Base
   include HasContentTags
   include CopyAuthorizedLinks
   include TextHelper
+  include HtmlTextHelper
   include ContextModuleItem
   include SearchTermHelper
 
@@ -62,7 +63,7 @@ class DiscussionTopic < ActiveRecord::Base
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => true
   validate :validate_draft_state_change, :if => :workflow_state_changed?
 
-  sanitize_field :message, Instructure::SanitizeField::SANITIZE
+  sanitize_field :message, CanvasSanitize::SANITIZE
   copy_authorized_links(:message) { [self.context, nil] }
   acts_as_list scope: { context: self, pinned: true }
 
@@ -162,7 +163,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def draft_state_enabled?
-    context = self.context.is_a?(CollectionItem) ? self.context.collection.context : self.context
+    context = self.context
     context && context.respond_to?(:feature_enabled?) && context.feature_enabled?(:draft_state)
   end
   attr_accessor :saved_by
@@ -213,7 +214,7 @@ class DiscussionTopic < ActiveRecord::Base
     return nil unless self.old_assignment && self.old_assignment.deleted?
     self.old_assignment.workflow_state = 'published'
     self.old_assignment.saved_by = :discussion_topic
-    self.old_assignment.save(false)
+    self.old_assignment.save(:validate => false)
     self.old_assignment
   end
 
@@ -457,7 +458,8 @@ class DiscussionTopic < ActiveRecord::Base
 
   scope :before, lambda { |date| where("discussion_topics.created_at<?", date) }
 
-  scope :by_position, order("discussion_topics.position DESC, discussion_topics.created_at DESC, discussion_topics.id DESC")
+  scope :by_position, order("discussion_topics.position ASC, discussion_topics.created_at DESC, discussion_topics.id DESC")
+  scope :by_position_legacy, order("discussion_topics.position DESC, discussion_topics.created_at DESC, discussion_topics.id DESC")
   scope :by_last_reply_at, order("discussion_topics.last_reply_at DESC, discussion_topics.created_at DESC, discussion_topics.id DESC")
 
   alias_attribute :available_from, :delayed_post_at
@@ -571,9 +573,6 @@ class DiscussionTopic < ActiveRecord::Base
       false
     elsif self.assignment && self.assignment.submission_types == 'discussion_topic' && (!self.assignment.due_at || self.assignment.due_at > 1.week.from_now) # TODO: vdd
       false
-    elsif self.context.is_a?(CollectionItem)
-      # we'll only send notifications of entries to the streams, not creations of topics
-      false
     else
       true
     end
@@ -654,11 +653,11 @@ class DiscussionTopic < ActiveRecord::Base
     end
   end
 
-  def restore
+  def restore(from=nil)
     self.workflow_state = self.context.feature_enabled?(:draft_state) ? 'post_delayed' : 'active'
     self.save
 
-    if self.for_assignment? && self.root_topic_id.blank?
+    if from != :assignment && self.for_assignment? && self.root_topic_id.blank?
       self.assignment.restore(:discussion_topic)
     end
 
@@ -822,11 +821,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participants(include_observers=false)
     participants = [ self.user ]
-    if self.context.is_a?(CollectionItem)
-      participants += self.posters
-    else
-      participants += context.participants(include_observers)
-    end
+    participants += context.participants(include_observers)
     participants.compact.uniq
   end
 
@@ -930,6 +925,12 @@ class DiscussionTopic < ActiveRecord::Base
     end
   end
 
+  def clear_locked_cache(user)
+    super
+    Rails.cache.delete(assignment.locked_cache_key(user)) if assignment
+    Rails.cache.delete(root_topic.locked_cache_key(user)) if root_topic
+  end
+
   def self.process_migration(data, migration)
     process_announcements_migration(Array(data['announcements']), migration)
     process_discussion_topics_migration(Array(data['discussion_topics']), migration)
@@ -953,7 +954,8 @@ class DiscussionTopic < ActiveRecord::Base
     discussion_topics.each do |topic|
       context = Group.where(context_id: migration.context.id,
         context_type: migration.context.class.to_s,
-        migration_id: topic['group_id']).first || migration.context
+        migration_id: topic['group_id']).first if topic['group_id']
+      context ||= migration.context
       next unless context && can_import_topic?(topic, migration)
       begin
         import_from_migration(topic.merge(topic_entries_to_import: topic_entries_to_import), context)
@@ -998,7 +1000,7 @@ class DiscussionTopic < ActiveRecord::Base
     end
     media_objects = media_object_ids.empty? ? [] : MediaObject.find_all_by_media_id(media_object_ids)
     media_objects += media_object_ids.map{|id| MediaObject.new(:media_id => id) }
-    media_objects = media_objects.once_per(&:media_id)
+    media_objects = media_objects.uniq(&:media_id)
     media_objects = media_objects.map do |media_object|
       if media_object.new_record?
         media_object.context = context

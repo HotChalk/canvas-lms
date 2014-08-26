@@ -19,7 +19,7 @@
 class AssessmentQuestion < ActiveRecord::Base
   include Workflow
   attr_accessible :name, :question_data, :form_question_data
-  has_many :quiz_questions
+  has_many :quiz_questions, :class_name => 'Quizzes::QuizQuestion'
   has_many :attachments, :as => :context
   delegate :context, :context_id, :context_type, :to => :assessment_question_bank
   attr_accessor :initial_context
@@ -219,7 +219,7 @@ class AssessmentQuestion < ActiveRecord::Base
     previous_data = assessment_question.question_data rescue {}
     previous_data ||= {}
 
-    question = QuizQuestion::QuestionData.generate(
+    question = Quizzes::QuizQuestion::QuestionData.generate(
       id: qdata[:id] || previous_data[:id],
       regrade_option: qdata[:regrade_option] || previous_data[:regrade_option],
       points_possible: qdata[:points_possible] || previous_data[:points_possible],
@@ -375,19 +375,17 @@ class AssessmentQuestion < ActiveRecord::Base
     hash.delete(:question_bank_migration_id) if hash.has_key?(:question_bank_migration_id)
     context.imported_migration_items << bank if context.imported_migration_items && !context.imported_migration_items.include?(bank)
     prep_for_import(hash, context)
-    question_data = AssessmentQuestion.connection.quote hash.to_yaml
-    question_name = AssessmentQuestion.connection.quote hash[:question_name]
     if id = hash['assessment_question_id']
-      query = "UPDATE assessment_questions"
-      query += " SET name = #{question_name}, question_data = #{question_data}, workflow_state = 'active', created_at = '#{Time.now.to_s(:db)}',"
-      query += " updated_at = '#{Time.now.to_s(:db)}', assessment_question_bank_id = #{bank.id}"
-      query += " WHERE id = #{id}"
-      AssessmentQuestion.connection.execute(query)
+      AssessmentQuestion.where(id: id).update_all(name: hash[:question_name], question_data: hash.to_yaml,
+                                                  workflow_state: 'active', created_at: Time.now.utc, updated_at: Time.now.utc,
+                                                  assessment_question_bank_id: bank.id)
     else
-      query = "INSERT INTO assessment_questions (name, question_data, workflow_state, created_at, updated_at, assessment_question_bank_id, migration_id)"
-      query += " VALUES (#{question_name},#{question_data},'active', '#{Time.now.to_s(:db)}', '#{Time.now.to_s(:db)}', #{bank.id}, '#{hash[:migration_id]}')"
+      query = AssessmentQuestion.send(:sanitize_sql, [<<-SQL, hash[:question_name], hash.to_yaml, Time.now.utc, Time.now.utc, bank.id, hash[:migration_id]])
+          INSERT INTO assessment_questions (name, question_data, workflow_state, created_at, updated_at, assessment_question_bank_id, migration_id)
+          VALUES (?,?,'active',?,?,?,?)
+      SQL
       id = AssessmentQuestion.connection.insert(query, "#{name} Create",
-                                                primary_key, nil, sequence_name)
+                                                AssessmentQuestion.primary_key, nil, AssessmentQuestion.sequence_name)
       hash['assessment_question_id'] = id
     end
     if context.respond_to?(:content_migration) && context.content_migration

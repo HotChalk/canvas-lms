@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 - 2013 Instructure, Inc.
+# Copyright (C) 2011 - 2014 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -17,6 +17,8 @@
 #
 
 module Api
+  include Api::Errors::ControllerMethods
+
   # find id in collection, by either id or sis_*_id
   # if the collection is over the users table, `self` is replaced by @current_user.id
   def api_find(collection, id, options = {account: nil})
@@ -37,6 +39,25 @@ module Api
           Account.default.id
         when 'site_admin'
           Account.site_admin.id
+        else
+          id
+        end
+      end
+    end
+    if collection.table_name == EnrollmentTerm.table_name
+      current_term = nil
+      ids = ids.map do |id|
+        case id
+        when 'default'
+          @domain_root_account.default_enrollment_term
+        when 'current'
+          if !current_term
+            current_terms = @domain_root_account.enrollment_terms.active.
+                where("(start_at<=? OR start_at IS NULL) AND (end_at >=? OR end_at IS NULL) AND NOT (start_at IS NULL AND end_at IS NULL)", Time.now.utc, Time.now.utc).
+                limit(2).to_a
+            current_term = current_terms.length == 1 ? current_terms.first : :nil
+          end
+          current_term == :nil ? nil : current_term
         else
           id
         end
@@ -323,7 +344,7 @@ module Api
   end
 
   # a hash of allowed html attributes that represent urls, like { 'a' => ['href'], 'img' => ['src'] }
-  UrlAttributes = Instructure::SanitizeField::SANITIZE[:protocols].inject({}) { |h,(k,v)| h[k] = v.keys; h }
+  UrlAttributes = CanvasSanitize::SANITIZE[:protocols].inject({}) { |h,(k,v)| h[k] = v.keys; h }
 
   def api_bulk_load_user_content_attachments(htmls, context = @context, user = @current_user)
     rewriter = UserContent::HtmlRewriter.new(context, user)
@@ -522,9 +543,29 @@ module Api
     Canvas::Plugin.value_to_boolean(value)
   end
 
+  # takes a comma separated string, an array, or nil and returns an array
   def self.value_to_array(value)
-    value.is_a?(String) ? value.split(',') : value
+    value.is_a?(String) ? value.split(',') : (value || [])
   end
+
+  def self.invalid_time_stamp_error(attribute, message)
+    ErrorReport.log_error('invalid_date_time',
+                          message: "invalid #{attribute}",
+                          exception_message: message)
+  end
+
+  # regex for valid iso8601 dates
+  ISO8601_REGEX = /^(?<year>-?[0-9]{4})-
+                    (?<month>1[0-2]|0[1-9])-
+                    (?<day>3[0-1]|0[1-9]|[1-2][0-9])T
+                    (?<hour>2[0-3]|[0-1][0-9]):
+                    (?<minute>[0-5][0-9]):
+                    (?<second>60|[0-5][0-9])
+                    (?<fraction>\.[0-9]+)?
+                    (?<timezone>Z|[+-](?:2[0-3]|[0-1][0-9]):[0-5][0-9])?$/x
+
+  # regex for valid dates
+  DATE_REGEX = /^\d{4}[- \/.](0[1-9]|1[012])[- \/.](0[1-9]|[12][0-9]|3[01])$/
 
   # regex for shard-aware ID
   ID = '(?:\d+~)?\d+'
@@ -534,7 +575,7 @@ module Api
                     "WikiPage" => "Page",
                     "DiscussionTopic" => "Discussion",
                     "Assignment" => "Assignment",
-                    "Quiz" => "Quiz",
+                    "Quizzes::Quiz" => "Quiz",
                     "ContextModuleSubHeader" => "SubHeader",
                     "ExternalUrl" => "ExternalUrl",
                     "ContextExternalTool" => "ExternalTool",
@@ -648,17 +689,6 @@ module Api
 
   def accepts_jsonapi?
     !!(/application\/vnd\.api\+json/ =~ request.headers['Accept'].to_s)
-  end
-
-  # Reject the API request by halting the execution of the current handler
-  # and returning a helpful error message (and HTTP status code).
-  #
-  # @param [Fixnum] status
-  #   HTTP status code.
-  # @param [String] cause
-  #   The reason the request is rejected for.
-  def reject!(status, cause)
-    raise Api::V1::ApiError.new(status, cause)
   end
 
   # Return a template url that follows the root links key for the jsonapi.org

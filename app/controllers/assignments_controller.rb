@@ -24,7 +24,6 @@ class AssignmentsController < ApplicationController
   include Api::V1::AssignmentGroup
   include Api::V1::Outcome
 
-  include GoogleDocs
   include KalturaHelper
   before_filter :require_context
   add_crumb(proc { t '#crumbs.assignments', "Assignments" }, :except => [:destroy, :syllabus, :index]) { |c| c.send :course_assignments_path, c.instance_variable_get("@context") }
@@ -36,6 +35,7 @@ class AssignmentsController < ApplicationController
 
     if authorized_action(@context, @current_user, :read)
       return unless tab_enabled?(@context.class::TAB_ASSIGNMENTS)
+      add_crumb(t('#crumbs.assignments', "Assignments"), named_context_url(@context, :context_assignments_url))
 
       # It'd be nice to do this as an after_create, but it's not that simple
       # because of course import/copy.
@@ -79,7 +79,7 @@ class AssignmentsController < ApplicationController
           else
             format.html { redirect_to root_url }
           end
-        elsif @just_viewing_one_course && @context.assignments.new.grants_right?(@current_user, session, :update)
+        elsif @just_viewing_one_course && @context.assignments.scoped.new.grants_right?(@current_user, session, :update)
           format.html {
             render :action => :index
           }
@@ -87,6 +87,7 @@ class AssignmentsController < ApplicationController
           @current_user_submissions ||= @current_user && @current_user.submissions.
               select([:id, :assignment_id, :score, :workflow_state]).
               where(:assignment_id => @upcoming_assignments)
+          js_env(:submissions_hash => @submissions_hash)
           format.html { render :action => :student_index }
         end
         # TODO: eager load the rubric associations
@@ -132,8 +133,9 @@ class AssignmentsController < ApplicationController
       end
 
       begin
-        @google_docs_token = google_docs_retrieve_access_token
-      rescue NoTokenError
+        google_docs = GoogleDocs.new(google_docs_user, session)
+        @google_docs_token = google_docs.retrieve_access_token
+      rescue GoogleDocs::NoTokenError
         #do nothing
       end
 
@@ -163,7 +165,8 @@ class AssignmentsController < ApplicationController
     if assignment.allow_google_docs_submission? && @real_current_user.blank?
       docs = {}
       begin
-        docs = google_docs_list_with_extension_filter(assignment.allowed_extensions)
+        google_docs = GoogleDocs.new(google_docs_user, session)
+        docs = google_docs.list_with_extension_filter(assignment.allowed_extensions)
       rescue NoTokenError
         #do nothing
       rescue => e
@@ -329,12 +332,12 @@ class AssignmentsController < ApplicationController
   end
 
   def new
-    @assignment ||= @context.assignments.new
+    @assignment ||= @context.assignments.scoped.new
     @assignment.workflow_state = 'unpublished' if @context.feature_enabled?(:draft_state)
     add_crumb t :create_new_crumb, "Create new"
 
     if params[:submission_types] == 'online_quiz'
-      redirect_to new_polymorphic_url([@context, :quiz], index_edit_params)
+      redirect_to new_course_quiz_url(@context, index_edit_params)
     elsif params[:submission_types] == 'discussion_topic'
       redirect_to new_polymorphic_url([@context, :discussion_topic], index_edit_params)
     else
@@ -353,7 +356,7 @@ class AssignmentsController < ApplicationController
       @assignment.ensure_assignment_group(false)
 
       if @assignment.submission_types == 'online_quiz' && @assignment.quiz
-        return redirect_to edit_polymorphic_url([@context, @assignment.quiz], index_edit_params)
+        return redirect_to edit_course_quiz_url(@context, @assignment.quiz, index_edit_params)
       elsif @assignment.submission_types == 'discussion_topic' && @assignment.discussion_topic
         return redirect_to edit_polymorphic_url([@context, @assignment.discussion_topic], index_edit_params)
       end

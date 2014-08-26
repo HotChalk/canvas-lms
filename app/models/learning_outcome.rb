@@ -27,7 +27,7 @@ class LearningOutcome < ActiveRecord::Base
   validates_length_of :description, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :short_description, :maximum => maximum_string_length
   validates_presence_of :short_description, :workflow_state
-  sanitize_field :description, Instructure::SanitizeField::SANITIZE
+  sanitize_field :description, CanvasSanitize::SANITIZE
 
   set_policy do
     # managing a contextual outcome requires manage_outcomes on the outcome's context
@@ -74,7 +74,7 @@ class LearningOutcome < ActiveRecord::Base
     order_hash = {}
     order.each_with_index{|o, i| order_hash[o.to_i] = i; order_hash[o] = i }
     tags = self.alignments.find_all_by_context_id_and_context_type_and_tag_type(context.id, context.class.to_s, 'learning_outcome')
-    tags = tags.sort_by{|t| order_hash[t.id] || order_hash[t.content_asset_string] || SortLast }
+    tags = tags.sort_by{|t| order_hash[t.id] || order_hash[t.content_asset_string] || CanvasSort::Last }
     updates = []
     tags.each_with_index do |tag, idx|
       tag.position = idx + 1

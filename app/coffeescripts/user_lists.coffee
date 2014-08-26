@@ -135,7 +135,7 @@ define [
           )
         $.each userList.users, ->
           userDiv = $user_lists_processed_person_template.clone(true).fillTemplateData(data: this).appendTo($user_lists_processed_people)
-          userDiv.addClass("existing-user").attr "title", I18n.t("titles.existing_user", "Existing user")  if @user_id
+          userDiv.addClass("existing-user").attr "title", I18n.t("titles.existing_user", "Existing user")  if @user_id || @existing_user_id
           userDiv.show()
 
     updateCounts: ->

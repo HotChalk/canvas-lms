@@ -12,22 +12,17 @@ define [
   'compiled/views/assignments/GradingTypeSelector'
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
-  'helpers/jquery.simulate'
   'helpers/fakeENV'
+  'helpers/jquery.simulate'
 ], ($, _, SectionCollection, Assignment, DueDateList, Section,
   AssignmentGroupSelector, DueDateListView, DueDateOverrideView, EditView,
-  GradingTypeSelector, GroupCategorySelector, PeerReviewsSelector) ->
-
-
-  fixtures = $('#fixtures')
+  GradingTypeSelector, GroupCategorySelector, PeerReviewsSelector, fakeENV) ->
 
   defaultAssignmentOpts =
     name: 'Test Assignment'
     assignment_overrides: []
 
   editView = (assignmentOpts = {}) ->
-    $('<form id="content"></form>').appendTo fixtures
-
     assignmentOpts = _.extend {}, assignmentOpts, defaultAssignmentOpts
     assignment = new Assignment assignmentOpts
 
@@ -46,7 +41,6 @@ define [
       parentModel: assignment
 
     app = new EditView
-      el: '#content'
       model: assignment
       assignmentGroupSelector: assignmentGroupSelector
       gradingTypeSelector: gradingTypeSelector
@@ -62,8 +56,10 @@ define [
     app.render()
 
   module 'EditView',
+    setup: ->
+      fakeENV.setup()
     teardown: ->
-      fixtures.empty()
+      fakeENV.teardown()
 
   test 'renders', ->
     view = editView()
@@ -80,14 +76,10 @@ define [
     view = editView()
     equal view.$("#group_category_selector").length, 0
 
-    ENV.IS_LARGE_ROSTER = null
-
   test 'does not allow peer review for large rosters', ->
     ENV.IS_LARGE_ROSTER = true
     view = editView()
     equal view.$("#assignment_peer_reviews_fields").length, 0
-
-    ENV.IS_LARGE_ROSTER = null
 
   test 'adds and removes student group', ->
     ENV.GROUP_CATEGORIES = [{id: 1, name: "fun group"}]
@@ -95,38 +87,38 @@ define [
     view = editView()
     equal view.assignment.toView()['groupCategoryId'], null
 
+    #fragile spec on Firefox, Safari
     #adds student group
-    view.$('#assignment_has_group_category').click()
-    view.$('#assignment_group_category_id option:eq(0)').attr("selected", "selected")
-    equal view.getFormData()['group_category_id'], "1"
+    # view.$('#assignment_has_group_category').click()
+    # view.$('#assignment_group_category_id option:eq(0)').attr("selected", "selected")
+    # equal view.getFormData()['group_category_id'], "1"
 
     #removes student group
     view.$('#assignment_has_group_category').click()
     equal view.getFormData()['groupCategoryId'], null
 
-    ENV.GROUP_CATEGORIES = null
-    ENV.ASSIGNMENT_GROUPS = null
+  test 'renders escaped angle brackets properly', ->
+    desc = "<p>&lt;E&gt;</p>"
+    view = editView description: "<p>&lt;E&gt;</p>"
+    equal view.$description.val().match(desc), desc
 
-  test 'shows a warning when dangerously changing group status', ->
-    # bleh
-    window.addGroupCategory = ->
+  module 'EditView: group category locked',
+    setup: ->
+      fakeENV.setup()
+      window.addGroupCategory = sinon.stub()
+    teardown: ->
+      fakeENV.teardown()
+      window.addGroupCategory = null
 
-    checkWarning = (view, showsWarning) ->
-      $("#assignment_toggle_advanced_options").click()
-      equal $(".group_submission_warning").is(":visible"), false
-      $("#assignment_has_group_category").click()
-      equal $(".group_submission_warning").is(":visible"), showsWarning
-      $("#assignment_has_group_category").click()
-      equal $(".group_submission_warning").is(":visible"), false
-
-    # should warn here
+  test 'lock down group category after students submit', ->
     view = editView has_submitted_submissions: true
-    checkWarning view, true
+    ok view.$(".group_category_locked_explanation").length
+    ok view.$("#assignment_has_group_category").prop("disabled")
+    ok view.$("#assignment_group_category_id").prop("disabled")
+    ok !view.$("[type=checkbox][name=grade_group_students_individually]").prop("disabled")
 
-    # don't show the warning if you start out with a group
-    view = editView has_submitted_submissions: true, group_category_id: 1
-    checkWarning view, false
-
-    # don't show the warning if there are no submitted submissions
-    view = editView
-    checkWarning view, false
+    view = editView has_submitted_submissions: false
+    equal view.$(".group_category_locked_explanation").length, 0
+    ok !view.$("#assignment_has_group_category").prop("disabled")
+    ok !view.$("#assignment_group_category_id").prop("disabled")
+    ok !view.$("[type=checkbox][name=grade_group_students_individually]").prop("disabled")

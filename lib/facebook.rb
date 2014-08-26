@@ -30,7 +30,7 @@ module Facebook
   
   def self.dashboard_increment_count(service)
     path = "#{service.service_user_id}/apprequests"
-    msg  = I18n.t(:new_facebook_message, 'You have a new message from Canvas')
+    msg  = I18n.t(:new_facebook_message, 'You have a new message from HotChalk Ember')
     send_graph_request(path, :post, service, message: msg)
   end
   

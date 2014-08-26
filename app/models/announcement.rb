@@ -23,7 +23,7 @@ class Announcement < DiscussionTopic
   has_a_broadcast_policy
   include HasContentTags
   
-  sanitize_field :message, Instructure::SanitizeField::SANITIZE
+  sanitize_field :message, CanvasSanitize::SANITIZE
   
   before_save :infer_content
   before_save :respect_context_lock_rules
@@ -91,6 +91,10 @@ class Announcement < DiscussionTopic
   end
 
   def can_unpublish?
+    false
+  end
+
+  def draft_state_enabled?
     false
   end
 

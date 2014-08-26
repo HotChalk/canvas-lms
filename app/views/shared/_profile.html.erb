@@ -9,12 +9,12 @@
   <div class="image-block">
     <div class="image-block-image profile-avatar-wrapper">
       <% if @user_data[:can_edit] && !(@user == @current_user && @user.avatar_state == :locked) %>
-        <a href="#" class="profile-link">
-          <%= avatar_image @user_data[:id], 128 %>
+        <a href="#" class="profile-link" title="<%= t('titles.click_to_change_profile_pic', "Click to change profile pic") %>">
+          <%= square_avatar_image @user_data[:id], 128 %>
           <i class="icon-edit"></i>
         </a>
       <% else %>
-        <%= avatar_image @user_data[:id], 128 %>
+        <%= square_avatar_image @user_data[:id], 128 %>
       <% end %>
     </div>
     <div class="image-block-content row-fluid">
@@ -33,7 +33,7 @@
       <p>
         <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
         <% if @user_data[:can_edit] %>
-            <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>"></label>
+            <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>" readonly></label>
         <% end %>
       </p>
       <p>
@@ -49,7 +49,7 @@
             <div class="span6">
               <ul class="social-links">
                 <li>
-                  <label for="social_message" class="social message" title="<%= t :message_title, 'Message' %>" data-tooltip><%= t :message_me, 'message me in Canvas' %></label>
+                  <label for="social_message" class="social message" title="<%= t :message_title, 'Message' %>" data-tooltip><%= t :message_me, 'message me in HotChalk Ember' %></label>
                 </li>
                 <% @user_data[:user_services].each do |s| %>
                   <li>
@@ -74,10 +74,8 @@
       </div>
       <div class="hide-if-editing">
         <h2 class="h5 border border-b"><%= t :ways_to_contact_user, "Ways to contact %{name}", :name => @user_data[:short_name] %></h2>
-        <ul class="social-links">
-          <% if current_user_is_account_admin %>
-            <li><a href="<%= message_user_path(@user) %>" class="social message" title="<%= t :message_title, 'Message' %>" data-tooltip><%= t :message_user_canvas, 'Message %{user} in Canvas', :user => @user_data[:short_name] %></a></li>
-          <% end %>
+        <ul class="social-links">          
+          <li><a href="<%= message_user_path(@user) %>" class="social message" title="<%= t :message_title, 'Message' %>" data-tooltip><%= t :message_user_canvas, 'Message %{user} in HotChalk Ember', :user => @user_data[:short_name] %></a></li>
           <% if @user_data[:user_services].present? && @user.show_user_services %>
             <% @user_data[:user_services].select{|s| s[:visible] }.each do |s| %>
               <% service_name = s[:service_name] || s[:service].to_s.titleize %>
@@ -134,6 +132,7 @@
       </div>
 
       <% if @user_data[:can_edit] %>
+        <input type="hidden" name="delete_links" value="1">
         <div class="show-if-editing">
           <table id="edit_links_table">
             <thead>

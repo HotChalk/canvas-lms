@@ -25,6 +25,7 @@ class SisBatch < ActiveRecord::Base
   serialize :processing_warnings, Array
   belongs_to :attachment
   belongs_to :batch_mode_term, :class_name => 'EnrollmentTerm'
+  belongs_to :user
 
   before_save :limit_size_of_messages
 
@@ -36,7 +37,7 @@ class SisBatch < ActiveRecord::Base
   def self.max_attempts
     5
   end
-  
+
   def self.valid_import_types
     @valid_import_types ||= {
         "instructure_csv" => {
@@ -55,12 +56,13 @@ class SisBatch < ActiveRecord::Base
   # If you are going to change any settings on the batch before it's processed,
   # do it in the block passed into this method, so that the changes are saved
   # before the batch is marked created and eligible for processing.
-  def self.create_with_attachment(account, import_type, attachment)
+  def self.create_with_attachment(account, import_type, attachment, user = nil)
     batch = SisBatch.new
     batch.account = account
     batch.progress = 0
     batch.workflow_state = :initializing
     batch.data = {:import_type => import_type}
+    batch.user = user
     batch.save
 
     Attachment.skip_3rd_party_submits(true)
@@ -152,7 +154,7 @@ class SisBatch < ActiveRecord::Base
     self.progress = val
     SisBatch.where(:id => self).update_all(:progress=>val)
   end
-  
+
   def importing?
     self.workflow_state == 'importing' || self.workflow_state == 'created'
   end
@@ -262,7 +264,7 @@ class SisBatch < ActiveRecord::Base
   end
 
   private
-  
+
   def messages?
     (self.processing_errors && self.processing_errors.length > 0) || (self.processing_warnings && self.processing_warnings.length > 0)
   end

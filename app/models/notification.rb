@@ -17,6 +17,10 @@
 #
 
 class Notification < ActiveRecord::Base
+  unless CANVAS_RAILS2
+    self.shard_category = :unsharded
+  end
+
   include Workflow
   include TextHelper
 
@@ -170,7 +174,7 @@ class Notification < ActiveRecord::Base
         res << n if n.category && n.dashboard?
       end
     end
-    res.sort_by{|n| n.category == "Other" ? SortLast : n.category }
+    res.sort_by{|n| n.category == "Other" ? CanvasSort::Last : n.category }
   end
 
   # Return a hash with information for a related user option if one exists.
@@ -458,7 +462,7 @@ Assignment submission comment
 
 &nbsp;
 
-Check 'Mark new submission comments as read' if you don't want them to show up as 'new' in your Canvas Inbox
+Check 'Mark new submission comments as read' if you don't want them to show up as 'new' in your HotChalk Ember Inbox
 EOS
     when 'Grading Policies'
       t(:grading_policies_description, 'Course grading policy change')

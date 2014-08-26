@@ -21,12 +21,13 @@ require 'date'
 class CalendarEvent < ActiveRecord::Base
   include CopyAuthorizedLinks
   include TextHelper
+  include HtmlTextHelper
   attr_accessible :title, :description, :start_at, :end_at, :location_name,
       :location_address, :time_zone_edited, :cancel_reason,
       :participants_per_appointment, :child_event_data,
       :remove_child_events, :all_day
   attr_accessor :cancel_reason, :imported
-  sanitize_field :description, Instructure::SanitizeField::SANITIZE
+  sanitize_field :description, CanvasSanitize::SANITIZE
   copy_authorized_links(:description) { [self.effective_context, nil] }
 
   include Workflow
@@ -107,8 +108,8 @@ class CalendarEvent < ActiveRecord::Base
   scope :order_by_start_at, order(:start_at)
 
   scope :active, where("calendar_events.workflow_state<>'deleted'")
-  scope :locked, where(:workflow_state => 'locked')
-  scope :unlocked, where("calendar_events.workflow_state NOT IN ('deleted', 'locked')")
+  scope :are_locked, where(:workflow_state => 'locked')
+  scope :are_unlocked, where("calendar_events.workflow_state NOT IN ('deleted', 'locked')")
 
   # controllers/apis/etc. should generally use for_user_and_context_codes instead
   scope :for_context_codes, lambda { |codes| where(:context_code => codes) }
@@ -261,8 +262,8 @@ class CalendarEvent < ActiveRecord::Base
   def sync_child_events
     locked_changes = LOCKED_ATTRIBUTES.select { |attr| send("#{attr}_changed?") }
     cascaded_changes = CASCADED_ATTRIBUTES.select { |attr| send("#{attr}_changed?") }
-    child_events.locked.update_all Hash[locked_changes.map{ |attr| [attr, send(attr)] }] if locked_changes.present?
-    child_events.unlocked.update_all Hash[cascaded_changes.map{ |attr| [attr, send(attr)] }] if cascaded_changes.present?
+    child_events.are_locked.update_all Hash[locked_changes.map{ |attr| [attr, send(attr)] }] if locked_changes.present?
+    child_events.are_unlocked.update_all Hash[cascaded_changes.map{ |attr| [attr, send(attr)] }] if cascaded_changes.present?
   end
 
   attr_writer :skip_sync_parent_event
@@ -299,7 +300,7 @@ class CalendarEvent < ActiveRecord::Base
       self.workflow_state = 'deleted'
       self.deleted_at = Time.now.utc
       save!
-      child_events.each do |e|
+      child_events.find_each do |e|
         e.cancel_reason = cancel_reason
         e.updating_user = updating_user
         e.destroy(false)
@@ -450,7 +451,11 @@ class CalendarEvent < ActiveRecord::Base
   end
 
   def child_events_for(participant)
-    child_events.select{ |e| e.has_asset?(participant) }
+    if child_events.loaded?
+      child_events.select { |e| e.has_asset?(participant) }
+    else
+      child_events.where(context_type: participant.class.name, context_id: participant)
+    end
   end
 
   def participants_per_appointment
@@ -564,7 +569,7 @@ class CalendarEvent < ActiveRecord::Base
     else
       include Rails.application.routes.url_helpers
     end
-    include TextHelper
+    include HtmlTextHelper
 
     def initialize(event)
       @event = event
@@ -602,7 +607,7 @@ class CalendarEvent < ActiveRecord::Base
       end
 
       event.summary = @event.title
-      
+
       if @event.is_a?(CalendarEvent) && @event.description
         html = api_user_content(@event.description, @event.context)
         event.description html_to_text(html)
@@ -652,8 +657,8 @@ class CalendarEvent < ActiveRecord::Base
       end
 
       event.summary += " [#{associated_course.course_code}]" if associated_course
-     
- 
+
+
       event = nil unless start_at
       return event unless in_own_calendar
 

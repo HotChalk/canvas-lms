@@ -1,7 +1,8 @@
 define [
+  'jquery'
   'wikiSidebar'
   'redactor.editor_box'
-], (wikiSidebar) ->
+], ($, wikiSidebar) ->
 
   $.subscribe 'editorBox/focus', ($editor) ->
     wikiSidebar.init() unless wikiSidebar.inited

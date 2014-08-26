@@ -57,7 +57,7 @@
       <li><a href="#tab-alerts" id="tab-alerts-link"><%= t(:tab_alerts, "Alerts") %></a></li>
     <% end %>
     <% if can_do(@context, @current_user, :manage_feature_flags) %>
-      <li><a href="#tab-features" id="tab-features-link"><%= t(:feature_options, "Feature options") %></a></li>
+      <li><a href="#tab-features" id="tab-features-link"><%= t(:feature_options, "Feature Options") %></a></li>
     <% end %>
   </ul>
   <% if can_do(@context, @current_user, :manage_account_settings) %>
@@ -276,6 +276,15 @@ TEXT
                   <%= settings.check_box :self_registration, :checked => @account.self_registration? %>
                   <%= settings.label :self_registration, :en => "Self Registration" %>
                 </div>
+                <div id="self_registration_type_radios">
+                  <%= settings.radio_button :self_registration_type, 'all',
+                                            :checked => !(@account.settings[:self_registration_type] == 'observer') %>
+                  <%= settings.label :self_registration_type_all, :en => "All Account Types" %>
+                  <br/>
+                  <%= settings.radio_button :self_registration_type, 'observer',
+                                            :checked => @account.settings[:self_registration_type] == 'observer' %>
+                  <%= settings.label :self_registration_type_observer, :en => "Observer Accounts Only" %>
+                </div>
                 <div>
                   <%= settings.check_box :open_registration, :checked => @account.open_registration? %>
                   <%= settings.label :open_registration, :en => "Open Registration" %>
@@ -476,7 +485,7 @@ TEXT
                   "In order to make it easier for users, rather than forcing them to download " +
                   "things like Word docs, PDFs, Excel spreadsheets, and open office documents " +
                   "(In addition to requiring that those programs be installed on their on their " +
-                  "computer), in many areas throughout Canvas, it will allow you an inline " +
+                  "computer), in many areas throughout HotChalk Ember, it will allow you an inline " +
                   "preview of the document.\n\n" +
 
                   "If Scribd has been enabled for this account, it will try to use it to show the preview. " +
@@ -528,7 +537,7 @@ TEXT
 
         <% if @account.root_account? && !@account.site_admin? %>
           <h2><%= t(:email_notification_from_settings, 'E-mail Notification "From" Settings') %></h2>
-          <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from Canvas for this Account.") %></p>
+          <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from HotChalk Ember for this Account.") %></p>
           <%= f.fields_for :settings do |settings| %>
             <div>
               <%= settings.radio_button :outgoing_email_default_name_option, 'default',
@@ -571,7 +580,7 @@ TEXT
             </div>
             <div style='padding-left: 2em;'>
               <p>
-                <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in Canvas notifications.') %>
+                <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in HotChalk Ember notifications.') %>
                 <br/>
                 <%= text_field_tag 'account[settings][outgoing_email_default_name]', @account.settings[:outgoing_email_default_name] %>
               </p>
@@ -619,7 +628,7 @@ TEXT
               <tr>
                 <td>
                   <b><%= t('notifications.external_services_warning_label', 'Pop-up Message Content:') %></b>
-                  <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive Canvas course and group information outside of the institutional system.')%></blockquote>
+                  <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive HotChalk Ember course and group information outside of the institutional system.')%></blockquote>
                 </td>
               </tr>
             </table>
@@ -758,7 +767,7 @@ TEXT
             </tr>
             <% if @account.site_admin? %>
               <tr id="confirm_global_announcement_field">
-                <td colspan=2><input type="checkbox" id="confirm_global_announcement" name="confirm_global_announcement"> <%= label_tag :confirm_global_announcement, t(:confirm_global_announcement, "This announcement will be shown to *all* Canvas users. Confirm that you want to create it.", :wrapper => '<b>\1</b>') %></td>
+                <td colspan=2><input type="checkbox" id="confirm_global_announcement" name="confirm_global_announcement"> <%= label_tag :confirm_global_announcement, t(:confirm_global_announcement, "This announcement will be shown to *all* HotChalk Ember users. Confirm that you want to create it.", :wrapper => '<b>\1</b>') %></td>
               </tr>
               <tr>
                 <td colspan=2>
@@ -842,7 +851,7 @@ TEXT
           <th class="reports"><%= t 'headers.report_last_run', 'Last Run' %></th>
           <th class="reports"></th>
         </tr>
-        <% @available_reports.each do |report, details|
+        <% @available_reports.sort_by {|_, details| details[:title]}.each do |report, details|
            title = details[:title] || details
            description = details[:description]
            description_partial = details[:description_partial]

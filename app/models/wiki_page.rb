@@ -36,9 +36,14 @@ class WikiPage < ActiveRecord::Base
 
   before_save :set_revised_at
   before_validation :ensure_unique_title
+  after_save :touch_wiki_context
 
   TITLE_LENGTH = WikiPage.columns_hash['title'].limit rescue 255
   SIMPLY_VERSIONED_EXCLUDE_FIELDS = [:workflow_state, :hide_from_students, :editing_roles, :notify_of_update]
+
+  def touch_wiki_context
+    self.wiki.touch_context if self.wiki && self.wiki.context
+  end
 
   def validate_front_page_visibility
     if !published? && self.is_front_page?
@@ -48,12 +53,13 @@ class WikiPage < ActiveRecord::Base
 
   def ensure_unique_title
     return if deleted?
-    self.title ||= (self.url || "page").to_cased_title
+    to_cased_title = ->(string) { string.gsub(/[^\w]+/, " ").gsub(/\b('?[a-z])/){$1.capitalize}.strip }
+    self.title ||= to_cased_title.call(self.url || "page")
     return unless self.wiki
     # TODO i18n (see wiki.rb)
     if self.title == "Front Page" && self.new_record?
       baddies = self.wiki.wiki_pages.not_deleted.find_all_by_title("Front Page").select{|p| p.url != "front-page" }
-      baddies.each{|p| p.title = p.url.to_cased_title; p.save_without_broadcasting! }
+      baddies.each{|p| p.title = to_cased_title.call(p.url); p.save_without_broadcasting! }
     end
     if existing = self.wiki.wiki_pages.not_deleted.find_by_title(self.title)
       return if existing == self
@@ -139,7 +145,7 @@ class WikiPage < ActiveRecord::Base
     end
   end
 
-  sanitize_field :body, Instructure::SanitizeField::SANITIZE
+  sanitize_field :body, CanvasSanitize::SANITIZE
   copy_authorized_links(:body) { [self.context, self.user] }
 
   validates_each :title do |record, attr, value|
@@ -222,13 +228,9 @@ class WikiPage < ActiveRecord::Base
   def locked_for?(user, opts={})
     return false unless self.could_be_locked
     Rails.cache.fetch(locked_cache_key(user), :expires_in => 1.minute) do
-      context = opts[:context]
-      context ||= self.context if self.respond_to?(:context)
-      m = context_module_tag_for(context).context_module rescue nil
-
       locked = false
-      if (m && !m.available_for?(user))
-        locked = {:asset_string => self.asset_string, :context_module => m.attributes}
+      if item = locked_by_module_item?(user, opts[:deep_check_if_needed])
+        locked = {:asset_string => self.asset_string, :context_module => item.context_module.attributes}
         locked[:unlock_at] = locked[:context_module]["unlock_at"] if locked[:context_module]["unlock_at"]
       end
       locked
@@ -256,16 +258,17 @@ class WikiPage < ActiveRecord::Base
   end
 
   def context_module_tag_for(context)
-    @tag ||= self.context_module_tags.find_by_context_id_and_context_type(context.id, context.class.to_s)
+    @tag ||= self.context_module_tags.where(context_id: context, context_type: context.class.base_ar_class.name).first
   end
 
   def context_module_action(user, context, action)
-    tag = self.context_module_tags.find_by_context_id_and_context_type(context.id, context.class.to_s)
-    tag.context_module_action(user, action) if tag
+    self.context_module_tags.where(context_id: context, context_type: context.class.base_ar_class.name).each do |tag|
+      tag.context_module_action(user, action)
+    end
   end
 
   set_policy do
-    given {|user, session| self.wiki.grants_right?(user, session, :read) && can_read_page?(user, session)}
+    given {|user, session| self.can_read_page?(user, session)}
     can :read
 
     given {|user, session| self.can_edit_page?(user)}
@@ -280,35 +283,51 @@ class WikiPage < ActiveRecord::Base
     given {|user, session| user && self.can_edit_page?(user) && self.wiki.grants_right?(user, session, :update_page)}
     can :update and can :read_revisions
 
-    given {|user, session| user && self.can_edit_page?(user) && self.active? && self.wiki.grants_right?(user, session, :update_page_content)}
+    given {|user, session| user && self.can_edit_page?(user) && self.published? && self.wiki.grants_right?(user, session, :update_page_content)}
     can :update_content and can :read_revisions
 
-    given {|user, session| user && self.can_edit_page?(user) && self.active? && self.wiki.grants_right?(user, session, :delete_page)}
+    given {|user, session| user && self.can_edit_page?(user) && self.published? && self.wiki.grants_right?(user, session, :delete_page)}
     can :delete
 
-    given {|user, session| user && self.can_edit_page?(user) && self.workflow_state == 'unpublished' && self.wiki.grants_right?(user, session, :delete_unpublished_page)}
+    given {|user, session| user && self.can_edit_page?(user) && self.unpublished? && self.wiki.grants_right?(user, session, :delete_unpublished_page)}
     can :delete
   end
 
   def can_read_page?(user, session=nil)
-    self.wiki.grants_right?(user, session, :manage) || (self.active?)
+    return true if self.wiki.grants_right?(user, session, :manage)
+    return true if self.unpublished? && self.wiki.grants_right?(user, session, :view_unpublished_items)
+    self.published? && self.wiki.grants_right?(user, session, :read)
   end
 
   def can_edit_page?(user, session=nil)
-    context_roles = context.default_wiki_editing_roles rescue nil
-    roles = (editing_roles || context_roles || default_roles).split(",")
-    roles.clear if roles == %w(teachers) # "Only teachers" option doesn't grant rights excluded by RoleOverrides
-
-    # managers are always allowed to edit
+    # wiki managers are always allowed to edit
     return true if wiki.grants_right?(user, session, :manage)
 
+    roles = effective_roles
+    # teachers implies all course admins (teachers, TAs, etc)
     return true if roles.include?('teachers') && context.respond_to?(:admins) && context.admins.include?(user)
-    # the remaining edit roles all require read access, so just check here
-    return false unless can_read_page?(user, session) && !self.locked_for?(user)
+
+    # the page must be available for users of the following roles
+    return false unless available_for?(user, session)
     return true if roles.include?('students') && context.respond_to?(:students) && context.includes_student?(user)
     return true if roles.include?('members') && context.respond_to?(:users) && context.users.include?(user)
     return true if roles.include?('public')
     false
+  end
+
+  def effective_roles
+    context_roles = context.default_wiki_editing_roles rescue nil
+    roles = (editing_roles || context_roles || default_roles).split(',')
+    roles == %w(teachers) ? [] : roles # "Only teachers" option doesn't grant rights excluded by RoleOverrides
+  end
+
+  def available_for?(user, session=nil)
+    return true if wiki.grants_right?(user, session, :manage)
+
+    return false unless published? || (unpublished? && wiki.grants_right?(user, session, :view_unpublished_items))
+    return false if locked_for?(user)
+
+    true
   end
 
   def default_roles

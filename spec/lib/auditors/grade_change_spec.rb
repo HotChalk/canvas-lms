@@ -20,7 +20,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../../sharding_spec_helper.r
 require File.expand_path(File.dirname(__FILE__) + '/../../cassandra_spec_helper')
 
 describe GradeChangeAuditApiController do
-  it_should_behave_like "cassandra audit logs"
+  include_examples "cassandra audit logs"
 
   before do
     RequestContextGenerator.stubs( :request_id => 'xyz' )
@@ -34,11 +34,13 @@ describe GradeChangeAuditApiController do
 
     @assignment = @course.assignments.create!(:title => 'Assignment', :points_possible => 10)
     @submission = @assignment.grade_student(@student, grade: 8, grader: @teacher).first
-    @event = Auditors::GradeChange.record(@submission)
+    @event_time = Time.parse('2014-04-15T10:37:20Z')
+    Timecop.freeze(@event_time) { @event = Auditors::GradeChange.record(@submission) }
   end
 
   context "nominal cases" do
     it "should include event" do
+      @event.created_at.should == @event_time
       Auditors::GradeChange.for_assignment(@assignment).paginate(:per_page => 5).should include(@event)
       Auditors::GradeChange.for_course(@course).paginate(:per_page => 5).should include(@event)
       Auditors::GradeChange.for_root_account_student(@account, @student).paginate(:per_page => 5).should include(@event)

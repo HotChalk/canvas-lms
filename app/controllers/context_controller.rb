@@ -46,6 +46,8 @@ class ContextController < ApplicationController
     @show_left_side = false
     @show_right_side = false
     @media_object = MediaObject.by_media_id(params[:id]).first
+    js_env(MEDIA_OBJECT_ID: params[:id],
+           MEDIA_OBJECT_TYPE: @media_object ? @media_object.media_type.to_s : 'video')
     render
   end
 
@@ -229,6 +231,8 @@ class ContextController < ApplicationController
     respond_to do |format|
       format.html do
         @messages = @messages.paginate(page: params[:page], per_page: 15)
+        js_env(discussion_replies_path: discussion_replies_path(:format => :json),
+               total_pages: @messages.size)
         render :action => :inbox
       end
       format.json do
@@ -296,11 +300,18 @@ class ContextController < ApplicationController
 
   def prior_users
     if authorized_action(@context, @current_user, [:manage_students, :manage_admin_users, :read_prior_roster])
-      @prior_users = @context.prior_users.
-        where(Enrollment.not_fake.proxy_options[:conditions]).
-        select("users.*, NULL AS prior_enrollment").
-        by_top_enrollment.
-        paginate(:page => params[:page], :per_page => 20)
+      if CANVAS_RAILS2
+        @prior_users = @context.prior_users.
+          where(Enrollment.not_fake.proxy_options[:conditions]).
+          select("users.*, NULL AS prior_enrollment").
+          by_top_enrollment.
+          paginate(:page => params[:page], :per_page => 20)
+      else
+        @prior_users = @context.prior_users.
+          select("users.*, NULL AS prior_enrollment").
+          by_top_enrollment.merge(Enrollment.not_fake).
+          paginate(:page => params[:page], :per_page => 20)
+      end
 
       users = @prior_users.index_by(&:id)
       if users.present?
@@ -320,11 +331,16 @@ class ContextController < ApplicationController
       @users.each_with_index{|u, i| @users_hash[u.id] = u; @users_order_hash[u.id] = i }
       @current_user_services = {}
       @current_user.user_services.each{|s| @current_user_services[s.service] = s }
-      @services = UserService.for_user(@users.except(:select, :order)).sort_by{|s| @users_order_hash[s.user_id] || SortLast}
+      @services = UserService.for_user(@users.except(:select, :order)).sort_by{|s| @users_order_hash[s.user_id] || CanvasSort::Last}
       @services = @services.select{|service|
         !UserService.configured_service?(service.service) || feature_and_service_enabled?(service.service.to_sym)
       }
-      @services_hash = @services.to_a.clump_per{|s| s.service }
+      @services_hash = @services.to_a.inject({}) do |hash, item|
+        mapped = item.service
+        hash[mapped] ||= []
+        hash[mapped] << item
+        hash
+      end
     end
   end
 
@@ -335,6 +351,8 @@ class ContextController < ApplicationController
       respond_to do |format|
         format.html do
           @accesses = @accesses.paginate(page: params[:page], per_page: 50)
+          js_env(context_url: context_url(@context, :context_user_usage_url, @user, :format => :json),
+                 accesses_total_pages: @accesses.total_pages)
         end
         format.json do
           @accesses = Api.paginate(@accesses, self, polymorphic_url([@context, :user_usage], user_id: @user), default_per_page: 50)
@@ -346,7 +364,7 @@ class ContextController < ApplicationController
 
   def roster_user
     if authorized_action(@context, @current_user, :read_roster)
-      user_id = Shard.relative_id_for(params[:id], @context.shard)
+      user_id = Shard.relative_id_for(params[:id], Shard.current, @context.shard)
       if @context.is_a?(Course)
         @membership = @context.enrollments.find_by_user_id(user_id)
         log_asset_access(@membership, "roster", "roster")

@@ -7,7 +7,7 @@ define [
 ], (I18n, $, preventDefault, htmlEscape) ->
 
   $(document).on 'click', 'a.instructure_inline_media_comment', preventDefault ->
-    return alert(I18n.t('alerts.kaltura_disabled', "Kaltura has been disabled for this Canvas site")) unless INST.kalturaSettings
+    return alert(I18n.t('alerts.kaltura_disabled', "Kaltura has been disabled for this HotChalk Ember site")) unless INST.kalturaSettings
 
     $link = $(this)
     $div = $("<span><span></span><br/></span>")

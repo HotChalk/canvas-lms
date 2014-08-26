@@ -67,14 +67,13 @@ describe ContextExternalTool do
                 :selection_width => 50,
                 :selection_height => 50
         }
-        @tool.save!
-        launch = @tool.create_launch(@course, @user, "http://test.com", :selection_type => type)
-        launch.resource_type.should == type
+
+        launch_url = @tool.extension_setting(type, :url)
 
         if nav_url
-          launch.url.should == nav_url
+          launch_url.should == nav_url
         else
-          launch.url.should == @tool.url
+          launch_url.should == @tool.url
         end
       end
     end
@@ -99,8 +98,8 @@ describe ContextExternalTool do
     it "should not validate with no domain or url setting" do
       @tool = @course.context_external_tools.create(:name => "a", :consumer_key => '12345', :shared_secret => 'secret')
       @tool.should be_new_record
-      @tool.errors['url'].should == "Either the url or domain should be set."
-      @tool.errors['domain'].should == "Either the url or domain should be set."
+      @tool.errors['url'].should == ["Either the url or domain should be set."]
+      @tool.errors['domain'].should == ["Either the url or domain should be set."]
     end
 
     it "should accept both a domain and a url" do
@@ -332,14 +331,16 @@ describe ContextExternalTool do
         }
         @tool.save!
 
-        hash = @tool.create_launch(@course, @user, "http://test.com", :selection_type => type).generate
+        hash = {}
+        @tool.set_custom_fields(hash, type)
         hash["custom_a"].should == "1"
         hash["custom_b"].should == "5"
         hash["custom_c"].should == "3"
 
+        hash = {}
         @tool.settings[type.to_sym][:custom_fields] = nil
-        @tool.save!
-        hash = @tool.create_launch(@course, @user, "http://test.com", :selection_type => type).generate
+        @tool.set_custom_fields(hash, type)
+
         hash["custom_a"].should == "1"
         hash["custom_b"].should == "2"
         hash.has_key?("custom_c").should == false
@@ -681,6 +682,11 @@ describe ContextExternalTool do
       tool.course_navigation = {:url => "http://www.example.com", :text => "Example URL"}
       tool.save!
       (ContextExternalTool.find_for(tool.id, @course, :user_navigation) rescue nil).should be_nil
+    end
+
+    it "should raise RecordNotFound if the id is invalid" do
+      course_model
+      expect { ContextExternalTool.find_for("horseshoes", @course, :course_navigation) }.to raise_error(ActiveRecord::RecordNotFound)
     end
   end
   

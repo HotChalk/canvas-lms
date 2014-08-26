@@ -26,9 +26,6 @@ define [
 
     initialize: (@editor, selectedNode) ->
       @$editor = @editor.$element;
-      @prevSelection = null
-      if @editor.selection
-        @prevSelection = @editor.selection.getBookmark()
       @$selectedNode = $(selectedNode)
       super
       @render()
@@ -129,21 +126,19 @@ define [
       @setSelectedImage src: $(event.currentTarget).val()
 
     generateImageHtml: ->
-      img_tag = $("<img>", this.getAttributes())[0].outerHTML
+      img_tag = $("<img>", @getAttributes())[0].outerHTML
       if @flickr_link
         img_tag = "<a href='#{@flickr_link}'>#{img_tag}</a>"
       img_tag
 
     update: =>
-      if @editor.selection
-        @editor.selection.moveToBookmark(@prevSelection)
+      @editor.selectionRestore()
       if @$selectedNode.prop('nodeName') is 'IMG'
-        new_attr = this.getAttributes()
+        new_attr = @getAttributes()
         if @$selectedNode.parent().prop('nodeName') is 'A' &&
            @$selectedNode.parent().attr('href') == this.$selectedNode.attr('src')
           @$selectedNode.parent().attr('href', new_attr.src)
-        @$selectedNode.attr('style', '')
-        @$selectedNode.attr(new_attr)
+        @$selectedNode.replaceWith($(@generateImageHtml()))
         @$editor.editorBox 'sync'
       else
         @$editor.editorBox 'insert_code', @generateImageHtml()

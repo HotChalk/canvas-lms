@@ -31,29 +31,6 @@ class ContextExternalTool < ActiveRecord::Base
     state :deleted
   end
 
-  def create_launch(context, user, return_url, opts = {})
-    # resolve the url based on selection_type, falling back to the tool url (unless overridden)
-    resource_url = opts[:resource_url]
-    selection_type = opts[:selection_type]
-
-    # if this is an assessment enforce the correct resource_url
-    if selection_type
-      if self.settings[selection_type.to_sym]
-        resource_url ||= self.settings[selection_type.to_sym][:url] if selection_type
-      end
-    end
-    resource_url ||= self.url
-
-    # generate the launch
-    BasicLTI::ToolLaunch.new(:url => resource_url,
-                             :tool => self,
-                             :user => user,
-                             :context => context,
-                             :link_code => opaque_identifier_for(context),
-                             :return_url => return_url,
-                             :resource_type => selection_type)
-  end
-
   set_policy do
     given { |user, session| self.cached_context_grants_right?(user, session, :update) }
     can :read and can :update and can :delete
@@ -122,7 +99,7 @@ class ContextExternalTool < ActiveRecord::Base
   def validate_vendor_help_link
     return if self.vendor_help_link.blank?
     begin
-      value, uri = CustomValidations.validate_url(self.vendor_help_link)
+      value, uri = CanvasHttp.validate_url(self.vendor_help_link)
       self.vendor_help_link = uri.to_s
     rescue URI::InvalidURIError, ArgumentError
       self.vendor_help_link = nil
@@ -483,7 +460,7 @@ class ContextExternalTool < ActiveRecord::Base
       return preferred_tool
     end
 
-    sorted_external_tools = contexts.collect{|context| context.context_external_tools.active.sort_by{|t| [t.precedence, t.id == preferred_tool_id ? SortFirst : SortLast] }}.flatten(1)
+    sorted_external_tools = contexts.collect{|context| context.context_external_tools.active.sort_by{|t| [t.precedence, t.id == preferred_tool_id ? CanvasSort::First : CanvasSort::Last] }}.flatten(1)
 
     res = sorted_external_tools.detect{|tool| tool.url && tool.matches_url?(url) }
     return res if res
@@ -501,6 +478,8 @@ class ContextExternalTool < ActiveRecord::Base
   scope :having_setting, lambda { |setting| setting ? where("has_#{setting.to_s}" => true) : scoped }
 
   def self.find_for(id, context, type)
+    id = id[Api::ID_REGEX] if id.is_a?(String)
+    raise ActiveRecord::RecordNotFound unless id.present?
     tool = context.context_external_tools.having_setting(type).find_by_id(id)
     if !tool && context.is_a?(Group)
       context = context.context

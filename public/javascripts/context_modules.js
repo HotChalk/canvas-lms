@@ -28,7 +28,7 @@ define([
   'compiled/models/Publishable',
   'compiled/views/PublishButtonView',
   'jquery.ajaxJSON' /* ajaxJSON */,
-  'jquery.instructure_date_and_time' /* parseFromISO, time_field, datetime_field */,
+  'jquery.instructure_date_and_time' /* dateString, datetimeString, time_field, datetime_field */,
   'jquery.instructure_forms' /* formSubmit, fillFormData, formErrors, errorBox */,
   'jqueryui/dialog',
   'compiled/jquery/fixDialogButtons' /* fix dialog formatting */,
@@ -113,7 +113,7 @@ define([
           var id = $module.find(".header").getTemplateData({textValues: ['id']});
           if (typeof id === 'object') id = id.id; // Fixes syntax error when id is an object
           var data = {progression_complete_count: 0, progression_started_count: 0};
-          $("#progression_list .progression_" + id.id).each(function() {
+          $("#progression_list .progression_" + id).each(function() {
             var state = $(this).getTemplateData({textValues: ['workflow_state']}).workflow_state;
             if(state == 'completed') {
               data.progression_complete_count++;
@@ -225,14 +225,14 @@ define([
             $context_module_item = $("#context_module_item_" + id);
             var data = {};
             if (info["points_possible"] != null) {
-                if(info["actual_points"] != null) {
-                    data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "<span class='points_possible_block'>" + info["actual_points"] + "/" + info["points_possible"] + "</span>" });
-                } else {
-                    data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "<span class='points_possible_block'>" + info["points_possible"] + "</span>" });
-                }
+              if(info["actual_points"] != null) {
+                data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "" + info["actual_points"] + "/" + info["points_possible"] });
+              } else {
+                data["points_possible_display"] = I18n.t('points_possible_short', '%{points} pts', { 'points': "" + info["points_possible"]});
+              }
             }
             if (info["due_date"] != null) {
-              data["due_date_display"] = $.parseFromISO(info["due_date"]).date_formatted
+              data["due_date_display"] = $.dateString(info["due_date"])
             } else if (info["vdd_tooltip"] != null) {
               info['vdd_tooltip']['link_href'] = $context_module_item.find('a.title').attr('href');
               $context_module_item.find('.due_date_display').html(vddTooltipView(info["vdd_tooltip"]));
@@ -329,6 +329,9 @@ define([
         if(!data) { return $("<div/>"); }
         data.id = data.id || 'new'
         data.type = data.type || data['item[type]'] || $.underscore(data.content_type);
+        if (data.type === 'quiz' || data.type === 'Quizzes::quiz') {
+          data.type = 'quizzes/quiz'
+        }
         data.title = data.title || data['item[title]'];
         data.new_tab = data.new_tab ? '1' : '0';
         var $item, $olditem = (data.id != 'new') ? $("#context_module_item_" + data.id) : [];
@@ -500,7 +503,7 @@ define([
 
     // -------- BINDING THE UPDATE EVENT -----------------
     $(".context_module").bind('update', function(event, data) {
-      data.context_module.unlock_at = $.parseFromISO(data.context_module.unlock_at).datetime_formatted;
+      data.context_module.unlock_at = $.datetimeString(data.context_module.unlock_at);
       var $module = $("#context_module_" + data.context_module.id);
       $module.attr('aria-label', data.context_module.name);
       $module.find(".header").fillTemplateData({
@@ -532,10 +535,13 @@ define([
         .removeClass('must_contribute_requirement')
         .find('.criterion').removeClass('defined');
 
+      // Hack. Removing the class here only to re-add it a few lines later if needed.
+      $module.find('.ig-row').removeClass('with-completion-requirements');
       for(var idx in data.context_module.completion_requirements) {
         var req = data.context_module.completion_requirements[idx];
         req.criterion_type = req.type;
         var $item = $module.find("#context_module_item_" + req.id);
+        $item.find('.ig-row').addClass('with-completion-requirements');
         $item.find(".criterion").fillTemplateData({data: req});
         $item.find(".completion_requirement").fillTemplateData({data: req});
         $item.find(".criterion").addClass('defined');
@@ -656,7 +662,7 @@ define([
           displayType = I18n.t('optgroup.assignments', "Assignments");
         } else if (data.type == 'attachment') {
           displayType = I18n.t('optgroup.files', "Files");
-        } else if (data.type == 'quiz') {
+        } else if (data.type == 'quizzes/quiz') {
           displayType = I18n.t('optgroup.quizzes', "Quizzes");
         } else if (data.type == 'external_url') {
           displayType = I18n.t('optgroup.external_urls', "External URLs");
@@ -698,9 +704,7 @@ define([
       var $option = $(this).parents(".completion_criterion_option");
       $option.find(".min_score_box").showIf($(this).val() == 'min_score');
       var id = $option.find(".id").val();
-      var points_possible = $.trim($("#context_module_item_" + id + " .points_possible").text()) ||
-          // for some reason the previous did not have anything in it sometimes (noticed when you are dealing with a newly added module)
-          $.trim($("#context_module_item_" + id + " .points_possible_block").text());
+      var points_possible = $.trim($("#context_module_item_" + id + " .points_possible_display").text().split(' ')[0]);
       if(points_possible.length > 0) {
         $option.find(".points_possible").text(points_possible);
         $option.find(".points_possible_parent").show();
@@ -775,7 +779,7 @@ define([
         var $module = $("#context_module_" + data.content_tag.context_module_id);
         var $item = modules.addItemToModule($module, data.content_tag);
         $module.find(".context_module_items.ui-sortable").sortable('refresh');
-        if (data.content_tag.content_id != 0) {
+        if (data.content_tag.content_id != 0 && data.content_tag.content_type != 'ContextExternalTool') {
           modules.updateAllItemInstances(data.content_tag);
         }
         modules.updateAssignmentData();
@@ -834,6 +838,8 @@ define([
         var options = {for_modules: true};
         options.select_button_text = I18n.t('buttons.add_item', "Add Item");
         options.holder_name = module.name;
+        options.height = 550;
+        options.width = 770;
         options.dialog_title = I18n.t('titles.add_item', "Add Item to %{module}", {'module': module.name});
         options.submit = function(item_data) {
           var $module = $("#context_module_" + module.id);
@@ -945,8 +951,8 @@ define([
       $("#context_modules").sortable({
         handle: '.reorder_module_link',
         helper: 'clone',
-        containment: '#context_modules_sortable_container',
         axis: 'y',
+        tolerance: 'pointer',
         update: modules.updateModulePositions
       });
       modules.refreshModuleList();
@@ -961,7 +967,8 @@ define([
       moduleId: data.context_module_id,
       courseId: data.context_id,
       published: data.published,
-      publishable: data.publishable
+      publishable: data.publishable,
+      unpublishable: data.unpublishable
     };
     initPublishButton($item.find('.publish-icon'), publishData);
   }
@@ -970,8 +977,10 @@ define([
     data = data || $el.data();
     var model = new PublishableModuleItem({
       module_type: data.moduleType,
+      content_id: data.contentId,
       id: data.id,
       module_id: data.moduleId,
+      module_item_id: data.moduleItemId,
       course_id: data.courseId,
       published: data.published,
       publishable: data.publishable,
@@ -981,19 +990,109 @@ define([
     var row = $el.closest('.ig-row');
     if (data.published) { row.addClass('ig-published'); }
     // TODO: need to go find this item in other modules and update their state
-    view.on('publish', function() {
-      this.$el.closest('.ig-row').addClass('ig-published');
+    model.on('change:published', function() {
+      view.$el.closest('.ig-row').toggleClass('ig-published', model.get('published'));
+      view.render();
     });
-    view.on('unpublish', function() {
-      this.$el.closest('.ig-row').removeClass('ig-published');
-    });
-    view.render()
+    view.render();
+    return view;
   }
+
+  var content_type_map = {
+    'page': 'wiki_page',
+    'discussion': 'discussion_topic',
+    'external_tool': 'context_external_tool',
+    'sub_header': 'context_module_sub_header'
+  };
+  function itemContentKey(model) {
+    if (model === null)
+      return null;
+
+    var attrs = model.attributes || model,
+        content_type = $.underscore(attrs['module_type'] || attrs['type']),
+        content_id = attrs['content_id'] || attrs['id'];
+
+    content_type = content_type_map[content_type] || content_type;
+
+    if (!content_type || content_type === 'module') {
+      return null;
+    } else {
+      if (content_type == 'wiki_page') {
+        content_type = 'wiki_page';
+        content_id = attrs['page_url'] || attrs['id'];
+      } else if (content_type === 'context_module_sub_header' || content_type === 'external_url' || content_type == 'context_external_tool') {
+        content_id = attrs['id'];
+      }
+
+      return content_type + '_' + content_id;
+    }
+  }
+
+  var moduleItems = {};
+  var updateModuleItem = function(attrs, model) {
+    var i, items, item, parsedAttrs;
+    items = moduleItems[itemContentKey(attrs) || itemContentKey(model)];
+    if (items) {
+      for (i = 0; i < items.length; i++) {
+        item = items[i];
+        parsedAttrs = item.model.parse(attrs);
+        item.model.set({published: parsedAttrs.published});
+      }
+    }
+  };
+
+  var overrideModuleModel = function(model) {
+    var publish = model.publish, unpublish = model.unpublish;
+    model.publish = function() {
+      return publish.apply(model, arguments).done(function() {
+        model
+          .fetch({data: {include: 'items'}})
+          .done(function(attrs) {
+            for (var i = 0; i < attrs.items.length; i++)
+              updateModuleItem(attrs.items[i], model);
+          });
+      });
+    };
+    model.unpublish = function() {
+      return unpublish.apply(model, arguments).done(function() {
+        model
+          .fetch({data: {include: 'items'}})
+          .done(function(attrs) {
+            for (var i = 0; i < attrs.items.length; i++)
+              updateModuleItem(attrs.items[i], model);
+          });
+      });
+    };
+  };
+  var overrideItemModel = function(model) {
+    var publish = model.publish, unpublish = model.unpublish;
+    model.publish = function() {
+      return publish.apply(model, arguments).done(function(attrs) {
+        updateModuleItem($.extend({published:true}, attrs), model);
+      });
+    };
+    model.unpublish = function() {
+      return unpublish.apply(model, arguments).done(function(attrs) {
+        updateModuleItem($.extend({published:false}, attrs), model);
+      });
+    };
+  };
+  var overrideModel = function(model, view) {
+    var contentKey = itemContentKey(model);
+    if (contentKey === null)
+      overrideModuleModel(model);
+    else
+      overrideItemModel(model);
+
+    moduleItems[contentKey] || (moduleItems[contentKey] = []);
+    moduleItems[contentKey].push({model: model, view: view});
+  };
 
   $(document).ready(function() {
     if (ENV.ENABLE_DRAFT) {
       $('.publish-icon:visible').each(function(index, el) {
-        initPublishButton($(el));
+        var view = initPublishButton($(el));
+        overrideModel(view.model, view);
       });
     }
 

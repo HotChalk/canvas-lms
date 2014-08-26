@@ -52,6 +52,22 @@ define([
     inputMethods.disableInputs('[type=radio], [type=checkbox]');
     inputMethods.setWidths();
 
+    $('#save_draft_form').on('submit', function(e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      $(this).find('.loading').removeClass('hidden');
+      var data = $(this).serializeArray();
+      var url = $(this).attr('action');
+      $.ajax({
+        url: url,
+        data: data,
+        type: 'POST',
+        success: function() {
+          $('#save_draft_form').parents('.alert').hide();
+        }
+      });
+    });
+
     $(".delete_quiz_link").click(function(event) {
       event.preventDefault();
       var deleteConfirmMessage = I18n.t('confirms.delete_quiz', "Are you sure you want to delete this quiz?");

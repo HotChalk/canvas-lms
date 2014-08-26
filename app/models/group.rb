@@ -20,11 +20,13 @@ class Group < ActiveRecord::Base
   include Context
   include Workflow
   include CustomValidations
-  include UserFollow::FollowedItem
 
   attr_accessible :name, :context, :max_membership, :group_category, :join_level, :default_view, :description, :is_public, :avatar_attachment, :storage_quota_mb
   validates_presence_of :context_id, :context_type, :account_id, :root_account_id, :workflow_state
   validates_allowed_transitions :is_public, false => true
+
+  # use to skip queries in can_participate?, called by policy block
+  attr_accessor :can_participate
 
   has_many :group_memberships, :dependent => :destroy, :conditions => ['group_memberships.workflow_state != ?', 'deleted']
   has_many :users, :through => :group_memberships, :conditions => ['users.workflow_state != ?', 'deleted']
@@ -57,10 +59,7 @@ class Group < ActiveRecord::Base
   has_many :collaborations, :as => :context, :order => 'title, created_at', :dependent => :destroy
   has_many :media_objects, :as => :context
   has_many :zip_file_imports, :as => :context
-  has_many :collections, :as => :context
   belongs_to :avatar_attachment, :class_name => "Attachment"
-  has_many :following_user_follows, :class_name => 'UserFollow', :as => :followed_item
-  has_many :user_follows, :foreign_key => 'following_user_id'
 
   before_validation :ensure_defaults
   before_save :maintain_category_attribute
@@ -140,11 +139,18 @@ class Group < ActiveRecord::Base
 
   def has_member?(user)
     return nil unless user.present?
-    self.shard.activate { self.participating_group_memberships.find_by_user_id(user.id) }
+    if self.group_memberships.loaded?
+      return self.group_memberships.to_a.find { |gm| gm.accepted? && gm.user_id == user.id }
+    else
+      self.shard.activate { self.participating_group_memberships.find_by_user_id(user.id) }
+    end
   end
 
   def has_moderator?(user)
     return nil unless user.present?
+    if self.group_memberships.loaded?
+      return self.group_memberships.to_a.find { |gm| gm.accepted? && gm.user_id == user.id && gm.moderator }
+    end
     self.shard.activate { self.participating_group_memberships.moderators.find_by_user_id(user.id) }
   end
 
@@ -254,7 +260,6 @@ class Group < ActiveRecord::Base
     user_ids = users.map(&:id)
     old_group_memberships = self.group_memberships.where("user_id IN (?)", user_ids).all
     bulk_insert_group_memberships(users, options)
-    bulk_insert_group_user_follows(users, options)
     all_group_memberships = self.group_memberships.where("user_id IN (?)", user_ids)
     new_group_memberships = all_group_memberships - old_group_memberships
     new_group_memberships.sort_by!(&:user_id)
@@ -284,16 +289,7 @@ class Group < ActiveRecord::Base
         :updated_at => current_time
     }.merge(options)
     GroupMembership.bulk_insert(users.map{ |user|
-      options.merge({:user_id => user.id, :uuid => AutoHandle.generate_securish_uuid})
-    })
-  end
-
-  def bulk_insert_group_user_follows(users, options = {})
-    options = {
-        :followed_item_id => self.id
-    }.merge(options)
-    UserFollow.bulk_insert(users.map{ |user|
-      options.merge({:following_user_id => user.id})
+      options.merge({:user_id => user.id, :uuid => CanvasUuid::Uuid.generate_securish_uuid})
     })
   end
 
@@ -347,8 +343,8 @@ class Group < ActiveRecord::Base
   end
 
   def ensure_defaults
-    self.name ||= AutoHandle.generate_securish_uuid
-    self.uuid ||= AutoHandle.generate_securish_uuid
+    self.name ||= CanvasUuid::Uuid.generate_securish_uuid
+    self.uuid ||= CanvasUuid::Uuid.generate_securish_uuid
     self.group_category ||= GroupCategory.student_organized_for(self.context)
     self.join_level ||= 'invitation_only'
     self.is_public ||= false
@@ -387,7 +383,6 @@ class Group < ActiveRecord::Base
     can :read_roster and
     can :send_messages and
     can :send_messages_all and
-    can :follow and
     can :view_unpublished_items
 
     # if I am a member of this group and I can moderate_forum in the group's context
@@ -430,9 +425,6 @@ class Group < ActiveRecord::Base
     given { |user, session| self.context && self.context.grants_right?(user, session, :view_group_pages) }
     can :read and can :read_roster
 
-    given { |user| user && self.is_public? }
-    can :follow
-
     # Participate means the user is connected to the group somehow and can be  
     given { |user| user && can_participate?(user) }
     can :participate
@@ -451,12 +443,13 @@ class Group < ActiveRecord::Base
 
   # Helper needed by several permissions, use grants_right?(user, :participate)
   def can_participate?(user)
+    return true if can_participate
     return false unless user.present? && self.context.present?
     return true if self.group_category.try(:communities?)
     if self.context.is_a?(Course)
-      return self.context.enrollments.not_fake.where(:user_id => user.id).first.present?
+      return self.context.enrollments.not_fake.except(:includes).where(:user_id => user.id).exists?
     elsif self.context.is_a?(Account)
-      return self.context.user_account_associations.where(:user_id => user.id).first.present?
+      return self.context.user_account_associations.where(:user_id => user.id).exists?
     end
     return false
   end
@@ -606,10 +599,6 @@ class Group < ActiveRecord::Base
       ["parent_context_auto_join", "Auto join"],
       ["parent_context_request", "Request to join"]
     ]
-  end
-
-  def default_collection_name
-    t "#group.default_collection_name", "%{group_name}'s Collection", :group_name => self.name
   end
 
   def associated_shards

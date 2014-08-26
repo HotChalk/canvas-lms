@@ -1,4 +1,4 @@
-<li id="alignment_<%= outcome_alignment ? outcome_alignment.id : "blank" %>" style="<%= hidden unless outcome_alignment %>" class="alignment <%= outcome_alignment.content_type_class if outcome_alignment %> <%= 'also_assignment' if outcome_alignment && outcome_alignment.graded? %>">
+<li id="alignment_<%= outcome_alignment ? outcome_alignment.id : "blank" %>" data-id="<%= outcome_alignment ? outcome_alignment.id : "blank" %>" style="<%= hidden unless outcome_alignment %>" class="alignment <%= outcome_alignment.content_type_class if outcome_alignment %> <%= 'also_assignment' if outcome_alignment && outcome_alignment.graded? %>">
   <div class="header">
     <a href="#" class="move_alignment_link no-hover"><%= image_tag "move.png" %></a>
     <%= image_tag "blank.png", :class => "type_icon", :alt => outcome_alignment.try_rescue(:content_type).try_rescue(:titleize), :title => outcome_alignment.try_rescue(:content_type).try_rescue(:titleize) %>
@@ -22,3 +22,4 @@
     <span class="id"><%= outcome_alignment.try_rescue(:id) %></span>
   </div>
 </li>
+<% js_bundle :outcome_alignment %>
