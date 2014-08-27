@@ -258,7 +258,8 @@ class PseudonymSessionsController < ApplicationController
     elsif account.cas_authentication? and session[:cas_session]
       logout_current_user
       session[:delegated_message] = message if message
-      redirect_to(cas_client(@domain_root_account).logout_url(cas_login_url(:account_id => @domain_root_account.id), nil, cas_login_url(:account_id => @domain_root_account.id)))
+      
+      redirect_to(cas_client(account).logout_url(cas_login_url(:account_id => account.id), nil, cas_login_url(:account_id => account.id)))
       return
     else
       logout_current_user

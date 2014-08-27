@@ -108,6 +108,19 @@ define([
       });
     });
 
+    $(".add_program_link").click(function(event) {
+      event.preventDefault();
+      var $program = $(".program.blank:first").clone(true).removeClass('blank');
+      $("#programs").append($program.show());
+    });
+    $(".delete_program_link").click(function(event) {
+      event.preventDefault();
+      $(this).parents(".program").remove();
+    });
+    if($(".program:not(.blank)").length == 0) {
+      $(".add_program_link").click();
+    }
+
     $(".open_registration_delegated_warning_link").click(function(event) {
       event.preventDefault();
       $("#open_registration_delegated_warning_dialog").dialog({
