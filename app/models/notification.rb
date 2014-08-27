@@ -462,7 +462,7 @@ Assignment submission comment
 
 &nbsp;
 
-Check 'Mark new submission comments as read' if you don't want them to show up as 'new' in your Canvas Inbox
+Check 'Mark new submission comments as read' if you don't want them to show up as 'new' in your HotChalk Ember Inbox
 EOS
     when 'Grading Policies'
       t(:grading_policies_description, 'Course grading policy change')

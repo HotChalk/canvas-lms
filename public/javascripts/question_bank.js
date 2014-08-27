@@ -261,6 +261,17 @@ define([
           $.ajaxJSON(window.location.href + '/questions?page=' + this.page, 'GET', {}, $.proxy(this.onData, this));
         },
         onData: function(data){
+          if (data && data.questions) {
+            $(data.questions).each(function(i, question) {
+              try {
+                if (question.assessment_question.question_data.question_type == 'learnosity_question') {
+                  var learnosityObj = JSON.parse(question.assessment_question.question_data.question_text);
+                  var newText = learnosityObj['stimulus'] || learnosityObj['description'] || I18n.t('errors.no_preview_available', "No preview available for this question");
+                  question.assessment_question.question_data.question_text = newText;
+                }
+              } catch (e) {}
+            })
+          }
           var questions = moveQuestion(data);
           this.elements.$loadMessage.remove();
           this.elements.$questions.append(questions);
@@ -287,11 +298,14 @@ define([
         } else {
           $dialog.find("li.message").hide();
         }
-        var template = $(this).parents(".question_holder").getTemplateData({textValues: ['question_name', 'question_text']});
+        var template = $(this).parents(".question_holder").getTemplateData({textValues: ['question_name', 'question_text', 'question_type']});
         $dialog.fillTemplateData({
           data: template
         });
         $dialog.data('question', $(this).parents(".question_holder"));
+        if (template.question_type == 'learnosity_question') {
+          $dialog.find(".question_text").hide();
+        }
         $dialog.dialog({
           width: 600,
           title: I18n.t('title.move_copy_questions', "Move/Copy Questions")

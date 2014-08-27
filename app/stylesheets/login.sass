@@ -47,7 +47,7 @@ body.modal
     border-top-color: #ccc
     width: $modal_box_width - (2 * $modal_box_padding)
     padding: 2 * $modal_box_padding
-    @include vertical-gradient(#f4f4f4, #e2e2e2)
+    //@include vertical-gradient(#f4f4f4, #e2e2e2)
     .bootstrap-form
       p.instructions
         font-weight: bold
@@ -58,7 +58,11 @@ body.modal
         float: none
         width: 220px
     h2, .h2
-      background: transparent url(/images/canvas-dark.png) right 6px no-repeat
+      background-image: url(/images/ember-lms.png)
+      background-repeat: no-repeat
+      background-position: 100% 6px
+      background-color: transparent
+      background-size: 149px auto
       margin: 0 20px
       padding: 5px 230px 0 0
       min-height: 35px
@@ -70,17 +74,20 @@ body.modal
         border-bottom: 1px solid #fff
         height: 0
     &.login-box
-      background-color: #4b555d
-      background: image-url("/images/Money_Noise_tm.png"), radial-gradient(ellipse farthest-corner at 50% -100px, rgba(255,255,255,0.6) 0%, transparent 100%), linear-gradient(to bottom, #59656e, #3e464c)
+      background-color: #ffffff
       height: 331px
       width: $modal_box_width
       padding: $modal_box_padding
       color: #b3b3b3
       border: none
+      box-shadow: none
       h1, .h1
         height: 107px
         margin: 0 0 50px
-        @include bg-image(canvas, png, no-repeat, 68px, 46px, transparent, 136px, 33px)
+        background-image: url(/images/ember-lms.png)
+        background-repeat: no-repeat
+        background-position: 179px 36px
+        background-color: transparent
         text-indent: -999em
       a
         color: #64b9f9 !important
@@ -104,10 +111,10 @@ body.modal
 // weird specificity here is to match the input.text above
 body.webkit #modal-box.login-box input.text
   background: #F6F6F6 none
-  border: 6px solid rgba(255, 255, 255, 0.25)
+  border: 6px solid rgb(255, 255, 255)
   border-radius: 7px
   padding: 12px 9px 12px 17px
-  box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4)
+  //box-shadow: inset 2px 2px 5px rgba(0,0,0,0.4)
   background-clip: padding-box
   width: 197px
 

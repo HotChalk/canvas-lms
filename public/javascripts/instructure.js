@@ -427,7 +427,7 @@ define([
     } else {
       $("a.scribd_file_preview_link").live('click', function(event) {
         event.preventDefault();
-        alert(I18n.t('alerts.file_previews_disabled', 'File previews have been disabled for this Canvas site'));
+        alert(I18n.t('alerts.file_previews_disabled', 'File previews have been disabled for this HotChalk Ember site'));
       });
     }
 

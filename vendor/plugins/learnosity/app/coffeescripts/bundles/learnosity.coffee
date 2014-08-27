@@ -8,16 +8,20 @@ require [
     $("span.learnosity-response").each ->
       container = $(this).parent()
       lrnObject = LearnosityApp.init($(this).data("learnosity-request"))
-      lrnActivities.push lrnObject
-      refreshResponses = (event) =>
-        if !!lrnObject.getResponses()
-          responses = lrnObject.getResponses()
-          scores = lrnObject.getScores()
+      lrnActivities.push {object: lrnObject, container: container, id: $(this).data("question-id")}
+    refreshResponses = () =>
+      $(lrnActivities).each ->
+        lrnObject = this['object']
+        container = this['container']
+        id = this['id']
+        responses = lrnObject.getResponses()
+        scores = lrnObject.getScores()
+        newResponse = ''
+        if !!responses && responses[id] && responses[id].value && (responses[id].value.length || typeof responses[id].value == 'object')
           newVal = {
             'responses': responses,
             'scores': scores
           }
-          newResponse = if $.isEmptyObject(responses) then '' else (JSON.stringify newVal)
-          container.find('.response-holder').val(newResponse).trigger('change')
-      container.delegate 'div.lrn input', 'change', refreshResponses
-      container.delegate '[contenteditable]', 'blur', refreshResponses
+          newResponse = JSON.stringify newVal
+        container.find('.response-holder').val(newResponse).trigger('change')
+    window.setInterval refreshResponses, 500

@@ -17,7 +17,15 @@
           </div>
           <div class="question_attempts"><%= pluralize(question[:responses], 'attempt') %></div>
           <div class="question_text user_content">
-            <%= user_content(question[:question_text]) %>
+            <% if question[:question_type] == "learnosity_question" %>
+              <% if Canvas::Plugin.find(:learnosity).enabled? %>
+                <%= learnosity_question :question => question, :answers => nil, :assessing => false, :assessment_results => nil, :display_correct_answers => true %>
+              <% else %>
+                <%= t(:learnosity_not_enabled, 'This question requires the Learnosity plugin. Please contact your System Administrator.') %>
+              <% end %>
+            <% else %>
+              <%= user_content(question[:question_text]) %>
+            <% end %>
           </div>
           <div class="question_details">
              <% if in_group %>
@@ -124,6 +132,43 @@
                 <div class="file_upload_answers">
                   <%= render :partial => 'download_file_upload_submissions' %>
                 </div>
+        <% elsif question[:question_type] == 'learnosity_question' %>
+          <table class="results">
+            <tr>
+              <% total_awarded = question[:learnosity_responses].map {|r| r[:points_awarded] || 0 }.sum %>
+              <% total_possible = question[:learnosity_responses].length * question[:points_possible] %>
+              <% pct = total_possible > 0 ? ((total_awarded.to_f / total_possible.to_f) * 100) : 0 %>
+              <% avg = question[:points_possible] > 0 ? (pct / 100) * question[:points_possible].to_f : 0 %>
+              <td title="<%= avg.round(2) %> of <%= question[:points_possible] %> point(s) awarded on average" class="correct_answer" data-responses="<%= avg.round(2) %>">
+                  <span href="#" class="tooltip answer_bar">
+                  <span class="tooltip_wrap" style="font-size: 1.2em;">
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{avg} of %{total} point(s) awarded on average", :avg => avg.round(2), :total => question[:points_possible]) %></span>
+                  </span>
+                  <div class="response">
+                    <div class="response_bar" style="margin-top: <%= (100 - pct).to_i %>px; height: <%= pct.to_i %>px;">
+                    </div>
+                  </div>
+                  <div class="answer_text">
+                    Avg. points awarded
+                  </div>
+                </span>
+              </td>
+              <td title="<%= question[:points_possible] %> points possible" data-responses="<%= question[:points_possible] %>">
+                  <span href="#" class="tooltip answer_bar">
+                  <span class="tooltip_wrap" style="font-size: 1.2em;">
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{total} point(s) possible", :total => question[:points_possible]) %></span>
+                  </span>
+                  <div class="response">
+                    <div class="response_bar" style="margin-top: 0px; height: 100px;">
+                    </div>
+                  </div>
+                  <div class="answer_text" style="font-weight: bold;">
+                    Points possible
+                  </div>
+                </span>
+              </td>
+            </tr>
+          </table>
         <% else %>
           <table class="results"><tr>
             <% question[:answers].each do |answer| %>

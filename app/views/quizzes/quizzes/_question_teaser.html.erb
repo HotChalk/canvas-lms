@@ -1,4 +1,5 @@
 <% data = question_teaser %>
+<% is_learnosity_question = (hash_get(data, :question_type) == "learnosity_question") %>
 <div class="question_holder question_teaser" id="question_teaser_<%= question_teaser ? question_teaser[:id] : "blank" %>" style="<%= hidden unless question_teaser %>">
   <div class="display_question question">
     <div class="move"><%= image_tag "move.png", :class => "move_icon" %></div>
@@ -6,13 +7,23 @@
       <a href="#" class="question_name question_teaser_link" title="<%= t('titles.click_to_show_details', "Click to show full question details") %>"><%= hash_get(data, :question_name) %></a>
     </div>
     <div class="links">
-      <a href="#" class="edit_teaser_link no-hover" title="<%= t('titles.edit_this_question', "Edit this Question") %>"><%= image_tag "edit.png" %></a>
+      <% unless is_learnosity_question %>
+        <a href="#" class="edit_teaser_link no-hover" title="<%= t('titles.edit_this_question', "Edit this Question") %>"><%= image_tag "edit.png" %></a>
+      <% end %>
       <a href="#" class="delete_question_link no-hover" title="<%= t('titles.delete_this_question', "Delete this Question") %>"><%= image_tag "delete.png" %></a>
       <a href="<%= context_url(@context, :context_quiz_quiz_question_url, @quiz.id, question_teaser ? question_teaser[:id] : "{{ id }}") %>" class="update_question_url">&nbsp;</a>
     </div>
     <div class="text">
       <div class="teaser question_text user_content">
-        <%= user_content(hash_get(data, :question_text)) %>
+        <% if is_learnosity_question %>
+          <% if Canvas::Plugin.find(:learnosity).enabled? %>
+            <%= learnosity_question :question => data, :answers => nil, :assessing => false, :assessment_results => nil, :display_correct_answers => true %>
+          <% else %>
+            <%= t(:learnosity_not_enabled, 'This question requires the Learnosity plugin. Please contact your System Administrator.') %>
+          <% end %>
+        <% else %>
+          <%= user_content(hash_get(data, :question_text)) %>
+        <% end %>
       </div>
     </div>
     <div class="bottom_links">

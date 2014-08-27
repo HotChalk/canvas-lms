@@ -272,6 +272,7 @@ define([
         imageCallback: function(buttonName, buttonDOM, buttonObj, e) {
           var editor = this;
           var selectedNode = this.getCurrent();
+          editor.selectionSave();
           require(['compiled/views/redactor/InsertUpdateImageView'], function(InsertUpdateImageView){
             new InsertUpdateImageView(editor, selectedNode);
           });

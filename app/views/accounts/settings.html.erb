@@ -479,14 +479,14 @@ TEXT
               <div class="service_help_dialog" title="<%= t(:about_google_docs_tooltip, "About Google Docs Previews") %>" id="google_docs_previews_help_dialog">
                 <%= mt(:about_google_docs, <<-TEXT, :terms_url => "https://docs.google.com/viewer/TOS")
 Google Docs Previews allow users to view documents from
-within Canvas, rather than having to download them and
+within HotChalk Ember, rather than having to download them and
 open the corresponding program (e.g. Word or Excel).
 
-If Scribd has been enabled on this account, Canvas will
+If Scribd has been enabled on this account, HotChalk Ember will
 try to use it to show the preview. If the document
 cannot be previewed in Scribd, or if the user does not
 have the Flash player installed (e.g. iPad/iPhone),
-Canvas will fall back to using Google Docs Previews
+HotChalk Ember will fall back to using Google Docs Previews
 if they are enabled. By using this service you
 acknowledge that you have read and agreed to the
 [Google Docs Viewer Terms of Service](%{terms_url}).
@@ -535,7 +535,7 @@ acknowledge that you have read and agreed to the
 
         <% if @account.root_account? && !@account.site_admin? %>
           <h2><%= t(:email_notification_from_settings, 'E-mail Notification "From" Settings') %></h2>
-          <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from Canvas for this Account.") %></p>
+          <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from HotChalk Ember for this Account.") %></p>
           <%= f.fields_for :settings do |settings| %>
             <div>
               <%= settings.radio_button :outgoing_email_default_name_option, 'default',
@@ -578,7 +578,7 @@ acknowledge that you have read and agreed to the
             </div>
             <div style='padding-left: 2em;'>
               <p>
-                <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in Canvas notifications.') %>
+                <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in HotChalk Ember notifications.') %>
                 <br/>
                 <%= text_field_tag 'account[settings][outgoing_email_default_name]', @account.settings[:outgoing_email_default_name] %>
               </p>
@@ -626,7 +626,7 @@ acknowledge that you have read and agreed to the
               <tr>
                 <td>
                   <b><%= t('notifications.external_services_warning_label', 'Pop-up Message Content:') %></b>
-                  <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive Canvas course and group information outside of the institutional system.')%></blockquote>
+                  <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive HotChalk Ember course and group information outside of the institutional system.')%></blockquote>
                 </td>
               </tr>
             </table>
@@ -768,7 +768,7 @@ acknowledge that you have read and agreed to the
             </tr>
             <% if @account.site_admin? %>
               <tr id="confirm_global_announcement_field">
-                <td colspan=2><input type="checkbox" id="confirm_global_announcement" name="confirm_global_announcement"> <%= label_tag :confirm_global_announcement, t(:confirm_global_announcement, "This announcement will be shown to *all* Canvas users. Confirm that you want to create it.", :wrapper => '<b>\1</b>') %></td>
+                <td colspan=2><input type="checkbox" id="confirm_global_announcement" name="confirm_global_announcement"> <%= label_tag :confirm_global_announcement, t(:confirm_global_announcement, "This announcement will be shown to *all* HotChalk Ember users. Confirm that you want to create it.", :wrapper => '<b>\1</b>') %></td>
               </tr>
               <tr>
                 <td colspan=2>
@@ -836,7 +836,7 @@ acknowledge that you have read and agreed to the
                   <%= t(:interpolate_account_domain, "Enter \"{{ACCOUNT_DOMAIN}}\" to substitute the user's root account domain")  %>
                 </div>
                 <div>
-                  <%= t(:interpolate_user_id, "Enter \"{{CANVAS_USER_ID}}\" to substitute the user's unique Canvas ID")  %>
+                  <%= t(:interpolate_user_id, "Enter \"{{CANVAS_USER_ID}}\" to substitute the user's unique HotChalk Ember ID")  %>
                 </div>
               </span>
             <% end %>

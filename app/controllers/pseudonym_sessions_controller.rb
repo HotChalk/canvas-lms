@@ -82,7 +82,7 @@ class PseudonymSessionsController < ApplicationController
           else
             logger.warn "Received CAS login for unknown user: #{st.user}"
             reset_session
-            session[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => st.user                        
+            session[:delegated_message] = t 'errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => st.user                        
             redirect_to(cas_client.logout_url(cas_login_url :no_auto => true, :account_id => @domain_root_account.id))
             return
           end
@@ -101,7 +101,7 @@ class PseudonymSessionsController < ApplicationController
         if aac = @domain_root_account.account_authorization_configs.find_by_id(params[:account_authorization_config_id])
           initiate_saml_login(request.host_with_port, aac)
         else
-          message = t('errors.login_errors.no_config_for_id', "The Canvas account has no authentication configuration with that id")
+          message = t('errors.login_errors.no_config_for_id', "The HotChalk Ember account has no authentication configuration with that id")
           if @domain_root_account.auth_discovery_url
             redirect_to @domain_root_account.auth_discovery_url + "?message=#{URI.escape message}"
           else
@@ -253,7 +253,7 @@ class PseudonymSessionsController < ApplicationController
         return
       else
         logout_current_user
-        flash[:message] = t('errors.logout_errors.no_idp_found', "Canvas was unable to log you out at your identity provider")
+        flash[:message] = t('errors.logout_errors.no_idp_found', "HotChalk Ember was unable to log you out at your identity provider")
       end
     elsif account.cas_authentication? and session[:cas_session]
       logout_current_user
@@ -314,7 +314,7 @@ class PseudonymSessionsController < ApplicationController
           logger.error "Attempted SAML login for #{response.issuer} on account without that IdP"
           destroy_session
           if @domain_root_account.auth_discovery_url
-            message = t('errors.login_errors.unrecognized_idp', "Canvas did not recognize your identity provider")
+            message = t('errors.login_errors.unrecognized_idp', "HotChalk Ember did not recognize your identity provider")
             redirect_to @domain_root_account.auth_discovery_url + "?message=#{URI.escape message}"
           else
             flash[:delegated_message] = t 'errors.login_errors.no_idp_set', "The institution you logged in from is not configured on this account."
@@ -390,7 +390,7 @@ class PseudonymSessionsController < ApplicationController
             logger.warn message
             aac.debug_set(:canvas_login_fail_message, message) if debugging
             # the saml message has to survive a couple redirects
-            session[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => unique_id
+            session[:delegated_message] = t 'errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => unique_id
             logout_user_action
           end
         elsif response.auth_failure?

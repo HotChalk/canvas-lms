@@ -16,4 +16,17 @@ class Quizzes::QuizQuestion::LearnosityQuestion < Quizzes::QuizQuestion::Base
     super(answer_data, user_answer)
   end
 
+  def stats(responses)
+    stats = {:learnosity_responses => []}
+
+    responses.each do |response|
+      stats[:learnosity_responses] << {
+        :user_id => response[:user_id],
+        :points_awarded => (response[:points] rescue 0),
+      }
+    end
+
+    @question_data.merge stats
+  end
+
 end

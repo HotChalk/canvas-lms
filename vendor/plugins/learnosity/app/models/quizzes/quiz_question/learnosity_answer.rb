@@ -6,7 +6,13 @@ class Quizzes::QuizQuestion::LearnosityAnswer < Quizzes::QuizQuestion::UserAnswe
   end
 
   def score
-    self.answer_details['scores'][question_id.to_s]['score'] rescue super
+    begin
+      score = self.answer_details['scores'][question_id.to_s]['score'].to_f
+      max_score = self.answer_details['scores'][question_id.to_s]['max_score'].to_f
+      max_score > 0 ? (((score / max_score) * self.points_possible).round(2)) : 0
+    rescue
+      super
+    end
   end
 
 end

@@ -2363,6 +2363,15 @@ define([
           $div.html(question.question_data.question_text);
           question.question_text = TextHelper.truncateText($div.text(), {max: 75});
           question.question_name = question.question_data.question_name;
+          if (question.question_data.question_type == 'learnosity_question') {
+            try {
+              var learnosityObj = JSON.parse($div.text());
+              var newText = learnosityObj['stimulus'] || learnosityObj['description'] || I18n.t('errors.no_preview_available', "No preview available for this question");
+              question.question_text = TextHelper.truncateText(newText, {max: 75});
+            } catch (e) {
+              question.question_text = I18n.t('errors.no_preview_available', "No preview available for this question")
+            }
+          }
           var $question = $findQuestionDialog.find(".found_question.blank").clone(true).removeClass('blank');
           $question.toggleClass('already_added', !!existingIDs[question.id]);
           $question.fillTemplateData({data: question});
@@ -2459,6 +2468,13 @@ define([
       var url = $findQuestionDialog.find(".add_questions_url").attr('href');
       $findQuestionDialog.find("button").attr('disabled', true).filter(".submit_button").text(I18n.t('buttons.adding_questions', "Adding Questions..."));
       $.ajaxJSON(url, 'POST', params, function(question_results) {
+        if ($.grep(question_results, function(question) { return question["question_type"] == 'learnosity_question' }).length) {
+          if (window.location.hash != 'questions_tab') {
+            window.location.hash = 'questions_tab';
+          }
+          window.location.reload();
+          return;
+        }
         $findQuestionDialog.find("button").attr('disabled', false).filter(".submit_button").text(I18n.t('buttons.add_selected_questions', "Add Selected Questions"));
         $findQuestionDialog.find(".selected_side_tab").removeClass('selected_side_tab');
         var counter = 0;
@@ -2811,6 +2827,7 @@ define([
         var $question = $("#question_template").clone().removeAttr('id');
         var question = question_data;
         var questionData = $.extend({}, question, question.question_data);
+        if (questionData.question_type == 'learnosity_question') return;
         $teaser.after($question);
         $teaser.remove();
         $question.show();

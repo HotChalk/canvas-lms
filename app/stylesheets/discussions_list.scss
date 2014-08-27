@@ -4,6 +4,9 @@
 // min width to ensure toolbar doesn't stagger
 #main { min-width: 700px; }
 
+// HOTCHALK CNS-645: prevents popup menu from not displaying in IE11
+#content { padding-bottom: 70px; }
+
 .discussionTopicIndexList {
   .discussion-topic {
     cursor: pointer;

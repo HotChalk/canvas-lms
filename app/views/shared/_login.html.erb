@@ -6,7 +6,7 @@
 <% login_handle_name = @domain_root_account.login_handle_name rescue AccountAuthorizationConfig.default_login_handle_name %>
 <div id="modal-box" class="login-box">
     <div id="modal-box-inner">
-    <h1>Canvas</h1>
+    <h1>HotChalk Ember</h1>
     <% if @is_delegated %>
       <div id="login_form">
         <% if flash[:delegated_message] %>
@@ -28,9 +28,9 @@
             <% if @domain_root_account.self_registration_type == 'observer' %>
               <% js_env :ACCOUNT => account_json(@domain_root_account, nil, session, ['registration_settings']),
                         :PASSWORD_POLICY => @domain_root_account.password_policy %>
-              <%= link_to t("coenrollment_banner", "*Parent of a Canvas User?* **Click Here For an Account**", :wrapper => {'*' => '<i>\1</i>', '**' => '<b>\1</b>'}), '#', :id => 'coenrollment_link', :class => 'register_banner' %>
+              <%= link_to t("coenrollment_banner", "*Parent of a HotChalk Ember User?* **Click Here For an Account**", :wrapper => {'*' => '<i>\1</i>', '**' => '<b>\1</b>'}), '#', :id => 'coenrollment_link', :class => 'register_banner' %>
             <% else %>
-              <%= link_to t("register_for_canvas", "*Need a Canvas Account?* **Click Here, It's Free!**", :wrapper => {'*' => '<i>\1</i>', '**' => '<b>\1</b>'}),  Setting.get("registration_link", "/register_from_website"), :id => 'register_link', :class => 'not_external register_banner' %>
+              <%= link_to t("register_for_canvas", "*Need a HotChalk Ember Account?* **Click Here, It's Free!**", :wrapper => {'*' => '<i>\1</i>', '**' => '<b>\1</b>'}),  Setting.get("registration_link", "/register_from_website"), :id => 'register_link', :class => 'not_external register_banner' %>
             <% end %>
         <% end %>
         <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
@@ -50,9 +50,9 @@
 
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <% url = "http://support.hotchalklearn.com/support.html" %><br />
-            <%= link_to t('dont_know_password', "HotChalkLearn Support"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password" %>
-            <br />
-            <%= link_to "Concordia University - Portland Log-in", "http://login.cu-portland.edu/canvas", :class => "not_external", :id => "login_cu_portland" %>
+            <%= link_to t('dont_know_password', "Trouble logging in?"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password" %>
+            <!--<br />
+            <%= link_to "Concordia University - Portland Log-in", "http://login.cu-portland.edu/canvas", :class => "not_external", :id => "login_cu_portland" %>-->
           </div>
 
           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
