@@ -2209,7 +2209,7 @@ class User < ActiveRecord::Base
   end
 
   def sections_for_course(course)
-    course.student_enrollments.active.for_user(self).map { |e| e.course_section }
+    course.current_enrollments.for_user(self).map { |e| e.course_section }
   end
 
   def can_create_enrollment_for?(course, session, type)

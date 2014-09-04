@@ -32,7 +32,7 @@ class DiscussionTopic < ActiveRecord::Base
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
     :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked,
     :group_category, :group_category_id,
-    :grade_replies_separately, :reply_assignment
+    :grade_replies_separately, :reply_assignment, :course_section_id
 
   module DiscussionTypes
     SIDE_COMMENT = 'side_comment'
@@ -60,14 +60,15 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :discussion_topic_participants, :dependent => :destroy
   has_many :discussion_entry_participants, :through => :discussion_entries
   belongs_to :user
+  belongs_to :course_section
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :title, :message, :context_id, :context_type, :type, :user_id, :workflow_state, :last_reply_at, :created_at, :updated_at, :delayed_post_at, :posted_at, :assignment_id,
     :attachment_id, :deleted_at, :root_topic_id, :could_be_locked, :cloned_item_id, :context_code, :position, :subtopics_refreshed_at, :last_assignment_id, :external_feed_id,
-    :editor_id, :podcast_enabled, :podcast_has_student_posts, :require_initial_post, :discussion_type, :lock_at, :pinned, :locked
+    :editor_id, :podcast_enabled, :podcast_has_student_posts, :require_initial_post, :discussion_type, :lock_at, :pinned, :locked, :course_section_id
   ]
 
-  EXPORTABLE_ASSOCIATIONS = [:discussion_entries, :external_feed_entry, :external_feed, :context, :assignment, :attachment, :editor, :root_topic, :child_topics, :discussion_entry_participants, :user]
+  EXPORTABLE_ASSOCIATIONS = [:discussion_entries, :external_feed_entry, :external_feed, :context, :assignment, :attachment, :editor, :root_topic, :child_topics, :discussion_entry_participants, :user, :course_section]
 
   validates_presence_of :context_id, :context_type
   validates_inclusion_of :discussion_type, :in => DiscussionTypes::TYPES
@@ -858,7 +859,13 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participants(include_observers=false)
     participants = [ self.user ]
-    participants += context.participants(include_observers)
+    if self.course_section_id.nil?
+      participants += context.participants(include_observers)
+    else
+      participants += self.course_section.admins
+      participants += self.course_section.students
+      participants += self.course_section.observers if include_observers
+    end
     participants.compact.uniq
   end
 

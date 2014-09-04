@@ -223,6 +223,7 @@ class DiscussionTopicsController < ApplicationController
   include Api::V1::Assignment
   include Api::V1::AssignmentOverride
   include KalturaHelper
+  include ApplicationHelper
 
   # @API List discussion topics
   #
@@ -262,6 +263,9 @@ class DiscussionTopicsController < ApplicationController
 
     scope = DiscussionTopic.search_by_attribute(scope, :title, params[:search_term])
 
+    scope = scope.select { |a|
+      a.course_section_id.nil? || @current_user.sections_for_course(@context).map(&:id).include?(a.course_section_id)
+    } unless current_user_is_account_admin
     states = params[:scope].split(',').map{|s| s.strip} if params[:scope]
     if states.present?
       if (states.include?('pinned') && states.include?('unpinned')) ||
@@ -365,8 +369,15 @@ class DiscussionTopicsController < ApplicationController
 
       categories = @context.respond_to?(:group_categories) ? @context.group_categories : []
       sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
+      user_sections = if current_user_is_account_admin
+                        sections.map { |section| { id: section.id, name: section.name } }.unshift({ :id => '', :name => 'Everybody' })
+                      else
+                        @current_user.sections_for_course(@context).map { |section| { id: section.id, name: section.name } }
+                      end
+
       js_hash = {DISCUSSION_TOPIC: hash,
                  SECTION_LIST: sections.map { |section| { id: section.id, name: section.name } },
+                 USER_SECTION_LIST: user_sections,
                  GROUP_CATEGORIES: categories.
                      reject { |category| category.student_organized? }.
                      map { |category| { id: category.id, name: category.name } },
@@ -661,7 +672,7 @@ class DiscussionTopicsController < ApplicationController
 
   API_ALLOWED_TOPIC_FIELDS = %w(title message discussion_type delayed_post_at lock_at podcast_enabled
                                 podcast_has_student_posts require_initial_post is_announcement pinned
-                                group_category_id)
+                                group_category_id course_section_id)
   def process_discussion_topic(is_new = false)
     @errors = {}
     discussion_topic_hash = params.slice(*API_ALLOWED_TOPIC_FIELDS)
