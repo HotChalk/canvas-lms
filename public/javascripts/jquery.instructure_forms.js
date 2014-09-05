@@ -28,7 +28,7 @@ define([
   'jquery.instructure_misc_helpers' /* /\$\.uniq/ */,
   'jquery.instructure_misc_plugins' /* /\.log\(/ */,
   'compiled/jquery.rails_flash_notifications',
-  'redactor.editor_box' /* editorBox */,
+  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */
 ], function(INST, I18n, $, _, FakeXHR) {
 
@@ -962,8 +962,8 @@ define([
       if(!$obj || $obj.length === 0 || name == "general") {
         $obj = $form;
       }
-      if($obj[0].tagName == 'TEXTAREA' && $obj.data('redactor')) {
-        $obj = $obj.redactor('getEditor');
+      if($obj[0].tagName == 'TEXTAREA' && $obj.next('.mceEditor').length) {
+        $obj = $obj.next().find(".mceIframeContainer");
       }
       errorDetails[name] = {object: $obj, message: msg};
       hasErrors = true;

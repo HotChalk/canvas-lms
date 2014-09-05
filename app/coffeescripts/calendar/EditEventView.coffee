@@ -7,7 +7,8 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'wikiSidebar'
   'compiled/object/unflatten'
-  'redactor.editor_box'
+  'tinymce.editor_box'
+  'compiled/tinymce'
 ], ($, _, I18n, Backbone, editCalendarEventFullTemplate, MissingDateDialogView, wikiSidebar, unflatten) ->
 
   ##

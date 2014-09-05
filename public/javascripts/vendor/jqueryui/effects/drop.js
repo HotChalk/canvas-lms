@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Effects Drop 1.9.2
- * http://jqueryui.com
+ * jQuery UI Effects Drop @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/drop-effect/
+ * http://docs.jquery.com/UI/Effects/Drop
  *
  * Depends:
  *	jquery.ui.effect.js
@@ -35,7 +34,7 @@ $.effects.effect.drop = function( o, done ) {
 	el.show();
 	$.effects.createWrapper( el );
 
-	distance = o.distance || el[ ref === "top" ? "outerHeight": "outerWidth" ]( true ) / 2;
+	distance = o.distance || el[ ref === "top" ? "outerHeight": "outerWidth" ]({ margin: true }) / 2;
 
 	if ( show ) {
 		el

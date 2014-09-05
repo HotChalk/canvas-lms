@@ -4052,7 +4052,7 @@ function AgendaEventRenderer() {
 			opacity: opt('dragOpacity', 'month'), // use whatever the month view was using
 			revertDuration: opt('dragRevertDuration'),
 			// INSTRUCTURE: Additional drag options to help with dragging to other calendars
-			// helper: opt('dragHelper'),
+			helper: opt('dragHelper'),
 			appendTo: opt('dragAppendTo'),
 			zIndex: opt('dragZIndex'),
 			cursorAt: opt('dragCursorAt'),
@@ -4161,7 +4161,7 @@ function AgendaEventRenderer() {
 			opacity: opt('dragOpacity'),
 			revertDuration: opt('dragRevertDuration'),
 			// INSTRUCTURE: Additional drag options to help with dragging to other calendars
-			// helper: opt('dragHelper'),
+			helper: opt('dragHelper'),
 			appendTo: opt('dragAppendTo'),
 			zIndex: opt('dragZIndex'),
 			cursorAt: opt('dragCursorAt'),
@@ -5672,7 +5672,7 @@ function DayEventRenderer() {
 			opacity: opt('dragOpacity'),
 			revertDuration: opt('dragRevertDuration'),
 			// INSTRUCTURE: Additional drag options to help with dragging to other calendars
-			// helper: opt('dragHelper'),
+			helper: opt('dragHelper'),
 			appendTo: opt('dragAppendTo'),
 			zIndex: opt('dragZIndex'),
 			cursorAt: opt('dragCursorAt'),

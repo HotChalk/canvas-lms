@@ -150,14 +150,14 @@
   jammit_css :dashboard
   case @course_home_view
   when 'wiki'
-    jammit_css :redactor
+    jammit_css :tinymce
   when 'modules'
     js_bundle :context_modules
   when 'assignments'
     js_bundle :assignments
   when 'syllabus'
     js_bundle :syllabus
-    jammit_css :redactor
+    jammit_css :tinymce
   else
     js_bundle :dashboard
   end

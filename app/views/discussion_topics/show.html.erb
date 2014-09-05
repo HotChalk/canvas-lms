@@ -30,7 +30,7 @@
 <% end %>
 <%
   js_bundle :discussion
-  jammit_css :redactor, :discussions, :learning_outcomes
+  jammit_css :tinymce, :discussions, :learning_outcomes
 %>
 
 <% if @topic.draft_state_enabled? && (@unlock_at && @unlock_at > Time.now) &&

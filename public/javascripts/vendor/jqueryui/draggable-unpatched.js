@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Draggable 1.9.2
- * http://jqueryui.com
+ * jQuery UI Draggable @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/draggable/
+ * http://docs.jquery.com/UI/Draggables
  *
  * Depends:
  *	jquery.ui.core.js
@@ -21,7 +20,7 @@ define([
 ], function( $ ) {
 
 $.widget("ui.draggable", $.ui.mouse, {
-	version: "1.9.2",
+	version: "@VERSION",
 	widgetEventPrefix: "drag",
 	options: {
 		addClasses: true,
@@ -234,10 +233,11 @@ $.widget("ui.draggable", $.ui.mouse, {
 	},
 
 	_mouseUp: function(event) {
-		//Remove frame helpers
+		if (this.options.iframeFix === true) {
 		$("div.ui-draggable-iframeFix").each(function() {
 			this.parentNode.removeChild(this);
-		});
+			}); //Remove frame helpers
+		}
 
 		//If the ddmanager is used for droppables, inform the manager that dragging has stopped (see #5003)
 		if( $.ui.ddmanager ) $.ui.ddmanager.dragStop(this, event);
@@ -323,7 +323,7 @@ $.widget("ui.draggable", $.ui.mouse, {
 		}
 
 		if((this.offsetParent[0] == document.body) //This needs to be actually done for all browsers, since pageX/pageY includes this information
-		|| (this.offsetParent[0].tagName && this.offsetParent[0].tagName.toLowerCase() == 'html' && $.ui.ie)) //Ugly IE fix
+		|| (this.offsetParent[0].tagName && this.offsetParent[0].tagName.toLowerCase() == 'html' && $.browser.msie)) //Ugly IE fix
 			po = { top: 0, left: 0 };
 
 		return {
@@ -576,29 +576,13 @@ $.ui.plugin.add("draggable", "connectToSortable", {
 
 		$.each(inst.sortables, function(i) {
 
-			var innermostIntersecting = false;
-			var thisSortable = this;
 			//Copy over some variables to allow calling the sortable's native _intersectsWith
 			this.instance.positionAbs = inst.positionAbs;
 			this.instance.helperProportions = inst.helperProportions;
 			this.instance.offset.click = inst.offset.click;
 
 			if(this.instance._intersectsWith(this.instance.containerCache)) {
-				innermostIntersecting = true;
-				$.each(inst.sortables, function () {
-					this.instance.positionAbs = inst.positionAbs;
-					this.instance.helperProportions = inst.helperProportions;
-					this.instance.offset.click = inst.offset.click;
-					if  (this != thisSortable
-						&& this.instance._intersectsWith(this.instance.containerCache)
-						&& $.ui.contains(thisSortable.instance.element[0], this.instance.element[0]))
-						innermostIntersecting = false;
-						return innermostIntersecting;
-				});
-			}
 
-
-			if(innermostIntersecting) {
 				//If it intersects, we use a little isOver variable and set it once, so our move-in stuff gets fired only once
 				if(!this.instance.isOver) {
 

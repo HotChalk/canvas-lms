@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Mouse 1.9.2
- * http://jqueryui.com
+ * jQuery UI Mouse @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/mouse/
+ * http://docs.jquery.com/UI/Mouse
  *
  * Depends:
  *	jquery.ui.widget.js
@@ -22,7 +21,7 @@ $( document ).mouseup( function( e ) {
 });
 
 $.widget("ui.mouse", {
-	version: "1.9.2",
+	version: "@VERSION",
 	options: {
 		cancel: 'input,textarea,button,select,option',
 		distance: 1,
@@ -50,11 +49,9 @@ $.widget("ui.mouse", {
 	// other instances of mouse
 	_mouseDestroy: function() {
 		this.element.unbind('.'+this.widgetName);
-		if ( this._mouseMoveDelegate ) {
 			$(document)
 				.unbind('mousemove.'+this.widgetName, this._mouseMoveDelegate)
 				.unbind('mouseup.'+this.widgetName, this._mouseUpDelegate);
-		}
 	},
 
 	_mouseDown: function(event) {
@@ -114,7 +111,7 @@ $.widget("ui.mouse", {
 
 	_mouseMove: function(event) {
 		// IE mouseup check - mouseup happened when mouse was out of window
-		if ($.ui.ie && !(document.documentMode >= 9) && !event.button) {
+		if ($.browser.msie && !(document.documentMode >= 9) && !event.button) {
 			return this._mouseUp(event);
 		}
 

@@ -21,9 +21,10 @@ define [
   'jquery'
   'underscore'
   'compiled/views/ValidatedFormView'
-  'redactor.editor_box'
+  'tinymce.editor_box'
   'compiled/jquery.rails_flash_notifications'
   'jquery.disableWhileLoading'
+  'compiled/tinymce',
 ], (I18n, $, _, ValidatedFormView) ->
 
   # Superclass for OutcomeView and OutcomeGroupView.

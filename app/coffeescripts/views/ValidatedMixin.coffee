@@ -33,7 +33,7 @@ define [
       selector = @fieldSelectors?[field] or "[name='#{field}']"
       $el = @$(selector)
       if $el.data('rich_text')
-        $el = $el.redactor('getEditor')
+        $el = $el.next('.mceEditor').find(".mceIframeContainer")
       $el
 
     ##

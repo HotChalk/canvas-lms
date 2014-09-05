@@ -4,7 +4,7 @@ define [
   'jquery'
   'Backbone'
   'compiled/fn/preventDefault'
-  'redactor.editor_box'
+  'tinymce.editor_box'
 ], (_, I18n, $, Backbone, preventDefault) ->
 
   ##
@@ -27,7 +27,6 @@ define [
       @options = $.extend {}, @options, options
       @textArea = @createTextArea()
       @switchViews = @createSwitchViews() if @options.switchViews
-      @clearDiv = @createClearDiv() if @options.switchViews
       @done = @createDone()
       @content = @getContent()
       @editing = false
@@ -49,7 +48,6 @@ define [
       @textArea.insertBefore @el
       @el.detach()
       @switchViews.insertBefore @textArea if @options.switchViews
-      @clearDiv.insertBefore @textArea if @options.switchViews
       @done.insertAfter @textArea
       opts = {focus: true, tinyOptions: {}}
       if @options.editorBoxLabel
@@ -66,11 +64,10 @@ define [
         @content = @textArea._justGetCode()
         @textArea.val @content
         @el.html @content
-      @textArea._removeEditor()
       @el.insertBefore @textArea
+      @textArea._removeEditor()
       @textArea.detach()
       @switchViews.detach() if @options.switchViews
-      @clearDiv.detach() if @options.switchViews
       @done.detach()
       # so tiny doesn't hang on to this instance
       @textArea.attr 'id', ''
@@ -129,11 +126,6 @@ define [
         $(e.currentTarget).siblings('a').andSelf().toggle()
       return $switchViewsContainer
 
-    ##
-    # create the switch views links to go between rich text and a textarea
-    # @api private
-    createClearDiv: ->
-      return $('<div/>', class: "clear")
 
   _.extend(EditorToggle.prototype, Backbone.Events)
 
