@@ -152,7 +152,7 @@ $.widget( "ui.tooltip", {
 			// IE may instantly serve a cached response for ajax requests
 			// delay this call to _open so the other call to _open runs first
 			setTimeout(function() {
-					that._open( event, target, response );
+				that._open( event, target, response );
 			}, 1 );
 		});
 		if ( content ) {

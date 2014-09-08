@@ -77,10 +77,10 @@ var stepHooks = "backgroundColor borderBottomColor borderLeftColor borderRightCo
 			space: "hsla",
 			parse: function( execResult ) {
 				return [
-					execResult[ 1 ],
-					execResult[ 2 ] / 100,
-					execResult[ 3 ] / 100,
-					execResult[ 4 ]
+					execResult[1],
+					execResult[2] / 100,
+					execResult[3] / 100,
+					execResult[4]
 				];
 			}
 		}],
@@ -207,8 +207,8 @@ function stringParse( string ) {
 			parsed = inst[ spaceName ]( values );
 
 			// if this was an rgba parse the assignment might happen twice
-			// oh well....			inst[ cache ] = parsed[ cache ];
-
+			// oh well....
+			inst[ cache ] = parsed[ cache ];
 			rgba = inst._rgba = parsed._rgba;
 
 			// exit each( stringParsers ) here because we matched
@@ -274,7 +274,7 @@ color.fn = jQuery.extend( color.prototype, {
 			} else {
 				each( spaces, function( spaceName, space ) {
 					each( space.props, function( key, prop ) {
-					var cache = space.cache;
+						var cache = space.cache;
 
 						// if the cache doesn't exist, and we know how to convert
 						if ( !inst[ cache ] && space.to ) {
@@ -591,7 +591,7 @@ each( stepHooks, function( i, hook ) {
 					do {
 						backgroundColor = jQuery.curCSS( curElem, "backgroundColor" );
 					} while (
-						(backgroundColor === "" || backgroundColor === "transparent") &&
+						( backgroundColor === "" || backgroundColor === "transparent" ) &&
 						( curElem = curElem.parentNode ) &&
 						curElem.style
 					);
@@ -627,7 +627,7 @@ jQuery(function() {
 
 	div_style.cssText = "background-color:rgba(1,1,1,.5)";
 	support.rgba = div_style.backgroundColor.indexOf( "rgba" ) > -1;
-		});
+});
 
 // Some named colors to work with
 // From Interface by Stefan Petre
@@ -839,14 +839,14 @@ $.fn.extend({
 	addClass: function( classNames, speed, easing, callback ) {
 		return speed ?
 			$.effects.animateClass.apply( this, [{ add: classNames }, speed, easing, callback ]) :
-			this._addClass( classNames );
+			this._addClass(classNames);
 	},
 
 	_removeClass: $.fn.removeClass,
 	removeClass: function( classNames, speed, easing, callback ) {
 		return speed ?
 			$.effects.animateClass.apply( this, [{ remove: classNames }, speed, easing, callback ]) :
-			this._removeClass( classNames );
+			this._removeClass(classNames);
 	},
 
 	_toggleClass: $.fn.toggleClass,
@@ -866,8 +866,8 @@ $.fn.extend({
 
 	switchClass: function( remove, add, speed, easing, callback) {
 		return $.effects.animateClass.apply( this, [{
-			add: add,
-			remove: remove
+				add: add,
+				remove: remove
 			}, speed, easing, callback ]);
 	}
 });
@@ -897,8 +897,8 @@ $.extend( $.effects, {
 		for( var i=0; i < set.length; i++ ) {
 			if ( set[ i ] !== null ) {
 				element.css( set[ i ], element.data( dataSpace + set[ i ] ) );
-				}
 			}
+		}
 	},
 
 	setMode: function( el, mode ) {

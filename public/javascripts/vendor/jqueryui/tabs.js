@@ -884,15 +884,15 @@ if ( $.uiBackCompat !== false ) {
 
 				$.extend( ui.ajaxSettings, that.options.ajaxOptions, {
 					error: function( xhr, s, e ) {
-					try {
-						// Passing index avoid a race condition when this method is
-						// called after the user has selected another tab.
-						// Pass the anchor that initiated this request allows
-						// loadError to manipulate the tab content panel via $(a.hash)
+						try {
+							// Passing index avoid a race condition when this method is
+							// called after the user has selected another tab.
+							// Pass the anchor that initiated this request allows
+							// loadError to manipulate the tab content panel via $(a.hash)
 							that.options.ajaxOptions.error( xhr, s, ui.tab.closest( "li" ).index(), ui.tab[ 0 ] );
-					}
+						}
 						catch ( e ) {}
-				}
+					}
 				});
 
 				ui.jqXHR.success(function() {

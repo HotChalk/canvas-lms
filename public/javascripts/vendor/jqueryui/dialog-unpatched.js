@@ -119,7 +119,8 @@ $.widget("ui.dialog", {
 				})
 				.mousedown(function( event ) {
 					that.moveToTop( false, event );
-				})				.appendTo( "body" ),
+				})
+				.appendTo( "body" ),
 
 			uiDialogContent = this.element
 				.show()
@@ -366,7 +367,7 @@ $.widget("ui.dialog", {
 
 		this.uiDialog.attr('aria-hidden', false);
 		if ($.browser && $.browser.safari) {
-		hasFocus.eq( 0 ).focus();
+			hasFocus.eq( 0 ).focus();
 		}
 
 		this._isOpen = true;

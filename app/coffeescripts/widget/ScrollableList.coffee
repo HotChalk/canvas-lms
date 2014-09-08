@@ -44,7 +44,7 @@ define [
       @fetchBuffer   = options.fetchBuffer   ? 20 # how many items to fetch on either side of the viewable pane
       @firstLoad     = true
       @load() unless options.noAutoLoad
-      @$list.on 'click', 'li', @clicked if @clicked
+      @$list.delegate '.scrollable-list > li', 'click', @clicked if @clicked
 
     item: (id) ->
       @ds.items[@positionFor(id)]

@@ -106,7 +106,7 @@ define [
       false
 
     loadData: =>
-      if not @loadingDeferred || (@loadingDeferred && @loadingDeferred.state() != 'resolved')
+      if not @loadingDeferred || (@loadingDeferred && not @loadingDeferred.isResolved())
         @loadingDeferred = new $.Deferred()
 
       @groups = {}

@@ -90,11 +90,11 @@ $.widget( "ui.menu", {
 					// Open submenu on click
 					if ( this.element.has( ".ui-menu" ).length ) {
 						this.expand( event );
-					} else if ( !this.element.is( ":focus" ) ) {
+					} else if ( !this.element.is(":focus") ) {
 						// Redirect focus to the menu
 						this.element.focus();
-						}
 					}
+				}
 			},
 			"mouseenter .ui-menu-item": function( event ) {
 				var target = $( event.currentTarget );
@@ -110,7 +110,7 @@ $.widget( "ui.menu", {
 				// If not, activate the first item
 				var item = this.active || this.element.children( ".ui-menu-item" ).not(thisOrParentIsHidden).eq( 0 );
 
-					this.focus( event, item );
+				this.focus( event, item );
 			},
 			blur: function( event ) {
 				this._delay(function() {
@@ -283,13 +283,13 @@ $.widget( "ui.menu", {
 		var menus,
 			icon = this.options.icons.submenu,
 			submenus = this.element.find( this.options.menus + ":not(.ui-menu)" )
-			.addClass( "ui-menu ui-widget ui-widget-content ui-corner-all" )
-			.hide()
-			.attr({
-				role: this.options.role,
-				"aria-hidden": "true",
-				"aria-expanded": "false"
-			});
+				.addClass( "ui-menu ui-widget ui-widget-content ui-corner-all" )
+				.hide()
+				.attr({
+					role: this.options.role,
+					"aria-hidden": "true",
+					"aria-expanded": "false"
+				});
 
 		// Don't refresh list items that are already adapted
 		menus = submenus.add( this.element );
@@ -599,7 +599,7 @@ $.widget( "ui.menu", {
 		// Save active reference before collapseAll triggers blur
 		var ui = {
 			// Selecting a menu item removes the active item causing multiple clicks to be missing an item
-				item: this.active || $( event.target ).closest( ".ui-menu-item" )
+			item: this.active || $( event.target ).closest( ".ui-menu-item" )
 		};
 		if ( !ui.item.has( ".ui-menu" ).length ) {
 			this.collapseAll( event, true );

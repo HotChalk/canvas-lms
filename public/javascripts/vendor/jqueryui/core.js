@@ -211,13 +211,13 @@ function visible( element ) {
 	return !$( element ).parents().andSelf().filter(function() {
 		return $.css( this, "visibility" ) === "hidden" ||
 			$.expr.filters.hidden( this );
-		}).length;
+	}).length;
 }
 
 $.extend( $.expr[ ":" ], {
 	data: function( elem, i, match ) {
-			return !!$.data( elem, match[ 3 ] );
-		},
+		return !!$.data( elem, match[ 3 ] );
+	},
 
 	focusable: function( element ) {
 		return focusable( element, !isNaN( $.attr( element, "tabindex" ) ) );

@@ -5700,7 +5700,7 @@ function DayEventRenderer() {
 				clearOverlays();
 				trigger('eventDragStop', eventElement, event, ev, ui);
 				if (dayDelta) {
-          eventDrop(this, event, dayDelta, 0, event.allDay, ev, ui);
+					eventDrop(this, event, dayDelta, 0, event.allDay, ev, ui);
 				}else{
 					eventElement.css('filter', ''); // clear IE opacity side-effects
 					showEvents(event, eventElement);
@@ -5984,7 +5984,7 @@ function OverlayManager() {
 
 	function clearOverlays() {
 		var e;
-    while (e = usedOverlays.shift()) {
+		while (e = usedOverlays.shift()) {
 			unusedOverlays.push(e.hide().unbind());
 		}
 	}

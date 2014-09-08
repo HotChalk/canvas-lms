@@ -209,12 +209,12 @@ $.widget("ui.resizable", $.ui.mouse, {
 			_destroy(this.element);
 			var wrapper = this.element;
 			wrapper.after(
-			this.originalElement.css({
-				position: wrapper.css('position'),
-				width: wrapper.outerWidth(),
-				height: wrapper.outerHeight(),
-				top: wrapper.css('top'),
-				left: wrapper.css('left')
+				this.originalElement.css({
+					position: wrapper.css('position'),
+					width: wrapper.outerWidth(),
+					height: wrapper.outerHeight(),
+					top: wrapper.css('top'),
+					left: wrapper.css('left')
 				})
 			).remove();
 		}
