@@ -16,7 +16,7 @@ define([
   'jqueryui/core',
   'jqueryui/widget'
 ], function( $ ) {
-
+  
 var tabId = 0,
 	rhash = /#.*$/;
 

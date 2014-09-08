@@ -10,7 +10,7 @@
 define([
   'jquery'
 ], function( $ ) {
-
+  
 $.ui = $.ui || {};
 
 var cachedScrollbarWidth,

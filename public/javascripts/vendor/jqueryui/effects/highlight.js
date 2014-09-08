@@ -28,7 +28,7 @@ $.effects.effect.highlight = function( o, done ) {
 	}
 
 	$.effects.save( elem, props );
-
+	
 	elem
 		.show()
 		.css({
