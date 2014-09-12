@@ -25,8 +25,7 @@ define [
   'jquery.instructure_misc_helpers' # scrollSidebar #
   'jquery.instructure_misc_plugins' # ifExists, showIf #
   'jquery.loadingImg' # loadingImage #
-  'compiled/tinymce'
-  'tinymce.editor_box' # editorBox #
+  'ckeditor.editor_box' # editorBox #
   'vendor/jquery.scrollTo' # /\.scrollTo/ #
   'jqueryui/datepicker' # /\.datepicker/ #
 ], ($, calendarMonths, wikiSidebar) ->

@@ -15,8 +15,7 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
-  'compiled/tinymce'
-  'tinymce.editor_box'
+  'ckeditor.editor_box'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,

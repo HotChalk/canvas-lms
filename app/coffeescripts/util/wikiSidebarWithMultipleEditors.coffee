@@ -1,8 +1,7 @@
 define [
   'jquery'
   'wikiSidebar'
-  'tinymce.editor_box'
-  'compiled/tinymce'
+  'ckeditor.editor_box'
 ], ($, wikiSidebar) ->
 
   $.subscribe 'editorBox/focus', ($editor) ->

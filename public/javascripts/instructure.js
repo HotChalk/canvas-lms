@@ -43,7 +43,7 @@ define([
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'compiled/jquery/fixDialogButtons',
   'compiled/jquery/mediaCommentThumbnail',
-  'tinymce.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/date' /* Date.parse */,
   'vendor/jquery.ba-tinypubsub' /* /\.publish\(/ */,
   'jqueryui/accordion' /* /\.accordion\(/ */,

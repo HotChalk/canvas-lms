@@ -37,8 +37,7 @@ define([
   'jquery.instructure_misc_plugins' /* confirmDelete, showIf */,
   'jquery.loadingImg' /* loadingImage */,
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
-  'compiled/tinymce',
-  'tinymce.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/progressbar' /* /\.progressbar/ */,
   'jqueryui/sortable' /* /\.sortable/ */

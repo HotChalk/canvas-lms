@@ -27,8 +27,7 @@ define([
   'jquery.instructure_misc_plugins' /* confirmDelete, fragmentChange, showIf */,
   'jquery.loadingImg' /* loadingImg, loadingImage */,
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
-  'compiled/tinymce',
-  'tinymce.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/date' /* Date.parse */
 ], function(tz, I18n, $, wikiSidebar) {
 

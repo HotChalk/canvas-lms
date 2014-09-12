@@ -8,8 +8,7 @@ define([
   'jquery.instructure_misc_helpers', // replaceTags
   'jquery.instructure_misc_plugins', // confirmDelete, showIf, /\.log/
   'jquery.loadingImg', // loadingImg, loadingImage
-  'compiled/tinymce',
-  'tinymce.editor_box', // editorBox
+  'ckeditor.editor_box', // editorBox
   'vendor/date', // Date.parse
   'vendor/jquery.scrollTo', // /\.scrollTo/
   'jqueryui/tabs' // /\.tabs/

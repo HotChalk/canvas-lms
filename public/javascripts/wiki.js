@@ -23,7 +23,7 @@ define([
   'jquery.instructure_forms' /* formSubmit, formErrors */,
   'jquery.instructure_misc_plugins' /* confirmDelete, fragmentChange, showIf */,
   'jquery.templateData' /* fillTemplateData */,
-  'compiled/tinymce'
+  'ckeditor.editor_box'
 ], function($, wikiSidebar) {
 
   // private variables & methods

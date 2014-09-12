@@ -7,7 +7,7 @@ define [
   'str/htmlEscape'
   'jst/discussions/_reply_attachment'
   'compiled/fn/preventDefault'
-  'tinymce.editor_box'
+  'ckeditor.editor_box'
 ], (Backbone, _, I18n, $, Entry, htmlEscape, replyAttachmentTemplate, preventDefault) ->
 
   class Reply
