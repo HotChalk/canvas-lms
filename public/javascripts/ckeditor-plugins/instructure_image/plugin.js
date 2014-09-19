@@ -1,5 +1,4 @@
 (function() {
-  var I18n = require('i18n!editor');
   var htmlEscape = require('str/htmlEscape');
   CKEDITOR.plugins.add('instructure_image', {
     icons: 'instructure_image',
@@ -17,7 +16,7 @@
         }
       });
       editor.ui.addButton('instructure_image', {
-        label: htmlEscape(I18n.t('embed_image', 'Embed Image')),
+        label: 'Embed Image',
         command: 'instructureImage',
         toolbar: 'insert'
       });

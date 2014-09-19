@@ -1,8 +1,7 @@
 (function() {
-  var I18n = require('i18n!editor');
   var TRANSLATIONS = {
-    embed_from_external_tool: I18n.t('embed_from_external_tool', '"Embed content from External Tool"'),
-    more_external_tools: INST.htmlEscape(I18n.t('more_external_tools', "More External Tools"))
+    embed_from_external_tool: "Embed content from External Tool",
+    more_external_tools: "More External Tools"
   };
   CKEDITOR.plugins.add('instructure_external_tools', {
     init: function(api, url) {
