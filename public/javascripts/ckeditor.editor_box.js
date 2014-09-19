@@ -36,7 +36,7 @@ define([
   'jquery',
   'compiled/editor/editorAccessibility', /* editorAccessibility */
   'INST', // for IE detection; need to handle links in a special way
-  'ckeditor-jquery', // CKEditor
+  'ckeditor-all', // CKEditor
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.instructure_misc_plugins' /* /\.indicate/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
@@ -44,7 +44,6 @@ define([
   'vendor/scribd.view' /* scribd */
 ], function(I18nObj, $, EditorAccessibility, INST) {
 
-  // TODO where is this used?
   var enableBookmarking = !!INST.browser.ie;
   $(document).ready(function() {
     enableBookmarking = !!INST.browser.ie;
@@ -99,45 +98,25 @@ define([
       width = $textarea.closest(":visible").width();
     }
 
-    // TODO handle extra buttons for plugins
-    var instructure_buttons = ",instructure_image,instructure_equation";
+    var extra_buttons = ['instructure_image'];
     for(var idx in INST.editorButtons) {
-      // maxVisibleEditorButtons should be the max number of external tool buttons
-      // that are visible, INCLUDING the catchall "more external tools" button that
-      // will appear if there are too many to show at once.
-      if(INST.editorButtons.length <= INST.maxVisibleEditorButtons || idx < INST.maxVisibleEditorButtons - 1) {
-        instructure_buttons = instructure_buttons + ",instructure_external_button_" + INST.editorButtons[idx].id;
-      } else if(!instructure_buttons.match(/instructure_external_button_clump/)) {
-        instructure_buttons = instructure_buttons + ",instructure_external_button_clump";
-      }
+      extra_buttons.push("instructure_external_button_" + INST.editorButtons[idx].id);
     }
-    if(INST && INST.allowMediaComments && (INST.kalturaSettings && !INST.kalturaSettings.hide_rte_button)) {
-      instructure_buttons = instructure_buttons + ",instructure_record";
-    }
-    var equella_button = INST && INST.equellaEnabled ? ",instructure_equella" : "";
-    instructure_buttons = instructure_buttons + equella_button;
 
-    var buttons1 = "bold,italic,underline,forecolor,backcolor,removeformat,justifyleft,justifycenter,justifyright,bullist,outdent,indent,sup,sub,numlist,table,instructure_links,unlink" + instructure_buttons + ",fontsizeselect,formatselect";
-    var buttons2 = "";
-    var buttons3 = "";
-
-    if (width < 359 && width > 0) {
-      buttons1 = "bold,italic,underline,forecolor,backcolor,removeformat,justifyleft,justifycenter,justifyright";
-      buttons2 = "outdent,indent,sup,sub,bullist,numlist,table,instructure_links,unlink" + instructure_buttons;
-      buttons3 = "fontsizeselect,formatselect";
-    } else if (width < 600) {
-      buttons1 = "bold,italic,underline,forecolor,backcolor,removeformat,justifyleft,justifycenter,justifyright,outdent,indent,sup,sub,bullist,numlist";
-      buttons2 = "table,instructure_links,unlink" + instructure_buttons + ",fontsizeselect,formatselect";
-    }
+    var toolbar = [
+        {name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize', 'Bold', 'Italic', 'Underline',/*forecolor,backcolor,*/'RemoveFormat']},
+        {name: 'paragraph', items: ['JustifyLeft', 'JustifyCenter', 'JustifyRight', 'BulletedList', 'NumberedList', 'Outdent', 'Indent', 'Superscript', 'Subscript']},
+        {name: 'insert', items: ['Table', 'EqnEditor', 'instructure_links', 'Unlink'].concat(extra_buttons)}
+    ];
 
     var ckOptions = $.extend({
       extraAllowedContent: "iframe[src|width|height|name|align|style|class|sandbox]",
       startupFocus: options.focus,
-      /*
-      plugins: "autolink,instructure_external_tools,instructure_contextmenu,instructure_links," +
-               "instructure_embed,instructure_image,instructure_equation,instructure_record,instructure_equella," +
-               "media,paste,table,inlinepopups",
-      */
+      toolbar: toolbar,
+      pasteFromWordRemoveFontStyles: false,
+      pasteFromWordRemoveStyles: false,
+      extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
+      removePlugins: 'image,link',
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);
@@ -156,19 +135,6 @@ define([
     this._submitURL = submit_url;
     this._contentURL = content_url;
     $instructureEditorBoxList._addEditorBox(id, this);
-
-    // TODO add instructureEmbed command
-    /*
-    editor.addCommand('instructureEmbed', function (search) {
-      if (!initted) initShared();
-      $editor = thisEditor; // set shared $editor so images are pasted into the correct editor
-
-      loadFields();
-      $box.dialog('open');
-
-      if (search === 'flickr') $flickrLink.click();
-    });
-    */
   }
 
 // --------------------------------------------------------------------
@@ -291,7 +257,7 @@ define([
   $.fn._insertHTML = function(html) {
     var id = this.attr('id');
     var editor = $instructureEditorBoxList._getEditor(id);
-    editor.insertHtml(html);
+    editor.insertHtml(html, 'unfiltered_html');
   };
 
   $.fn._editorFocus = function() {
@@ -357,13 +323,13 @@ define([
       editor.getSelection().selectBookmarks(this.data('last_bookmark'));
     }
     var selection = editor.getSelection();
-    var anchor = selection.getNode();
-    while(anchor.nodeName != 'A' && anchor.nodeName != 'BODY' && anchor.parentNode) {
-      anchor = anchor.parentNode;
+    var anchor = selection.getSelectedElement();
+    while(anchor && anchor.getName() != 'A' && anchor.getName() != 'BODY' && anchor.getParent()) {
+      anchor = anchor.getParent();
     }
-    if(anchor.nodeName != 'A') { anchor = null; }
+    if(anchor && anchor.getName() != 'A') { anchor = null; }
 
-    var selectedContent = selection.getContent();
+    var selectedContent = selection.getSelectedText();
     if(!selectedContent || selectedContent == "") {
       if(anchor) {
         $(anchor).attr({
@@ -377,10 +343,12 @@ define([
         selectionText = defaultText;
         var $div = $("<div/>");
         $div.append($("<a/>", {id: link_id, target: target, title: title, href: url, 'class': classes}).text(selectionText));
-        editor.insertHtml($div.html());
+        editor.insertHtml($div.html(), 'unfiltered_html');
       }
     } else {
-      editor.insertElement($("<a/>", {target: (target || ''), title: (title || ''), href: url, 'class': classes, 'id': link_id}));
+      var $div = $("<div/>");
+      $div.append($("<a/>", {target: (target || ''), title: (title || ''), href: url, 'class': classes, 'id': link_id}).text(selectedContent));
+      editor.insertHtml($div.html(), 'unfiltered_html');
     }
   };
 
