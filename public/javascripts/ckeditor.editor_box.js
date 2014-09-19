@@ -116,7 +116,8 @@ define([
       pasteFromWordRemoveFontStyles: false,
       pasteFromWordRemoveStyles: false,
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
-      removePlugins: 'image,link',
+      removePlugins: 'image',
+      extraAllowedContent: 'a[!href]',
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);
