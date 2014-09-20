@@ -25,6 +25,7 @@
         if (element.is('img') && !element.data('cke-realelement') && !element.isReadOnly()) {
           editor.execCommand('instructureImage');
         }
+        evt.cancel();
       });
     }
   });
