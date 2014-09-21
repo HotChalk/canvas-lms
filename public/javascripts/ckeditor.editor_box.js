@@ -110,14 +110,13 @@ define([
     ];
 
     var ckOptions = $.extend({
-      extraAllowedContent: "iframe[src|width|height|name|align|style|class|sandbox]",
+      extraAllowedContent: "iframe[src|width|height|name|align|style|class|sandbox]; a[!href]",
       startupFocus: options.focus,
       toolbar: toolbar,
       pasteFromWordRemoveFontStyles: false,
       pasteFromWordRemoveStyles: false,
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
       removePlugins: 'image',
-      extraAllowedContent: 'a[!href]',
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);
@@ -127,7 +126,7 @@ define([
       }
     }, options.tinyOptions || {});
 
-    $textarea.ckeditor(ckOptions);
+    CKEDITOR.replace($textarea[0], ckOptions);
 
     this._textarea =  $textarea;
     this._editor = null;
@@ -210,7 +209,7 @@ define([
     var id = this.attr('id') || '';
     var content = '';
     try {
-      content = $instructureEditorBoxList._getTextArea(id).val();
+      content = $instructureEditorBoxList._getEditor(id).getData();
     } catch(e) {}
     return content;
   };
@@ -251,8 +250,11 @@ define([
 
   $.fn._setContentCode = function(val) {
     var id = this.attr('id');
-    $instructureEditorBoxList._getTextArea(id).val(val);
-    $instructureEditorBoxList._getEditor(id).setData(val);
+    $instructureEditorBoxList._getEditor(id).setData(val, {
+      callback: function() {
+        $instructureEditorBoxList._getEditor(id).updateElement();
+      }
+    });
   };
 
   $.fn._insertHTML = function(html) {
