@@ -5,6 +5,7 @@ define [
   'compiled/views/assignments/GradingTypeSelector'
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
+  'compiled/views/assignments/SectionSelector'
   'underscore'
   'jst/DiscussionTopics/EditView'
   'wikiSidebar'
@@ -19,7 +20,7 @@ define [
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
-GroupCategorySelector, PeerReviewsSelector, _, template, wikiSidebar,
+GroupCategorySelector, PeerReviewsSelector, SectionSelector, _, template, wikiSidebar,
 htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog) ->
 
   class EditView extends ValidatedFormView
@@ -65,6 +66,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     isTopic: => @model.constructor is DiscussionTopic
 
     isAnnouncement: => @model.constructor is Announcement
+
+    sections: ENV.USER_SECTION_LIST
 
     toJSON: ->
       data = super
@@ -113,6 +116,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
+      _.defer(@renderSectionOptions)
       _.defer(@watchUnload)
 
       _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
@@ -161,6 +165,16 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         nested: true
 
 #      @peerReviewSelector.render()
+
+    renderSectionOptions: =>
+      @sectionSelector = new SectionSelector
+        el: '#section_selector'
+        parentModel: @model
+        sections: @sections
+        showSectionDropdown: @sections.length > 1
+        sectionListIsEmpty: @sections.length < 1
+
+      @sectionSelector.render()
 
     getFormData: ->
       data = super
