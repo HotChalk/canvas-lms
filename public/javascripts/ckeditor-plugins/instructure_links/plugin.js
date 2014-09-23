@@ -331,25 +331,25 @@
         editor.getCommand('instructureLinks').setState(state);
       });
 
-/*      TODO figure this one out
-        ed.onPreProcess.add(function(ed, o) {
-          $(o.node).find("a.youtube_link_to_box").removeClass('youtube_link_to_box');
-          $(o.node).find("img.iframe_placeholder").each(function() {
-            var $holder = $(this);
-            var $frame = $("<iframe/>");
-            $frame.attr('src', $holder.attr('rel'));
-            $frame.attr('style', $holder.attr('_iframe_style'));
-            $frame.height($holder.attr('height') || $holder.css('height')); //attr('_iframe_height'));
-            if($holder.hasClass('fullWidth')) {
-              $holder.attr('width', '100%');
-              $holder.css('width', '100%');
-            }
-            $frame.css('width', $holder.attr('width') || $holder.css('width')); //width($holder.attr('_iframe_width'));
-            $(this).after($frame);
-            $(this).remove();
-          });
+      editor.on('toDataFormat', function(ev) {
+        var html = $("<div>"+ $.trim(ev.data.dataValue)+"</div>");
+        html.find("a.youtube_link_to_box").removeClass('youtube_link_to_box');
+        html.find("img.iframe_placeholder").each(function() {
+          var $holder = $(this);
+          var $frame = $("<iframe/>");
+          $frame.attr('src', $holder.attr('rel'));
+          $frame.attr('style', $holder.attr('_iframe_style'));
+          $frame.height($holder.attr('height') || $holder.css('height')); //attr('_iframe_height'));
+          if($holder.hasClass('fullWidth')) {
+            $holder.attr('width', '100%');
+            $holder.css('width', '100%');
+          }
+          $frame.css('width', $holder.attr('width') || $holder.css('width')); //width($holder.attr('_iframe_width'));
+          $(this).parent().after($frame);
+          $(this).parent().remove();
         });
-*/
+        ev.data.dataValue = html.html();
+      }, null, null, 15);
     }
   });
 })();

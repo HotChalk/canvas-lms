@@ -110,7 +110,7 @@ define([
     ];
 
     var ckOptions = $.extend({
-      extraAllowedContent: "iframe[src|width|height|name|align|style|class|sandbox]; a[!href]",
+      allowedContent: true,
       startupFocus: options.focus,
       toolbar: toolbar,
       pasteFromWordRemoveFontStyles: false,
