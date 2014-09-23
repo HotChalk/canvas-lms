@@ -1,7 +1,6 @@
 <%
   content_for :page_title, join_title(@page.title.to_s, @context.name)
   content_for :right_side, render(:partial => "shared/wiki_sidebar")
-  jammit_css :redactor
   js_bundle :wiki_page_edit
 %>
 

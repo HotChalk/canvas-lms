@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Effects Bounce 1.9.2
- * http://jqueryui.com
+ * jQuery UI Effects Bounce @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/bounce-effect/
+ * http://docs.jquery.com/UI/Effects/Bounce
  *
  * Depends:
  *	jquery.ui.effect.js

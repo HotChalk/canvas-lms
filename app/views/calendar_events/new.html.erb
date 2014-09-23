@@ -16,7 +16,7 @@
     js_env :NEW_CALENDAR_EVENT_ATTRIBUTES => params.slice(:start_at, :end_at, :title, :description, :location_name)
 
     js_bundle :edit_calendar_event
-    jammit_css :redactor, :edit_calendar_event_full
+    jammit_css :edit_calendar_event_full
     content_for :right_side, render(:partial => 'shared/wiki_sidebar')
   else
   content_for :right_side do

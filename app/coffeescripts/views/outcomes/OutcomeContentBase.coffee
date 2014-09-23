@@ -21,7 +21,7 @@ define [
   'jquery'
   'underscore'
   'compiled/views/ValidatedFormView'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
   'compiled/jquery.rails_flash_notifications'
   'jquery.disableWhileLoading'
 ], (I18n, $, _, ValidatedFormView) ->

@@ -191,7 +191,7 @@ define [
     blur: ->
       # It seems we can't check focus while it is being changed, so check it later.
       setTimeout =>
-        unless @input.hasFocus() || @$container.find(':focus').length > 0 || $(document.activeElement).parents('.autocomplete_menu').length > 0
+        unless @input.hasFocus() || @$container.find(':focus').length > 0
           @close()
       , 0
 
@@ -313,7 +313,7 @@ define [
       clearTimeout @timeout
       @select(null)
       @timeout = setTimeout =>
-        if @lastFetch and @lastFetch.state() != 'resolved'
+        if @lastFetch and !@lastFetch.isResolved()
           @nextRequest = true
           return
         list = @listForQuery(@preparePost())

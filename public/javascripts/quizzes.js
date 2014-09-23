@@ -43,7 +43,7 @@ define([
   'compiled/jquery.rails_flash_notifications',
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'supercalc' /* superCalc */,
-  'redactor.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/jquery.placeholder' /* /\.placeholder/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/sortable' /* /\.sortable/ */,
@@ -1883,11 +1883,6 @@ define([
       if ($("#student_submissions_warning").length > 0 && !loading && !isNew) {
         disableRegrade(holder);
       }
-      if (!loading) {
-        var question_content = $(this).parents(".question_form").find('.question_content');
-        question_content.editorBox('destroy');
-        question_content.editorBox();
-      }
     });
 
     $("#question_form_template .cancel_link").click(function(event) {
@@ -3170,12 +3165,15 @@ define([
         $question_type = $question.find(".question_type");
     if ($question.data('multiple_sets_question_bindings')) { return; }
     $question.data('multiple_sets_question_bindings', true);
-    var textChange = function(html) {
+    $question_content.bind('keypress', function(event) {
+      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
+    });
+    $question_content.bind('change', function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
         return;
       }
-      var text = html;
+      var text = $(this).editorBox('get_code');
       var matches = text.match(/\[[A-Za-z0-9_\-.]+\]/g);
       $select.find("option.shown_when_no_other_options_available").remove();
       $select.find("option").addClass('to_be_removed');
@@ -3204,11 +3202,7 @@ define([
       }
       $select.find("option.to_be_removed").remove();
       $select.change();
-    };
-    $question_content.data('redactorCallbacks', {'change': textChange });
-    $question_content.change(function(e) {
-      textChange($question_content.val());
-    });
+    }).change();
     $select.change(function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {

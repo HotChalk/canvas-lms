@@ -732,7 +732,7 @@ module ApplicationHelper
     includes.compact!
     if includes.length > 0
       if options[:raw]
-        includes.unshift("/optimized/vendor/jquery-1.8.3.js")
+        includes.unshift("/optimized/vendor/jquery-1.7.2.js")
         javascript_include_tag(includes)
       else
         str = <<-ENDSCRIPT

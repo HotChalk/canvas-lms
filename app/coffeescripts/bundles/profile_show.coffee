@@ -23,7 +23,7 @@ require [
   'str/htmlEscape'
   'compiled/util/AvatarWidget'
   'jquery.instructure_forms'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
 ], (I18n, {View}, $, htmlEscape, AvatarWidget) ->
 
   class ProfileShow extends View

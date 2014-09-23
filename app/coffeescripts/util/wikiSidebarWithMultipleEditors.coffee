@@ -1,7 +1,7 @@
 define [
   'jquery'
   'wikiSidebar'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
 ], ($, wikiSidebar) ->
 
   $.subscribe 'editorBox/focus', ($editor) ->

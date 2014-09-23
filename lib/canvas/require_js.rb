@@ -27,7 +27,7 @@ module Canvas
             # plugins have their name prepended, since that's we do the paths
             name = file.sub(PATH_REGEX, '\2')
             unless name == 'compiled/bundles/common'
-              hash[name] = { :name => name, :exclude => ['common'] }
+              hash[name] = { :name => name, :exclude => ['common', 'ckeditor-all'] }
             end
             hash
           }
@@ -61,7 +61,9 @@ module Canvas
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
           :uploadify => '../flash/uploadify/jquery.uploadify-3.1.min',
-          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd'
+          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
+          'ckeditor-core' => 'ckeditor/ckeditor',
+          'ckeditor-jquery' => 'ckeditor/adapters/jquery'
         }.update(cache_busting ? cache_busting_paths : {}).update(plugin_paths).update(Canvas::RequireJs::PluginExtension.paths).to_json.gsub(/([,{])/, "\\1\n    ")
       end
 
@@ -89,7 +91,6 @@ module Canvas
       end
 
       def cache_busting_paths
-        #{ 'compiled/tinymce' => 'compiled/tinymce.js?v2' } # hack: increment to purge browser cached bundles after tiny change
         {}
       end
       
@@ -126,6 +127,9 @@ module Canvas
             'handlebars': {
               deps: ['bower/handlebars/handlebars.runtime.amd'],
               exports: 'Handlebars'
+            },
+            'ckeditor-jquery': {
+              deps:['jquery', 'ckeditor-core']
             }
           }
         JS

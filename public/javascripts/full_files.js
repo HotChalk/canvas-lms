@@ -22,7 +22,7 @@ define([
   'i18n!files',
   'jquery' /* jQuery, $ */,
   'str/htmlEscape',
-  'redactor.editor_box',
+  'ckeditor.editor_box',
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.doc_previews' /* loadDocPreview */,

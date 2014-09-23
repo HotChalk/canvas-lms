@@ -8,7 +8,7 @@ define [
   'compiled/views/wiki/WikiPageDeleteDialog'
   'compiled/views/wiki/WikiPageReloadView'
   'i18n!pages'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
 ], ($, _, Backbone, wikiSidebar, template, ValidatedFormView, WikiPageDeleteDialog, WikiPageReloadView, I18n) ->
 
   class WikiPageEditView extends ValidatedFormView

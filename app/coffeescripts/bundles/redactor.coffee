@@ -1,5 +1,0 @@
-require [
-  'vendor/redactor'
-]
-
-

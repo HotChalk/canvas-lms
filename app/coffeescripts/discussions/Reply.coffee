@@ -7,7 +7,7 @@ define [
   'str/htmlEscape'
   'jst/discussions/_reply_attachment'
   'compiled/fn/preventDefault'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
 ], (Backbone, _, I18n, $, Entry, htmlEscape, replyAttachmentTemplate, preventDefault) ->
 
   class Reply
@@ -120,7 +120,6 @@ define [
     # @api private
     onPostReplySuccess: (entry) =>
       @view.model.set 'notification', ''
-      @textArea.val ''
       @trigger 'save', entry
 
     ##

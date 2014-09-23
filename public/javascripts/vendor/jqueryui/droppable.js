@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Droppable 1.9.2
- * http://jqueryui.com
+ * jQuery UI Droppable @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/droppable/
+ * http://docs.jquery.com/UI/Droppables
  *
  * Depends:
  *	jquery.ui.core.js
@@ -23,7 +22,7 @@ define([
 ], function( $ ) {
 
 $.widget("ui.droppable", {
-	version: "1.9.2",
+	version: "@VERSION",
 	widgetEventPrefix: "drop",
 	options: {
 		accept: '*',
@@ -259,12 +258,7 @@ $.ui.ddmanager = {
 
 			var parentInstance;
 			if (this.options.greedy) {
-				// find droppable parents with same scope
-				var scope = this.options.scope;
-				var parent = this.element.parents(':data(droppable)').filter(function () {
-					return $.data(this, 'droppable').options.scope === scope;
-				});
-
+				var parent = this.element.parents(':data(droppable):eq(0)');
 				if (parent.length) {
 					parentInstance = $.data(parent[0], 'droppable');
 					parentInstance.greedyChild = (c == 'isover' ? 1 : 0);

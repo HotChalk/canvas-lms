@@ -14,7 +14,7 @@ define [
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/jquery/toggleAccessibly'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
   'jqueryui/dialog'
   'jquery.toJSON'
   'compiled/jquery.rails_flash_notifications'

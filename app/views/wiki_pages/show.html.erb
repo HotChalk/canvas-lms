@@ -1,6 +1,5 @@
 <% 
   js_bundle :wiki
-  jammit_css :redactor
   content_for :page_title, join_title(@page.title.to_s, @context.name)
   content_for :right_side, render(:partial => 'wiki_pages/wiki_right_side')
 %>
