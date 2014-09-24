@@ -117,6 +117,7 @@ define([
       pasteFromWordRemoveStyles: false,
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
       removePlugins: 'image',
+      removeButtons: '',
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);
