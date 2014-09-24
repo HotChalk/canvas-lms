@@ -1,6 +1,4 @@
-{{#if parentModel.id}}
-  <input id="course_section_id" name="course_section_id" type="hidden" value="{{parentModel.id}}">
-{{else}}
+{{#unless parentModel.id}}
   {{#if showSectionDropdown}}
     <fieldset>
       <div class="control-group">
@@ -21,4 +19,4 @@
       <input id="course_section_id" name="course_section_id" type="hidden" value="">
     {{/unless}}
   {{/if}}
-{{/if}}
+{{/unless}}

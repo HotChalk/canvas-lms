@@ -268,6 +268,13 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
+      if data.delayed_post_at && data.lock_at
+        start_date = new Date(data.delayed_post_at);
+        end_date = new Date(data.lock_at);
+        if end_date < start_date
+          errors["lock_at"] = [
+            message: I18n.t 'from_date_greater_than_until_date', 'Until date must be after the from date'
+          ]
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)
