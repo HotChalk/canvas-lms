@@ -104,9 +104,17 @@ define([
     }
 
     var toolbar = [
-        {name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize', 'Bold', 'Italic', 'Underline',/*forecolor,backcolor,*/'RemoveFormat']},
-        {name: 'paragraph', items: ['JustifyLeft', 'JustifyCenter', 'JustifyRight', 'BulletedList', 'NumberedList', 'Outdent', 'Indent', 'Superscript', 'Subscript']},
-        {name: 'insert', items: ['Table', 'EqnEditor', 'instructure_links', 'Unlink'].concat(extra_buttons)}
+      {name: 'document', items: ['Print', 'Templates']},
+      {name: 'clipboard', items: ['Cut', 'Copy', 'Paste', '-', 'Undo', 'Redo']},
+      {name: 'editing', items: ['Find', 'Replace', '-', 'SelectAll', '-', 'Scayt']},
+      {name: 'basicstyles', items: ['Bold', 'Italic', 'Underline', 'Strike', 'Subscript', 'Superscript', '-', 'RemoveFormat']},
+      {name: 'paragraph', items: ['NumberedList', 'BulletedList', '-', 'Outdent', 'Indent', '-', 'Blockquote', '-', 'JustifyLeft', 'JustifyCenter', 'JustifyRight', 'JustifyBlock']},
+      {name: 'links', items: ['instructure_links', 'Unlink']},
+      {name: 'insert', items: ['Table', 'HorizontalRule', 'Smiley', 'SpecialChar', 'EqnEditor', 'instructure_image']},
+      {name: 'styles', items: ['Styles', 'Format', 'Font', 'FontSize']},
+      {name: 'colors', items: ['TextColor', 'BGColor']},
+      {name: 'tools', items: ['Maximize', 'ShowBlocks']},
+      {name: 'others', items: extra_buttons}
     ];
 
     var ckOptions = $.extend({
