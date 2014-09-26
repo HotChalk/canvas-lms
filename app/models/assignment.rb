@@ -185,6 +185,15 @@ class Assignment < ActiveRecord::Base
     self.title = val
   end
 
+  alias_method :orig_discussion_topic, :discussion_topic
+  def discussion_topic
+    if self.reply_assignment?
+      DiscussionTopic.find_by_reply_assignment_id(self.id)
+    else
+      orig_discussion_topic
+    end
+  end
+
   serialize :integration_data, Hash
 
   serialize :turnitin_settings, Hash
