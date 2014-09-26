@@ -19,10 +19,24 @@ class Quizzes::QuizQuestion::LearnosityQuestion < Quizzes::QuizQuestion::Base
   def stats(responses)
     stats = {:learnosity_responses => []}
 
+    # Find effective points possible for this question
+    possible_points = self.points_possible
+    quiz = Quizzes::QuizQuestion.find(self.question_id).try(:quiz) if self.question_id
+    if quiz
+      quiz.stored_questions.each do |item|
+        if item[:questions] && item[:questions].any? {|q| q[:id] == self.question_id} # current item is a quiz group
+          possible_points = item[:question_points]
+        elsif !item[:questions] && item[:id] == self.question_id # current item is a regular question
+          possible_points = item[:points_possible]
+        end
+      end
+    end
+
     responses.each do |response|
       stats[:learnosity_responses] << {
         :user_id => response[:user_id],
         :points_awarded => (response[:points] rescue 0),
+        :points_possible => possible_points
       }
     end
 

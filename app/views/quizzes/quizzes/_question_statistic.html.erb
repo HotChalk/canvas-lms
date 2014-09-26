@@ -136,13 +136,14 @@
           <table class="results">
             <tr>
               <% total_awarded = question[:learnosity_responses].map {|r| r[:points_awarded] || 0 }.sum %>
-              <% total_possible = question[:learnosity_responses].length * question[:points_possible] %>
+              <% total_possible = question[:learnosity_responses].map {|r| r[:points_possible] || 0 }.sum %>
+              <% possible = question[:learnosity_responses].length ? total_possible / question[:learnosity_responses].length : 0 %>
               <% pct = total_possible > 0 ? ((total_awarded.to_f / total_possible.to_f) * 100) : 0 %>
-              <% avg = question[:points_possible] > 0 ? (pct / 100) * question[:points_possible].to_f : 0 %>
-              <td title="<%= avg.round(2) %> of <%= question[:points_possible] %> point(s) awarded on average" class="correct_answer" data-responses="<%= avg.round(2) %>">
+              <% avg = possible > 0 ? (pct / 100) * possible.to_f : 0 %>
+              <td title="<%= avg.round(2) %> of <%= possible %> point(s) awarded on average" class="correct_answer" data-responses="<%= avg.round(2) %>">
                   <span href="#" class="tooltip answer_bar">
                   <span class="tooltip_wrap" style="font-size: 1.2em;">
-                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{avg} of %{total} point(s) awarded on average", :avg => avg.round(2), :total => question[:points_possible]) %></span>
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{avg} of %{total} point(s) awarded on average", :avg => avg.round(2), :total => possible) %></span>
                   </span>
                   <div class="response">
                     <div class="response_bar" style="margin-top: <%= (100 - pct).to_i %>px; height: <%= pct.to_i %>px;">
@@ -153,10 +154,10 @@
                   </div>
                 </span>
               </td>
-              <td title="<%= question[:points_possible] %> points possible" data-responses="<%= question[:points_possible] %>">
+              <td title="<%= possible %> points possible" data-responses="<%= possible %>">
                   <span href="#" class="tooltip answer_bar">
                   <span class="tooltip_wrap" style="font-size: 1.2em;">
-                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{total} point(s) possible", :total => question[:points_possible]) %></span>
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{total} point(s) possible", :total => possible) %></span>
                   </span>
                   <div class="response">
                     <div class="response_bar" style="margin-top: 0px; height: 100px;">
