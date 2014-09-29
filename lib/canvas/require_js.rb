@@ -60,7 +60,7 @@ module Canvas
         @paths ||= {
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.1.min',
+          :uploadify => '../flash/uploadify/jquery.uploadify-3.1',
           'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
           'ckeditor-core' => 'ckeditor/ckeditor',
           'ckeditor-jquery' => 'ckeditor/adapters/jquery'
