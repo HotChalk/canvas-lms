@@ -41,6 +41,7 @@ stylesheets:
     - public/stylesheets/compiled/g_syllabus.css
     - public/stylesheets/compiled/g_mini_calendar.css
     - public/stylesheets/compiled/helpDialog.css
+    - public/stylesheets/compiled/g_usercontent.css
   context_modules:
     - public/stylesheets/compiled/context_modules.css
   context_modules2:

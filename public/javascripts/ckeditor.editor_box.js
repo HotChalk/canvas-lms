@@ -126,6 +126,7 @@ define([
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
       removePlugins: 'image',
       removeButtons: '',
+      contentsCss: [CKEDITOR.getUrl('contents.css'), '/stylesheets/static/baseline.type.css'],
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);
