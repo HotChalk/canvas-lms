@@ -247,30 +247,39 @@ define([
   $.fn._toggleView = function() {
     var id = this.attr('id');
     var editor = $instructureEditorBoxList._getEditor(id);
-    editor.setMode(editor.mode === 'source' ? 'wysiwyg' : 'source');
+    if (editor) {
+      editor.setMode(editor.mode === 'source' ? 'wysiwyg' : 'source');
+    }
   };
 
   $.fn._removeEditor = function() {
     var id = this.attr('id');
     this.data('rich_text', false);
     var editor = $instructureEditorBoxList._getEditor(id);
-    editor.destroy();
-    $instructureEditorBoxList._removeEditorBox(id);
+    if (editor) {
+      editor.destroy();
+      $instructureEditorBoxList._removeEditorBox(id);
+    }
   };
 
   $.fn._setContentCode = function(val) {
     var id = this.attr('id');
-    $instructureEditorBoxList._getEditor(id).setData(val, {
-      callback: function() {
-        $instructureEditorBoxList._getEditor(id).updateElement();
-      }
-    });
+    var editor = $instructureEditorBoxList._getEditor(id);
+    if (editor) {
+      editor.setData(val, {
+        callback: function() {
+          $instructureEditorBoxList._getEditor(id).updateElement();
+        }
+      });
+    }
   };
 
   $.fn._insertHTML = function(html) {
     var id = this.attr('id');
     var editor = $instructureEditorBoxList._getEditor(id);
-    editor.insertHtml(html, 'unfiltered_html');
+    if (editor) {
+      editor.insertHtml(html, 'unfiltered_html');
+    }
   };
 
   $.fn._editorFocus = function() {
