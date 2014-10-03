@@ -62,6 +62,8 @@ module Canvas
           :jqueryui => 'vendor/jqueryui',
           :uploadify => '../flash/uploadify/jquery.uploadify-3.1',
           'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
+          'swfobject' => 'vendor/swfobject/swfobject',
+          'swfupload' => 'vendor/swfupload/swfupload',
           'ckeditor-core' => 'ckeditor/ckeditor',
           'ckeditor-jquery' => 'ckeditor/adapters/jquery'
         }.update(cache_busting ? cache_busting_paths : {}).update(plugin_paths).update(Canvas::RequireJs::PluginExtension.paths).to_json.gsub(/([,{])/, "\\1\n    ")
@@ -113,7 +115,7 @@ module Canvas
               exports: 'FileAPI'
             },
             'uploadify': {
-              deps: ['jquery'],
+              deps: ['jquery', 'swfobject', 'swfupload'],
               exports: '$'
             },
             'vendor/bootstrap-select/bootstrap-select' : {

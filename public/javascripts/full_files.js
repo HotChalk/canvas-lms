@@ -40,7 +40,8 @@ define([
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/droppable' /* /\.droppable/ */,
   'jqueryui/progressbar' /* /\.progressbar/ */,
-  'vendor/scribd.view' /* scribd */
+  'vendor/scribd.view' /* scribd */,
+  'uploadify'
 ], function(_, INST, I18n, $, htmlEscape) {
 
   if(typeof ENV.contexts === "string"){
