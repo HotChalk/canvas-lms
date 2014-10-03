@@ -371,8 +371,10 @@ class DiscussionTopicsController < ApplicationController
       sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
       user_sections = if current_user_is_account_admin
                         sections.map { |section| { id: section.id, name: section.name } }.unshift({ :id => '', :name => 'Everybody' })
-                      else
+                      elsif @context.is_a?(Course)
                         @current_user.sections_for_course(@context).map { |section| { id: section.id, name: section.name } }
+                      else
+                        []
                       end
 
       js_hash = {DISCUSSION_TOPIC: hash,
