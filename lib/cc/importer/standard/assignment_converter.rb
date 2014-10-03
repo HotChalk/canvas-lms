@@ -79,7 +79,7 @@ module CC::Importer::Standard
     def parse_canvas_assignment_data(meta_doc, html_doc=nil, assignment = {})
       if html_doc
         title, body = get_html_title_and_body(html_doc)
-        assignment['description'] = body
+        assignment['description'] = CGI::unescapeHTML(body)
       end
 
       assignment["migration_id"] ||= get_node_att(meta_doc, 'assignment', 'identifier') || meta_doc['identifier']
