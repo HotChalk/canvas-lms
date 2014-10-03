@@ -420,7 +420,10 @@ define([
 
 
   rubricEditing.init = function() {
-    var limitToOneRubric = false;
+    var limitToOneRubric = $('.add_rubric_link').data('limit_to_one_rubric');
+    if (typeof limitToOneRubric === typeof undefined) {
+      limitToOneRubric = false;
+    }
     var $rubric_dialog = $("#rubric_dialog"),
         $rubric_long_description_dialog = $("#rubric_long_description_dialog");
 

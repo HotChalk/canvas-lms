@@ -148,6 +148,7 @@
         class="add_rubric_link btn button-sidebar-wide icon-add"
         style="<%= hidden if @assignment.rubric_association %>"
         role="button"
+        data-limit_to_one_rubric="true"
       ><%= t 'links.add_rubric', "Add Rubric" %></a>
     <% end %>
 
