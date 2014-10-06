@@ -98,7 +98,7 @@ define([
       width = $textarea.closest(":visible").width();
     }
 
-    var extra_buttons = ['instructure_image'];
+    var extra_buttons = [];
     for(var idx in INST.editorButtons) {
       extra_buttons.push("instructure_external_button_" + INST.editorButtons[idx].id);
     }

@@ -17,6 +17,9 @@ define([
   var parser = document.createElement('a');
   parser.href = CKEDITOR.basePath;
   var loadPath = parser.pathname.replace('ckeditor', 'ckeditor-plugins');
+  if (loadPath.indexOf('/') != 0) {
+    loadPath = '/' + loadPath;
+  }
 
   // Add all plugins here
   CKEDITOR.plugins.addExternal('instructure_links', loadPath + 'instructure_links/', 'plugin.js');
