@@ -1098,9 +1098,13 @@ class CoursesController < ApplicationController
   #
   # Returns boolean (true if parent request should be cancelled).
   def check_enrollment(ignore_restricted_courses = false)
-    return false if @pending_enrollment
+    if @pending_enrollment
+      check_enrollment_root_account(@pending_enrollment)
+      return false
+    end        
 
     if enrollment = fetch_enrollment
+      check_enrollment_root_account(enrollment)
       if enrollment.state_based_on_date == :inactive && !ignore_restricted_courses
         flash[:notice] = t('notices.enrollment_not_active', 'Your membership in the course, %{course}, is not yet activated', :course => @context.name)
         return !!redirect_to(enrollment.workflow_state == 'invited' ? courses_url : dashboard_url)
@@ -1133,6 +1137,7 @@ class CoursesController < ApplicationController
 
     if session[:accepted_enrollment_uuid].present? &&
       enrollment = @context.enrollments.find_by_uuid(session[:accepted_enrollment_uuid])
+      check_enrollment_root_account(enrollment)
 
       success = false
       if enrollment.invited?
@@ -1148,6 +1153,12 @@ class CoursesController < ApplicationController
     false
   end
   protected :check_enrollment
+
+  def check_enrollment_root_account(enrollment)
+    if enrollment && @domain_root_account != enrollment.root_account
+      @domain_root_account = enrollment.root_account
+    end
+  end
 
   # Internal: Get the current user's enrollment (if any) in the requested course.
   #
