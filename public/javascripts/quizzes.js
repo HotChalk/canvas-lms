@@ -1858,11 +1858,12 @@ define([
         .find('.submit_button').text(I18n.t('buttons.update_question', 'Update Question'));
       $form.find('.submit_button').click(function(event){
         var text = $formQuestion.find(".question_content").editorBox('get_code');
+        var editorContainer = $form.find('textarea.question_content').next();
         if(text.length < 16384) {
-          $form.find(".redactor_box").errorBox().remove();
+          editorContainer.errorBox().remove();
           $form.submit();
         } else {
-          var offset = $form.find(".redactor_box").errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
+          var offset = editorContainer.errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
           $('html,body').scrollTo({top: offset.top, left:0});
         }
       });
