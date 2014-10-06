@@ -19,6 +19,7 @@ Rails.configuration.to_prepare do
   }
   ActionView::Base.send(:include, QuizzesHelperLearnosity)
   require File.join(File.dirname(__FILE__), 'app/models/assessment_question')
+  require File.join(File.dirname(__FILE__), 'app/models/importers/assessment_question_importer')
   require File.join(File.dirname(__FILE__), 'lib/qti/learnosity_interaction')
   require File.join(File.dirname(__FILE__), 'lib/qti/assessment_item_converter_learnosity')
   require File.join(File.dirname(__FILE__), 'app/controllers/quizzes/quizzes_controller')
