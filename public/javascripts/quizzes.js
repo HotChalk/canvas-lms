@@ -3118,12 +3118,15 @@ define([
       }
     });
 
+    var quizDescription = $("#quiz_description");
     if (wikiSidebar) {
       wikiSidebar.init();
-      wikiSidebar.attachToEditor($("#quiz_description"));
+      wikiSidebar.attachToEditor(quizDescription);
     }
 
-    $("#quiz_description").editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
+    if (quizDescription.length) {
+      quizDescription.editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
+    }
 
     $(".toggle_description_views_link").click(function(event) {
       event.preventDefault();

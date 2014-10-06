@@ -258,7 +258,11 @@ define([
         },
         loadData: function(){
           this.elements.$questions.append(this.elements.$loadMessage);
-          $.ajaxJSON(window.location.href + '/questions?page=' + this.page, 'GET', {}, $.proxy(this.onData, this));
+          var url = window.location.pathname + '/questions?page=' + this.page;
+          if (url.indexOf('/') != 0) {
+            url = '/' + url;
+          }
+          $.ajaxJSON(url, 'GET', {}, $.proxy(this.onData, this));
         },
         onData: function(data){
           if (data && data.questions) {
