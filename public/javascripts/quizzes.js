@@ -3179,9 +3179,12 @@ define([
         $question_type = $question.find(".question_type");
     if ($question.data('multiple_sets_question_bindings')) { return; }
     $question.data('multiple_sets_question_bindings', true);
-    $question_content.bind('keypress', function(event) {
-      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
-    });
+    var editor = CKEDITOR.instances[$question_content.attr('id')];
+    if (editor) {
+      editor.on('key', function() {
+        setTimeout(function() {$question_content.triggerHandler('change')}, 50);
+      });
+    }
     $question_content.bind('change', function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
@@ -3475,9 +3478,12 @@ define([
       });
     });
     $question.find(".combinations_option").attr('disabled', true);
-    $question.find(".question_content").bind('keypress', function(event) {
-      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
-    });
+    var editor = CKEDITOR.instances[$question.find('.question_content').attr('id')];
+    if (editor) {
+      editor.on('key', function() {
+        setTimeout(function() {$question.find('.question_content').triggerHandler('change')}, 50);
+      });
+    }
     $question.find(".question_content").bind('change', function(event) {
       var text = $(this).editorBox('get_code');
       var matches = text.match(/\[[A-Za-z][A-Za-z0-9]*\]/g);
