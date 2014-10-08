@@ -25,7 +25,7 @@
     <li id="current_context_code" style="display: none;"><%= @context.try_rescue(:asset_string) %></li>
     <li class="user_long_name" style="display: none;"><%= @current_user.name %></li>
     <li class="logout"><%= link_to t('links.logout', "Logout"), logout_path, :method => :delete %></li>
-    <li class="top_help"><a href="http://support.hotchalklearn.com/support.html" target="_blank">Help</a></li>
+    <li class="top_help"><a href="https://embersupport.zendesk.com" target="_blank">Help</a></li>
   <% end %>
   <% if help_link %>
     <li id="identity-help-container"><%= help_link %></li>
