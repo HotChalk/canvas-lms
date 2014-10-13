@@ -1704,7 +1704,7 @@ class CoursesController < ApplicationController
       end
 
       account_program_id = params[:course].delete(:account_program_id)      
-      if @course.root_account.grants_right?(@current_user, session, :manage_courses)
+      if account_program_id && @course.root_account.grants_right?(@current_user, session, :manage_courses)
         if account_program_id != "no_program"
           account_program = @course.root_account.account_programs.find(account_program_id)
           @course.account_program = account_program if account_program && account_program != @course.account_program
