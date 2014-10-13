@@ -1703,10 +1703,14 @@ class CoursesController < ApplicationController
         @course.enrollment_term = enrollment_term if enrollment_term && enrollment_term != @course.enrollment_term
       end
 
-      account_program_id = params[:course].delete(:account_program_id)
-      if account_program_id && @course.root_account.grants_right?(@current_user, session, :manage_courses)
-        account_program = @course.root_account.account_programs.find(account_program_id)
-        @course.account_program = account_program if account_program && account_program != @course.account_program
+      account_program_id = params[:course].delete(:account_program_id)      
+      if @course.root_account.grants_right?(@current_user, session, :manage_courses)
+        if account_program_id != "no_program"
+          account_program = @course.root_account.account_programs.find(account_program_id)
+          @course.account_program = account_program if account_program && account_program != @course.account_program
+        else
+          @course.account_program = nil
+        end
       end
 
       if params[:course].has_key? :grading_standard_id
