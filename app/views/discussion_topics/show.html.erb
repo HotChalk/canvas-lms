@@ -34,7 +34,8 @@
 %>
 
 <% if @topic.draft_state_enabled? && (@unlock_at && @unlock_at > Time.now) &&
-     !can_do(@context, @current_user, :moderate_forum) %>
+     !can_do(@context, @current_user, :moderate_forum) &&
+     @topic.user != @current_user %>
   <div class="topic">
     <div class="entry-content">
      <h1><%= @topic.title %></h1>

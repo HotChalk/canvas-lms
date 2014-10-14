@@ -911,7 +911,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   def available_for?(user, opts = {})
     return false if !published?
-    return false if !draft_state_enabled? && locked?
+    return false if !draft_state_enabled? && (locked? && user != self.user)
     !locked_for?(user, opts)
   end
 
@@ -951,6 +951,7 @@ class DiscussionTopic < ActiveRecord::Base
   #         delayed_post_at is in the future or the group assignment is locked. This does not determine
   #         the visibility of the topic to the user, only that they are unable to reply.
   def locked_for?(user, opts={})
+    return false if user == self.user
     return false if opts[:check_policies] && self.grants_right?(user, :update)
     Rails.cache.fetch(locked_cache_key(user), :expires_in => 1.minute) do
       locked = false
