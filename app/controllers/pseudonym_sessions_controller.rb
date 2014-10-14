@@ -58,13 +58,13 @@ class PseudonymSessionsController < ApplicationController
       if params[:ticket]
         # handle the callback from CAS
         logger.info "Attempting CAS login with ticket #{params[:ticket]} in account #{@domain_root_account.id}"
-        st = CASClient::ServiceTicket.new(params[:ticket], cas_login_url(:account_id => @domain_root_account.id))
+        st = CASClient::ServiceTicket.new(params[:ticket], cas_login_url(:account_id => @domain_root_account.id, :course_id => params[:course_id]))
         begin
           cas_client.validate_service_ticket(st)
         rescue => e
           logger.warn "Failed to validate CAS ticket: #{e.inspect}"
           flash[:delegated_message] = t 'errors.login_error', "There was a problem logging in at %{institution}", :institution => @domain_root_account.display_name
-          redirect_to cas_login_url(:no_auto=>'true', :account_id => @domain_root_account.id)
+          redirect_to cas_login_url(:no_auto=>'true', :account_id => @domain_root_account.id, :course_id => params[:course_id])
           return
         end
         if st.is_valid?
@@ -83,13 +83,13 @@ class PseudonymSessionsController < ApplicationController
             logger.warn "Received CAS login for unknown user: #{st.user}"
             reset_session
             session[:delegated_message] = t 'errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => st.user                        
-            redirect_to(cas_client.logout_url(cas_login_url :no_auto => true, :account_id => @domain_root_account.id))
+            redirect_to(cas_client.logout_url(cas_login_url :no_auto => true, :account_id => @domain_root_account.id, :course_id => params[:course_id]))
             return
           end
         else
           logger.warn "Failed CAS login attempt."
           flash[:delegated_message] = t 'errors.login_error', "There was a problem logging in at %{institution}", :institution => @domain_root_account.display_name
-          redirect_to cas_login_url(:no_auto=>'true', :account_id => @domain_root_account.id)
+          redirect_to cas_login_url(:no_auto=>'true', :account_id => @domain_root_account.id, :course_id => params[:course_id])
           return
         end
       end
@@ -615,6 +615,8 @@ class PseudonymSessionsController < ApplicationController
         format.html { redirect_to(course_url(course, :login_success => '1')) }
       elsif session[:confirm]
         format.html { redirect_to(registration_confirmation_path(session.delete(:confirm), :enrollment => session.delete(:enrollment), :login_success => 1, :confirm => (user.id == session.delete(:expected_user_id) ? 1 : nil))) }
+      elsif params[:course_id] && user && (enrollment = user.cached_current_enrollments.find {|e| e.course_id == params[:course_id].to_i})
+        format.html { redirect_to(course_url(enrollment.course, :login_success => '1')) }
       else
         # the URL to redirect back to is stored in the session, so it's
         # assumed that if that URL is found rather than using the default,

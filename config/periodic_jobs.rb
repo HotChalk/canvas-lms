@@ -124,6 +124,11 @@ Delayed::Periodic.cron 'DelayedMessageScrubber.scrub_all', '0 1 * * *' do
   end
 end
 
+Delayed::Periodic.cron 'Course.auto_publish', '*/10 * * * *', :priority => Delayed::LOW_PRIORITY do
+  Shard.with_each_shard(exception: -> { ErrorReport.log_exception(:periodic_job, $!) }) do
+    Course.auto_publish
+  end
+end
 
 
 Dir[Rails.root.join('vendor', 'plugins', '*', 'config', 'periodic_jobs.rb')].each do |plugin_periodic_jobs|

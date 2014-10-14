@@ -2773,4 +2773,39 @@ class Course < ActiveRecord::Base
   def multiple_sections?
     self.active_course_sections.count > 1
   end
+
+  # HOTCHALK: automatically publish courses based on start date (and term start date)
+  # (this should be run in a delayed job)
+  def self.auto_publish
+    cutoff_time = Time.now
+
+    # search only among unpublished courses
+    Course.find_each(:conditions => {:workflow_state => ['claimed', 'created']}) do |course|
+      needs_publishing = false
+
+      # if a course's start date is in the past, and it does not have a conclude date or the conclude date is in the
+      # future, the course should be published
+      if course.start_at && course.start_at < cutoff_time
+        needs_publishing ||= (course.conclude_at.nil? || course.conclude_at > cutoff_time)
+      end
+
+      # if a course does not have a start date but belongs to a term that is currently active, the course should be published
+      if course.start_at.nil? && course.enrollment_term && course.enrollment_term.start_at
+        needs_publishing ||= ((course.enrollment_term.start_at < cutoff_time) &&
+            (course.enrollment_term.end_at.nil? || course.enrollment_term.end_at > cutoff_time))
+      end
+
+      if needs_publishing
+        course.send_later_enqueue_args(:do_auto_publish, {
+          :priority => Delayed::LOW_PRIORITY,
+          :max_attempts => 1
+        })
+      end
+    end
+  end
+
+  def do_auto_publish
+    logger.info "Auto-publishing course: #{self.inspect}"
+    process_event('offer')
+  end
 end
