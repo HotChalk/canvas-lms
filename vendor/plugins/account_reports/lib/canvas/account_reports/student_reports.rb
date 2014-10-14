@@ -102,7 +102,7 @@ module Canvas::AccountReports
         time_span_join = Pseudonym.send(:sanitize_sql, condition)
 
         no_subs = root_account.all_courses.active.
-          select("p.user_id, p.sis_user_id, courses.id AS course_id,
+          select("p.user_id, p.sis_user_id, courses.id,
                   u.sortable_name, courses.name AS course_name,
                   courses.sis_source_id AS course_sis_id, cs.id AS section_id,
                   cs.sis_source_id AS section_sis_id, cs.name AS section_name,
@@ -157,7 +157,7 @@ module Canvas::AccountReports
             row << u["section_id"]
             row << u["section_sis_id"]
             row << u["section_name"]
-            row << u["course_id"]
+            row << u["id"]
             row << u["course_sis_id"]
             row << u["course_name"]
             row << u["enrollment_state"] if include_enrollment_state
@@ -249,7 +249,7 @@ module Canvas::AccountReports
       CSV.open(file, "w") do |csv|
 
         students = root_account.pseudonyms.active.
-          select('pseudonyms.last_request_at, pseudonyms.user_id,
+          select('pseudonyms.id, pseudonyms.last_request_at, pseudonyms.user_id,
                   pseudonyms.sis_user_id, users.sortable_name,
                   pseudonyms.current_login_ip').
           joins('INNER JOIN users ON users.id = pseudonyms.user_id')
