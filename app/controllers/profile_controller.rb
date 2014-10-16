@@ -372,7 +372,9 @@ class ProfileController < ApplicationController
     @profile = @user.profile
     @context = @profile
 
-    short_name = params[:user] && params[:user][:short_name]
+    name = params[:user] && params[:user][:name]
+    short_name = params[:user_profile] && params[:user_profile][:short_name]
+    @user.name = name if name && @user.user_can_edit_name?
     @user.short_name = short_name if short_name && @user.user_can_edit_name?
     if params[:user_profile]
       params[:user_profile].delete(:title) unless @user.user_can_edit_name?

@@ -675,7 +675,7 @@ class User < ActiveRecord::Base
     self.short_name ||= self.name
     self.sortable_name = nil if self.sortable_name == ""
     # recalculate the sortable name if the name changed, but the sortable name didn't, and the sortable_name matches the old name
-    self.sortable_name = nil if !self.sortable_name_changed? && self.name_changed? && User.name_parts(self.sortable_name).compact.join(' ') == self.name_was
+    self.sortable_name = nil if self.sortable_name.nil? && self.name_changed?
     self.sortable_name = User.last_name_first(self.name, self.sortable_name_was) unless read_attribute(:sortable_name)
     self.reminder_time_for_due_dates ||= 48.hours.to_i
     self.reminder_time_for_grading ||= 0

@@ -26,7 +26,7 @@
         </p>
         <p>
           <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
-          <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>"></label>
+          <label class="show-if-editing"><%= t('sortable_name', 'Sortable Name') %>: <br><input type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>" readonly></label>
         </p>
         <p>
           <span class="hide-if-editing"><%= @user_data[:title] %></span>
