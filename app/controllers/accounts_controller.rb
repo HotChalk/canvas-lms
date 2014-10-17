@@ -780,9 +780,10 @@ class AccountsController < ApplicationController
     end
 
     account_users = admins.map do |admin|
-      admin.save! if admin.new_record?
-      if admin.new_record?
-        if admin.user.registed?
+      new_record = admin.new_record?
+      admin.save! if new_record
+      if new_record
+        if admin.user.registered?
           admin.account_user_notification!
         else
           admin.account_user_registration!
