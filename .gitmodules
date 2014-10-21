@@ -1,6 +1,3 @@
 [submodule "vendor/QTIMigrationTool"]
 	path = vendor/QTIMigrationTool
 	url = git://github.com/instructure/QTIMigrationTool.git
-[submodule "canvas-mobile"]
-	path = canvas-mobile
-	url = git@github.com:HotChalk/canvas-mobile.git
