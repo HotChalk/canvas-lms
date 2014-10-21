@@ -272,7 +272,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         start_date = new Date(data.delayed_post_at);
         end_date = new Date(data.lock_at);
         if end_date < start_date
-          errors["lock_at"] = [
+          errors["delayed_post_at"] = [
             message: I18n.t 'from_date_greater_than_until_date', 'Until date must be after the from date'
           ]
       if @isTopic() && data.set_assignment is '1'

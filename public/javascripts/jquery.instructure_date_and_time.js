@@ -384,7 +384,8 @@ var speakMessage = function ($this, message) {
           dateFormat: 'M d, yy',
           showOn: 'button',
           buttonText: '<i class="icon-calendar-month"></i>',
-          buttonImageOnly: false
+          buttonImageOnly: false,
+          beforeShow: function(input, inst) { input.click(); }
         };
         $field.datepicker($.extend(datepickerOptions, options.datepicker));
       }
