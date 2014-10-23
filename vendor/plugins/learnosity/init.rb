@@ -23,4 +23,5 @@ Rails.configuration.to_prepare do
   require File.join(File.dirname(__FILE__), 'lib/qti/learnosity_interaction')
   require File.join(File.dirname(__FILE__), 'lib/qti/assessment_item_converter_learnosity')
   require File.join(File.dirname(__FILE__), 'app/controllers/quizzes/quizzes_controller')
+  require File.join(File.dirname(__FILE__), 'app/controllers/quizzes/quiz_questions_display_controller')
 end
