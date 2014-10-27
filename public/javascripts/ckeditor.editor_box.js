@@ -76,6 +76,14 @@ define([
       return this._textareas[id];
     },
     _getEditor: function(id) {
+      var textArea = this._editors[id];
+      if(textArea){        
+        var real_text_area = $(document).find("#"+textArea.name);
+        var cke = real_text_area.siblings(".cke");
+        if(real_text_area.length > 0 && cke.length == 0){
+          return null;
+        }
+      }
       if(!this._editors[id]) {
         this._editors[id] = CKEDITOR.instances[id];
       }
