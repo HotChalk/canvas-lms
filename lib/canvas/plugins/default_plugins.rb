@@ -283,10 +283,7 @@ Canvas::Plugin.register('hotchalk', :export_system, {
     :settings_partial => 'plugins/hotchalk_settings',
     :select_text => 'Hotchalk Course Export Package',
     :settings => {
-        :cl_base_url => nil,
-        :cl_integration_key => nil,
-        :cl_proxy_url => nil,
-        :analytics_url => nil,
+        :account_external_urls => {},
         :worker => 'CCWorker',
         :valid_contexts => %w{Course}
     }

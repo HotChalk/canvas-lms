@@ -1997,8 +1997,8 @@ class CoursesController < ApplicationController
       @active_tab = "ember"
       add_crumb(t('#crumbs.ember', "Ember Data"))
       if Canvas::Plugin.find(:hotchalk).enabled?
-        @analytics_url = "#{PluginSetting.settings_for_plugin(:hotchalk)['analytics_url']}/#{params[:course_id]}"
-       end 
+        @analytics_url = ("#{PluginSetting.settings_for_plugin(:hotchalk)[:account_external_urls][@context.root_account_id.to_s]['analytics_url']}/#{params[:course_id]}" rescue nil)
+      end
    end
   end
 

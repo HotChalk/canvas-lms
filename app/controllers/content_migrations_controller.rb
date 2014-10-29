@@ -171,6 +171,7 @@ class ContentMigrationsController < ApplicationController
       js_env :CONTENT_MIGRATIONS => content_migration_json_hash
       js_env(:OLD_START_DATE => unlocalized_datetime_string(@context.start_at, :verbose))
       js_env(:OLD_END_DATE => unlocalized_datetime_string(@context.conclude_at, :verbose))
+      js_env :ROOT_ACCOUNT_ID => (@context.respond_to?(:root_account_id) ? @context.root_account_id : nil)
     end
   end
 
@@ -322,15 +323,6 @@ class ContentMigrationsController < ApplicationController
       end
     end
 
-    # Special case: check for Hotchalk package imports and add URL
-    if params[:migration_type] == 'hotchalk' && @plugin.enabled?
-      source_package_id = params[:settings][:source_course_id]
-      base_url = PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
-      integration_key = PluginSetting.settings_for_plugin(:hotchalk)['cl_integration_key']
-      package_url = "https://#{base_url}/clws/integration/packages/#{source_package_id}/download?key=#{integration_key}"
-      params[:pre_attachment] = { :url => package_url, :name => "#{source_package_id}.imscc" }
-    end
-
     @content_migration = @context.content_migrations.build(
       user: @current_user,
       context: @context,
@@ -339,6 +331,22 @@ class ContentMigrationsController < ApplicationController
     )
     @content_migration.workflow_state = 'created'
     @content_migration.source_course = source_course if source_course
+
+    # Special case: check for Hotchalk package imports and add URL
+    if params[:migration_type] == 'hotchalk' && @plugin.enabled? && @context.respond_to?(:root_account)
+      begin
+        source_package_id = params[:settings][:source_course_id]
+        base_url = settings[:account_external_urls][@context.root_account_id.to_s]['cl_base_url']
+        integration_key = settings[:account_external_urls][@context.root_account_id.to_s]['cl_integration_key']
+        raise "Invalid Hotchalk plugin settings for account ID #{@context.root_account_id}" if base_url.blank? || integration_key.blank?
+        package_url = "https://#{base_url}/clws/integration/packages/#{source_package_id}/download?key=#{integration_key}"
+        params[:pre_attachment] = { :url => package_url, :name => "#{source_package_id}.imscc" }
+      rescue => e
+        @content_migration.fail_with_error!(e)
+        render :json => @content_migration.errors, :status => :bad_request
+        return
+      end
+    end
 
     update_migration
   end

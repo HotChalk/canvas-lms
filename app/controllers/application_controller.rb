@@ -1145,7 +1145,9 @@ class ApplicationController < ActionController::Base
       @module = tag.context_module
       tag.context_module_action(@current_user, :read) unless tag.locked_for? @current_user
       uri = URI::parse(@tag.url)
-      if Canvas::Plugin.find(:hotchalk).enabled? && uri.host == PluginSetting.settings_for_plugin(:hotchalk)['cl_proxy_url']
+      if Canvas::Plugin.find(:hotchalk).enabled? &&
+          context.respond_to?(:root_account_id) &&
+          uri.host == (PluginSetting.settings_for_plugin(:hotchalk)[:account_external_urls][context.root_account_id.to_s]['cl_proxy_url'] rescue nil)
         @tag.url = @template.context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
         render :template => 'context_modules/embedded_url_show'
       else

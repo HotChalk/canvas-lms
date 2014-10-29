@@ -1603,6 +1603,6 @@ routes.draw do
   match '/assets/:package.:extension' => 'jammit#package', :as => :jammit if defined?(Jammit)
 
   # Hotchalk-specific routes
-  match 'hotchalk/packages' => 'hotchalk_package_imports#index', :as => :index, :via => :get
+  match 'hotchalk/packages/:root_account_id' => 'hotchalk_package_imports#index', :as => :index, :via => :get
 
 end

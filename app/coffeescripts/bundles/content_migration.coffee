@@ -143,6 +143,7 @@ require [
     view: new HotchalkPackageView
             hotchalkCourseSelect: new HotchalkCourseSelectView
                                     model: ConverterViewControl.getModel()
+                                    rootAccountId: ENV.ROOT_ACCOUNT_ID
 
   ConverterViewControl.register
     key: 'moodle_converter'
