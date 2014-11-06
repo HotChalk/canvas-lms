@@ -11044,6 +11044,7 @@ en:
       redirect_from_idp: "Recieved LoginResponse from IdP"
     default_app_name: "Third-Party Application"
     errors: 
+      blank_unique_id: "No %{login_handle_name} was given"
       blank_password: "No password was given"
       invalid_credentials: "Incorrect username and/or password"
       invalid_otp: "Invalid verification code, please try again"
@@ -13012,6 +13013,8 @@ en:
       coenrollment_banner: "*Parent of a Canvas User?* **Click Here For an Account**"
       default_login_message: "Log in at your institution"
       dont_know_password: "Don't know your password?"
+      dont_know_email: "I don't know my email address"
+      click_below_to_login: "Click below to login:"
       labels: 
         password: Password
         remember_me: "Stay signed in"

@@ -613,13 +613,15 @@ routes.draw do
   match 'images/users/:user_id' => 'users#update_avatar_image', :as => :update_avatar_image, :via => :put
   match 'all_menu_courses' => 'users#all_menu_courses', :as => :all_menu_courses
   match 'grades' => 'users#grades', :as => :grades
-  match 'login' => 'pseudonym_sessions#new', :as => :login, :via => :get
+  match 'login' => 'pseudonym_sessions#pre_login', :as => :login, :via => :get
   match 'login' => 'pseudonym_sessions#create', :via => :post
   match 'logout' => 'pseudonym_sessions#destroy', :as => :logout
   match 'login/cas' => 'pseudonym_sessions#new', :as => :cas_login, :via => :get
   match 'login/cas' => 'pseudonym_sessions#cas_logout', :as => :cas_logout, :via => :post
   match 'login/otp' => 'pseudonym_sessions#otp_login', :as => :otp_login, :via => [:get, :post]
   match 'login/hmac' => 'pseudonym_sessions#hmac_login', :as => :hmac_login, :via => [:get, :post]
+  match 'login2' => 'pseudonym_sessions#new', :as => :resolve_login, :via => :get
+  match 'login/resolve' => 'pseudonym_sessions#resolve_login', :as => :resolve_login, :via => :get
   match 'login/:account_authorization_config_id' => 'pseudonym_sessions#new', :as => :aac_login, :via => :get
   match 'users/:user_id/mfa' => 'pseudonym_sessions#disable_otp_login', :as => :disable_mfa, :via => :delete
   match 'file_session/clear' => 'pseudonym_sessions#clear_file_session', :as => :clear_file_session

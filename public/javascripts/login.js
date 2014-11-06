@@ -64,5 +64,43 @@ require([
     })
     .find(":text:first")
       .focus().select();
+
+  $("#resolve_login_form")
+    .submit(function(event) {
+      var data = $(this).getFormData({object_name: 'prelogin'});
+      if(!data.unique_id || data.unique_id.length < 1) {
+        $(this).formErrors({
+          unique_id: I18n.t("invalid_login", 'Invalid login')
+        });
+        return false;
+      }
+      $.ajax({
+        url: $(this).attr('action'),
+        type: 'GET',
+        data: $(this).serialize(),
+        success: function(response) {
+          if (response.auth_type == 'canvas') {
+            $("#pseudonym_session_unique_id").val($("#prelogin_unique_id").val());
+            $("#resolve_login_form").hide();
+            $("#login_form").show();
+          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac') {
+            $("#external_login_link").attr('href', response.auth_url).text(response.account_name)
+            $("#resolve_login_form button").hide();
+            $("#external_login").show();
+          }
+        },
+        error: function(response) {
+          try {
+            var json = $.parseJSON(response.responseText);
+            if (json && json.errors) {
+              $("#resolve_login_form").formErrors(json)
+            }
+          } catch(e) {}
+        }
+      });
+      event.preventDefault();
+    })
+    .find(":text:first")
+      .focus().select();
 });
 
