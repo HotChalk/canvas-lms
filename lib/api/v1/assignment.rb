@@ -198,6 +198,11 @@ module Api::V1::Assignment
       hash['submission'] = submission_json(submission,assignment,user,session)
     end
 
+    if opts[:include_submission]
+      submission = Submission.find_by_assignment_id_and_user_id(assignment.id, @current_user.id)
+      hash['submission'] = submission_json(submission,assignment,user,session) if submission
+    end
+
     locked_json(hash, assignment, user, 'assignment')
 
     hash

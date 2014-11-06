@@ -445,7 +445,7 @@ class ApplicationController < ActionController::Base
         params[:context_id] = params[:course_section_id]
         params[:context_type] = "CourseSection"
         @context = api_find(CourseSection, params[:course_section_id])
-      elsif request.path.match(/\A\/profile/) || request.path == '/' || request.path.match(/\A\/dashboard\/files/) || request.path.match(/\A\/calendar/) || request.path.match(/\A\/assignments/) || request.path.match(/\A\/files/)
+      elsif request.path.match(/\A\/profile/) || request.path == '/' || request.path.match(/\A\/dashboard\/files/) || request.path.match(/\A\/calendar/) || request.path.match(/\A\/assignments/) || request.path.match(/\A\/api\/v1\/assignments/) || request.path.match(/\A\/files/)
         @context = @current_user
         @context_membership = @context
       end

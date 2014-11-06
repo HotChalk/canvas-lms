@@ -559,11 +559,11 @@ class AssignmentsApiController < ApplicationController
 
       # clean up and prepare results 
       sortedAssignments = {}
-      sortedAssignments[:overdue] = assignments_json(@overdue_assignments, @current_user, session)
-      sortedAssignments[:ungraded] = assignments_json(@ungraded_assignments, @current_user, session)      
-      sortedAssignments[:upcoming] = assignments_json(@upcoming_assignments, @current_user, session)
-      sortedAssignments[:undated] = assignments_json(@undated_assignments, @current_user, session)
-      sortedAssignments[:past] = assignments_json(@past_assignments, @current_user, session)
+      sortedAssignments[:overdue] = assignments_json(@overdue_assignments, @current_user, session, { include_submission: true })
+      sortedAssignments[:ungraded] = assignments_json(@ungraded_assignments, @current_user, session, { include_submission: true })
+      sortedAssignments[:upcoming] = assignments_json(@upcoming_assignments, @current_user, session, { include_submission: true })
+      sortedAssignments[:undated] = assignments_json(@undated_assignments, @current_user, session, { include_submission: true })
+      sortedAssignments[:past] = assignments_json(@past_assignments, @current_user, session, { include_submission: true })
       
       render :json => sortedAssignments
     end
