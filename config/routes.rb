@@ -906,6 +906,7 @@ routes.draw do
     end
 
     scope(:controller => :assignments_api) do
+      get 'users/:user_id/assignments', :action => :user_index, :path_name => 'user_assignments'
       get 'courses/:course_id/assignments', :action => :index, :path_name => 'course_assignments'
       get 'courses/:course_id/assignments/:id', :action => :show, :path_name => 'course_assignment'
       post 'courses/:course_id/assignments', :action => :create
