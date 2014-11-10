@@ -597,7 +597,8 @@ class AssignmentsApiController < ApplicationController
       @assignment.context_module_action(@current_user, :read) unless @assignment.locked_for?(@current_user, :check_policies => true)
       render :json => assignment_json(@assignment, @current_user, session,
                                       submission: submission,
-                                      override_dates: override_dates)
+                                      override_dates: override_dates,
+                                      submission_include: Array(params[:submission_include]))
     end
   end
 

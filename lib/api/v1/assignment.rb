@@ -74,6 +74,7 @@ module Api::V1::Assignment
     hash['name'] = assignment.title
     hash['post_to_sis'] = assignment.post_to_sis
     hash['submission_types'] = assignment.submission_types_array
+    hash['readable_submission_types'] = assignment.readable_submission_types
     hash['has_submitted_submissions'] = assignment.has_submitted_submissions?
 
     if assignment.context && assignment.context.turnitin_enabled?
@@ -195,7 +196,8 @@ module Api::V1::Assignment
     end
 
     if submission = opts[:submission]
-      hash['submission'] = submission_json(submission,assignment,user,session)
+      submission_include = opts[:submission_include] if opts[:submission_include]
+      hash['submission'] = submission_json(submission,assignment,user,session, nil, submission_include)
     end
 
     if opts[:include_submission]
