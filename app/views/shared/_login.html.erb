@@ -39,7 +39,7 @@
         <div>
           <div class="login-options">
             <% url = "https://embersupport.zendesk.com/hc/en-us/articles/202436189" %>
-            <%= link_to t('dont_know_email', "I don't know my email address"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_email" %>
+            <%= link_to t('dont_know_email', "I don't know my email address"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_email", :target => "_blank" %>
           </div>
         </div>
       <% end %>
@@ -70,7 +70,7 @@
 
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             <% url = "https://embersupport.zendesk.com/hc/en-us/articles/202650265" %><br />
-            <%= link_to t('dont_know_password', "I don't know my password"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password" %>
+            <%= link_to t('dont_know_password', "I don't know my password"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password", :target => "_blank" %>
           </div>
 
           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
