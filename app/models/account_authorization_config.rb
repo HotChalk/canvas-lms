@@ -43,6 +43,7 @@ class AccountAuthorizationConfig < ActiveRecord::Base
   validates_presence_of :entity_id, :if => Proc.new{|aac| aac.saml_authentication?}
   validates_presence_of :hmac_shared_secret, :if => Proc.new { |aac| aac.hmac_authentication? }
   validates_presence_of :hmac_timestamp_range, :if => Proc.new { |aac| aac.hmac_authentication? }
+  validates_presence_of :log_in_url, :if => Proc.new { |aac| aac.hmac_authentication? }
   validate :validate_multiple_auth_configs
 
   after_create :disable_open_registration_if_delegated
@@ -63,7 +64,7 @@ class AccountAuthorizationConfig < ActiveRecord::Base
         :certificate_fingerprint, :identifier_format, :login_handle_name,
         :login_attribute, :idp_entity_id, :position]
     when 'hmac'
-      [ :auth_type, :hmac_shared_secret, :hmac_timestamp_range ]
+      [ :auth_type, :hmac_shared_secret, :hmac_timestamp_range, :log_in_url ]
     else
       []
     end
