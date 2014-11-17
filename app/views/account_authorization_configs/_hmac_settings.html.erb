@@ -38,6 +38,16 @@
         </td>
       </tr>
       <tr>
+        <td style="vertical-align: top; width: 200px;"><%= f.blabel :log_in_url, :en => "Login URL" %></td>
+        <td style="vertical-align: top;" class="nobr">
+          <%= f.text_field :log_in_url, :class => "auth_form", :style => "width: 300px;" %>
+          <span class="auth_info"><%= @account_config.log_in_url %></span>
+          <span class="auth_form" style="font-size: smaller;">
+            <br><%= t(:timestamp_range_description, "External URL to be used for login") %>
+          </span>
+        </td>
+      </tr>
+      <tr>
         <td colspan="4">
           <div class="form-actions">
             <span class="auth_form">
