@@ -3,8 +3,8 @@
   <div id="prelogin_error" class="error" style="display:none;"></div>
   <button type="submit" class="btn btn-primary btn-large"><%= t('submit', 'Submit') %></button>
   <div id="external_login" style="display: none;"><a id="external_login_link" class="btn btn-large" href="#"><%= t('click_here_to_login', "Click here to login at")%><br /></a></div>
-  <% url = "https://embersupport.zendesk.com/hc/en-us/articles/202436189" %>
-  <%= link_to t('dont_know_email', "I don't know my email address"), url, :class => 'btn btn-large forgot-password', :target => "_blank" %>
+  <% url = "https://embersupport.zendesk.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
+  <%= link_to t('need_help', "Need help logging in?"), url, :class => 'btn btn-large forgot-password', :target => "_blank" %>
 <% end %>
 <%= form_for :pseudonym_session, :url => login_path, :html => {:id => "login_form", :class => "front face", :novalidate => 'novalidate', :style => (@is_prelogin ? "display:none" : "")} do |f| %>
   <input class="input-block-level" <%= 'type=email' if @login_handle_is_email %> name="pseudonym_session[unique_id]" value="<%= params[:pseudonym_session].try(:[], :unique_id) %>" placeholder="<%= @login_handle_name %>">
