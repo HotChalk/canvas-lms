@@ -13082,7 +13082,7 @@ en:
       coenrollment_banner: "*Parent of a HotChalk Ember User?* **Click Here For an Account**"
       default_login_message: "Log in at your institution"
       dont_know_password: "Don't know your password?"
-      dont_know_email: "I don't know my email address"
+      need_help: "Need help logging in?"
       click_below_to_login: "Click below to login:"
       labels: 
         password: Password
