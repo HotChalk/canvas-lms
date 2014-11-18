@@ -527,9 +527,6 @@ class AssignmentsApiController < ApplicationController
       # get assignment list
       get_all_pertinent_contexts
       get_sorted_assignments
-      add_crumb(t('#crumbs.assignments', "Assignments"), (@just_viewing_one_course ? named_context_url(@context, :context_assignments_url) : "/assignments" ))
-      @context = (@just_viewing_one_course ? @context : @current_user)
-      return if @just_viewing_one_course && !tab_enabled?(@context.class::TAB_ASSIGNMENTS)
 
       @assignments.map! {|a| a.overridden_for(@current_user)}            
       if @current_user
