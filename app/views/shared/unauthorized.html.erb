@@ -52,6 +52,7 @@
   </div>
 <% end %>
 <% if needs_login %>
+  <% @is_prelogin = true %>
   <%= render :partial => "shared/login", :locals => {:hide_self_reg_banner => true} %>
 <% end %>
 </div>
