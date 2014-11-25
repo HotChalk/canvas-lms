@@ -172,6 +172,14 @@ module Api::V1::User
       json[:html_url] = course_user_url(enrollment.course_id, enrollment.user_id)
       user_includes = includes.include?('avatar_url') ? ['avatar_url'] : []
       json[:user] = user_json(enrollment.user, user, session, user_includes) if includes.include?(:user)
+      if includes.include?('course')        
+        json[:course] = {
+          :id => enrollment.course.id,
+          :name => enrollment.course.name,
+          :hide_final_grade => enrollment.course.hide_final_grade
+        }
+      end
+
       if includes.include?('locked')
         lockedbysis = enrollment.defined_by_sis?
         lockedbysis &&= !enrollment.course.account.grants_right?(@current_user, session, :manage_account_settings)
