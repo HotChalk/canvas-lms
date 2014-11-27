@@ -26,4 +26,16 @@ define([
   CKEDITOR.plugins.addExternal('instructure_image', loadPath + 'instructure_image/', 'plugin.js');
   CKEDITOR.plugins.addExternal('instructure_external_tools', loadPath + 'instructure_external_tools/', 'plugin.js');
 
+  // Add special configuration here
+
+  // Change default table width in Table dialog
+  CKEDITOR.on('dialogDefinition', function(ev) {
+    var dialogName = ev.data.name;
+    var dialogDefinition = ev.data.definition;
+    if (dialogName == 'table') {
+        var info = dialogDefinition.getContents('info');
+        info.get('txtWidth')['default'] = '100%';
+    }
+  });
+
 });
