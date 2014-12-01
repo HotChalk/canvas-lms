@@ -49,5 +49,45 @@
       <span><p class="help-block" id="aspect_ratio_note">{{#t "dimension_help_text"}}Aspect ratio will be preserved{{/t}}</p></span>
       </div>
     </div>
+    <div class="control-group">
+      <label class="control-label" for="image_border">{{#t "border"}}Border{{/t}}</label>
+      <div class="controls">
+        <input class="span1"
+               name="image[border]"
+               id="image_border"
+               type="number"
+               aria-label="{{#t "image_border"}}Image Border{{/t}}" />
+      </div>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="image_hspace">{{#t "hspace"}}HSpace{{/t}}</label>
+      <div class="controls">
+        <input class="span1"
+               name="image[hspace]"
+               id="image_hspace"
+               type="number"
+               aria-label="{{#t "image_hspace"}}Image HSpace{{/t}}" />
+      </div>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="image_vspace">{{#t "vspace"}}VSpace{{/t}}</label>
+      <div class="controls">
+        <input class="span1"
+               name="image[vspace]"
+               id="image_vspace"
+               type="number"
+               aria-label="{{#t "image_vspace"}}Image VSpace{{/t}}" />
+      </div>
+    </div>
+    <div class="control-group">
+      <label class="control-label" for="image_align">{{#t "alignment"}}Alignment{{/t}}</label>
+      <div class="controls">
+        <select id="image_align" name="image[align]">
+          <option value></option>
+          <option value="left">{{#t "left"}}Left{{/t}}</option>
+          <option value="right">{{#t "right"}}Right{{/t}}</option>
+        </select>
+      </div>
+    </div>
   </fieldset>
 </div>

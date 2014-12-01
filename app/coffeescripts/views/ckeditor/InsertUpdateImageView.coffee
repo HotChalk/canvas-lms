@@ -35,6 +35,10 @@ define [
         @setSelectedImage
           src: @$selectedNode.attr('src')
           alt: @$selectedNode.attr('alt')
+          align: @$selectedNode.attr('align')
+          hspace: @$selectedNode.attr('hspace')
+          vspace: @$selectedNode.attr('vspace')
+          border: @$selectedNode.attr('border')
           width: @$selectedNode.width()
           height: @$selectedNode.height()
 
@@ -100,10 +104,10 @@ define [
 
     getAttributes: ->
       res = {}
-      for key in ['width', 'height']
+      for key in ['width', 'height', 'hspace', 'vspace', 'border']
         val = Number @$("[name='image[#{key}]']").val()
         res[key] = val if val && val > 0
-      for key in ['src',  'alt']
+      for key in ['src',  'alt', 'align']
         val = @$("[name='image[#{key}]']").val()
         res[key] = val if val
       res
