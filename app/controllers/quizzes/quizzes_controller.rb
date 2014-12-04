@@ -460,12 +460,12 @@ class Quizzes::QuizzesController < ApplicationController
     extend Api::V1::User
     if authorized_action(@quiz, @current_user, [:grade, :read_statistics])
       students = @context.students_visible_to(@current_user).order_by_sortable_name.to_a.uniq
-      @submissions_from_users = @quiz.quiz_submissions.for_user_ids(students.map(&:id)).not_settings_only.all
+      @submissions_from_users = @quiz.quiz_submissions.for_user_ids(students.map(&:id)).not_preview_nor_settings_only.all
 
       @submissions_from_users = Hash[@submissions_from_users.map { |s| [s.user_id,s] }]
 
       #include logged out submissions
-      @submissions_from_logged_out = @quiz.quiz_submissions.logged_out.not_settings_only
+      @submissions_from_logged_out = @quiz.quiz_submissions.logged_out.not_preview_nor_settings_only
 
       @submitted_students, @unsubmitted_students = students.partition do |stud|
         @submissions_from_users[stud.id]
@@ -788,10 +788,10 @@ class Quizzes::QuizzesController < ApplicationController
   def submission_counts
     submitted_with_submissions = @context.students_visible_to(@current_user).
         joins(:quiz_submissions).
-        where("quiz_submissions.quiz_id=? AND quiz_submissions.workflow_state<>'settings_only'", @quiz)
+        where("quiz_submissions.quiz_id=? AND quiz_submissions.workflow_state NOT IN ('settings_only','preview')", @quiz)
     @submitted_student_count = submitted_with_submissions.count(:id, :distinct => true)
     #add logged out submissions
-    @submitted_student_count += @quiz.quiz_submissions.logged_out.not_settings_only.count
+    @submitted_student_count += @quiz.quiz_submissions.logged_out.not_preview_nor_settings_only.count
     @any_submissions_pending_review = submitted_with_submissions.where("quiz_submissions.workflow_state = 'pending_review'").count > 0
   end
 
