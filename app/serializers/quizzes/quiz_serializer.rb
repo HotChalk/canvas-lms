@@ -1,5 +1,6 @@
 module Quizzes
   class QuizSerializer < Canvas::APISerializer
+    include Api::V1::QuizSubmission
     include LockedSerializer
     include PermissionsSerializer
 
@@ -19,7 +20,7 @@ module Quizzes
                 :message_students_url, :quiz_submission_html_url, :section_count,
                 :moderate_url, :take_quiz_url, :quiz_extensions_url, :takeable,
                 :quiz_submissions_zip_url, :preview_url, :quiz_submission_versions_html_url,
-                :assignment_id, :submission_for_current_user
+                :assignment_id, :submission_for_current_user, :quiz_submission_versions
 
     def_delegators :@controller,
       :api_v1_course_assignment_group_url,
@@ -62,6 +63,11 @@ module Quizzes
       else
         quiz.quiz_submissions.where(user_id: current_user).first
       end
+    end
+
+    def quiz_submission_versions
+      quiz_submission = quiz_submission()
+      quiz_submissions_json(quiz_submission.submitted_attempts, quiz, current_user, session)[:quiz_submissions] if quiz_submission
     end
 
     def takeable
@@ -308,6 +314,7 @@ module Quizzes
       @submission_for_current_user ||= (
         quiz.quiz_submissions.where(user_id: current_user).first
       )
+      quiz_submission_json(@submission_for_current_user, quiz, current_user, session) if @submission_for_current_user
     end
 
     def submission_for_current_user?
