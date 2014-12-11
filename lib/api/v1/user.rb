@@ -23,7 +23,7 @@ module Api::V1::User
 
   API_USER_JSON_OPTS = {
     :only => %w(id name),
-    :methods => %w(sortable_name short_name)
+    :methods => %w(sortable_name short_name display_name)
   }
 
   def user_json_preloads(users, preload_email=false)
@@ -40,14 +40,17 @@ module Api::V1::User
     includes ||= []
     api_json(user, current_user, session, API_USER_JSON_OPTS).tap do |json|
       if user_json_is_admin?(context, current_user)
-        if sis_pseudonym = user.sis_pseudonym_for(@domain_root_account)
+        include_root_account = @domain_root_account.trust_exists?
+        if sis_pseudonym = user.sis_pseudonym_for(@domain_root_account, include_root_account)
           # the sis fields on pseudonym are poorly named -- sis_user_id is
           # the id in the SIS import data, where on every other table
           # that's called sis_source_id.
           json.merge! :sis_user_id => sis_pseudonym.sis_user_id,
+                      :integration_id => sis_pseudonym.integration_id,
                       # TODO: don't send sis_login_id; it's garbage data
-                      :sis_login_id => sis_pseudonym.unique_id if @domain_root_account.grants_rights?(current_user, :read_sis, :manage_sis).values.any?
+                      :sis_login_id => sis_pseudonym.unique_id if @domain_root_account.grants_any_right?(current_user, :read_sis, :manage_sis)
           json[:sis_import_id] = sis_pseudonym.sis_batch_id if @domain_root_account.grants_right?(current_user, session, :manage_sis)
+          json[:root_account] = HostUrl.context_host(sis_pseudonym.account) if include_root_account
         end
         if pseudonym = (sis_pseudonym || user.find_pseudonym_for_account(@domain_root_account))
           json[:login_id] = pseudonym.unique_id
@@ -121,7 +124,7 @@ module Api::V1::User
       !!(
         permissions_context.grants_right?(current_user, :manage_students) ||
         permissions_account.membership_for_user(current_user) ||
-        permissions_account.root_account.grants_rights?(current_user, :manage_sis, :read_sis).values.any?
+        permissions_account.root_account.grants_any_right?(current_user, :manage_sis, :read_sis)
       )
     )
   end
@@ -145,6 +148,7 @@ module Api::V1::User
       json[:enrollment_state] = json.delete('workflow_state')
       json[:role] = enrollment.role
       json[:last_activity_at] = enrollment.last_activity_at
+      json[:total_activity_time] = enrollment.total_activity_time
       if enrollment.root_account.grants_right?(user, session, :manage_sis)
         json[:sis_import_id] = enrollment.sis_batch_id
       end
@@ -159,9 +163,23 @@ module Api::V1::User
           end
         end
       end
+      if @domain_root_account.grants_any_right?(@current_user, :read_sis, :manage_sis)
+        json[:sis_course_id] = enrollment.course.sis_source_id
+        json[:course_integration_id] = enrollment.course.integration_id
+        json[:sis_section_id] = enrollment.course_section.sis_source_id
+        json[:section_integration_id] = enrollment.course_section.integration_id
+      end
       json[:html_url] = course_user_url(enrollment.course_id, enrollment.user_id)
       user_includes = includes.include?('avatar_url') ? ['avatar_url'] : []
       json[:user] = user_json(enrollment.user, user, session, user_includes) if includes.include?(:user)
+      if includes.include?('course')        
+        json[:course] = {
+          :id => enrollment.course.id,
+          :name => enrollment.course.name,
+          :hide_final_grade => enrollment.course.hide_final_grade
+        }
+      end
+
       if includes.include?('locked')
         lockedbysis = enrollment.defined_by_sis?
         lockedbysis &&= !enrollment.course.account.grants_right?(@current_user, session, :manage_account_settings)
@@ -178,6 +196,6 @@ module Api::V1::User
     course = enrollment.course
 
     (user.id == enrollment.user_id && !course.hide_final_grades?) ||
-     course.grants_rights?(user, :manage_grades, :view_all_grades).values.any?
+     course.grants_any_right?(user, :manage_grades, :view_all_grades)
   end
 end

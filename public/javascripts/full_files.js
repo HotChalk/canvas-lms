@@ -22,7 +22,7 @@ define([
   'i18n!files',
   'jquery' /* jQuery, $ */,
   'str/htmlEscape',
-  'redactor.editor_box',
+  'ckeditor.editor_box',
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.doc_previews' /* loadDocPreview */,
@@ -40,7 +40,8 @@ define([
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/droppable' /* /\.droppable/ */,
   'jqueryui/progressbar' /* /\.progressbar/ */,
-  'vendor/scribd.view' /* scribd */
+  'vendor/scribd.view' /* scribd */,
+  'uploadify'
 ], function(_, INST, I18n, $, htmlEscape) {
 
   if(typeof ENV.contexts === "string"){
@@ -1584,7 +1585,8 @@ define([
                       mimeType: data.content_type,
                       attachment_id: data.id,
                       height: '100%',
-                      crocodoc_session_url: data.crocodocSession,
+                      crocodoc_session_url: data.crocodoc_session_url,
+                      canvadoc_session_url: data.canvadoc_session_url,
                       scribd_doc_id: data.scribd_doc && data.scribd_doc.attributes && data.scribd_doc.attributes.doc_id,
                       scribd_access_key: data.scribd_doc && data.scribd_doc.attributes && data.scribd_doc.attributes.access_key,
                       attachment_view_inline_ping_url: files.viewInlinePingUrl(data.context_string, data.id),
@@ -1592,27 +1594,11 @@ define([
                       attachment_preview_processing: data.workflow_state == 'pending_upload' || data.workflow_state == 'processing'
                     });
                   };
-                  if (data.permissions && data.permissions.download && $.isPreviewable(data.content_type)) {
-                    if (data['crocodoc_available?'] && !data.crocodocSession) {
-                      $preview.disableWhileLoading(
-                        $.ajaxJSON(
-                          '/attachments/' + data.id + '/crocodoc_sessions/',
-                          'POST',
-                          {annotations: false},
-                          function(response) {
-                            data.crocodocSession = response.session_url;
-                            showPreview();
-                          },
-                          function() {
-                            data['crocodoc_available?'] = false;
-                            showPreview();
-                          }
-                        )
-                      );
-                    }
-                    else {
-                      showPreview();
-                    }
+                  if (data.canvadoc_session_url || data.crocodoc_session_url) {
+                    showPreview();
+                  }
+                  else if (data.permissions && data.permissions.download && $.isPreviewable(data.content_type)) {
+                    showPreview();
                   }
                 }
                 $(window).triggerHandler('resize');
@@ -2025,8 +2011,8 @@ define([
         $("#lock_item_dialog form").hide();
 
         $form.show();
-        data.lock_at = $.datetimeString(data.last_lock_at, false);
-        data.unlock_at = $.datetimeString(data.last_unlock_at, false);
+        data.lock_at = $.datetimeString(data.last_lock_at, {localized: false});
+        data.unlock_at = $.datetimeString(data.last_unlock_at, {localized: false});
         data.locked = (!data.lock_at && !data.unlock_at) ? '1' : '0';
         $("#lock_item_dialog").fillTemplateData({data: {name: data.name}});
 
@@ -2353,7 +2339,8 @@ define([
         'attachment[filename]': file.name,
         'attachment[context_code]': folder.context_string,
         'no_redirect': true,
-        'attachment[duplicate_handling]': file.duplicate_handling
+        'attachment[duplicate_handling]': file.duplicate_handling,
+        'default_content_type': 'application/octet-stream'
       };
       fileUpload.updateUploadCount();
       $.ajaxJSON('/files/pending', 'POST', post_params, function(data) {

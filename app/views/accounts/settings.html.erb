@@ -2,7 +2,7 @@
   @active_tab = "settings"
   add_crumb t(:settings_crumb, "Settings")
   js_bundle :account_settings
-  jammit_css :account_settings, :reports, :redactor
+  jammit_css :account_settings, :reports
   content_for :page_title, t(:page_title, "Account Settings")
   if can_do(@context, @current_user, :manage_storage_quotas)
     js_env :ACCOUNT => {
@@ -205,6 +205,37 @@ TEXT
           </fieldset>
         <% end %>
 
+        <% unless @account.site_admin? %>
+            <fieldset>
+                <legend><%= t(:account_programs, "Programs")%>
+                <table class="formtable">
+                  <tbody id="programs">
+                    <tr class="program blank" style="display: none;'">
+                        <td><%= before_label(t(:program_name_label, "Name")) %></td>
+                        <td>
+                            <input type="text" name="account[new_programs][][name]" class="name" value=""/>
+                        </td>
+                        <td>
+                            <a href="#" class="delete_program_link"><i class="icon-end standalone-icon"></i></a>
+                        </td>
+                    </tr>
+                    <% (@account.account_programs || {}).each do |program| %>
+                        <tr class="program <%= raw ' blank" style="display: none;' if program.nil? %>">
+                            <td><%= before_label(t(:program_name_label, "Name")) %></td>
+                            <td>
+                                <input type="text" name="account[programs][<%= program.id %>]" class="name" value="<%= program.name %>"/>
+                            </td>
+                            <td>
+                                <a href="#" class="delete_program_link"><i class="icon-end standalone-icon"></i></a>
+                            </td>
+                        </tr>
+                    <% end %>
+                    </tbody>
+                </table>
+                <a href="#" class="icon-add add_program_link" style="font-size: 0.9em;"><%= t(:add_program_link, "Add another program") %></a>
+            </fieldset>
+        <% end %>
+
         <fieldset>
           <legend><%= t(:features_title, "Features") %></legend>
           <%= f.fields_for :settings do |settings| %>
@@ -243,10 +274,6 @@ TEXT
                 <div>
                   <%= settings.check_box :global_includes, :checked => @account.settings[:global_includes] %>
                   <%= settings.label :global_includes, :en => "Global CSS/JavaScript includes" %>
-                </div>
-                <div>
-                  <%= settings.check_box :enable_scheduler, :checked => @account.settings[:enable_scheduler] %>
-                  <%= settings.label :enable_scheduler, :en => "Enable Calendar 2" %>
                 </div>
                 <div id="show_scheduler_checkbox">
                   <%= settings.check_box :show_scheduler, :checked => @account.settings[:show_scheduler] %>
@@ -481,19 +508,21 @@ TEXT
               <!-- put all of the helpful dialogs describing what each service does in here
                    the magic is in giving it an id of "<name_of_service>_help_dialog" and class="service_help_dialog" -->
               <div class="service_help_dialog" title="<%= t(:about_google_docs_tooltip, "About Google Docs Previews") %>" id="google_docs_previews_help_dialog">
-                <%= mt(:about_google_docs,
-                  "In order to make it easier for users, rather than forcing them to download " +
-                  "things like Word docs, PDFs, Excel spreadsheets, and open office documents " +
-                  "(In addition to requiring that those programs be installed on their on their " +
-                  "computer), in many areas throughout HotChalk Ember, it will allow you an inline " +
-                  "preview of the document.\n\n" +
+                <%= mt(:about_google_docs, <<-TEXT, :terms_url => "https://docs.google.com/viewer/TOS")
+Google Docs Previews allow users to view documents from
+within HotChalk Ember, rather than having to download them and
+open the corresponding program (e.g. Word or Excel).
 
-                  "If Scribd has been enabled for this account, it will try to use it to show the preview. " +
-                  "But because Scribd uses flash paper to display the documents, and many users " +
-                  "(namely those using an iPad/iPhone) do not have Flash Player installed, that preview " +
-                  "will not work.  By leaving Google Docs Previews enabled, when a browser does not have " +
-                  "Flash enabled, or if Scribd is not enabled, it will use preview powered by Google Docs. " +
-                  "Using this service is subject to Google's viewer [terms of service](%{terms_url})", :terms_url => "https://docs.google.com/viewer/TOS") %>
+If Scribd has been enabled on this account, HotChalk Ember will
+try to use it to show the preview. If the document
+cannot be previewed in Scribd, or if the user does not
+have the Flash player installed (e.g. iPad/iPhone),
+HotChalk Ember will fall back to using Google Docs Previews
+if they are enabled. By using this service you
+acknowledge that you have read and agreed to the
+[Google Docs Viewer Terms of Service](%{terms_url}).
+                  TEXT
+                %>
               </div>
             </div>
           </fieldset>
@@ -648,9 +677,12 @@ TEXT
     <h2><%= t(:account_admins_title, "Account Admins") %></h2>
     <ul class="admins_list user_list list admins">
       <%= render :partial => 'account_user', :collection => @account_users %>
-      <%= render :partial => 'account_user', :object => nil %>
+      <% available_roles = @context.available_account_roles(@current_user) %>
+      <% unless available_roles.empty? %>
+        <%= render :partial => 'account_user', :object => nil %>
+      <% end %>
     </ul>
-    <% if can_do(@context, @current_user, :manage_account_memberships) %>
+    <% unless available_roles.empty? %>
       <% js_bundle :user_lists %>
       <a href="#" class="add_users_link btn btn-primary"><i class="icon-add"></i> <%= t('links.add_admins', %{Add Account Admins}) %></a>
       <%= form_tag account_add_account_user_url(@account), {:id => "enroll_users_form", :style => "display: none;"} do  %>
@@ -659,7 +691,7 @@ TEXT
           <div>
             <%= label_tag :membership_type, :en => "Add More" %>
             <select name="membership_type" id="admin_membership_type">
-            <% @context.available_account_roles.each do |type| %>
+            <% available_roles.each do |type| %>
               <option value="<%= type %>"><%= AccountUser.readable_type(type) %></option>
             <% end %>
             </select>
@@ -796,7 +828,7 @@ TEXT
                           <%= r[:plural_label][] %>
                         </label>
                       </li>
-                    <% end %>  
+                    <% end %>
                     <% # NilEnrollment is a special case, because it's not actually a role, just a status reflecting that the user is not part of any course %>
                     <li id="account_notification_role_NilEnrollment">
                       <label>
@@ -831,7 +863,12 @@ TEXT
             <%= f.text_area :message, :class => 'alert_message', :style => "height: 100px;" %>
             <% if @account.site_admin? %>
               <span >
-                *<%= t(:interpolate_account_domain, "Note: enter \"{{ACCOUNT_DOMAIN}}\" to substitute the user's root account domain")  %>
+                <div>
+                  <%= t(:interpolate_account_domain, "Enter \"{{ACCOUNT_DOMAIN}}\" to substitute the user's root account domain")  %>
+                </div>
+                <div>
+                  <%= t(:interpolate_user_id, "Enter \"{{CANVAS_USER_ID}}\" to substitute the user's unique HotChalk Ember ID")  %>
+                </div>
               </span>
             <% end %>
           </div>
@@ -851,9 +888,8 @@ TEXT
           <th class="reports"><%= t 'headers.report_last_run', 'Last Run' %></th>
           <th class="reports"></th>
         </tr>
-        <% @available_reports.sort_by {|_, details| details[:title]}.each do |report, details|
-           title = details[:title] || details
-           description = details[:description]
+        <% @available_reports.sort_by {|_, details| details.title}.each do |report, details|
+           title = details.title
            description_partial = details[:description_partial]
            description_partial = report + '_description' if description_partial == true
            parameters_partial = details[:parameters_partial]
@@ -867,7 +903,7 @@ TEXT
           <tr id="<%= report %>" class="reports">
             <td class="title reports">
               <span class="title"><%= title %></span>
-              <% if description || description_partial %>
+              <% if description_partial %>
                 <a href="#" class="open_report_description_link" data-report="<%= report %>"><i class="icon-question standalone-icon"></i></a>
                 <div style="display: none" class="report_description" id="<%= report %>_description">
                   <%= description_partial ? render(:partial => description_partial) : description %>

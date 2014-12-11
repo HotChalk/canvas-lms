@@ -50,7 +50,7 @@ describe "User Profile API", type: :request do
     new_user = user(:name => 'new guy')
     @user = @me
     @course.enroll_user(new_user, 'ObserverEnrollment')
-    Account.site_admin.add_user(@user)
+    Account.site_admin.account_users.create!(user: @user)
     json = api_call(:get, "/api/v1/users/#{new_user.id}/profile",
              :controller => "profile", :action => "settings", :user_id => new_user.to_param, :format => 'json')
     json.should == {
@@ -59,6 +59,7 @@ describe "User Profile API", type: :request do
       'sortable_name' => 'guy, new',
       'short_name' => 'new guy',
       'login_id' => nil,
+      'integration_id' => nil,
       'primary_email' => nil,
       'title' => nil,
       'bio' => nil,
@@ -77,6 +78,7 @@ describe "User Profile API", type: :request do
       'name' => 'User',
       'sortable_name' => 'User',
       'short_name' => 'User',
+      'integration_id' => nil,
       'primary_email' => 'nobody@example.com',
       'login_id' => 'nobody@example.com',
       'avatar_url' => @admin.gravatar_url,
@@ -96,6 +98,7 @@ describe "User Profile API", type: :request do
       'name' => 'Student',
       'sortable_name' => 'Student',
       'short_name' => 'Student',
+      'integration_id' => nil,
       'primary_email' => 'pvuser@example.com',
       'login_id' => 'pvuser@example.com',
       'avatar_url' => @student.gravatar_url,

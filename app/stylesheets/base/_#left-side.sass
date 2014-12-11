@@ -5,7 +5,11 @@
   display: none
 
 #section-tabs .section-tab-hidden a
-  color: #bbb
+  @if $use_high_contrast
+    color: #555
+    background-color: #fff
+  @else
+    color: #bbb
 
 #dynamic-tabs li:first-child a
   border-top: 1px solid lighten($borderColor, 22%)

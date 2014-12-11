@@ -4,6 +4,132 @@
 		{
 			"icon": {
 				"paths": [
+					"M697.6 387.8l-49.4-49.4-133.6 133.6-136.2-136.2-54.6 54.6 136.2 136.2-133.6 133.6 49.4 49.4 133.6-133.6 136.2 136.2 54.6-54.6-136.2-136.2 133.6-133.6zM512 68.9c-251.3 0-455.1 203.8-455.1 455.1s203.8 455.1 455.1 455.1 455.1-203.8 455.1-455.1c0-251.3-203.8-455.1-455.1-455.1zM512 865.3c-188.5 0-341.3-152.8-341.3-341.3s152.8-341.3 341.3-341.3 341.3 152.8 341.3 341.3-152.8 341.3-341.3 341.3z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-trouble"
+				]
+			},
+			"properties": {
+				"order": 7,
+				"id": 5,
+				"prevSize": 32,
+				"code": 58880,
+				"name": "icon-trouble",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 0
+		},
+		{
+			"icon": {
+				"paths": [
+					"M512.4 69.9c-251 0-454.5 203.5-454.5 454.5s203.5 454.5 454.5 454.5 454.5-203.5 454.5-454.5c0-251-203.5-454.5-454.5-454.5zM512.4 865.3c-188.3 0-340.9-152.6-340.9-340.9s152.6-340.9 340.9-340.9 340.9 152.6 340.9 340.9-152.6 340.9-340.9 340.9zM285.2 581.2h454.5v-113.6h-454.5v113.6z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-partial"
+				]
+			},
+			"properties": {
+				"order": 6,
+				"id": 4,
+				"prevSize": 32,
+				"code": 58881,
+				"name": "icon-partial",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 1
+		},
+		{
+			"icon": {
+				"paths": [
+					"M539.5 938.8l199.2-227.6h-398.3l199.1 227.6zM55.8 85.2v170.7h910.5v-170.7h-910.5zM55.8 540.5h910.5v-170.8h-910.5v170.8z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-expand"
+				]
+			},
+			"properties": {
+				"order": 5,
+				"id": 3,
+				"prevSize": 32,
+				"code": 58882,
+				"name": "icon-expand",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 2
+		},
+		{
+			"icon": {
+				"paths": [
+					"M512 68.9c-251.3 0-455.1 203.8-455.1 455.1s203.8 455.1 455.1 455.1 455.1-203.8 455.1-455.1c0-251.3-203.8-455.1-455.1-455.1zM512 865.3c-188.5 0-341.3-152.8-341.3-341.3s152.8-341.3 341.3-341.3 341.3 152.8 341.3 341.3-152.8 341.3-341.3 341.3z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-empty"
+				]
+			},
+			"properties": {
+				"order": 4,
+				"id": 2,
+				"prevSize": 32,
+				"code": 58883,
+				"name": "icon-empty",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 3
+		},
+		{
+			"icon": {
+				"paths": [
+					"M513.4 69.9c-251.5 0-455.5 203.9-455.5 455.5s203.9 455.5 455.5 455.5c251.5 0 455.5-203.9 455.5-455.5s-204-455.5-455.5-455.5zM513.4 866.9c-188.7 0-341.6-152.9-341.6-341.6s152.9-341.6 341.6-341.6 341.6 152.9 341.6 341.6-153 341.6-341.6 341.6zM738.6 388.6c-22.4-21.6-59.5-21.7-82.7-0.2l-197.5 178.4-78.6-98.3c-19.4-24.2-56-28.7-81.9-10-25.9 18.6-31.2 53.3-11.8 77.5l158.1 197.5 292.9-266.8c23.2-21.4 23.9-56.4 1.5-78.1z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-complete"
+				]
+			},
+			"properties": {
+				"order": 3,
+				"id": 1,
+				"prevSize": 32,
+				"code": 58884,
+				"name": "icon-complete",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 4
+		},
+		{
+			"icon": {
+				"paths": [
+					"M55.8 640.1h912.3v-114h-912.3v114zM312.4 982.2h399.1l-199.5-230.1-199.6 230.1zM55.8 69.9v114h912.3v-114h-912.3zM55.8 412h912.3v-114h-912.3v114z"
+				],
+				"grid": 32,
+				"tags": [
+					"icon-collapse"
+				]
+			},
+			"properties": {
+				"order": 2,
+				"id": 0,
+				"prevSize": 32,
+				"code": 58885,
+				"name": "icon-collapse",
+				"ligatures": ""
+			},
+			"setIdx": 0,
+			"iconIdx": 5
+		},
+		{
+			"icon": {
+				"paths": [
 					"M1024 194.418c-37.676 16.708-78.164 28.002-120.66 33.080 43.372-26 76.686-67.17 92.372-116.23-40.596 24.078-85.556 41.56-133.41 50.98-38.32-40.83-92.922-66.34-153.346-66.34-116.022 0-210.088 94.058-210.088 210.078 0 16.466 1.858 32.5 5.44 47.878-174.6-8.764-329.402-92.4-433.018-219.506-18.084 31.028-28.446 67.116-28.446 105.618 0 72.888 37.088 137.192 93.46 174.866-34.438-1.092-66.832-10.542-95.154-26.278-0.020 0.876-0.020 1.756-0.020 2.642 0 101.788 72.418 186.696 168.522 206-17.626 4.8-36.188 7.372-55.348 7.372-13.538 0-26.698-1.32-39.528-3.772 26.736 83.46 104.32 144.206 196.252 145.896-71.9 56.35-162.486 89.934-260.916 89.934-16.958 0-33.68-0.994-50.116-2.94 92.972 59.61 203.402 94.394 322.042 94.394 386.422 0 597.736-320.124 597.736-597.744 0-9.108-0.206-18.168-0.61-27.18 41.056-29.62 76.672-66.62 104.836-108.748z"
 				],
 				"defaultCode": 57360,
@@ -16,7 +142,9 @@
 				"code": 57360,
 				"name": "uniE010",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 0
 		},
 		{
 			"icon": {
@@ -28,12 +156,14 @@
 			},
 			"properties": {
 				"id": 18,
-				"order": 2,
+				"order": 3,
 				"prevSize": 32,
 				"code": 57361,
 				"name": "uniE011",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 1
 		},
 		{
 			"icon": {
@@ -45,12 +175,14 @@
 			},
 			"properties": {
 				"id": 19,
-				"order": 3,
+				"order": 2,
 				"prevSize": 32,
 				"code": 57362,
 				"name": "uniE012",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 2
 		},
 		{
 			"icon": {
@@ -62,12 +194,14 @@
 			},
 			"properties": {
 				"id": 20,
-				"order": 4,
+				"order": 5,
 				"prevSize": 32,
 				"code": 57363,
 				"name": "uniE013",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 3
 		},
 		{
 			"icon": {
@@ -79,12 +213,14 @@
 			},
 			"properties": {
 				"id": 21,
-				"order": 5,
+				"order": 6,
 				"prevSize": 32,
 				"code": 57364,
 				"name": "uniE014",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 4
 		},
 		{
 			"icon": {
@@ -96,12 +232,14 @@
 			},
 			"properties": {
 				"id": 22,
-				"order": 6,
+				"order": 7,
 				"prevSize": 32,
 				"code": 57365,
 				"name": "uniE015",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 5
 		},
 		{
 			"icon": {
@@ -113,12 +251,14 @@
 			},
 			"properties": {
 				"id": 23,
-				"order": 7,
+				"order": 8,
 				"prevSize": 32,
 				"code": 57366,
 				"name": "uniE016",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 6
 		},
 		{
 			"icon": {
@@ -130,12 +270,14 @@
 			},
 			"properties": {
 				"id": 24,
-				"order": 8,
+				"order": 9,
 				"prevSize": 32,
 				"code": 57367,
 				"name": "uniE017",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 7
 		},
 		{
 			"icon": {
@@ -147,12 +289,14 @@
 			},
 			"properties": {
 				"id": 25,
-				"order": 9,
+				"order": 10,
 				"prevSize": 32,
 				"code": 57368,
 				"name": "uniE018",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 8
 		},
 		{
 			"icon": {
@@ -164,12 +308,14 @@
 			},
 			"properties": {
 				"id": 26,
-				"order": 10,
+				"order": 11,
 				"prevSize": 32,
 				"code": 57369,
 				"name": "uniE019",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 9
 		},
 		{
 			"icon": {
@@ -181,12 +327,14 @@
 			},
 			"properties": {
 				"id": 27,
-				"order": 11,
+				"order": 12,
 				"prevSize": 32,
 				"code": 57370,
 				"name": "uniE01A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 10
 		},
 		{
 			"icon": {
@@ -198,12 +346,14 @@
 			},
 			"properties": {
 				"id": 28,
-				"order": 12,
+				"order": 13,
 				"prevSize": 32,
 				"code": 57371,
 				"name": "uniE01B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 11
 		},
 		{
 			"icon": {
@@ -215,12 +365,14 @@
 			},
 			"properties": {
 				"id": 29,
-				"order": 13,
+				"order": 14,
 				"prevSize": 32,
 				"code": 57372,
 				"name": "uniE01C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 12
 		},
 		{
 			"icon": {
@@ -232,12 +384,14 @@
 			},
 			"properties": {
 				"id": 30,
-				"order": 14,
+				"order": 4,
 				"prevSize": 32,
 				"code": 57373,
 				"name": "uniE01D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 13
 		},
 		{
 			"icon": {
@@ -254,7 +408,9 @@
 				"code": 57374,
 				"name": "uniE01E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 14
 		},
 		{
 			"icon": {
@@ -271,7 +427,9 @@
 				"code": 57375,
 				"name": "uniE01F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 15
 		},
 		{
 			"icon": {
@@ -288,7 +446,9 @@
 				"code": 57376,
 				"name": "uniE020",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 16
 		},
 		{
 			"icon": {
@@ -305,7 +465,9 @@
 				"code": 57377,
 				"name": "uniE021",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 17
 		},
 		{
 			"icon": {
@@ -322,7 +484,9 @@
 				"code": 57378,
 				"name": "uniE022",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 18
 		},
 		{
 			"icon": {
@@ -339,7 +503,9 @@
 				"code": 57379,
 				"name": "uniE023",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 19
 		},
 		{
 			"icon": {
@@ -356,7 +522,9 @@
 				"code": 57380,
 				"name": "uniE024",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 20
 		},
 		{
 			"icon": {
@@ -373,7 +541,9 @@
 				"code": 57381,
 				"name": "uniE025",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 21
 		},
 		{
 			"icon": {
@@ -390,7 +560,9 @@
 				"code": 57382,
 				"name": "uniE026",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 22
 		},
 		{
 			"icon": {
@@ -407,7 +579,9 @@
 				"code": 57383,
 				"name": "uniE027",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 23
 		},
 		{
 			"icon": {
@@ -424,7 +598,9 @@
 				"code": 57384,
 				"name": "uniE028",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 24
 		},
 		{
 			"icon": {
@@ -441,7 +617,9 @@
 				"code": 57385,
 				"name": "uniE029",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 25
 		},
 		{
 			"icon": {
@@ -458,7 +636,9 @@
 				"code": 57386,
 				"name": "uniE02A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 26
 		},
 		{
 			"icon": {
@@ -475,7 +655,9 @@
 				"code": 57387,
 				"name": "uniE02B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 27
 		},
 		{
 			"icon": {
@@ -492,7 +674,9 @@
 				"code": 57388,
 				"name": "uniE02C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 28
 		},
 		{
 			"icon": {
@@ -509,7 +693,9 @@
 				"code": 57389,
 				"name": "uniE02D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 29
 		},
 		{
 			"icon": {
@@ -526,7 +712,9 @@
 				"code": 57390,
 				"name": "uniE02E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 30
 		},
 		{
 			"icon": {
@@ -543,7 +731,9 @@
 				"code": 57391,
 				"name": "uniE02F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 31
 		},
 		{
 			"icon": {
@@ -560,7 +750,9 @@
 				"code": 57392,
 				"name": "uniE030",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 32
 		},
 		{
 			"icon": {
@@ -577,7 +769,9 @@
 				"code": 57393,
 				"name": "uniE031",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 33
 		},
 		{
 			"icon": {
@@ -594,7 +788,9 @@
 				"code": 57394,
 				"name": "uniE032",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 34
 		},
 		{
 			"icon": {
@@ -611,7 +807,9 @@
 				"code": 57395,
 				"name": "uniE033",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 35
 		},
 		{
 			"icon": {
@@ -628,7 +826,9 @@
 				"code": 57396,
 				"name": "uniE034",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 36
 		},
 		{
 			"icon": {
@@ -645,7 +845,9 @@
 				"code": 57397,
 				"name": "uniE035",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 37
 		},
 		{
 			"icon": {
@@ -662,7 +864,9 @@
 				"code": 57398,
 				"name": "uniE036",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 38
 		},
 		{
 			"icon": {
@@ -679,7 +883,9 @@
 				"code": 57399,
 				"name": "uniE037",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 39
 		},
 		{
 			"icon": {
@@ -696,7 +902,9 @@
 				"code": 57400,
 				"name": "uniE038",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 40
 		},
 		{
 			"icon": {
@@ -713,7 +921,9 @@
 				"code": 57401,
 				"name": "uniE039",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 41
 		},
 		{
 			"icon": {
@@ -730,7 +940,9 @@
 				"code": 57402,
 				"name": "uniE03A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 42
 		},
 		{
 			"icon": {
@@ -747,7 +959,9 @@
 				"code": 57403,
 				"name": "uniE03B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 43
 		},
 		{
 			"icon": {
@@ -764,7 +978,9 @@
 				"code": 57404,
 				"name": "uniE03C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 44
 		},
 		{
 			"icon": {
@@ -781,7 +997,9 @@
 				"code": 57405,
 				"name": "uniE03D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 45
 		},
 		{
 			"icon": {
@@ -798,7 +1016,9 @@
 				"code": 57406,
 				"name": "uniE03E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 46
 		},
 		{
 			"icon": {
@@ -815,7 +1035,9 @@
 				"code": 57407,
 				"name": "uniE03F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 47
 		},
 		{
 			"icon": {
@@ -832,7 +1054,9 @@
 				"code": 57408,
 				"name": "uniE040",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 48
 		},
 		{
 			"icon": {
@@ -849,7 +1073,9 @@
 				"code": 57409,
 				"name": "uniE041",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 49
 		},
 		{
 			"icon": {
@@ -866,7 +1092,9 @@
 				"code": 57410,
 				"name": "uniE042",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 50
 		},
 		{
 			"icon": {
@@ -883,7 +1111,9 @@
 				"code": 57411,
 				"name": "uniE043",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 51
 		},
 		{
 			"icon": {
@@ -900,7 +1130,9 @@
 				"code": 57412,
 				"name": "uniE044",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 52
 		},
 		{
 			"icon": {
@@ -917,7 +1149,9 @@
 				"code": 57413,
 				"name": "uniE045",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 53
 		},
 		{
 			"icon": {
@@ -934,7 +1168,9 @@
 				"code": 57414,
 				"name": "uniE046",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 54
 		},
 		{
 			"icon": {
@@ -951,7 +1187,9 @@
 				"code": 57415,
 				"name": "uniE047",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 55
 		},
 		{
 			"icon": {
@@ -968,7 +1206,9 @@
 				"code": 57416,
 				"name": "uniE048",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 56
 		},
 		{
 			"icon": {
@@ -985,7 +1225,9 @@
 				"code": 57417,
 				"name": "uniE049",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 57
 		},
 		{
 			"icon": {
@@ -1002,7 +1244,9 @@
 				"code": 57418,
 				"name": "uniE04A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 58
 		},
 		{
 			"icon": {
@@ -1019,7 +1263,9 @@
 				"code": 57419,
 				"name": "uniE04B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 59
 		},
 		{
 			"icon": {
@@ -1036,7 +1282,9 @@
 				"code": 57420,
 				"name": "uniE04C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 60
 		},
 		{
 			"icon": {
@@ -1053,7 +1301,9 @@
 				"code": 57421,
 				"name": "uniE04D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 61
 		},
 		{
 			"icon": {
@@ -1070,7 +1320,9 @@
 				"code": 57422,
 				"name": "uniE04E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 62
 		},
 		{
 			"icon": {
@@ -1087,7 +1339,9 @@
 				"code": 57423,
 				"name": "uniE04F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 63
 		},
 		{
 			"icon": {
@@ -1104,7 +1358,9 @@
 				"code": 57424,
 				"name": "uniE050",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 64
 		},
 		{
 			"icon": {
@@ -1121,7 +1377,9 @@
 				"code": 57425,
 				"name": "uniE051",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 65
 		},
 		{
 			"icon": {
@@ -1138,7 +1396,9 @@
 				"code": 57426,
 				"name": "uniE052",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 66
 		},
 		{
 			"icon": {
@@ -1155,7 +1415,9 @@
 				"code": 57427,
 				"name": "uniE053",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 67
 		},
 		{
 			"icon": {
@@ -1172,7 +1434,9 @@
 				"code": 57428,
 				"name": "uniE054",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 68
 		},
 		{
 			"icon": {
@@ -1189,7 +1453,9 @@
 				"code": 57429,
 				"name": "uniE055",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 69
 		},
 		{
 			"icon": {
@@ -1206,7 +1472,9 @@
 				"code": 57430,
 				"name": "uniE056",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 70
 		},
 		{
 			"icon": {
@@ -1223,7 +1491,9 @@
 				"code": 57431,
 				"name": "uniE057",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 71
 		},
 		{
 			"icon": {
@@ -1240,7 +1510,9 @@
 				"code": 57432,
 				"name": "uniE058",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 72
 		},
 		{
 			"icon": {
@@ -1257,7 +1529,9 @@
 				"code": 57433,
 				"name": "uniE059",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 73
 		},
 		{
 			"icon": {
@@ -1274,7 +1548,9 @@
 				"code": 57434,
 				"name": "uniE05A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 74
 		},
 		{
 			"icon": {
@@ -1291,7 +1567,9 @@
 				"code": 57435,
 				"name": "uniE05B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 75
 		},
 		{
 			"icon": {
@@ -1308,7 +1586,9 @@
 				"code": 57436,
 				"name": "uniE05C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 76
 		},
 		{
 			"icon": {
@@ -1325,7 +1605,9 @@
 				"code": 57437,
 				"name": "uniE05D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 77
 		},
 		{
 			"icon": {
@@ -1342,7 +1624,9 @@
 				"code": 57438,
 				"name": "uniE05E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 78
 		},
 		{
 			"icon": {
@@ -1359,7 +1643,9 @@
 				"code": 57439,
 				"name": "uniE05F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 79
 		},
 		{
 			"icon": {
@@ -1376,7 +1662,9 @@
 				"code": 57440,
 				"name": "uniE060",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 80
 		},
 		{
 			"icon": {
@@ -1393,7 +1681,9 @@
 				"code": 57441,
 				"name": "uniE061",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 81
 		},
 		{
 			"icon": {
@@ -1410,7 +1700,9 @@
 				"code": 57442,
 				"name": "uniE062",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 82
 		},
 		{
 			"icon": {
@@ -1427,7 +1719,9 @@
 				"code": 57443,
 				"name": "uniE063",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 83
 		},
 		{
 			"icon": {
@@ -1444,7 +1738,9 @@
 				"code": 57444,
 				"name": "uniE064",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 84
 		},
 		{
 			"icon": {
@@ -1461,7 +1757,9 @@
 				"code": 57445,
 				"name": "uniE065",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 85
 		},
 		{
 			"icon": {
@@ -1478,7 +1776,9 @@
 				"code": 57446,
 				"name": "uniE066",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 86
 		},
 		{
 			"icon": {
@@ -1495,7 +1795,9 @@
 				"code": 57447,
 				"name": "uniE067",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 87
 		},
 		{
 			"icon": {
@@ -1512,7 +1814,9 @@
 				"code": 57448,
 				"name": "uniE068",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 88
 		},
 		{
 			"icon": {
@@ -1529,7 +1833,9 @@
 				"code": 57449,
 				"name": "uniE069",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 89
 		},
 		{
 			"icon": {
@@ -1546,7 +1852,9 @@
 				"code": 57450,
 				"name": "uniE06A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 90
 		},
 		{
 			"icon": {
@@ -1563,7 +1871,9 @@
 				"code": 57451,
 				"name": "uniE06B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 91
 		},
 		{
 			"icon": {
@@ -1580,7 +1890,9 @@
 				"code": 57452,
 				"name": "uniE06C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 92
 		},
 		{
 			"icon": {
@@ -1597,7 +1909,9 @@
 				"code": 57453,
 				"name": "uniE06D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 93
 		},
 		{
 			"icon": {
@@ -1614,7 +1928,9 @@
 				"code": 57454,
 				"name": "uniE06E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 94
 		},
 		{
 			"icon": {
@@ -1631,7 +1947,9 @@
 				"code": 57455,
 				"name": "uniE06F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 95
 		},
 		{
 			"icon": {
@@ -1648,7 +1966,9 @@
 				"code": 57456,
 				"name": "uniE070",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 96
 		},
 		{
 			"icon": {
@@ -1665,7 +1985,9 @@
 				"code": 57457,
 				"name": "uniE071",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 97
 		},
 		{
 			"icon": {
@@ -1682,7 +2004,9 @@
 				"code": 57459,
 				"name": "uniE073",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 98
 		},
 		{
 			"icon": {
@@ -1699,7 +2023,9 @@
 				"code": 57460,
 				"name": "uniE074",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 99
 		},
 		{
 			"icon": {
@@ -1716,7 +2042,9 @@
 				"code": 57461,
 				"name": "uniE075",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 100
 		},
 		{
 			"icon": {
@@ -1733,7 +2061,9 @@
 				"code": 57462,
 				"name": "uniE076",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 101
 		},
 		{
 			"icon": {
@@ -1750,7 +2080,9 @@
 				"code": 57463,
 				"name": "uniE077",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 102
 		},
 		{
 			"icon": {
@@ -1767,7 +2099,9 @@
 				"code": 57464,
 				"name": "uniE078",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 103
 		},
 		{
 			"icon": {
@@ -1784,7 +2118,9 @@
 				"code": 57465,
 				"name": "uniE079",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 104
 		},
 		{
 			"icon": {
@@ -1801,7 +2137,9 @@
 				"code": 57466,
 				"name": "uniE07A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 105
 		},
 		{
 			"icon": {
@@ -1818,7 +2156,9 @@
 				"code": 57467,
 				"name": "uniE07B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 106
 		},
 		{
 			"icon": {
@@ -1835,7 +2175,9 @@
 				"code": 57468,
 				"name": "uniE07C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 107
 		},
 		{
 			"icon": {
@@ -1852,7 +2194,9 @@
 				"code": 57469,
 				"name": "uniE07D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 108
 		},
 		{
 			"icon": {
@@ -1869,7 +2213,9 @@
 				"code": 57470,
 				"name": "uniE07E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 109
 		},
 		{
 			"icon": {
@@ -1886,7 +2232,9 @@
 				"code": 57471,
 				"name": "uniE07F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 110
 		},
 		{
 			"icon": {
@@ -1903,7 +2251,9 @@
 				"code": 57472,
 				"name": "uniE080",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 111
 		},
 		{
 			"icon": {
@@ -1920,7 +2270,9 @@
 				"code": 57473,
 				"name": "uniE081",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 112
 		},
 		{
 			"icon": {
@@ -1937,7 +2289,9 @@
 				"code": 57474,
 				"name": "uniE082",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 113
 		},
 		{
 			"icon": {
@@ -1954,7 +2308,9 @@
 				"code": 57475,
 				"name": "uniE083",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 114
 		},
 		{
 			"icon": {
@@ -1971,7 +2327,9 @@
 				"code": 57476,
 				"name": "uniE084",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 115
 		},
 		{
 			"icon": {
@@ -1988,7 +2346,9 @@
 				"code": 57477,
 				"name": "uniE085",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 116
 		},
 		{
 			"icon": {
@@ -2005,7 +2365,9 @@
 				"code": 57478,
 				"name": "uniE086",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 117
 		},
 		{
 			"icon": {
@@ -2022,7 +2384,9 @@
 				"code": 57479,
 				"name": "uniE087",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 118
 		},
 		{
 			"icon": {
@@ -2039,7 +2403,9 @@
 				"code": 57480,
 				"name": "uniE088",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 119
 		},
 		{
 			"icon": {
@@ -2056,7 +2422,9 @@
 				"code": 57458,
 				"name": "uniE072",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 120
 		},
 		{
 			"icon": {
@@ -2073,7 +2441,9 @@
 				"code": 57493,
 				"name": "uniE095",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 121
 		},
 		{
 			"icon": {
@@ -2090,7 +2460,9 @@
 				"code": 57494,
 				"name": "uniE096",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 122
 		},
 		{
 			"icon": {
@@ -2107,7 +2479,9 @@
 				"code": 57495,
 				"name": "uniE097",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 123
 		},
 		{
 			"icon": {
@@ -2124,7 +2498,9 @@
 				"code": 57496,
 				"name": "uniE098",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 124
 		},
 		{
 			"icon": {
@@ -2141,7 +2517,9 @@
 				"code": 57497,
 				"name": "uniE099",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 125
 		},
 		{
 			"icon": {
@@ -2158,7 +2536,9 @@
 				"code": 57600,
 				"name": "uniE100",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 126
 		},
 		{
 			"icon": {
@@ -2175,7 +2555,9 @@
 				"code": 57488,
 				"name": "uniE090",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 127
 		},
 		{
 			"icon": {
@@ -2192,7 +2574,9 @@
 				"code": 57602,
 				"name": "uniE102",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 128
 		},
 		{
 			"icon": {
@@ -2209,7 +2593,9 @@
 				"code": 57601,
 				"name": "uniE101",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 129
 		},
 		{
 			"icon": {
@@ -2226,7 +2612,9 @@
 				"code": 57490,
 				"name": "uniE092",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 130
 		},
 		{
 			"icon": {
@@ -2243,7 +2631,9 @@
 				"code": 57491,
 				"name": "uniE093",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 131
 		},
 		{
 			"icon": {
@@ -2260,7 +2650,9 @@
 				"code": 57603,
 				"name": "uniE103",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 132
 		},
 		{
 			"icon": {
@@ -2277,7 +2669,9 @@
 				"code": 57604,
 				"name": "uniE104",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 133
 		},
 		{
 			"icon": {
@@ -2294,7 +2688,9 @@
 				"code": 57605,
 				"name": "uniE105",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 134
 		},
 		{
 			"icon": {
@@ -2311,7 +2707,9 @@
 				"code": 57606,
 				"name": "uniE106",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 135
 		},
 		{
 			"icon": {
@@ -2328,7 +2726,9 @@
 				"code": 57481,
 				"name": "uniE089",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 136
 		},
 		{
 			"icon": {
@@ -2345,7 +2745,9 @@
 				"code": 57345,
 				"name": "uniE001",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 137
 		},
 		{
 			"icon": {
@@ -2362,7 +2764,9 @@
 				"code": 57346,
 				"name": "uniE002",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 138
 		},
 		{
 			"icon": {
@@ -2379,7 +2783,9 @@
 				"code": 57347,
 				"name": "uniE003",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 139
 		},
 		{
 			"icon": {
@@ -2396,7 +2802,9 @@
 				"code": 57348,
 				"name": "uniE004",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 140
 		},
 		{
 			"icon": {
@@ -2413,7 +2821,9 @@
 				"code": 57349,
 				"name": "uniE005",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 141
 		},
 		{
 			"icon": {
@@ -2430,7 +2840,9 @@
 				"code": 57350,
 				"name": "uniE006",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 142
 		},
 		{
 			"icon": {
@@ -2447,7 +2859,9 @@
 				"code": 57351,
 				"name": "uniE007",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 143
 		},
 		{
 			"icon": {
@@ -2464,7 +2878,9 @@
 				"code": 57352,
 				"name": "uniE008",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 144
 		},
 		{
 			"icon": {
@@ -2481,7 +2897,9 @@
 				"code": 57353,
 				"name": "uniE009",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 145
 		},
 		{
 			"icon": {
@@ -2498,7 +2916,9 @@
 				"code": 57354,
 				"name": "uniE00A",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 146
 		},
 		{
 			"icon": {
@@ -2515,7 +2935,9 @@
 				"code": 57355,
 				"name": "uniE00B",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 147
 		},
 		{
 			"icon": {
@@ -2532,7 +2954,9 @@
 				"code": 57356,
 				"name": "uniE00C",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 148
 		},
 		{
 			"icon": {
@@ -2549,7 +2973,9 @@
 				"code": 57357,
 				"name": "uniE00D",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 149
 		},
 		{
 			"icon": {
@@ -2566,7 +2992,9 @@
 				"code": 57358,
 				"name": "uniE00E",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 150
 		},
 		{
 			"icon": {
@@ -2583,14 +3011,15 @@
 				"code": 57359,
 				"name": "uniE00F",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 151
 		},
 		{
 			"icon": {
 				"paths": [
 					"M0 0l1024 1024h-1024z"
 				],
-				"width": 0,
 				"defaultCode": 61440,
 				"grid": 32
 			},
@@ -2601,17 +3030,19 @@
 				"code": 61440,
 				"name": "uniF000",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 152
 		},
 		{
 			"icon": {
 				"paths": [
 					"M224 178.2l122.5-121.9 455.2 457.4-455.2 457.4-122.5-121.9 334-335.5z"
 				],
-				"grid": 32,
 				"tags": [
 					"icon-arrow-right"
-				]
+				],
+				"grid": 32
 			},
 			"properties": {
 				"order": 154,
@@ -2620,17 +3051,19 @@
 				"code": 57607,
 				"name": "icon-arrow-right",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 153
 		},
 		{
 			"icon": {
 				"paths": [
 					"M801.109 859.477l-124.587 123.904-463.189-465.237 463.189-465.579 124.587 123.904-339.627 341.333 339.627 341.675z"
 				],
-				"grid": 32,
 				"tags": [
 					"icon-arrow-left"
-				]
+				],
+				"grid": 32
 			},
 			"properties": {
 				"order": 155,
@@ -2639,40 +3072,243 @@
 				"code": 57608,
 				"name": "icon-arrow-left",
 				"ligatures": ""
-			}
+			},
+			"setIdx": 1,
+			"iconIdx": 154
+		},
+		{
+			"icon": {
+				"paths": [
+					"M0 192h1024v128h-1024v-128zM0 832v-128h1024v128h-1024zM0 576v-128h1024v128h-1024z"
+				],
+				"tags": [
+					"ico_hamburger"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 156,
+				"id": 155,
+				"prevSize": 32,
+				"code": 57609,
+				"name": "icon-hamburger",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 155
+		},
+		{
+			"icon": {
+				"paths": [
+					"M640 576v-256h-256v256h-256l389.7 428.4 378.3-428.4z",
+					"M0 0h1024v170.7h-1024v-170.7z"
+				],
+				"tags": [
+					"icon_expand_items"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 157,
+				"id": 156,
+				"prevSize": 32,
+				"code": 57616,
+				"name": "icon-expand-items",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 156
+		},
+		{
+			"icon": {
+				"paths": [
+					"M575.9 248.4c-448 0-563.5 472.2-282.8 775.6-113.7-206-163.9-520.3 282.8-509.8v253.8l384-384-384-384v248.4z"
+				],
+				"tags": [
+					"icon_forward"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 158,
+				"id": 157,
+				"prevSize": 32,
+				"code": 57618,
+				"name": "icon-forward",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 157
+		},
+		{
+			"icon": {
+				"paths": [
+					"M512 64c-251.3 0-455 203.7-455 455s203.7 455 455 455 455-203.7 455-455-203.7-455-455-455zM557.4 879.8v-133.4h-91v133.4c-164.2-20.5-294.5-151-315.2-315.4h133.4v-91h-133.4c20.7-164.4 151-294.7 315.4-315.4v133.4h90.8v-133.2c164.4 20.7 294.7 151 315.4 315.4h-133.4v90.8h133.4c-20.7 164.4-151 294.9-315.4 315.4z"
+				],
+				"tags": [
+					"icon_target"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 1,
+				"id": 158,
+				"prevSize": 32,
+				"code": 57619,
+				"name": "icon-target",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 158
+		},
+		{
+			"icon": {
+				"paths": [
+					"M512 52.8c-253.6 0-459.2 206.6-459.2 461.2s205.6 461.2 459.2 461.2c253.6 0 459.2-206.5 459.2-461.2s-205.6-461.2-459.2-461.2zM512 876.4c-199.3 0-360.8-162.4-360.8-362.4s161.5-362.3 360.8-362.3c199.3 0 360.8 162.3 360.8 362.4s-161.5 362.3-360.8 362.3z",
+					"M309.4 463.2h405.2v101.6h-405.2v-101.6z"
+				],
+				"tags": [
+					"icon-quiz-stats-avg"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 160,
+				"id": 159,
+				"prevSize": 32,
+				"code": 57620,
+				"name": "icon-quiz-stats-avg",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 159
+		},
+		{
+			"icon": {
+				"paths": [
+					"M510.9 51.8c-253.5 0-459.1 205.7-459.1 459.2s205.6 459.2 459.2 459.2c253.6 0 459.2-205.6 459.2-459.2s-205.7-459.2-459.3-459.2zM510.9 871.8c-199.3 0-360.8-161.6-360.8-360.8s161.5-360.8 360.8-360.8c199.3 0 360.8 161.6 360.8 360.8s-161.5 360.8-360.8 360.8z",
+					"M569 439.4l-58.1-178.6-58 178.6h-187.7l151.9 110.4-58.1 178.6 151.9-110.4 152 110.4-58.1-178.6 151.9-110.4z"
+				],
+				"tags": [
+					"icon-quiz-stats-deviation"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 161,
+				"id": 160,
+				"prevSize": 32,
+				"code": 57621,
+				"name": "icon-quiz-stats-deviation",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 160
+		},
+		{
+			"icon": {
+				"paths": [
+					"M510.9 51.8c-253.5 0-459.1 205.7-459.1 459.2s205.6 459.2 459.2 459.2c253.6 0 459.2-205.6 459.2-459.2s-205.7-459.2-459.3-459.2zM510.9 871.8c-199.3 0-360.8-161.6-360.8-360.8s161.5-360.8 360.8-360.8c199.3 0 360.8 161.6 360.8 360.8s-161.5 360.8-360.8 360.8z",
+					"M688.1 534.5h-118.1v159.3h-118.1v-159.3h-118.1l177.1-220.3 177.2 220.3z"
+				],
+				"tags": [
+					"icon-quiz-stats-high"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 162,
+				"id": 161,
+				"prevSize": 32,
+				"code": 57622,
+				"name": "icon-quiz-stats-high",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 161
+		},
+		{
+			"icon": {
+				"paths": [
+					"M510.9 51.8c-253.5 0-459.1 205.7-459.1 459.2s205.6 459.2 459.2 459.2c253.6 0 459.2-205.6 459.2-459.2s-205.7-459.2-459.3-459.2zM510.9 871.8c-199.3 0-360.8-161.6-360.8-360.8s161.5-360.8 360.8-360.8c199.3 0 360.8 161.6 360.8 360.8s-161.5 360.8-360.8 360.8z",
+					"M688.1 480.5h-118.1v-159.3h-118.1v159.3h-118.1l177.1 220.3 177.2-220.3z"
+				],
+				"tags": [
+					"icon-quiz-stats-low"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 163,
+				"id": 162,
+				"prevSize": 32,
+				"code": 57623,
+				"name": "icon-quiz-stats-low",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 162
+		},
+		{
+			"icon": {
+				"paths": [
+					"M510.9 51.8c-253.5 0-459.1 205.7-459.1 459.2s205.6 459.2 459.2 459.2c253.6 0 459.2-205.6 459.2-459.2s-205.7-459.2-459.3-459.2zM510.9 871.8c-199.3 0-360.8-161.6-360.8-360.8s161.5-360.8 360.8-360.8c199.3 0 360.8 161.6 360.8 360.8s-161.5 360.8-360.8 360.8z",
+					"M668.6 462.6h-110.7v-151.3c0-25-20.2-45.2-45.2-45.2s-45.2 20.2-45.2 45.2v188.7c0 1.4 0 6.5 0 7.9 0 25 20.2 45.2 45.2 45.2h155.9c25 0 45.2-20.2 45.2-45.2 0-25-20.2-45.3-45.2-45.3z"
+				],
+				"tags": [
+					"icon-quiz-stats-time"
+				],
+				"grid": 32
+			},
+			"properties": {
+				"order": 164,
+				"id": 163,
+				"prevSize": 32,
+				"code": 57624,
+				"name": "icon-quiz-stats-time",
+				"ligatures": ""
+			},
+			"setIdx": 1,
+			"iconIdx": 163
 		}
 	],
 	"height": 1024,
 	"metadata": {
-		"name": "canvas-webfont"
+		"name": "icomoon"
 	},
 	"preferences": {
-		"showGlyphs": true,
-		"showQuickUse": true,
 		"fontPref": {
 			"prefix": "icon-",
 			"metadata": {
-				"fontFamily": "canvas-webfont"
+				"fontFamily": "icomoon"
 			},
+			"showGlyphs": true,
 			"metrics": {
-				"emSize": 1024,
+				"emSize": 512,
 				"baseline": 6.25,
 				"whitespace": 50
 			},
 			"resetPoint": 58880,
-			"embed": true,
-			"ie7": false,
-			"includeMetadata": false,
-			"useClassSelector": false,
-			"classSelector": ".icon",
-			"showMetrics": false,
+			"showQuickUse": true,
+			"quickUsageToken": false,
+			"showMetrics": true,
 			"showMetadata": false
 		},
-		"imagePref": {},
+		"imagePref": {
+			"color": 0,
+			"height": 32,
+			"columns": 16,
+			"margin": 16,
+			"png": false,
+			"sprites": true
+		},
 		"historySize": 100,
 		"showCodes": true,
 		"gridSize": 16,
-		"showLiga": true,
-		"showGrid": true
+		"showLiga": false,
+		"showGrid": true,
+		"showGlyphs": true,
+		"showQuickUse": true,
+		"search": ""
 	}
 }

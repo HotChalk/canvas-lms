@@ -8,7 +8,7 @@ define([
   'jquery.instructure_misc_helpers', // replaceTags
   'jquery.instructure_misc_plugins', // confirmDelete, showIf, /\.log/
   'jquery.loadingImg', // loadingImg, loadingImage
-  'redactor.editor_box', // editorBox
+  'ckeditor.editor_box', // editorBox
   'vendor/date', // Date.parse
   'vendor/jquery.scrollTo', // /\.scrollTo/
   'jqueryui/tabs' // /\.tabs/
@@ -108,17 +108,18 @@ define([
       });
     });
 
-    $("#account_settings_enable_scheduler").change(function() {
-      var $enableCalendar2 = $("#account_settings_enable_scheduler");
-      var $showScheduler = $("#show_scheduler_checkbox");
-      if ($enableCalendar2.attr('checked')) {
-        $showScheduler.show();
-      }
-      else {
-        $showScheduler.hide();
-      }
+    $(".add_program_link").click(function(event) {
+      event.preventDefault();
+      var $program = $(".program.blank:first").clone(true).removeClass('blank');
+      $("#programs").append($program.show());
     });
-    $("#account_settings_enable_scheduler").trigger('change');
+    $(".delete_program_link").click(function(event) {
+      event.preventDefault();
+      $(this).parents(".program").remove();
+    });
+    if($(".program:not(.blank)").length == 0) {
+      $(".add_program_link").click();
+    }
 
     $(".open_registration_delegated_warning_link").click(function(event) {
       event.preventDefault();
@@ -312,5 +313,3 @@ define([
   });
 
 });
-
-

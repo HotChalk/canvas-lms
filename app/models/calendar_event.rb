@@ -27,6 +27,15 @@ class CalendarEvent < ActiveRecord::Base
       :participants_per_appointment, :child_event_data,
       :remove_child_events, :all_day
   attr_accessor :cancel_reason, :imported
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :title, :description, :location_name, :location_address, :start_at, :end_at, :context_id, :context_type, :workflow_state, :created_at, :updated_at,
+    :user_id, :all_day, :all_day_date, :deleted_at, :cloned_item_id, :context_code, :time_zone_edited, :parent_calendar_event_id, :effective_context_code,
+    :participants_per_appointment, :override_participants_per_appointment
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:context, :user, :child_events]
+
   sanitize_field :description, CanvasSanitize::SANITIZE
   copy_authorized_links(:description) { [self.effective_context, nil] }
 
@@ -34,9 +43,10 @@ class CalendarEvent < ActiveRecord::Base
 
 
   belongs_to :context, :polymorphic => true
+  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'User', 'Group', 'AppointmentGroup', 'CourseSection']
   belongs_to :user
-  belongs_to :parent_event, :class_name => 'CalendarEvent', :foreign_key => :parent_calendar_event_id
-  has_many :child_events, :class_name => 'CalendarEvent', :foreign_key => :parent_calendar_event_id, :conditions => "calendar_events.workflow_state <> 'deleted'"
+  belongs_to :parent_event, :class_name => 'CalendarEvent', :foreign_key => :parent_calendar_event_id, :inverse_of => :child_events
+  has_many :child_events, :class_name => 'CalendarEvent', :foreign_key => :parent_calendar_event_id, :conditions => "calendar_events.workflow_state <> 'deleted'", :inverse_of => :parent_event
   validates_presence_of :context, :workflow_state
   validates_associated :context, :if => lambda { |record| record.validate_context }
   validates_length_of :description, :maximum => maximum_long_text_length, :allow_nil => true, :allow_blank => true
@@ -105,11 +115,11 @@ class CalendarEvent < ActiveRecord::Base
     effective_context_code && ActiveRecord::Base.find_by_asset_string(effective_context_code) || context
   end
 
-  scope :order_by_start_at, order(:start_at)
+  scope :order_by_start_at, -> { order(:start_at) }
 
-  scope :active, where("calendar_events.workflow_state<>'deleted'")
-  scope :are_locked, where(:workflow_state => 'locked')
-  scope :are_unlocked, where("calendar_events.workflow_state NOT IN ('deleted', 'locked')")
+  scope :active, -> { where("calendar_events.workflow_state<>'deleted'") }
+  scope :are_locked, -> { where(:workflow_state => 'locked') }
+  scope :are_unlocked, -> { where("calendar_events.workflow_state NOT IN ('deleted', 'locked')") }
 
   # controllers/apis/etc. should generally use for_user_and_context_codes instead
   scope :for_context_codes, lambda { |codes| where(:context_code => codes) }
@@ -151,10 +161,10 @@ class CalendarEvent < ActiveRecord::Base
     SQL
   }
 
-  scope :undated, where(:start_at => nil, :end_at => nil)
+  scope :undated, -> { where(:start_at => nil, :end_at => nil) }
 
   scope :between, lambda { |start, ending| where(:start_at => start..ending) }
-  scope :current, lambda { where("calendar_events.end_at>=?", Time.zone.now.midnight) }
+  scope :current, -> { where("calendar_events.end_at>=?", Time.zone.now.midnight) }
   scope :updated_after, lambda { |*args|
     if args.first
       where("calendar_events.updated_at IS NULL OR calendar_events.updated_at>?", args.first)
@@ -163,8 +173,8 @@ class CalendarEvent < ActiveRecord::Base
     end
   }
 
-  scope :events_without_child_events, where("NOT EXISTS (SELECT 1 FROM calendar_events children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')")
-  scope :events_with_child_events, where("EXISTS (SELECT 1 FROM calendar_events children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')")
+  scope :events_without_child_events, -> { where("NOT EXISTS (SELECT 1 FROM calendar_events children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')") }
+  scope :events_with_child_events, -> { where("EXISTS (SELECT 1 FROM calendar_events children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')") }
 
   def validate_context!
     @validate_context = true
@@ -280,8 +290,8 @@ class CalendarEvent < ActiveRecord::Base
 
     if events.present?
       CalendarEvent.where(:id => self).
-          update_all(:start_at => events.map(&:start_at).min,
-                     :end_at => events.map(&:end_at).max)
+          update_all(:start_at => events.map(&:start_at).compact.min,
+                     :end_at => events.map(&:end_at).compact.max)
       reload
     end
   end
@@ -505,60 +515,38 @@ class CalendarEvent < ActiveRecord::Base
     return CalendarEvent::IcalEvent.new(self).to_ics(in_own_calendar)
   end
 
-  def self.process_migration(data, migration)
-    events = data['calendar_events'] ? data['calendar_events']: []
-    events.each do |event|
-      if migration.import_object?("calendar_events", event['migration_id']) || migration.import_object?("events", event['migration_id'])
-        begin
-          import_from_migration(event, migration.context)
-        rescue
-          migration.add_import_warning(t('#migration.calendar_event_type', "Calendar Event"), event[:title], $!)
-        end
-      end
-    end
-  end
-
-  def self.import_from_migration(hash, context, item=nil)
-    hash = hash.with_indifferent_access
-    return nil if hash[:migration_id] && hash[:events_to_import] && !hash[:events_to_import][hash[:migration_id]]
-    item ||= find_by_context_type_and_context_id_and_id(context.class.to_s, context.id, hash[:id])
-    item ||= find_by_context_type_and_context_id_and_migration_id(context.class.to_s, context.id, hash[:migration_id]) if hash[:migration_id]
-    item ||= context.calendar_events.new
-    MigrationImport::CalendarEvent.import_from_migration(hash, context, item)
-  end
-
   def self.max_visible_calendars
     10
   end
 
   set_policy do
-    given { |user, session| self.cached_context_grants_right?(user, session, :read) }#students.include?(user) }
+    given { |user, session| self.context.grants_right?(user, session, :read) }#students.include?(user) }
     can :read
 
-    given { |user, session| !appointment_group? ^ cached_context_grants_right?(user, session, :read_appointment_participants) }
+    given { |user, session| !appointment_group? ^ context.grants_right?(user, session, :read_appointment_participants) }
     can :read_child_events
 
     given { |user, session| parent_event && appointment_group? && parent_event.grants_right?(user, session, :manage) }
     can :read and can :delete
 
-    given { |user, session| appointment_group? && cached_context_grants_right?(user, session, :manage) }
+    given { |user, session| appointment_group? && context.grants_right?(user, session, :manage) }
     can :manage
 
     given { |user, session|
       appointment_group? && (
         grants_right?(user, session, :manage) ||
-        cached_context_grants_right?(user, nil, :reserve) && context.participant_for(user).present?
+        context.grants_right?(user, :reserve) && context.participant_for(user).present?
       )
     }
     can :reserve
 
-    given { |user, session| self.cached_context_grants_right?(user, session, :manage_calendar) }#admins.include?(user) }
+    given { |user, session| self.context.grants_right?(user, session, :manage_calendar) }#admins.include?(user) }
     can :read and can :create
 
-    given { |user, session| (!locked? || context.is_a?(AppointmentGroup)) && !deleted? && self.cached_context_grants_right?(user, session, :manage_calendar) }#admins.include?(user) }
+    given { |user, session| (!locked? || context.is_a?(AppointmentGroup)) && !deleted? && self.context.grants_right?(user, session, :manage_calendar) }#admins.include?(user) }
     can :update and can :update_content
 
-    given { |user, session| !deleted? && self.cached_context_grants_right?(user, session, :manage_calendar) }
+    given { |user, session| !deleted? && self.context.grants_right?(user, session, :manage_calendar) }
     can :delete
   end
 

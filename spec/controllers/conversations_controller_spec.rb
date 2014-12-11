@@ -51,9 +51,6 @@ describe ConversationsController do
       get 'index'
       response.should be_success
       assigns[:js_env].should_not be_nil
-      assigns[:contexts][:courses].to_a.map{|p|p[1]}.
-        reduce(true){|truth, con| truth and con.has_key?(:url)}.should be_true
-      assigns[:contexts][:courses][@course.id][:term].should == "Fall"
     end
 
     it "should assign variables for json" do
@@ -157,19 +154,6 @@ describe ConversationsController do
       assert_unauthorized
     end
 
-    it "should recompute inbox count" do
-      # In an effort to make the data fix easy to do and self-healing,
-      # recompute the unread inbox count when the page is loaded.
-      course_with_student_logged_in(:active_all => true)
-      @user.update_attribute(:unread_conversations_count, -20) # create invalid starting value
-      @c1 = conversation
-
-      get 'index'
-      response.should be_success
-      @user.reload
-      @user.unread_conversations_count.should == 0
-    end
-
     context "masquerading" do
       before do
         a = Account.default
@@ -179,7 +163,7 @@ describe ConversationsController do
         @student.initiate_conversation([user]).add_message('test2') # no root account, so teacher can't see it
 
         course_with_teacher_logged_in(:active_all => true, :account => a)
-        a.add_user(@user)
+        a.account_users.create!(user: @user)
         session[:become_user_id] = @student.id
       end
 
@@ -194,6 +178,19 @@ describe ConversationsController do
         response.should be_success
         assigns[:conversations_json][:conversations].size.should eql 1
         assigns[:conversations_json][:conversation_ids].size.should eql 1
+      end
+
+      it "should recompute inbox count" do
+        # In an effort to make the data fix easy to do and self-healing,
+        # recompute the unread inbox count when the page is loaded.
+        course_with_student_logged_in(:active_all => true)
+        @user.update_attribute(:unread_conversations_count, -20) # create invalid starting value
+        @c1 = conversation
+
+        get 'index'
+        response.should be_success
+        @user.reload
+        @user.unread_conversations_count.should == 0
       end
     end
   end
@@ -376,6 +373,26 @@ describe ConversationsController do
       json.each { |c|
         c["subject"].should_not be_nil
       }
+    end
+
+    context "user_notes" do
+      before :each do
+        Account.default.update_attribute :enable_user_notes, true
+        course_with_teacher_logged_in(:active_all => true)
+
+        @students = (1..2).map{
+          student = User.create
+          enrollment = @course.enroll_student(student)
+          enrollment.workflow_state = 'active'
+          enrollment.save
+          student
+        }
+      end
+
+      it "should create user notes" do
+        post 'create', :recipients => @students.map(&:id), :body => "yo", :subject => "greetings", :user_note => '1'
+        @students.each{|x| x.user_notes.size.should be(1)}
+      end
     end
   end
 
@@ -573,32 +590,8 @@ describe ConversationsController do
       course_with_student_logged_in(:active_all => true)
     end
 
-    it "should enable new conversations for a user" do
-      @user.preferences[:use_new_conversations] = false
-      @user.save!
-      @user.use_new_conversations?.should be_false
-      post 'toggle_new_conversations', :use_new_conversations => true
-      @user.reload
-      @user.use_new_conversations?.should be_true
-    end
-
-    it "should disable new conversations for a user" do
-      @user.preferences[:use_new_conversations] = true
-      @user.save!
+    it "should not disable new conversations for a user anymore" do
       post 'toggle_new_conversations'
-      @user.reload
-      @user.use_new_conversations?.should be_false
-    end
-
-    it "should be idempotent" do
-      @user.use_new_conversations?.should be_false
-      post 'toggle_new_conversations'
-      @user.reload
-      @user.use_new_conversations?.should be_false
-      post 'toggle_new_conversations', :use_new_conversations => 1
-      @user.reload
-      @user.use_new_conversations?.should be_true
-      post 'toggle_new_conversations', :use_new_conversations => 1
       @user.reload
       @user.use_new_conversations?.should be_true
     end

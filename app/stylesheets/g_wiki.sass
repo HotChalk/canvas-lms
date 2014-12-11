@@ -52,6 +52,22 @@ $revision-button-hover-color: #2590cf
   #breadcrumbs
     :border-bottom $pages-border
 
+.delete_criterion_link
+  border: none
+  background: none
+  padding: 0px
+
+
+.add_prerequisite_link
+  color: #0088cc
+  border: none
+  background: none
+  padding: 0px
+
+  &:hover
+    color: #005580
+    text-decoration: underline
+ 
 .pages
   .header-bar-outer-container
     :height 64px
@@ -66,15 +82,17 @@ $revision-button-hover-color: #2590cf
         :border-radius 0
       .header-bar
         :box-shadow $shadow
+      .header-left-flex
+        flex: 1
+      .flex-container
+        display: flex
 
   .header-bar-outer-container.page-changed
     :height 103px
     :animation page-changed-header-bar 1.15s
-    :-webkit-animation page-changed-header-bar 1.15s
     .header-bar-container
       :height 103px
       :animation page-changed-header-bar 1.15s
-      :-webkit-animation page-changed-header-bar 1.15s
 
       .page-changed-alert
         :margin -1px 0 0 0
@@ -82,7 +100,6 @@ $revision-button-hover-color: #2590cf
         :box-shadow $shadow
         :height 39px
         :animation page-changed-alert 1.15s
-        :-webkit-animation page-changed-alert 1.15s
 
 .pages.index
   #main

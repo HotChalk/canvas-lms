@@ -20,6 +20,10 @@ class Role < ActiveRecord::Base
   belongs_to :account
   belongs_to :root_account, :class_name => 'Account'
   attr_accessible :name
+
+  EXPORTABLE_ATTRIBUTES = [:id, :name, :base_role_type, :account_id, :workflow_state, :created_at, :updated_at, :deleted_at, :root_account_id]
+  EXPORTABLE_ASSOCIATIONS = [:account, :root_account]
+
   before_validation :infer_root_account_id
   validates_presence_of :name, :account_id, :workflow_state
   validates_inclusion_of :base_role_type, :in => RoleOverride::BASE_ROLE_TYPES, :message => 'is invalid'
@@ -71,12 +75,12 @@ class Role < ActiveRecord::Base
     save!
   end
 
-  scope :not_deleted, where("roles.workflow_state<>'deleted'")
-  scope :deleted, where(:workflow_state => 'deleted')
-  scope :active, where(:workflow_state => 'active')
-  scope :inactive, where(:workflow_state => 'inactive')
-  scope :for_courses, where("roles.base_role_type<>?", AccountUser::BASE_ROLE_NAME)
-  scope :for_accounts, where(:base_role_type => AccountUser::BASE_ROLE_NAME)
+  scope :not_deleted, -> { where("roles.workflow_state<>'deleted'") }
+  scope :deleted, -> { where(:workflow_state => 'deleted') }
+  scope :active, -> { where(:workflow_state => 'active') }
+  scope :inactive, -> { where(:workflow_state => 'inactive') }
+  scope :for_courses, -> { where("roles.base_role_type<>?", AccountUser::BASE_ROLE_NAME) }
+  scope :for_accounts, -> { where(:base_role_type => AccountUser::BASE_ROLE_NAME) }
 
   def self.is_base_role?(role_name)
     RoleOverride.base_role_types.include?(role_name)

@@ -27,7 +27,7 @@ module Canvas
             # plugins have their name prepended, since that's we do the paths
             name = file.sub(PATH_REGEX, '\2')
             unless name == 'compiled/bundles/common'
-              hash[name] = { :name => name, :exclude => ['common'] }
+              hash[name] = { :name => name, :exclude => ['common', 'ckeditor-all'] }
             end
             hash
           }
@@ -60,16 +60,25 @@ module Canvas
         @paths ||= {
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.1.min',
-          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd'
+          :uploadify => '../flash/uploadify/jquery.uploadify-3.1',
+          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
+          'swfobject' => 'vendor/swfobject/swfobject',
+          'swfupload' => 'vendor/swfupload/swfupload',
+          'ckeditor-core' => 'ckeditor/ckeditor',
+          'ckeditor-jquery' => 'ckeditor/adapters/jquery'
         }.update(cache_busting ? cache_busting_paths : {}).update(plugin_paths).update(Canvas::RequireJs::PluginExtension.paths).to_json.gsub(/([,{])/, "\\1\n    ")
       end
 
       def packages
         @packages ||= [
-          {'name' => 'ic-ajax', 'location' => 'bower/ic-ajax'},
+          {'name' => 'ic-data', 'location' => 'bower/ic-data/dist/amd'},
+          {'name' => 'ic-ajax', 'location' => 'bower/ic-ajax/dist/amd'},
           {'name' => 'ic-styled', 'location' => 'bower/ic-styled'},
           {'name' => 'ic-menu', 'location' => 'bower/ic-menu'},
+          {'name' => 'ic-tabs', 'location' => 'bower/ic-tabs/dist/amd'},
+          {'name' => 'ic-lazy-list', 'location' => 'bower/ic-lazy-list/dist/amd'},
+          {'name' => 'ic-modal', 'location' => 'bower/ic-modal/dist/amd'},
+          {'name' => 'ember-qunit', 'location' => 'bower/ember-qunit/dist/amd'},
         ].to_json
       end
 
@@ -84,7 +93,6 @@ module Canvas
       end
 
       def cache_busting_paths
-        #{ 'compiled/tinymce' => 'compiled/tinymce.js?v2' } # hack: increment to purge browser cached bundles after tiny change
         {}
       end
       
@@ -107,7 +115,7 @@ module Canvas
               exports: 'FileAPI'
             },
             'uploadify': {
-              deps: ['jquery'],
+              deps: ['jquery', 'swfobject', 'swfupload'],
               exports: '$'
             },
             'vendor/bootstrap-select/bootstrap-select' : {
@@ -121,6 +129,9 @@ module Canvas
             'handlebars': {
               deps: ['bower/handlebars/handlebars.runtime.amd'],
               exports: 'Handlebars'
+            },
+            'ckeditor-jquery': {
+              deps:['jquery', 'ckeditor-core']
             }
           }
         JS

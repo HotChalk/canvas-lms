@@ -47,7 +47,9 @@ define [
     select: (modifier) ->
       _.each(@model.collection.without(@model), (m) -> m.set('selected', false)) unless modifier
       @model.set('selected', true)
-      @model.set('workflow_state', 'read') if @model.unread()
+      if @model.unread()
+        @model.set('workflow_state', 'read')
+        @updateUnreadCount()
 
     deselect: (modifier) ->
       @model.set('selected', false) if modifier
@@ -67,6 +69,7 @@ define [
       @$readBtn.attr
         'aria-checked': @model.unread()
         title: if @model.unread() then @messages.read else @messages.unread
+      @updateUnreadCount()
 
     onMouseDown: (e) ->
       if e.shiftKey
@@ -77,3 +80,16 @@ define [
 
     toJSON: ->
       @model.toJSON().conversation
+
+    updateUnreadCount: ->
+      # update inbox notification
+      current_unread = parseInt($("#identity .unread-messages-count").text(), 10) || 0
+      new_unread = $('.messages a.read-state:not(.read)').length
+      if(current_unread != new_unread)
+        if (new_unread <= 0)
+          $("#identity .unread-messages-count").remove()
+        else
+          if($("#identity .unread-messages-count").length > 0)
+            $("#identity .unread-messages-count").text(new_unread)
+          else
+            $("#identity .first a").append('<b class="unread-messages-count">'+new_unread+'</b>')

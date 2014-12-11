@@ -219,11 +219,11 @@ describe AssignmentsController do
     end
 
     it 'should not error out when google docs is not configured' do
-      GoogleDocs.stubs(:config).returns nil
+      GoogleDocs::Connection.stubs(:config).returns nil
       course_with_student_logged_in(:active_all => true)
       a = @course.assignments.create(:title => "some assignment")
       get 'show', :course_id => @course.id, :id => a.id
-      GoogleDocs.unstub(:config)
+      GoogleDocs::Connection.unstub(:config)
     end
   end
 
@@ -344,13 +344,8 @@ describe AssignmentsController do
       course_with_teacher_logged_in(:active_all => true)
       course_assignment
       get 'edit', :course_id => @course.id, :id => @assignment.id
-      expected_assignment_json = subject.send(:assignment_json, @assignment,
-        assigns[:current_user], session)
-      expected_assignment_json[:has_submitted_submissions] = @assignment.has_submitted_submissions?
-      assigns[:js_env][:ASSIGNMENT].should == expected_assignment_json
-      assigns[:js_env][:ASSIGNMENT_OVERRIDES].should ==
-        subject.send(:assignment_overrides_json,
-                     @assignment.overrides_visible_to(assigns[:current_user]))
+      assigns[:js_env][:ASSIGNMENT]['id'].should == @assignment.id
+      assigns[:js_env][:ASSIGNMENT_OVERRIDES].should == []
     end
 
   end

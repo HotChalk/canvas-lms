@@ -30,11 +30,12 @@
 <% end %>
 <%
   js_bundle :discussion
-  jammit_css :redactor, :discussions, :learning_outcomes
+  jammit_css :discussions, :learning_outcomes
 %>
 
 <% if @topic.draft_state_enabled? && (@unlock_at && @unlock_at > Time.now) &&
-     !can_do(@context, @current_user, :moderate_forum) %>
+     !can_do(@context, @current_user, :moderate_forum) &&
+     @topic.user != @current_user %>
   <div class="topic">
     <div class="entry-content">
      <h1><%= @topic.title %></h1>
@@ -61,7 +62,7 @@
             </button>
           <% end %>
 
-          <% if @topic.grants_right?(@current_user, nil, :update) %>
+          <% if @topic.grants_right?(@current_user, :update) %>
             <a href="<%= context_url(@topic.context,
                                      :edit_context_discussion_topic_url,
                                      @topic) %>"
@@ -72,9 +73,10 @@
           <% end %>
 
           <% if @current_user.present? %>
-            <div class="admin-links">
-              <a class="al-trigger btn" href="#" aria-label="<%= t :manage_discussion, 'Manage Discussion' %>">
+            <div class="admin-links" role="application">
+              <a class="al-trigger btn" href="#">
                 <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>
+                <span class="screenreader-only"><%= t :manage_discussion, 'Manage Discussion' %></span>
               </a>
               <ul class="al-options">
                 <li><a href="#" class="mark_all_as_read"><i class="icon-mark-as-read" aria-hidden="hidden"></i> <%= t :mark_all_as_read, 'Mark All as Read' %></a></li>
@@ -152,6 +154,9 @@
           %>
           <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.reply_assignment, :presenter => @reply_presenter, :is_reply_assignment => true } %>
         <% end %>
+        <% if @topic.for_group_discussion? %>
+          <%= render :partial => 'group_discussion' %>
+        <% end %>
         <header class="discussion-section clearfix">
           <%= avatar((@topic.user), context_code: @context.asset_string) if @topic.user %>
           <div class="discussion-header-content right-of-avatar">
@@ -172,7 +177,7 @@
             </div>
 
             <div class="discussion-header-right pull-right">
-              <div class="discussion-pubdate"><%= friendly_datetime @topic.posted_at %></div>
+              <div class="discussion-pubdate"><%= friendly_datetime @topic.posted_at, context: @topic.context %></div>
               <%= render :partial => 'new_and_total_badge', :locals => { :unread_count => @topic.unread_count(@current_user), :reply_count => @topic.discussion_subentry_count } %>
             </div>
           </div>

@@ -53,7 +53,7 @@ class PseudonymsController < ApplicationController
         self, api_v1_account_pseudonyms_url)
     else
       bookmark = BookmarkedCollection::SimpleBookmarker.new(Pseudonym, :id)
-      @pseudonyms = BookmarkedCollection.with_each_shard(bookmark, @user.pseudonyms) { |scope| scope.active }
+      @pseudonyms = ShardedBookmarkedCollection.build(bookmark, @user.pseudonyms) { |scope| scope.active }
       @pseudonyms = Api.paginate(@pseudonyms, self, api_v1_user_pseudonyms_url)
     end
 
@@ -105,7 +105,7 @@ class PseudonymsController < ApplicationController
     @cc = nil if @pseudonym.managed_password?
     @headers = false
     # Allow unregistered users to change password.  How else can they come back later
-    # and finish the registration process? 
+    # and finish the registration process?
     if !@cc || @cc.path_type != 'email'
       flash[:error] = t 'errors.cant_change_password', "Cannot change the password for that login, or login does not exist"
       redirect_to root_url
@@ -122,7 +122,7 @@ class PseudonymsController < ApplicationController
       @pseudonym.require_password = true
       @pseudonym.password = params[:pseudonym][:password]
       @pseudonym.password_confirmation = params[:pseudonym][:password_confirmation]
-      if @pseudonym.save
+      if @pseudonym.save_without_session_maintenance
         # If they changed the password (and we subsequently log them in) then
         # we're pretty confident this is the right user, and the communication
         # channel is valid, so register the user and approve the channel.
@@ -197,7 +197,7 @@ class PseudonymsController < ApplicationController
     @pseudonym = @account.pseudonyms.build(params[:pseudonym])
     @pseudonym.sis_user_id = sis_user_id if sis_user_id.present? && @account.grants_right?(@current_user, session, :manage_sis)
     @pseudonym.generate_temporary_password if !params[:pseudonym][:password]
-    if @pseudonym.save
+    if @pseudonym.save_without_session_maintenance
       respond_to do |format|
         flash[:notice] = t 'notices.account_registered', "Account registered!"
         format.html { redirect_to user_profile_url(@current_user) }
@@ -255,7 +255,7 @@ class PseudonymsController < ApplicationController
     return unless @user == @current_user || authorized_action(@user, @current_user, :manage_logins)
     return render(:json => nil, :status => :bad_request) if params[:pseudonym].blank?
     params[:pseudonym].delete :account_id
-    params[:pseudonym].delete :unique_id unless @user.grants_right?(@current_user, nil, :manage_logins)
+    params[:pseudonym].delete :unique_id unless @user.grants_right?(@current_user, :manage_logins)
     unless @pseudonym.account.grants_right?(@current_user, session, :manage_user_logins)
       params[:pseudonym].delete :unique_id
       params[:pseudonym].delete :password
@@ -275,7 +275,9 @@ class PseudonymsController < ApplicationController
     params[:pseudonym].delete_if { |k, v| ![:unique_id, :password, :password_confirmation, :sis_user_id].include?(k.to_sym) }
     # return 401 if psuedonyms is empty here, because it means that the user doesn't have permissions to do anything.
     return render(:json => nil, :status => :unauthorized) if params[:pseudonym].blank? && changed_sis_id
-    if @pseudonym.update_attributes(params[:pseudonym])
+
+    @pseudonym.assign_attributes(params[:pseudonym])
+    if @pseudonym.save_without_session_maintenance
       flash[:notice] = t 'notices.account_updated', "Account updated!"
       respond_to do |format|
         format.html { redirect_to user_profile_url(@current_user) }
@@ -293,8 +295,8 @@ class PseudonymsController < ApplicationController
   # Delete an existing login.
   #
   # @example_request
-  #   curl https://<canvas>/api/v1/users/:user_id/logins/:login_id \ 
-  #     -H "Authorization: Bearer <ACCESS-TOKEN>" \ 
+  #   curl https://<canvas>/api/v1/users/:user_id/logins/:login_id \
+  #     -H "Authorization: Bearer <ACCESS-TOKEN>" \
   #     -X DELETE
   #
   # @example_response

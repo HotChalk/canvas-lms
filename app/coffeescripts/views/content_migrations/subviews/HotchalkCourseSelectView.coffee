@@ -16,6 +16,8 @@ define [
     events: 
       'change #courseSelect' : 'updateSearch'
 
+    @optionProperty 'rootAccountId'
+
     render: ->
       super
       dfd = @getAvailableCourses()
@@ -46,7 +48,7 @@ define [
     # Generate a url that is used to find available course packages
 
     availableCourseUrl: ->
-      "/hotchalk/packages"
+      "/hotchalk/packages/" + @rootAccountId
 
     # Build a list of courses that our template and autocomplete can use
     # objects look like

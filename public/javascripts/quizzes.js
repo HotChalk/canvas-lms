@@ -43,7 +43,7 @@ define([
   'compiled/jquery.rails_flash_notifications',
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'supercalc' /* superCalc */,
-  'redactor.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/jquery.placeholder' /* /\.placeholder/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/sortable' /* /\.sortable/ */,
@@ -644,6 +644,9 @@ define([
       var options = {
         addable: true
       };
+
+      limitTextInputFor($formQuestion, question_type);
+
       if (question_type == 'multiple_choice_question') {
       } else if (question_type == 'true_false_question') {
         options.addable = false;
@@ -1054,6 +1057,21 @@ define([
     $question.attr('id', '').find('.question').attr('id', 'question_new');
     $question.fillTemplateData({ data: question, except: ['answers'] });
     $question.find(".original_question_text").fillFormData(question);
+    if (question.question_type == 'learnosity_question') {
+      $question.find('.question_text').hide()
+      var course_id = location.pathname.match(/\/courses\/([0-9]+)/)[1];
+      var url = '/courses/' + course_id + '/quizzes/' + data.quiz_id + '/questions/' + data.id + '/display';
+      $.getJSON(url, function(question_data) {
+        var question_id = this.url.match(/([0-9]+)\/display/)[1];
+        var container = $('#question_' + question_id);
+        var span = $('<span class="learnosity-response question-' + question_id + '" />');
+        span.data('learnosity-request', question_data);
+        container.find('.question_text').empty().append(span).show();
+        require(['//questions.learnosity.com'], function() {
+          LearnosityApp.init(question_data);
+        });
+      }, 'html');
+    }
     if (question.answers) {
       question.answer_count = question.answers.length;
       data.answer_type = question.answer_type;
@@ -1296,6 +1314,17 @@ define([
     return false;
   }
 
+  function limitTextInputFor(form, question_type) {
+    // Add character limit class
+    if (question_type == 'missing_word_question' ||
+        question_type == 'fill_in_multiple_blanks_question' ||
+        question_type == 'short_answer_question')  {
+      form.find("input[name='answer_text']").addClass("limit_text");
+    } else {
+      form.find("input[name='answer_text']").removeClass("limit_text");
+    }
+  }
+
   function parseFloatOrPercentage(val) {
     if (val == "") { return val; }
     var result;
@@ -1483,6 +1512,15 @@ define([
         $("#quiz_cant_go_back").attr('checked', false);
       }
     }).triggerHandler('change');
+
+    $(".question").on("change", ".limit_text", function() {
+      var answerValue = $(this).val();
+      var textLength = answerValue.length;
+      if(textLength > 80) {
+        alert(I18n.t('quiz_short_answer_length_error', 'Answers for fill in the blank questions must be under 80 characters long'));
+        $(this).val(answerValue.substring(0, 80));
+      }
+    });
 
     $("#multiple_attempts_option,#limit_attempts_option,#quiz_allowed_attempts").change(function() {
       var checked = $("#multiple_attempts_option").prop('checked') && $("#limit_attempts_option").prop('checked');
@@ -1745,6 +1783,7 @@ define([
       $formQuestion.addClass('selectable');
       $form.find(".answer_selection_type").change().show();
       if (question.question_type != 'missing_word_question') { $form.find("option.missing_word").remove(); }
+
       if ($question.hasClass('missing_word_question') || question.question_type == 'missing_word_question') {
         question = $question.getTemplateData({textValues: ['text_before_answers', 'text_after_answers']});
         answer_data = $question.find(".original_question_text").getFormData();
@@ -1824,11 +1863,25 @@ define([
       if ($question.hasClass('essay_question') || $question.hasClass('file_upload')) {
         $formQuestion.find(".comments_header").text(I18n.beforeLabel('comments_on_question', "Comments for this question"));
       }
+
+      limitTextInputFor($form, question.question_type);
+
       $question.hide().after($form);
       quiz.showFormQuestion($form);
       $form.attr('action', $question.find(".update_question_url").attr('href'))
         .attr('method', 'POST')
         .find('.submit_button').text(I18n.t('buttons.update_question', 'Update Question'));
+      $form.find('.submit_button').click(function(event){
+        var text = $formQuestion.find(".question_content").editorBox('get_code');
+        var editorContainer = $form.find('textarea.question_content').next();
+        if(text.length < 16384) {
+          editorContainer.errorBox().remove();
+          $form.submit();
+        } else {
+          var offset = editorContainer.errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
+          $('html,body').scrollTo({top: offset.top, left:0});
+        }
+      });
       $form.find(":input:visible:first").focus().select();
       $("html,body").scrollTo({top: $form.offset().top - 10, left: 0});
       setTimeout(function() {
@@ -1855,11 +1908,6 @@ define([
       var isNew = $(holder).find("#question_new").length > 0;
       if ($("#student_submissions_warning").length > 0 && !loading && !isNew) {
         disableRegrade(holder);
-      }
-      if (!loading) {
-        var question_content = $(this).parents(".question_form").find('.question_content');
-        question_content.editorBox('destroy');
-        question_content.editorBox();
       }
     });
 
@@ -2441,13 +2489,6 @@ define([
       var url = $findQuestionDialog.find(".add_questions_url").attr('href');
       $findQuestionDialog.find("button").attr('disabled', true).filter(".submit_button").text(I18n.t('buttons.adding_questions', "Adding Questions..."));
       $.ajaxJSON(url, 'POST', params, function(question_results) {
-        if ($.grep(question_results, function(question) { return question["question_type"] == 'learnosity_question' }).length) {
-          if (window.location.hash != 'questions_tab') {
-            window.location.hash = 'questions_tab';
-          }
-          window.location.reload();
-          return;
-        }
         $findQuestionDialog.find("button").attr('disabled', false).filter(".submit_button").text(I18n.t('buttons.add_selected_questions', "Add Selected Questions"));
         $findQuestionDialog.find(".selected_side_tab").removeClass('selected_side_tab');
         var counter = 0;
@@ -3085,12 +3126,15 @@ define([
       }
     });
 
+    var quizDescription = $("#quiz_description");
     if (wikiSidebar) {
       wikiSidebar.init();
-      wikiSidebar.attachToEditor($("#quiz_description"));
+      wikiSidebar.attachToEditor(quizDescription);
     }
 
-    $("#quiz_description").editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
+    if (quizDescription.length) {
+      quizDescription.editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
+    }
 
     $(".toggle_description_views_link").click(function(event) {
       event.preventDefault();
@@ -3143,12 +3187,18 @@ define([
         $question_type = $question.find(".question_type");
     if ($question.data('multiple_sets_question_bindings')) { return; }
     $question.data('multiple_sets_question_bindings', true);
-    var textChange = function(html) {
+    var editor = CKEDITOR.instances[$question_content.attr('id')];
+    if (editor) {
+      editor.on('key', function() {
+        setTimeout(function() {$question_content.triggerHandler('change')}, 50);
+      });
+    }
+    $question_content.bind('change', function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
         return;
       }
-      var text = html;
+      var text = $(this).editorBox('get_code');
       var matches = text.match(/\[[A-Za-z0-9_\-.]+\]/g);
       $select.find("option.shown_when_no_other_options_available").remove();
       $select.find("option").addClass('to_be_removed');
@@ -3177,11 +3227,7 @@ define([
       }
       $select.find("option.to_be_removed").remove();
       $select.change();
-    };
-    $question_content.data('redactorCallbacks', {'change': textChange });
-    $question_content.change(function(e) {
-      textChange($question_content.val());
-    });
+    }).change();
     $select.change(function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
@@ -3440,9 +3486,12 @@ define([
       });
     });
     $question.find(".combinations_option").attr('disabled', true);
-    $question.find(".question_content").bind('keypress', function(event) {
-      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
-    });
+    var editor = CKEDITOR.instances[$question.find('.question_content').attr('id')];
+    if (editor) {
+      editor.on('key', function() {
+        setTimeout(function() {$question.find('.question_content').triggerHandler('change')}, 50);
+      });
+    }
     $question.find(".question_content").bind('change', function(event) {
       var text = $(this).editorBox('get_code');
       var matches = text.match(/\[[A-Za-z][A-Za-z0-9]*\]/g);

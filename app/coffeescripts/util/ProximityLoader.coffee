@@ -55,7 +55,7 @@ define [
     constructor: (el, options = {}) ->
       @options = _.extend({}, @defaultOptions, options)
       @_cacheElements(el)
-      @deferred = $.Deferred().done(@_loadScript)
+      @deferred = $.Deferred().then(@_loadScript)
       # fail if the given element doesn't exist
       return unless @$el.length
       @_attachEvents()

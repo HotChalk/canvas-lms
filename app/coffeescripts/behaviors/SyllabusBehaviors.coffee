@@ -25,7 +25,7 @@ define [
   'jquery.instructure_misc_helpers' # scrollSidebar #
   'jquery.instructure_misc_plugins' # ifExists, showIf #
   'jquery.loadingImg' # loadingImage #
-  'redactor.editor_box' # editorBox #
+  'ckeditor.editor_box' # editorBox #
   'vendor/jquery.scrollTo' # /\.scrollTo/ #
   'jqueryui/datepicker' # /\.datepicker/ #
 ], ($, calendarMonths, wikiSidebar) ->
@@ -118,7 +118,7 @@ define [
       $('tr.selected').removeClass('selected')
       $row.addClass('selected')
       $('html, body').scrollTo $row
-      $row.find('a').focus() if e.screenX == 0
+      $row.find('a').first().focus()
 
   selectDate = (date) ->
     $('.mini_month .day.selected').removeClass('selected')
@@ -182,10 +182,7 @@ define [
       $course_syllabus.hide()
       $course_syllabus_details.hide()
       $course_syllabus_body.editorBox()
-      setTimeout (=>
-        $course_syllabus_body.editorBox 'set_code', $course_syllabus.data('syllabus_body')
-        $course_syllabus_body.editorBox 'focus', true
-      ), 100
+      $course_syllabus_body.editorBox 'set_code', $course_syllabus.data('syllabus_body')
       if wikiSidebar
         wikiSidebar.attachToEditor $course_syllabus_body
         wikiSidebar.show()

@@ -41,8 +41,8 @@ describe Quizzes::QuizSubmissionsController do
       @quiz.one_question_at_a_time = true
       @quiz.cant_go_back = true
       @quiz.save!
-      @submission = @quiz.find_or_create_submission(@student)
-      @submission.grade_submission
+      @submission = Quizzes::SubmissionManager.new(@quiz).find_or_create_submission(@student)
+      Quizzes::SubmissionGrader.new(@submission).grade_submission
       post 'create', :course_id => @quiz.context_id, :quiz_id => @quiz.id, :question_123 => 'hi', :validation_token => @submission.validation_token
       response.should be_redirect
     end
@@ -54,7 +54,7 @@ describe Quizzes::QuizSubmissionsController do
       @quiz.save!
       access_code_key = @quiz.access_code_key_for_user(@student)
       session[access_code_key] = true
-      @submission = @quiz.find_or_create_submission(@student)
+      @submission = Quizzes::SubmissionManager.new(@quiz).find_or_create_submission(@student)
       post 'create', :course_id => @quiz.context_id, :quiz_id => @quiz.id, :question_123 => 'hi', :validation_token => @submission.validation_token
       session.has_key?(access_code_key).should == false
     end
@@ -62,7 +62,7 @@ describe Quizzes::QuizSubmissionsController do
     it "should reject a submission when the validation token does not match" do
       student_in_course(:active_all => true)
       user_session(@student)
-      @submission = @quiz.find_or_create_submission(@student)
+      @submission = Quizzes::SubmissionManager.new(@quiz).find_or_create_submission(@student)
       post 'create', :course_id => @quiz.context_id, :quiz_id => @quiz.id, :question_123 => 'hi', :validation_token => "xxx"
       response.should be_redirect
       flash[:error].should_not be_blank
@@ -181,4 +181,21 @@ describe Quizzes::QuizSubmissionsController do
       end
     end
   end
+
+  describe "POST / (#extension)" do
+
+    context "as a teacher in course" do
+      it "should be able to extend own extra attempts" do
+        course_with_teacher_logged_in
+        quiz = course_quiz !!:active
+        request.accept = "application/json"
+        post 'extensions', quiz_id: quiz.id, course_id: @course, user_id: @teacher.id, extra_attempts: 1
+        response.should be_success
+        json = JSON.parse(response.body)
+        json.should have_key('extra_attempts')
+        json['extra_attempts'].should == 1
+      end
+    end
+  end
+
 end

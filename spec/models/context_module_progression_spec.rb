@@ -19,10 +19,16 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 
 describe ContextModuleProgression do
-  describe "prerequisites_satisfied?" do
+  before do
+    @course = course(:active_all => true)
+    @module = @course.context_modules.create!(:name => "some module")
+
+    @user = User.create!(:name => "some name")
+    @course.enroll_student(@user)
+  end
+
+  context "prerequisites_satisfied?" do
     before do
-      @course = course(:active_all => true)
-      @module = @course.context_modules.create!(:name => "some module")
 
       @assignment = @course.assignments.create!(:title => "some assignment")
       @tag = @module.add_item({:id => @assignment.id, :type => 'assignment'})
@@ -38,9 +44,6 @@ describe ContextModuleProgression do
       @module3 = @course.context_modules.create!(:name => "another module again")
       @module3.publish
       @module3.save!
-
-      @user = User.create!(:name => "some name")
-      @course.enroll_student(@user)
     end
 
     it "should correctly ignore already-calculated context_module_prerequisites" do
@@ -91,6 +94,95 @@ describe ContextModuleProgression do
       ContextModuleProgression.prerequisites_satisfied?(@user, @module2).should == false
       @module.unpublish
       ContextModuleProgression.prerequisites_satisfied?(@user, @module2).should == true
+    end
+  end
+
+  context '#evaluate' do
+    let(:module_progression) do
+      p = @module.context_module_progressions.create do |p|
+        p.context_module = @module
+        p.user = @user
+        p.current = true
+        p.evaluated_at = 5.minutes.ago
+      end
+      p.workflow_state = 'bogus'
+      p
+    end
+
+    context 'does not evaluate' do
+      it 'when current' do
+        module_progression.evaluate
+
+        module_progression.workflow_state.should == 'bogus'
+      end
+
+      it 'when current and the module has not yet unlocked' do
+        @module.unlock_at = 10.minutes.from_now
+        module_progression.evaluate
+
+        module_progression.workflow_state.should == 'bogus'
+      end
+    end
+
+    context 'does evaluate' do
+      it 'when not current' do
+        module_progression.current = false
+        module_progression.evaluate
+
+        module_progression.workflow_state.should_not == 'bogus'
+      end
+
+      it 'when current, but the evaluated_at stamp is missing' do
+        module_progression.evaluated_at = nil
+        module_progression.evaluate
+
+        module_progression.workflow_state.should_not == 'bogus'
+      end
+
+      it 'when current, but the module has since unlocked' do
+        @module.unlock_at = 1.minute.ago
+        module_progression.evaluate
+
+        module_progression.workflow_state.should_not == 'bogus'
+      end
+    end
+  end
+
+  context "optimistic locking" do
+    def stale_progression
+      progression = @user.context_module_progressions.create!(context_module: @module)
+      ContextModuleProgression.find(progression.id).save!
+      progression
+    end
+
+    it "raises a stale object error during save" do
+      progression = stale_progression
+      expect { progression.save }.to raise_error(ActiveRecord::StaleObjectError)
+      expect { progression.reload.save }.to_not raise_error
+    end
+
+    it 'raises a stale object error during evaluate' do
+      progression = stale_progression
+      expect { progression.evaluate }.to raise_error(ActiveRecord::StaleObjectError)
+      expect { progression.reload.evaluate }.to_not raise_error
+    end
+
+    it 'does not raise a stale object error during evaluate!' do
+      progression = stale_progression
+      expect { progression.evaluate! }.to_not raise_error
+    end
+
+    it 'does not raise a stale object error during catastrophic evaluate!' do
+      progression = stale_progression
+      if CANVAS_RAILS2
+        progression.stubs(:save).at_least_once.raises(ActiveRecord::StaleObjectError.new)
+      else
+        progression.stubs(:save).at_least_once.raises(ActiveRecord::StaleObjectError.new(progression, 'Save'))
+      end
+
+      new_progression = nil
+      expect { new_progression = progression.evaluate! }.to_not raise_error
+      new_progression.workflow_state.should == 'locked'
     end
   end
 end

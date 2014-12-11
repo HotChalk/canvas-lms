@@ -45,13 +45,13 @@ describe FilesController do
     course_with_student_logged_in(:active_all => true)
     @file = factory_with_protected_attributes(@course.attachments, :uploaded_data => io)
     @module = @course.context_modules.create!(:name => "module")
-    @tag = @module.add_item({:type => 'attachment', :id => @file.id}) 
+    @tag = @module.add_item({:type => 'attachment', :id => @file.id})
     @module.reload
     hash = {}
     hash[@tag.id.to_s] = {:type => 'must_view'}
     @module.completion_requirements = hash
     @module.save!
-    @module.evaluate_for(@user, true).state.should eql(:unlocked)
+    @module.evaluate_for(@user).state.should eql(:unlocked)
   end
 
   def file_with_path(path)
@@ -270,7 +270,7 @@ describe FilesController do
       file_in_a_module
       get 'show', :course_id => @course.id, :id => @file.id, :download => 1
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:completed)
+      @module.evaluate_for(@user).state.should eql(:completed)
       @file.reload.last_inline_view.should be_nil
     end
 
@@ -280,7 +280,7 @@ describe FilesController do
       @file.save!
       get 'show', :course_id => @course.id, :id => @file.id, :download => 1
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:unlocked)
+      @module.evaluate_for(@user).state.should eql(:unlocked)
       @file.reload.last_inline_view.should be_nil
     end
 
@@ -290,7 +290,7 @@ describe FilesController do
       @file.save!
       get 'show', :course_id => @course.id, :id => @file.id
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:unlocked)
+      @module.evaluate_for(@user).state.should eql(:unlocked)
       @file.reload.last_inline_view.should be_nil
     end
 
@@ -299,7 +299,7 @@ describe FilesController do
       get 'show', :course_id => @course.id, :id => @file.id, :inline => 1
       json_parse.should == {'ok' => true}
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:completed)
+      @module.evaluate_for(@user).state.should eql(:completed)
       @file.reload.last_inline_view.should > 1.minute.ago
     end
 
@@ -322,7 +322,7 @@ describe FilesController do
       @file.save!
       get 'show', :course_id => @course.id, :id => @file.id, :format => :json
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:completed)
+      @module.evaluate_for(@user).state.should eql(:completed)
       @file.reload.last_inline_view.should > 1.minute.ago
     end
 
@@ -338,7 +338,7 @@ describe FilesController do
 
       get 'show', :course_id => @course.id, :id => @file.id, :format => :json
       @module.reload
-      @module.evaluate_for(@user, true).state.should eql(:unlocked)
+      @module.evaluate_for(@user).state.should eql(:unlocked)
       @file.reload.last_inline_view.should be_nil
     end
 
@@ -411,6 +411,26 @@ describe FilesController do
 
         get 'show', :course_id => course2.id, :id => file2.id, :format => 'json'
         json_parse['attachment']['scribd_doc'].should be_blank
+      end
+    end
+
+    describe "canvadoc_session_url" do
+      before do
+        course_with_student_logged_in active_all: true
+        Canvadocs.stubs(:enabled?).returns true
+        @file = canvadocable_attachment_model
+      end
+
+      it "is included if :download is allowed" do
+        get 'show', :course_id => @course.id, :id => @file.id, :format => 'json'
+        json_parse['attachment']['canvadoc_session_url'].should be_present
+      end
+
+      it "is not included if locked" do
+        @file.lock_at = 1.month.ago
+        @file.save!
+        get 'show', :course_id => @course.id, :id => @file.id, :format => 'json'
+        json_parse['attachment']['canvadoc_session_url'].should be_nil
       end
     end
 
@@ -506,6 +526,7 @@ describe FilesController do
       response.should be_redirect
       assigns[:attachment].should eql(@file)
       assigns[:attachment].display_name.should eql("new name")
+      assigns[:attachment].user_id.should be_nil
     end
 
     it "should move file into a folder" do
@@ -518,6 +539,18 @@ describe FilesController do
 
       @file.reload
       @file.folder.should eql(@folder)
+    end
+
+    it "should replace content and update user_id" do
+      course_with_teacher_logged_in(:active_all => true)
+      course_file
+      new_content = fixture_file_upload('scribd_docs/txt.txt', 'text/plain', true)
+      put 'update', :course_id => @course.id, :id => @file.id, :attachment => {:uploaded_data => new_content}
+      response.should be_redirect
+      assigns[:attachment].should eql(@file)
+      @file.reload
+      @file.size.should eql new_content.size
+      @file.user.should eql @teacher
     end
   end
 
@@ -634,8 +667,8 @@ describe FilesController do
       group.add_user(@student)
       user_session(@student)
 
-      #assignment.grants_right?(@student, nil, :submit).should be_true
-      #assignment.grants_right?(@student, nil, :nothing).should be_true
+      #assignment.grants_right?(@student, :submit).should be_true
+      #assignment.grants_right?(@student, :nothing).should be_true
 
       s3_storage!
       post 'create_pending', {:attachment => {

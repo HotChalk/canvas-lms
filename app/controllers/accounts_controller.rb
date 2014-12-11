@@ -72,6 +72,11 @@ require 'csv'
 #           "example": "123xyz",
 #           "type": "string"
 #         },
+#         "integration_id": {
+#           "description": "The account's identifier in the Student Information System. Only included if the user has permission to view SIS information.",
+#           "example": "123xyz",
+#           "type": "string"
+#         },
 #         "sis_import_id": {
 #           "description": "The id of the SIS import if created through SIS. Only included if the user has permission to manage SIS information.",
 #           "example": "12",
@@ -125,7 +130,7 @@ class AccountsController < ApplicationController
     return unless authorized_action(@account, @current_user, :read)
     respond_to do |format|
       format.html do
-        return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, nil, :read_course_list)
+        return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
         js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
         load_course_right_side
         @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses)
@@ -242,12 +247,12 @@ class AccountsController < ApplicationController
     end
 
     if params[:by_teachers].is_a?(Array)
-      teacher_ids = Api.map_ids(params[:by_teachers], User, @domain_root_account).map(&:to_i)
+      teacher_ids = Api.map_ids(params[:by_teachers], User, @domain_root_account, @current_user).map(&:to_i)
       @courses = @courses.by_teachers(teacher_ids)
     end
 
     if params[:by_subaccounts].is_a?(Array)
-      account_ids = Api.map_ids(params[:by_subaccounts], Account, @domain_root_account).map(&:to_i)
+      account_ids = Api.map_ids(params[:by_subaccounts], Account, @domain_root_account, @current_user).map(&:to_i)
       @courses = @courses.by_associated_accounts(account_ids)
     end
 
@@ -424,7 +429,6 @@ class AccountsController < ApplicationController
             :enable_alerts,
             :enable_eportfolios,
             :enable_profiles,
-            :enable_scheduler,
             :show_scheduler,
             :enable_resources_link,
             :show_resources_link,
@@ -450,7 +454,37 @@ class AccountsController < ApplicationController
           @account[:settings][:edit_institution_email] = value_to_boolean(can_edit_email)
         end
 
+        program_delete_problem = false
+        if account_programs = params[:account].delete(:programs)
+          @account.account_programs.each do |program|
+            # delete not present programs
+            unless account_programs.has_key? program.id.to_s
+              if program.courses.empty?
+                program.destroy
+              else
+                program_delete_problem = true
+              end
+            end
+
+            # update program names
+            account_programs.each do |program_id, program_name|
+              program.name = program_name if program_id.to_i == program.id && program_name != program.name
+            end
+          end
+
+        end
+
+        # create new programs
+        if new_programs = params[:account].delete(:new_programs)
+          new_programs.each do |new_program|
+            unless new_program['name'].empty?
+              @account.account_programs.push(AccountProgram.create!(name: new_program['name'], account: @account))
+            end
+          end
+        end
+
         if @account.update_attributes(params[:account])
+          flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted, because of course asociations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
           format.json { render :json => @account }
         else
@@ -464,7 +498,7 @@ class AccountsController < ApplicationController
 
   def settings
     if authorized_action(@account, @current_user, :read)
-      @available_reports = AccountReport.available_reports(@account) if @account.grants_right?(@current_user, @session, :read_reports)
+      @available_reports = AccountReport.available_reports if @account.grants_right?(@current_user, @session, :read_reports)
       if @available_reports
         @last_complete_reports = {}
         @last_reports = {}
@@ -506,9 +540,9 @@ class AccountsController < ApplicationController
       return render_unauthorized_action
     end
 
-    authentication_logging = @account.grants_rights?(@current_user, :view_statistics, :manage_user_logins).values.any?
-    grade_change_logging = @account.grants_rights?(@current_user, :view_grade_changes).values.any?
-    course_logging = @account.grants_rights?(@current_user, :view_course_changes).values.any?
+    authentication_logging = @account.grants_any_right?(@current_user, :view_statistics, :manage_user_logins)
+    grade_change_logging = @account.grants_right?(@current_user, :view_grade_changes)
+    course_logging = @account.grants_right?(@current_user, :view_course_changes)
     if authentication_logging || grade_change_logging || course_logging
       logging = {
         authentication: authentication_logging,
@@ -598,14 +632,14 @@ class AccountsController < ApplicationController
   def statistics
     if authorized_action(@account, @current_user, :view_statistics)
       add_crumb(t(:crumb_statistics, "Statistics"), statistics_account_url(@account))
-      if @account.grants_right?(@current_user, nil, :read_course_list)
+      if @account.grants_right?(@current_user, :read_course_list)
         @recently_started_courses = @account.all_courses.recently_started
         @recently_ended_courses = @account.all_courses.recently_ended
         if @account == Account.default
           @recently_created_courses = @account.all_courses.recently_created
         end
       end
-      if @account.grants_right?(@current_user, nil, :read_roster)
+      if @account.grants_right?(@current_user, :read_roster)
         @recently_logged_users = @account.all_users.recently_logged_in
       end
       @counts_report = @account.report_snapshots.detailed.last.try(:data)
@@ -699,7 +733,7 @@ class AccountsController < ApplicationController
         format.json  {
           cancel_cache_buster
           expires_in 30.minutes
-          render :json => @courses.map{ |c| {:label => c.name, :id => c.id} }
+          render :json => @courses.map{ |c| {:label => c.name, :id => c.id, :term => c.enrollment_term.name} }
         }
       end
     end
@@ -732,34 +766,50 @@ class AccountsController < ApplicationController
   # TODO Refactor add_account_user and remove_account_user actions into
   # AdminsController. see https://redmine.instructure.com/issues/6634
   def add_account_user
-    if authorized_action(@context, @current_user, :manage_account_memberships)
-      list = UserList.new(params[:user_list],
-                          :root_account => @context.root_account,
-                          :search_method => @context.user_list_search_mode_for(@current_user))
-      users = list.users
-      account_users = users.map do |user|
-        admin = user.flag_as_admin(@context, params[:membership_type])
-        { :enrollment => {
+    role = params[:membership_type] || 'AccountAdmin'
+
+    list = UserList.new(params[:user_list],
+                        :root_account => @context.root_account,
+                        :search_method => @context.user_list_search_mode_for(@current_user))
+    users = list.users
+    admins = users.map do |user|
+      admin = @context.account_users.where(user_id: user.id, membership_type: role).first_or_initialize
+      admin.user = user
+      return unless authorized_action(admin, @current_user, :create)
+      admin
+    end
+
+    account_users = admins.map do |admin|
+      new_record = admin.new_record?
+      admin.save! if new_record
+      if new_record
+        if admin.user.registered?
+          admin.account_user_notification!
+        else
+          admin.account_user_registration!
+        end
+      end
+
+      { :enrollment => {
           :id => admin.id,
-          :name => user.name,
+          :name => admin.user.name,
           :membership_type => admin.membership_type,
           :workflow_state => 'active',
-          :user_id => user.id,
+          :user_id => admin.user.id,
           :type => 'admin',
-          :email => user.email
-        }}
-      end
-      render :json => account_users
+          :email => admin.user.email
+      }}
     end
+    render :json => account_users
   end
 
   def remove_account_user
-    if authorized_action(@context, @current_user, :manage_account_memberships)
-      @account_user = AccountUser.find(params[:id])
-      @account_user.destroy
+    admin = @context.account_users.find(params[:id])
+    if authorized_action(admin, @current_user, :destroy)
+      admin.destroy
       respond_to do |format|
         format.html { redirect_to account_settings_url(@context, :anchor => "tab-users") }
-        format.json { render :json => @account_user }
+        format.json { render :json => admin }
       end
     end
   end

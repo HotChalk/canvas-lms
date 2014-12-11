@@ -50,10 +50,6 @@ module MigratorHelper
     end
   end
 
-  def self.unzip_command(zip_file, dest_dir)
-    "unzip -qo #{Shellwords.escape(zip_file)} -d #{Shellwords.escape(dest_dir)} 2>&1"
-  end
-
   def add_error(type, message, object=nil, e=nil)
     logger.error message
     @error_count += 1
@@ -122,7 +118,7 @@ module MigratorHelper
   end
 
   def create_export_dir(slug)
-    config = Setting.from_config('external_migration')
+    config = ConfigFile.load('external_migration')
     if config && config[:data_folder]
       folder = config[:data_folder]
     else
@@ -139,6 +135,10 @@ module MigratorHelper
   def save_to_file(file_name = nil)
     make_export_dir
     add_assessment_id_prepend
+
+    @course = @course.with_indifferent_access
+    Importers::AssessmentQuestionImporter.preprocess_migration_data(@course)
+
     file_name ||= File.join(@base_export_dir, FULL_COURSE_JSON_FILENAME)
     file_name = File.expand_path(file_name)
     @course[:full_export_file_path] = file_name
@@ -150,7 +150,7 @@ module MigratorHelper
   end
   
   def self.download_archive(settings)
-    config = Setting.from_config('external_migration') || {}
+    config = ConfigFile.load('external_migration') || {}
     if settings[:export_archive_path]
       settings[:archive_file] = File.open(settings[:export_archive_path], 'rb')
     elsif settings[:course_archive_download_url].present?
@@ -165,7 +165,7 @@ module MigratorHelper
 
     settings[:archive_file]
   end
-  
+
   def id_prepender
     @settings[:id_prepender]
   end
@@ -247,6 +247,18 @@ module MigratorHelper
     end
   end
 
+  def add_learning_outcome_to_overview(overview, outcome)
+    unless outcome[:type] == "learning_outcome_group"
+      overview[:learning_outcomes] << {:migration_id => outcome[:migration_id], :title => outcome[:title]}
+    end
+    if outcome[:outcomes]
+      outcome[:outcomes].each do |sub_outcome|
+        overview = add_learning_outcome_to_overview(overview, sub_outcome)
+      end
+    end
+    overview
+  end
+
   def overview
     return @overview if @overview
     logger.debug "Creating the overview hash."
@@ -272,6 +284,7 @@ module MigratorHelper
     @overview[:all_questions_qti_export] = @course[:all_questions_qti_export] if @course[:all_questions_qti_export]
     @overview[:course_outline] = @course[:course_outline] if @course[:course_outline]
     @overview[:error_count] = @error_count
+
     if @course[:assessments]
       @overview[:assessments] = []
       if @course[:assessments][:assessments]
@@ -294,6 +307,14 @@ module MigratorHelper
         end
       end
     end
+
+    if @course[:assessment_question_banks]
+      @overview[:assessment_question_banks] ||= []
+      @course[:assessment_question_banks].each do |aqb|
+        @overview[:assessment_question_banks] << aqb.dup
+      end
+    end
+
     if @course[:calendar_events]
       @overview[:calendar_events] = []
       @course[:calendar_events].each do |e|
@@ -414,6 +435,14 @@ module MigratorHelper
         @overview[:external_tools] << tool
         tool[:migration_id] = ct[:migration_id]
         tool[:title] = ct[:title]
+      end
+    end
+
+    if @course[:learning_outcomes]
+      @overview[:learning_outcomes] = []
+      @course[:learning_outcomes].each do |outcome|
+        next unless outcome
+        add_learning_outcome_to_overview(@overview, outcome)
       end
     end
 

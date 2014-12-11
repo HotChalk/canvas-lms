@@ -1,7 +1,8 @@
 #!/bin/bash
 result=0
 
-bundle install
+echo "################ utf8_cleaner ################"
+bundle check || bundle install
 bundle exec rspec spec
 result+=$?
 

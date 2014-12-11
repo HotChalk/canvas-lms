@@ -313,8 +313,9 @@ describe "account" do
         ui_auto_complete.should be_displayed
       end
 
-      element = ff('.ui-autocomplete li a').first
-      element.text.should == @course_name
+      elements = ff('.ui-autocomplete li:first-child a div')
+      elements[0].text.should == @course_name
+      elements[1].text.should == 'Default Term'
       keep_trying_until do
         driver.execute_script("$('.ui-autocomplete li a').hover().click()")
         driver.current_url.should include("/courses/#{@course.id}")
@@ -350,7 +351,7 @@ describe "account" do
 
     it "should be able to view user details from parent account" do
       user_non_root = user
-      create_sub_account.add_user(user_non_root)
+      create_sub_account.account_users.create!(user: user_non_root)
       get "/accounts/#{Account.default.id}/users/#{user_non_root.id}"
       #verify user details displayed properly
       f('.accounts .unstyled_list li').should include_text('sub_account')

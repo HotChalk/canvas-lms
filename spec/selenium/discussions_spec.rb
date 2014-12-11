@@ -660,6 +660,35 @@ describe "discussions" do
         user_session(teacher)
       end
 
+      describe "rubrics" do
+        it "should change points when used for grading" do
+          get "/courses/#{course.id}/discussion_topics/#{assignment_topic.id}"
+          wait_for_ajax_requests
+
+          f('.al-trigger').click
+          wait_for_ajaximations
+
+          fj('.icon-rubric').click
+          wait_for_ajaximations
+
+          new_points = get_value(".criterion_points")
+          dialog = fj(".ui-dialog:visible")
+
+          set_value fj(".grading_rubric_checkbox:visible", dialog), true
+
+          fj(".save_button:visible", dialog).click
+          wait_for_ajaximations
+
+          fj(".ui-button:contains('Change'):visible").click
+          wait_for_ajaximations
+
+          fj(".save_button:visible", dialog).click
+          wait_for_ajaximations
+
+          fj(".discussion-title").should include_text(new_points)
+        end
+      end
+
       it "should escape correctly when posting an attachment" do
         get url
         message = "message that needs escaping ' \" & !@#^&*()$%{}[];: blah"
@@ -1113,7 +1142,7 @@ describe "discussions" do
           click_option("#assignment_group_category_id", group_cat.name)
 
           expect_new_page_load { f('.form-actions button[type=submit]').click }
-          topic.reload.assignment.group_category_id.should == group_cat.id
+          topic.reload.group_category_id.should == group_cat.id
         end
 
         it "should allow editing the peer review" do
@@ -1190,6 +1219,14 @@ describe "discussions" do
         confirm(:on)
         toggle(:off)
         confirm(:off)
+      end
+
+      it "should toggle checkboxes when clicking their labels" do
+        get url
+        wait_for_ajaximations
+        is_checked('input[type=checkbox][name=threaded]').should_not be_true
+        driver.execute_script(%{$('input[type=checkbox][name=threaded]').parent().click()})
+        is_checked('input[type=checkbox][name=threaded]').should be_true
       end
 
       context "locking" do

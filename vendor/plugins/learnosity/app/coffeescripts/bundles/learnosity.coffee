@@ -9,6 +9,9 @@ require [
       container = $(this).parent()
       lrnObject = LearnosityApp.init($(this).data("learnosity-request"))
       lrnActivities.push {object: lrnObject, container: container, id: $(this).data("question-id")}
+
+      # Set Learnosity question_holder divs to overflow:visible, otherwise some popup UI elements will be clipped
+      $(this).closest(".question_holder").css("overflow", "visible")
     refreshResponses = () =>
       $(lrnActivities).each ->
         lrnObject = this['object']

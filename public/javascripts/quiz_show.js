@@ -49,8 +49,12 @@ define([
     }
 
     showAnswerArrows();
-    inputMethods.disableInputs('[type=radio], [type=checkbox]');
-    inputMethods.setWidths();
+    // quiz_show is being pulled into ember show for now. only hide inputs
+    // when we don't have a .allow-inputs
+    if (!$('.allow-inputs').length) {
+      inputMethods.disableInputs('[type=radio], [type=checkbox]');
+      inputMethods.setWidths();
+    }
 
     $('#save_draft_form').on('submit', function(e) {
       e.preventDefault();

@@ -43,6 +43,11 @@
 #           "example": "http://canvas.example.edu/courses/1/quizzes/2?persist_healdess=1&force_user=1",
 #           "type": "string"
 #         },
+#         "preview_url": {
+#           "description": "A url that can be visited in the browser with a POST request to preview a quiz as the teacher. Only present when the user may grade",
+#           "example": "http://canvas.example.edu/courses/1/quizzes/2/take?preview=1",
+#           "type": "string"
+#         },
 #         "description": {
 #           "description": "the description of the quiz",
 #           "example": "This is a quiz on Act 3 of Hamlet",
@@ -191,6 +196,11 @@
 #           "example": "http://canvas.instructure.com/courses/1/speed_grader?assignment_id=1",
 #           "type": "string"
 #         },
+#         "quiz_extensions_url": {
+#           "description": "Link to endpoint to send extensions for this quiz.",
+#           "example": "http://canvas.instructure.com/courses/1/quizzes/2/quiz_extensions",
+#           "type": "string"
+#         },
 #         "permissions": {
 #           "$ref": "QuizPermissions",
 #           "description": "Permissions the user has for the quiz"
@@ -265,17 +275,26 @@ class Quizzes::QuizzesApiController < ApplicationController
   # @returns [Quiz]
   def index
     if authorized_action(@context, @current_user, :read) && tab_enabled?(@context.class::TAB_QUIZZES)
-      api_route = api_v1_course_quizzes_url(@context)
-      scope = Quizzes::Quiz.search_by_attribute(@context.quizzes.active, :title, params[:search_term])
-      json = if accepts_jsonapi?
-        unless is_authorized_action?(@context, @current_user, :manage_assignments)
-          scope = scope.available
+      updated = @context.quizzes.active.reorder('updated_at DESC').limit(1).pluck(:updated_at).first
+      cache_key = ['quizzes', @context.id, @context.quizzes.active.size,
+                   @current_user, updated, accepts_jsonapi?,
+                   params[:search_term], params[:page], params[:per_page]
+                  ].cache_key
+
+      json = Rails.cache.fetch(cache_key) do
+        api_route = api_v1_course_quizzes_url(@context)
+        scope = Quizzes::Quiz.search_by_attribute(@context.quizzes.active, :title, params[:search_term])
+        json = if accepts_jsonapi?
+          unless is_authorized_action?(@context, @current_user, :manage_assignments)
+            scope = scope.available
+          end
+          jsonapi_quizzes_json(scope: scope, api_route: api_route)
+        else
+          @quizzes = Api.paginate(scope, self, api_route)
+          quizzes_json(@quizzes, @context, @current_user, session)
         end
-        jsonapi_quizzes_json(scope: scope, api_route: api_route)
-      else
-        @quizzes = Api.paginate(scope, self, api_route)
-        quizzes_json(@quizzes, @context, @current_user, session)
       end
+
       render json: json
     end
   end
@@ -298,22 +317,22 @@ class Quizzes::QuizzesApiController < ApplicationController
   # @argument quiz[title] [String]
   #   The quiz title.
   #
-  # @argument quiz[description] [String]
+  # @argument quiz[description] [Optional, String]
   #   A description of the quiz.
   #
   # @argument quiz[quiz_type] ["practice_quiz"|"assignment"|"graded_survey"|"survey"]
   #   The type of quiz.
   #
-  # @argument quiz[assignment_group_id] [Integer]
+  # @argument quiz[assignment_group_id] [Optional, Integer]
   #   The assignment group id to put the assignment in. Defaults to the top
   #   assignment group in the course. Only valid if the quiz is graded, i.e. if
   #   quiz_type is "assignment" or "graded_survey".
   #
-  # @argument quiz[time_limit] [Integer]
+  # @argument quiz[time_limit] [Optional, Integer]
   #   Time limit to take this quiz, in minutes. Set to null for no time limit.
   #   Defaults to null.
   #
-  # @argument quiz[shuffle_answers] [Boolean]
+  # @argument quiz[shuffle_answers] [Optional, Boolean]
   #   If true, quiz answers for multiple choice questions will be randomized for
   #   each student. Defaults to false.
   #
@@ -345,7 +364,7 @@ class Quizzes::QuizzesApiController < ApplicationController
   #   Set to -1 for unlimited attempts.
   #   Defaults to 1.
   #
-  # @argument quiz[scoring_policy] [String, "keep_highest"|"keep_latest"]
+  # @argument quiz[scoring_policy] [Optional, String, "keep_highest"|"keep_latest"]
   #   Required and only valid if allowed_attempts > 1.
   #   Scoring policy for a quiz that students can take multiple times.
   #   Defaults to "keep_highest".
@@ -376,19 +395,19 @@ class Quizzes::QuizzesApiController < ApplicationController
   #   For no IP filter restriction, set to null.
   #   Defaults to null.
   #
-  # @argument quiz[due_at] [Timestamp]
+  # @argument quiz[due_at] [Optional, Timestamp]
   #   The day/time the quiz is due.
   #   Accepts times in ISO 8601 format, e.g. 2011-10-21T18:48Z.
   #
-  # @argument quiz[lock_at] [Timestamp]
+  # @argument quiz[lock_at] [Optional, Timestamp]
   #   The day/time the quiz is locked for students.
   #   Accepts times in ISO 8601 format, e.g. 2011-10-21T18:48Z.
   #
-  # @argument quiz[unlock_at] [Timestamp]
+  # @argument quiz[unlock_at] [Optional, Timestamp]
   #   The day/time the quiz is unlocked for students.
   #   Accepts times in ISO 8601 format, e.g. 2011-10-21T18:48Z.
   #
-  # @argument quiz[published] [Boolean]
+  # @argument quiz[published] [Optional, Boolean]
   #   Whether the quiz should have a draft state of published or unpublished.
   #   NOTE: If students have started taking the quiz, or there are any
   #   submissions for the quiz, you may not unpublish a quiz and will recieve
@@ -423,7 +442,11 @@ class Quizzes::QuizzesApiController < ApplicationController
     if authorized_action(@quiz, @current_user, :update)
       update_api_quiz(@quiz, params)
       if @quiz.valid?
-        render_json
+        if accepts_jsonapi?
+          head :no_content
+        else
+          render_json
+        end
       else
         errors = @quiz.errors.as_json[:errors]
         errors['published'] = errors.delete(:workflow_state) if errors.has_key?(:workflow_state)
@@ -469,11 +492,7 @@ class Quizzes::QuizzesApiController < ApplicationController
   private
 
   def render_json
-    if accepts_jsonapi?
-      render json: { quizzes: quizzes_json([@quiz], @context, @current_user, session) }
-    else
-      render json: quiz_json(@quiz, @context, @current_user, session)
-    end
+    render json: quiz_json(@quiz, @context, @current_user, session)
   end
 
   def quiz_params

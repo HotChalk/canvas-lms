@@ -283,6 +283,20 @@ describe Conversation do
         @unsubscribed_guy.conversations.unread.size.should eql 0
       end
 
+      it "should increment only for message participants" do
+        root_convo = Conversation.initiate([@sender, @recipient, @subscribed_guy], false)
+        root_convo.add_message(@sender, 'test')
+
+        @subscribed_guy.conversations.first.update_attribute(:workflow_state, "read")
+        @subscribed_guy.reload.unread_conversations_count.should eql 0
+        @subscribed_guy.conversations.unread.size.should eql 0
+
+        root_convo.add_message(@sender, 'test2', :only_users => [@recipient])
+
+        @subscribed_guy.reload.unread_conversations_count.should eql 0
+        @subscribed_guy.conversations.unread.size.should eql 0
+      end
+
       it "should decrement when deleting an unread conversation" do
         root_convo = Conversation.initiate([@sender, @unread_guy], false)
         root_convo.add_message(@sender, 'test')
@@ -492,100 +506,21 @@ describe Conversation do
       rconvo.update_attributes(:subscribed => true)
       rconvo.unread?.should be_true
     end
-  end
 
-  context "update_all_for_asset" do
-    it "should delete all messages if requested" do
-      asset = mock
-      asset_messages = mock
-      asset_messages.expects(:destroy_all).returns([])
-      asset.expects(:lock!).returns(true)
-      asset.expects(:conversation_messages).at_least_once.returns(asset_messages)
-      Conversation.update_all_for_asset asset, :delete_all => true
-    end
+    it "should only alert message participants" do
+      sender = user
+      recipients = 5.times.map{ user }
+      convo = Conversation.initiate([sender] + recipients, false)
+      convo.add_message(sender, 'test')
 
-    it "should not create conversations if only_existing is set" do
-      u1 = user
-      u2 = user
-      conversation = Conversation.initiate([u1, u2], true)
-      asset = Submission.new(:user => u1)
-      asset.expects(:conversation_groups).returns([[u1, u2]])
-      asset.expects(:lock!).returns(true)
-      asset.expects(:conversation_messages).at_least_once.returns([])
-      asset.expects(:conversation_message_data).returns({:created_at => Time.now.utc, :author => u1, :body => "asdf"})
-      Conversation.update_all_for_asset asset, :update_message => true, :only_existing => true
-      conversation.conversation_messages.size.should eql 1
-    end
+      recipient = recipients.last
+      rconvo = recipient.conversations.first
+      rconvo.unread?.should be_true
+      rconvo.update_attribute(:workflow_state, "read")
 
-    it "should undelete visible soft-deleted message participants" do
-      u1 = user
-      u2 = user
-      conversation = Conversation.initiate([u1, u2], true)
-      # a message to keep the conversation visible to u2 after remove_messages on the asset's message
-      previous_message = conversation.add_message(u1, 'hello')
-      message = conversation.add_message(u1, 'test message')
+      convo.add_message(sender, 'another test', :only_users => [recipients.first])
 
-      # make u1's conversation invisible so they won't be updated.
-      u1.conversations.first.remove_messages(previous_message, message)
-      u1.conversations.should be_empty
-
-      # u2 only deletes the asset's message, but conversations is still visible
-      u2.conversations.first.remove_messages(message)
-      u2.conversations.first.messages.size.should eql 1
-
-      asset = Submission.new(:user => u1)
-      asset.expects(:conversation_groups).returns([[u1, u2]])
-      asset.expects(:lock!).returns(true)
-      asset.expects(:conversation_messages).at_least_once.returns([message])
-      asset.expects(:conversation_message_data).returns({:created_at => Time.now.utc, :author => u1, :body => "asdf"})
-
-      Conversation.update_all_for_asset asset, :update_message => true, :only_existing => true
-      conversation.conversation_messages.size.should eql 2
-      u1.conversations.should be_empty
-      # but u1 should still have the soft-deleted participant
-      u1.all_conversations.first.all_messages.size.should eql 2
-      u2.conversations.first.messages.size.should eql 2
-    end
-
-    context "sharding" do
-      specs_require_sharding
-
-      it "should re-use conversations from another shard" do
-        u1 = @shard1.activate { user }
-        u2 = user
-        conversation = @shard2.activate { Conversation.initiate([u1, u2], true) }
-        asset = Submission.new(:user => u1)
-        asset.expects(:conversation_groups).returns([[u1, u2]])
-        asset.expects(:lock!).returns(true)
-        asset.expects(:conversation_messages).at_least_once.returns([])
-        asset.expects(:conversation_message_data).returns({:created_at => Time.now.utc, :author => u1, :body => "asdf"})
-        Conversation.update_all_for_asset asset, :update_message => true, :only_existing => true
-        conversation.conversation_messages.size.should eql 1
-      end
-    end
-
-    it "should create conversations by default" do
-      u1 = user
-      u2 = user
-      conversation = Conversation.initiate([u1, u2], true)
-      asset = Submission.new(:user => u1)
-      asset.expects(:conversation_groups).returns([[u1, u2]])
-      asset.expects(:lock!).returns(true)
-      asset.expects(:conversation_messages).at_least_once.returns([])
-      asset.expects(:conversation_message_data).returns({:created_at => Time.now.utc, :author => u1, :body => "asdf"})
-      Conversation.expects(:initiate).returns(conversation)
-      Conversation.update_all_for_asset asset, :update_message => true
-      conversation.conversation_messages.size.should eql 1
-    end
-
-    it "should delete obsolete messages" do
-      old_message = mock
-      old_message.expects(:destroy).returns(true)
-      asset = mock
-      asset.expects(:lock!).returns(true)
-      asset.expects(:conversation_groups).returns([])
-      asset.expects(:conversation_messages).at_least_once.returns([old_message])
-      Conversation.update_all_for_asset(asset, {})
+      rconvo.reload.unread?.should be_false
     end
   end
 
@@ -889,7 +824,7 @@ describe Conversation do
     end
 
     context "migration" do
-      before do
+      before :once do
         @u1 = student_in_course(:active_all => true).user
         @u2 = student_in_course(:active_all => true, :course => @course).user
         @course1 = @course
@@ -932,7 +867,7 @@ describe Conversation do
     end
 
     context 'tag updates' do
-      before(:each) do
+      before :once do
         @teacher    = teacher_in_course(:active_all => true).user
         @student    = student_in_course(:active_all => true, :course => @course).user
         @old_course = @course

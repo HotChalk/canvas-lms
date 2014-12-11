@@ -20,6 +20,9 @@ define [
     assignmentsLabel: I18n.t('assignments_label', 'Assignment Quizzes toggle quiz visibility')
     practicesLabel: I18n.t('practices_label', 'Practice Quizzes toggle quiz visibility')
     surveysLabel: I18n.t('surveys_label', 'Surveys toggle quiz visibility')
+    finishedPaginationLoading: false
+
+    environment: environment
 
     canManage: alias 'environment.canManage'
 
@@ -51,11 +54,9 @@ define [
 
     rawSurveys: filterBy 'model', 'isSurvey'
 
-    sortProperties: ['due_at']
+    sortProperties: [ 'sortSlug' ]
 
-    sortFunction: (x, y) ->
-      return 1 unless x
-      compare x, y
+    sortAscending: true
 
     disabledMessage: I18n.t('cant_unpublish_when_students_submit', "Can't unpublish if there are student submissions")
     actions:

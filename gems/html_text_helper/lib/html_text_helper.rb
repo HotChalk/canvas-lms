@@ -18,8 +18,9 @@
 require 'nokogiri'
 require 'cgi'
 require 'iconv'
-require 'active_support/all'
+require 'active_support/core_ext'
 require 'sanitize'
+require 'canvas_text_helper'
 
 module HtmlTextHelper
   def self.strip_tags(text)
@@ -65,8 +66,12 @@ module HtmlTextHelper
              node.children.map{|c| html_node_to_text(c, opts.merge(pre: true))}.join
            when 'img'
              src = node['src']
-             src = URI.join(opts[:base_url], src) if opts[:base_url]
-             node['alt'] ? "[#{node['alt']}](#{src})" : src
+             if src
+               src = URI.join(opts[:base_url], src) if opts[:base_url]
+               node['alt'] ? "[#{node['alt']}](#{src})" : src
+             else
+               ''
+             end
            when 'br'
              "\n"
            else
@@ -254,5 +259,9 @@ module HtmlTextHelper
 
   def self.unescape_html(text)
     CGI::unescapeHTML text
+  end
+
+  def self.strip_and_truncate(text, options={})
+    CanvasTextHelper::truncate_text(strip_tags(text), options)
   end
 end

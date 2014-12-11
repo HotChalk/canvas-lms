@@ -17,9 +17,10 @@
 #
 
 require File.expand_path(File.dirname(__FILE__) + '/../../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../../lib/canvas/draft_state_validations_spec.rb')
 
 describe Quizzes::Quiz do
-  before(:each) do
+  before :once do
     course
     @course.root_account.disable_feature!(:draft_state)
   end
@@ -56,9 +57,18 @@ describe Quizzes::Quiz do
 
   describe "#publish!" do
     it "sets the workflow state to available and save!s the quiz" do
-      quiz = Quizzes::Quiz.new(:title => "hello")
+      quiz = @course.quizzes.build :title => "hello"
       quiz.expects(:generate_quiz_data).once
-      quiz.expects(:save!).once
+      quiz.publish!
+      quiz.workflow_state.should == 'available'
+    end
+
+    it "regenerates quiz data when quiz published at date changes with draft state off" do
+      quiz = @course.quizzes.build :title => "hello"
+      quiz.workflow_state = 'available'
+      quiz.save!
+
+      quiz.expects(:generate_quiz_data).once
       quiz.publish!
       quiz.workflow_state.should == 'available'
     end
@@ -66,7 +76,7 @@ describe Quizzes::Quiz do
 
   describe "#unpublish!" do
     it "sets the workflow state to unpublished and save!s the quiz" do
-      quiz = Quizzes::Quiz.new(:title => "hello")
+      quiz = @course.quizzes.build :title => "hello"
       quiz.expects(:save!).once
       quiz.publish!
       quiz.workflow_state.should == 'available'
@@ -93,6 +103,8 @@ describe Quizzes::Quiz do
       quiz.published?.should be_false
     end
   end
+
+  it_should_behave_like 'Canvas::DraftStateValidations'
 
   it "should flag as edited if shuffle answers changes to off" do
     q = @course.quizzes.create!(:title => "new quiz")
@@ -212,9 +224,9 @@ describe Quizzes::Quiz do
     q.assignment.should eql(a)
     a.reload
     a.quiz.should eql(q)
-    q.points_possible.should eql(10.0)
+    q.title.should == "some quiz"
     q.assignment.submission_types.should eql("online_quiz")
-    q.assignment.points_possible.should eql(10.0)
+    q.assignment.title.should == "some quiz"
 
     g = @course.assignment_groups.create!(:name => "new group")
     q.assignment_group_id = g.id
@@ -235,10 +247,9 @@ describe Quizzes::Quiz do
 
   it "shouldn't create a new assignment on every edit" do
     a_count = Assignment.count
-    a = @course.assignments.create!(:title => "some assignment", :points_possible => 5)
-    a.points_possible.should eql(5.0)
+    a = @course.assignments.create!(:title => "some assignment")
     a.submission_types.should_not eql("online_quiz")
-    q = @course.quizzes.build(:title => "some quiz", :points_possible => 10)
+    q = @course.quizzes.build(:title => "some quiz")
     q.workflow_state = 'available'
     q.assignment_id = a.id
     q.save
@@ -249,9 +260,9 @@ describe Quizzes::Quiz do
     q.assignment.should eql(a)
     a.reload
     a.quiz.should eql(q)
-    q.points_possible.should eql(10.0)
+    q.title.should == "some quiz"
+    a.title.should == 'some quiz'
     a.submission_types.should eql("online_quiz")
-    a.points_possible.should eql(10.0)
     Assignment.count.should eql(a_count + 1)
   end
 
@@ -296,9 +307,7 @@ describe Quizzes::Quiz do
     q.assignment.should eql(a)
     a.reload
     a.quiz.should eql(q)
-    q.points_possible.should eql(10.0)
     q.assignment.submission_types.should eql("online_quiz")
-    q.assignment.points_possible.should eql(10.0)
     q.quiz_type = "practice_quiz"
     q.save
     q.assignment_id.should eql(nil)
@@ -324,12 +333,8 @@ describe Quizzes::Quiz do
   end
 
   context "when draft_states are enabled" do
-    before :each do
+    before :once do
       @course.root_account.enable_feature!(:draft_state)
-    end
-
-    after :each do
-      @course.root_account.reset_feature!(:draft_state)
     end
 
     it "should always have an assignment" do
@@ -351,6 +356,24 @@ describe Quizzes::Quiz do
       q.assignment_group_id.should eql(g.id)
       q.publish!
       q.assignment.published?.should be true
+    end
+
+    it "should send a message when quiz is published" do
+      Notification.create!(:name => 'Assignment Created')
+      @course.offer
+
+      q = @course.quizzes.build(:title => "some quiz", :quiz_type => "assignment")
+      q.save!
+      q.should_not be_available
+
+      q.assignment_id.should_not be_nil
+      q.assignment.published?.should be false
+      q.assignment.expects(:save_without_broadcasting!).never
+
+      q.publish!
+
+      q.assignment.published?.should be true
+      q.assignment.messages_sent.should include('Assignment Created')
     end
   end
 
@@ -408,7 +431,6 @@ describe Quizzes::Quiz do
     q = @course.quizzes.create!(:title => "new quiz")
     q.quiz_questions.create!
     q.quiz_questions.create!
-    q.save
     q.publish!
 
     q.reload.available_question_count.should eql(2)
@@ -598,7 +620,7 @@ describe Quizzes::Quiz do
       lock_at = 1.day.ago
       u = User.create!(:name => "Fred Colon")
       q = @course.quizzes.create!(:title => "locked yesterday", :lock_at => lock_at)
-      sub = q.find_or_create_submission(u, nil, 'settings_only')
+      sub = Quizzes::SubmissionManager.new(q).find_or_create_submission(u, nil, 'settings_only')
       sub.manually_unlocked = true
       sub.save!
       sub2 = q.generate_submission(u)
@@ -677,7 +699,7 @@ describe Quizzes::Quiz do
     q.quiz_submissions.size.should == 0
 
     # create a graded submission
-    q.generate_submission(User.create!(:name => "some_user")).grade_submission
+    Quizzes::SubmissionGrader.new(q.generate_submission(User.create!(:name => "some_user"))).grade_submission
     q.reload
 
     q.quiz_submissions.size.should == 1
@@ -700,7 +722,7 @@ describe Quizzes::Quiz do
   end
 
   describe "Quiz with QuestionGroup pointing to QuestionBank" do
-    before(:each) do
+    before(:once) do
       course_with_student
       @bank = @course.assessment_question_banks.create!(:title=>'Test Bank')
       @bank.assessment_questions.create!(:question_data => {'name' => 'Group Question 1', :question_type=>'essay_question', :question_text=>'gq1', 'answers' => []})
@@ -839,7 +861,7 @@ describe Quizzes::Quiz do
   end
 
   describe '#has_student_submissions?' do
-    before do
+    before :once do
       course = Course.create!
       @quiz = Quizzes::Quiz.create!(:context => course)
       @user = User.create!
@@ -887,18 +909,20 @@ describe Quizzes::Quiz do
   end
 
   describe "linking overrides with assignments" do
-    let(:course) { course_model }
-    let(:quiz) { quiz_model(:course => course, :due_at => 5.days.from_now).reload }
-    let(:override) { assignment_override_model(:quiz => quiz) }
-    let(:override_student) { override.assignment_override_students.build }
-
-    before do
+    let_once(:course) { course_model }
+    let_once(:quiz) { quiz_model(:course => course, :due_at => 5.days.from_now).reload }
+    let_once(:override) do
+      override = assignment_override_model(:quiz => quiz)
       override.override_due_at(7.days.from_now)
       override.save!
-
+      override
+    end
+    let_once(:override_student) do
       student_in_course(:course => course)
+      override_student = override.assignment_override_students.build
       override_student.user = @student
       override_student.save!
+      override_student
     end
 
     context "before the quiz has an assignment" do
@@ -924,10 +948,10 @@ describe Quizzes::Quiz do
     end
 
     context "once the quiz is published" do
-      before do
+      before :once do
         # publish the quiz
         quiz.workflow_state = 'available'
-        quiz.save
+        quiz.save!
         override.reload
         override_student.reload
         quiz.assignment.reload
@@ -1150,9 +1174,40 @@ describe Quizzes::Quiz do
     end
   end
 
+  describe '#needs_republish?' do
+    subject { @course.quizzes.create!(title: 'Test Quiz') }
+
+    it 'should be true if publish! was manually called' do
+      subject.needs_republish?.should be_false
+
+      # intercepting the call to save! and running our expectations there
+      # because by the time it's saved, #needs_republish? will be reset
+      subject.expects(:save!).with { |*args|
+        subject.needs_republish?.should be_true
+        true
+      }
+
+      subject.publish!
+    end
+
+    context 'with draft-state' do
+      before do
+        subject.context.root_account.enable_feature!(:draft_state)
+      end
+
+      it 'should be true if the workflow_state has changed' do
+        subject.workflow_state = 'deleted'
+        subject.save!
+        subject.reload
+        subject.workflow_state = 'available'
+        subject.needs_republish?.should be_true
+      end
+    end
+  end
+
   describe "#current_regrade" do
 
-    before { @quiz = @course.quizzes.create! title: 'Test Quiz' }
+    before(:once) { @quiz = @course.quizzes.create! title: 'Test Quiz' }
 
     it "returns the regrade for the quiz and quiz version" do
       course_with_teacher_logged_in(active_all: true, course: @course)
@@ -1210,7 +1265,7 @@ describe Quizzes::Quiz do
   end
 
   describe "#questions_regraded_since" do
-    before do
+    before :once do
       course_with_teacher_logged_in(active_all: true)
       @quiz = @course.quizzes.create!
     end
@@ -1439,7 +1494,7 @@ describe Quizzes::Quiz do
 
   context "permissions" do
 
-    before do
+    before :once do
       @course.workflow_state = 'available'
       @course.save!
       course_quiz(course: @course)
@@ -1451,22 +1506,22 @@ describe Quizzes::Quiz do
 
       context "draft state enabled" do
 
-        before do
+        before :once do
           @course.account.enable_feature!(:draft_state)
         end
 
         it "doesn't let student read/submit quizzes that are unpublished" do
           @quiz.unpublish!.reload
-          @quiz.grants_right?(@student, nil, :read).should == false
-          @quiz.grants_right?(@student, nil, :submit).should == false
-          @quiz.grants_right?(@teacher, nil, :read).should == true
+          @quiz.grants_right?(@student, :read).should == false
+          @quiz.grants_right?(@student, :submit).should == false
+          @quiz.grants_right?(@teacher, :read).should == true
         end
 
         it "does let students read/submit quizzes that are published" do
           @quiz.publish!
-          @quiz.grants_right?(@student, nil, :read).should == true
-          @quiz.grants_right?(@student, nil, :submit).should == true
-          @quiz.grants_right?(@teacher, nil, :read).should == true
+          @quiz.grants_right?(@student, :read).should == true
+          @quiz.grants_right?(@student, :submit).should == true
+          @quiz.grants_right?(@teacher, :read).should == true
         end
 
       end
@@ -1476,19 +1531,19 @@ describe Quizzes::Quiz do
         it "always lets students view the quiz, even if not available" do
           @quiz.workflow_state = 'edited'
           @quiz.save!
-          @quiz.grants_right?(@student, nil, :read).should == true
+          @quiz.grants_right?(@student, :read).should == true
           @quiz.workflow_state = 'available'
           @quiz.save!
-          @quiz.grants_right?(@student, nil, :read).should == true
+          @quiz.grants_right?(@student, :read).should == true
         end
 
         it "only allows submitting for available assignments" do
           @quiz.workflow_state = 'edited'
           @quiz.save!
-          @quiz.grants_right?(@student, nil, :submit).should == false
+          @quiz.grants_right?(@student, :submit).should == false
           @quiz.workflow_state = 'available'
           @quiz.save!
-          @quiz.grants_right?(@student, nil, :submit).should == true
+          @quiz.grants_right?(@student, :submit).should == true
         end
       end
     end
@@ -1496,7 +1551,7 @@ describe Quizzes::Quiz do
 
   describe "#available?" do
 
-    before do
+    before :once do
       @quiz = @course.quizzes.create!(title: 'Test Quiz')
     end
 
@@ -1566,7 +1621,7 @@ describe Quizzes::Quiz do
   end
 
   context 'with versioning' do
-    let(:quiz) { @course.quizzes.create! title: 'Test Quiz' }
+    let_once(:quiz) { @course.quizzes.create! title: 'Test Quiz' }
     describe "#versions" do
       it "finds the versions of both namespaced and non-namespaced quizzes" do
         quiz.title = "Renamed Test Quiz"

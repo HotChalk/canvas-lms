@@ -21,7 +21,7 @@ class AppointmentGroup < ActiveRecord::Base
   include TextHelper
   include HtmlTextHelper
 
-  has_many :appointments, opts = {:class_name => 'CalendarEvent', :as => :context, :order => :start_at, :include => :child_events, :conditions => "calendar_events.workflow_state <> 'deleted'"}
+  has_many :appointments, opts = {:class_name => 'CalendarEvent', :as => :context, :order => :start_at, :include => :child_events, :conditions => "calendar_events.workflow_state <> 'deleted'", :inverse_of => :context }
   # has_many :through on the same table does not alias columns in condition
   # strings, just hashes. we create this helper association to ensure
   # appointments_participants conditions have the correct table alias
@@ -30,6 +30,14 @@ class AppointmentGroup < ActiveRecord::Base
   has_many :appointments_participants, :through => :_appointments, :source => :child_events, :conditions => "calendar_events.workflow_state <> 'deleted'", :order => :start_at
   has_many :appointment_group_contexts
   has_many :appointment_group_sub_contexts, :include => :sub_context
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :title, :description, :location_name, :location_address, :context_id, :context_type, :context_code, :sub_context_id, :sub_context_type,
+    :sub_context_code, :workflow_state, :created_at, :updated_at, :start_at, :end_at, :participants_per_appointment, :max_appointments_per_participant,
+    :min_appointments_per_participant, :participant_visibility
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [:appointments, :appointment_participants, :appointment_group_contexts, :appointment_group_sub_contexts]
 
   def context
     appointment_group_contexts.first.context
@@ -219,19 +227,19 @@ class AppointmentGroup < ActiveRecord::Base
         )
         COND
   }
-  scope :current, lambda { where("end_at>=?", Time.zone.now.midnight) }
-  scope :current_or_undated, lambda { where("end_at>=? OR end_at IS NULL", Time.zone.now.midnight) }
+  scope :current, -> { where("end_at>=?", Time.zone.now.midnight) }
+  scope :current_or_undated, -> { where("end_at>=? OR end_at IS NULL", Time.zone.now.midnight) }
   scope :intersecting, lambda { |start_date, end_date| where("start_at<? AND end_at>?", end_date, start_date) }
 
   set_policy do
-    given { |user, session|
+    given { |user|
       active? && participant_for(user)
     }
     can :reserve and can :read
 
-    given { |user, session|
+    given { |user|
       next false if deleted?
-      next false unless active_contexts.all? { |c| c.grants_right? user, nil, :manage_calendar }
+      next false unless active_contexts.all? { |c| c.grants_right? user, :manage_calendar }
       if appointment_group_sub_contexts.present? && appointment_group_sub_contexts.first.sub_context_type == 'CourseSection'
         sub_context_ids = appointment_group_sub_contexts.map(&:sub_context_id)
         user_visible_sections = sub_context_ids & contexts.map { |c|
@@ -244,8 +252,8 @@ class AppointmentGroup < ActiveRecord::Base
     can :manage and can :manage_calendar and can :read and can :read_appointment_participants and
     can :create and can :update and can :delete
 
-    given { |user, session|
-      participant_visibility == 'protected' && grants_right?(user, session, :reserve)
+    given { |user|
+      participant_visibility == 'protected' && grants_right?(user, :reserve)
     }
     can :read_appointment_participants
   end

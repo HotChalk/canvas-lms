@@ -91,7 +91,7 @@ $(document).ready(function() {
         });
         $list.find(".channel.blank").before($channel.show());
       }
-      if(!path) { return false; }
+      if(!path) { $.flashError( I18n.t('errors.existing_email', "Email address already used") ); return false; }
       $("#communication_channels").dialog('close');
       $channel.loadingImage({image_size: 'small'});
       return $channel;

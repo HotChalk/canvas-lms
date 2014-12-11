@@ -6,6 +6,7 @@ define [
   'jquery'
   'wikiSidebar'
   'jst/assignments/EditView'
+  'compiled/userSettings'
   'compiled/models/TurnitinSettings'
   'compiled/views/assignments/TurnitinSettingsDialog'
   'compiled/fn/preventDefault'
@@ -13,12 +14,12 @@ define [
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/jquery/toggleAccessibly'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
   'jqueryui/dialog'
   'jquery.toJSON'
   'compiled/jquery.rails_flash_notifications'
 ], (INST, I18n, ValidatedFormView, _, $, wikiSidebar, template,
-TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
+userSettings, TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
 AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
 
   class EditView extends ValidatedFormView
@@ -89,6 +90,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
     initialize: (options) ->
       super
       @assignment = @model
+      @setDefaultsIfNew()
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', -> window.location = @get 'html_url'
       @gradingTypeSelector.on 'change:gradingType', @handleGradingTypeChange
@@ -96,6 +98,30 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
     handleCancel: (ev) =>
       ev.preventDefault()
       window.location = ENV.CANCEL_TO if ENV.CANCEL_TO?
+
+    settingsToCache:() =>
+      ["assignment_group_id","grading_type","submission_type","submission_types",
+       "points_possible","allowed_extensions","peer_reviews","peer_review_count",
+       "automatic_peer_reviews","group_category_id","grade_group_students_individually",
+       "turnitin_enabled"]
+
+    setDefaultsIfNew: =>
+      if @assignment.isNew()
+        if userSettings.contextGet('new_assignment_settings')
+          _.each(@settingsToCache(), (setting) =>
+            setting_from_cache = userSettings.contextGet('new_assignment_settings')[setting]
+            if setting_from_cache == "1" || setting_from_cache == "0"
+              setting_from_cache = parseInt setting_from_cache
+            if setting_from_cache && (!@assignment.get(setting) || @assignment.get(setting)?.length == 0)
+              @assignment.set(setting, setting_from_cache)
+          )
+        else
+          @assignment.set('submission_type','online')
+          @assignment.set('submission_types',['online'])
+
+    cacheAssignmentSettings: =>
+      new_assignment_settings = _.pick(@getFormData(), @settingsToCache()...)
+      userSettings.contextSet('new_assignment_settings', new_assignment_settings)
 
     showTurnitinDialog: (ev) =>
       ev.preventDefault()
@@ -145,7 +171,9 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
       data = @assignment.toView()
       _.extend data,
         kalturaEnabled: ENV?.KALTURA_ENABLED or false
+        postToSISEnabled: ENV?.POST_TO_SIS or false
         isLargeRoster: ENV?.IS_LARGE_ROSTER or false
+        differentiatedAssignmnetsEnabled: ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED or false
         submissionTypesFrozen: _.include(data.frozenAttributes, 'submission_types')
 
     _attachEditorToDescription: =>
@@ -171,17 +199,24 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
       unless ENV?.IS_LARGE_ROSTER
         data = @groupCategorySelector.filterFormData data
       # should update the date fields.. pretty hacky.
+      unless data.post_to_sis
+        data.post_to_sis = false
       @dueDateOverrideView.updateOverrides()
       defaultDates = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDates?.get('lock_at') or null
       data.unlock_at = defaultDates?.get('unlock_at') or null
       data.due_at = defaultDates?.get('due_at') or null
+      if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       return data
 
     submit: (event) =>
       event.preventDefault()
       event.stopPropagation()
+
+      @cacheAssignmentSettings()
+
       @dueDateOverrideView.updateOverrides()
       if @dueDateOverrideView.containsSectionsWithoutOverrides()
         sections = @dueDateOverrideView.sectionsWithoutOverrides()
@@ -189,7 +224,6 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly) ->
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
           success: =>
-            @model.setNullDates()
             ValidatedFormView::submit.call(this)
         missingDateDialog.cancel = (e) ->
           missingDateDialog.$dialog.dialog('close').remove()

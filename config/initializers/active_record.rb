@@ -196,24 +196,6 @@ class ActiveRecord::Base
     false
   end
 
-  def self.clear_cached_contexts
-    @@cached_contexts = {}
-    @@cached_permissions = {}
-  end
-
-  def cached_context_grants_right?(user, session, *permissions)
-    @@cached_contexts ||= {}
-    context_key = "#{self.context_type}_#{self.context_id}" if self.respond_to?(:context_type)
-    context_key ||= "Course_#{self.course_id}"
-    @@cached_contexts[context_key] ||= self.context if self.respond_to?(:context)
-    @@cached_contexts[context_key] ||= self.course
-    @@cached_permissions ||= {}
-    key = [context_key, (user ? user.id : nil)].cache_key
-    @@cached_permissions[key] = nil if session && session[:session_affects_permissions]
-    @@cached_permissions[key] ||= @@cached_contexts[context_key].grants_rights?(user, session, nil).keys
-    (@@cached_permissions[key] & Array(permissions).flatten).any?
-  end
-
   def cached_context_short_name
     if self.respond_to?(:context)
       code = self.respond_to?(:context_code) ? self.context_code : self.context.asset_string
@@ -306,7 +288,7 @@ class ActiveRecord::Base
         self.filter_attributes_for_user(obj_hash, options[:permissions][:user], options[:permissions][:session])
       end
       unless options[:permissions][:include_permissions] == false
-        permissions_hash = self.grants_rights?(options[:permissions][:user], options[:permissions][:session], *options[:permissions][:policies])
+        permissions_hash = self.rights_status(options[:permissions][:user], options[:permissions][:session], *options[:permissions][:policies])
         if self.respond_to?(:serialize_permissions)
           permissions_hash = self.serialize_permissions(permissions_hash, options[:permissions][:user], options[:permissions][:session])
         end
@@ -430,7 +412,7 @@ class ActiveRecord::Base
       :group => expression,
       :order => expression
     )
-    # mysql gives us date keys, sqlite/postgres don't 
+    # mysql gives us date keys, sqlite/postgres don't
     return result if result.keys.first.is_a?(Date)
     Hash[result.map { |date, count|
       [Time.zone.parse(date).to_date, count]
@@ -522,14 +504,14 @@ class ActiveRecord::Base
   if CANVAS_RAILS2
   def self.find_in_batches_with_usefulness(options = {}, &block)
     # already in a transaction (or transactions don't matter); cursor is fine
-    if (connection.adapter_name == 'PostgreSQL' && (Shackles.environment == :slave || connection.open_transactions > (Rails.env.test? ? 1 : 0))) && !options[:start]
+    if (connection.adapter_name == 'PostgreSQL' && (connection.readonly? || connection.open_transactions > (Rails.env.test? ? 1 : 0))) && !options[:start]
       shard = scope(:find, :shard)
       if shard
         shard.activate(shard_category) { find_in_batches_with_cursor(options, &block) }
       else
         find_in_batches_with_cursor(options, &block)
       end
-    elsif scope(:find, :order) || scope(:find, :group) || scope(:find, :select).to_s =~ /DISTINCT/i
+    elsif scope(:find, :order) || scope(:find, :group) || scope(:find, :select).to_s =~ /DISTINCT/i || scope(:find, :select) && !scope(:find, :select).include?(primary_key)
       raise ArgumentError.new("GROUP and ORDER are incompatible with :start") if options[:start]
       shard = scope(:find, :shard)
       if shard
@@ -576,11 +558,12 @@ class ActiveRecord::Base
 
   def self.find_in_batches_with_temp_table(options = {})
     batch_size = options[:batch_size] || 1000
-    table = "#{table_name}_find_in_batches_temporary_table"
     scope = scope(:find)
     scope = scope ? scope.dup : {}
     scope.delete(:include)
     sql = with_exclusive_scope(find: scope) { scoped.to_sql }
+    table = "#{table_name}_find_in_batches_temp_table_#{sql.hash.abs.to_s(36)}"
+    table = table[-64..-1] if table.length > 64
     if %w{MySQL Mysql2}.include?(connection.adapter_name)
       table_options = " (temp_primary_key MEDIUMINT NOT NULL AUTO_INCREMENT PRIMARY KEY)"
     end
@@ -899,9 +882,9 @@ class ActiveRecord::Base
 
   if Rails.version < '4'
     if CANVAS_RAILS2
-      named_scope :none, lambda { where("?", false) }
+      named_scope :none, -> { where("?", false) }
     else
-      scope :none, lambda { {:conditions => ["?", false]} }
+      scope :none, -> { {:conditions => ["?", false]} }
     end
   end
 end
@@ -916,6 +899,15 @@ unless defined? OpenDataExport
     # allow an exportable option that we don't actually do anything with, because our open-source build may not contain OpenDataExport
     ActiveRecord::Associations::Builder::Association.class_eval do
       ([self] + self.descendants).each { |klass| klass.valid_options << :exportable }
+    end
+  end
+end
+
+if defined? ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
+  ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.class_eval do
+    def readonly?(table = nil, column = nil)
+      return @readonly unless @readonly.nil?
+      @readonly = (select_value("SELECT pg_is_in_recovery();") == "t")
     end
   end
 end
@@ -965,9 +957,9 @@ unless CANVAS_RAILS2
   ActiveRecord::Relation.class_eval do
     def find_in_batches_with_usefulness(options = {}, &block)
       # already in a transaction (or transactions don't matter); cursor is fine
-      if (connection.adapter_name == 'PostgreSQL' && (Shackles.environment == :slave || connection.open_transactions > (Rails.env.test? ? 1 : 0))) && !options[:start]
+      if (connection.adapter_name == 'PostgreSQL' && (connection.readonly? || connection.open_transactions > (Rails.env.test? ? 1 : 0))) && !options[:start]
         self.activate { find_in_batches_with_cursor(options, &block) }
-      elsif order_values.any? || group_values.any? || select_values.to_s =~ /DISTINCT/i || uniq_value
+      elsif order_values.any? || group_values.any? || select_values.to_s =~ /DISTINCT/i || uniq_value || select_values.present? && !select_values.map(&:to_s).include?(primary_key)
         raise ArgumentError.new("GROUP and ORDER are incompatible with :start") if options[:start]
         self.activate { find_in_batches_with_temp_table(options, &block) }
       else
@@ -1004,8 +996,10 @@ unless CANVAS_RAILS2
 
     def find_in_batches_with_temp_table(options = {})
       batch_size = options[:batch_size] || 1000
-      table = "#{table_name}_find_in_batches_temporary_table"
-      connection.execute "CREATE TEMPORARY TABLE #{table} AS #{to_sql}"
+      sql = to_sql
+      table = "#{table_name}_find_in_batches_temp_table_#{sql.hash.abs.to_s(36)}"
+      table = table[-64..-1] if table.length > 64
+      connection.execute "CREATE TEMPORARY TABLE #{table} AS #{sql}"
       begin
         index = "temp_primary_key"
         case connection.adapter_name
@@ -1028,10 +1022,7 @@ unless CANVAS_RAILS2
         end
 
         includes = includes_values
-        sql = "SELECT *
-             FROM #{table}
-             ORDER BY #{index} ASC
-             LIMIT #{batch_size}"
+        sql = "SELECT * FROM #{table} ORDER BY #{index} LIMIT #{batch_size}"
         klass.send(:with_exclusive_scope) do
           batch = klass.find_by_sql(sql)
           while !batch.empty?
@@ -1173,6 +1164,26 @@ unless CANVAS_RAILS2
       end
     end
   end
+
+  ActiveRecord::Persistence.module_eval do
+    def nondefaulted_attribute_names
+      attribute_names.select do |attr|
+        read_attribute(attr) != column_for_attribute(attr).try(:default)
+      end
+    end
+
+    def create
+      attributes_values = arel_attributes_values(!id.nil?, true, nondefaulted_attribute_names)
+
+      new_id = self.class.unscoped.insert attributes_values
+
+      self.id ||= new_id if self.class.primary_key
+
+      ActiveRecord::IdentityMap.add(self) if ActiveRecord::IdentityMap.enabled?
+      @new_record = false
+      id
+    end
+  end
 end
 
 ActiveRecord::ConnectionAdapters::AbstractAdapter.class_eval do
@@ -1226,7 +1237,7 @@ class ActiveRecord::ConnectionAdapters::AbstractAdapter
   end
 
   def after_transaction_commit(&block)
-    if open_transactions <= (Rails.env.test? ? 1 : 0)
+    if open_transactions <= base_transaction_level
       block.call
     else
       @after_transaction_commit ||= []
@@ -1251,8 +1262,14 @@ class ActiveRecord::ConnectionAdapters::AbstractAdapter
   def release_savepoint_with_callbacks
     release_savepoint_without_callbacks
     return unless Rails.env.test?
-    return if open_transactions > 1
+    return if open_transactions > base_transaction_level
     run_transaction_commit_callbacks
+  end
+
+  def base_transaction_level
+    return 0 unless Rails.env.test?
+    return 1 unless defined?(Onceler)
+    Onceler.base_transactions
   end
 
   def rollback_db_transaction_with_callbacks
@@ -1884,8 +1901,21 @@ end
 
 # shims so that AR objects serialized under rails 2 function under rail s3
 if CANVAS_RAILS2
+  class ActiveSupport::Cache::Entry
+    def value
+      Marshal.load(@compressed ? Zlib::Inflate.inflate(@value) : @value) if @value
+    end
+  end
+
   ActiveSupport::Cache::Store.subclasses.map(&:constantize).each do |subclass|
     subclass.class_eval do
+      def read_with_rails3_shim(*args)
+        result = read_without_rails3_shim(*args)
+        result = result.value if ActiveSupport::Cache::Entry === result
+        result
+      end
+      alias_method_chain :read, :rails3_shim
+
       def delete_with_rails3_shim(key, options = nil)
         r1 = delete_without_rails3_shim(key, options)
         r2 = delete_without_rails3_shim("rails3:#{key}", options)

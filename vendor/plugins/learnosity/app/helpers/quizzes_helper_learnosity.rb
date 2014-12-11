@@ -17,6 +17,11 @@ module QuizzesHelperLearnosity
   end
 
   def learnosity_question(options)
+    learnosity_json(options)
+    render :partial => 'quizzes/quizzes/learnosity_question'
+  end
+
+  def learnosity_json(options)
     question = hash_get(options, :question)
     question_text = hash_get(question, :question_text)
     answers = hash_get(options, :answers)
@@ -31,7 +36,7 @@ module QuizzesHelperLearnosity
     if ['resume', 'review'].include? state
       @learnosity_request[:responses] = answers || {}
     end
-    render :partial => 'quizzes/quizzes/learnosity_question'
+    @learnosity_request
   end
 
   def learnosity_request

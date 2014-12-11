@@ -1,12 +1,11 @@
 /*!
- * jQuery UI Effects Highlight 1.9.2
- * http://jqueryui.com
+ * jQuery UI Effects Highlight @VERSION
  *
- * Copyright 2012 jQuery Foundation and other contributors
- * Released under the MIT license.
+ * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)
+ * Dual licensed under the MIT or GPL Version 2 licenses.
  * http://jquery.org/license
  *
- * http://api.jqueryui.com/highlight-effect/
+ * http://docs.jquery.com/UI/Effects/Highlight
  *
  * Depends:
  *	jquery.ui.effect.js
@@ -29,7 +28,7 @@ $.effects.effect.highlight = function( o, done ) {
 	}
 
 	$.effects.save( elem, props );
-
+	
 	elem
 		.show()
 		.css({

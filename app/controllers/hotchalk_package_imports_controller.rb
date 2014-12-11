@@ -19,16 +19,24 @@
 class HotchalkPackageImportsController < ApplicationController
 
   def index
-    if Canvas::Plugin.find(:hotchalk).enabled?
-      base_url = PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
-      integration_key = PluginSetting.settings_for_plugin(:hotchalk)['cl_integration_key']
-      uri = URI.parse("https://#{base_url}/clws/integration/packages")
-      request = Net::HTTP::Get.new(uri.path)
-      request.add_field("Shared-Key", integration_key) unless integration_key.blank?
-      response = Net::HTTP.new(uri.host).start do |http|
-        http.request(request)
+    plugin = Canvas::Plugin.find(:hotchalk)
+    if plugin.enabled?
+      begin
+        account_settings = plugin.settings[:account_external_urls][params[:root_account_id]]
+        base_url = account_settings['cl_base_url']
+        integration_key = account_settings['cl_integration_key']
+        raise "Invalid Hotchalk plugin settings for account ID #{params[:root_account_id]}" if base_url.blank? || integration_key.blank?
+        uri = URI.parse("https://#{base_url}/clws/integration/packages")
+        request = Net::HTTP::Get.new(uri.path)
+        request.add_field("Shared-Key", integration_key) unless integration_key.blank?
+        response = Net::HTTP.new(uri.host).start do |http|
+          http.request(request)
+        end
+        render :json => response.body
+      rescue => e
+        logger.error "Unable to fetch Hotchalk package import list", e
+        render(:json => { :message => t('invalid_account_external_urls', "Invalid Hotchalk plugin settings for this account") }, :status => :bad_request)
       end
-      render :json => response.body
     end
   end
 

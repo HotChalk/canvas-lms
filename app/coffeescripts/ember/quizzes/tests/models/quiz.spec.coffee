@@ -49,10 +49,10 @@ define [
   test "tScoringPolicy", ->
 
     run -> quiz.set 'scoringPolicy', 'keep_highest'
-    equal quiz.get('tScoringPolicy'), I18n.t('highest', 'highest')
+    equal quiz.get('tScoringPolicy'), I18n.t('keep_highest', 'Highest')
 
     run -> quiz.set 'scoringPolicy', 'keep_latest'
-    equal quiz.get('tScoringPolicy'), I18n.t('latest', 'latest')
+    equal quiz.get('tScoringPolicy'), I18n.t('keep_latest', 'Latest')
 
   test "tQuizType", ->
 
@@ -63,7 +63,7 @@ define [
       equal quiz.get('tQuizType'), tQuizType
 
     setQuizType 'assignment'
-    assertTQuizType I18n.t('assignment', 'Assignment')
+    assertTQuizType I18n.t('graded_quiz', 'Graded Quiz')
 
     setQuizType 'survey'
     assertTQuizType I18n.t('survey', 'Survey')
@@ -108,4 +108,30 @@ define [
 
     run -> quiz.set "hideResults", 'until_after_last_attempt'
     ok quiz.get("showResultsAfterLastAttempt")
+
+  test "sortSlug", ->
+    date = new Date()
+    run ->
+      quiz.set 'quizType', 'assignment'
+      quiz.set 'dueAt', date
+      quiz.set 'title', 'ohi'
+    equal quiz.get('sortSlug'), date.toISOString() + 'ohi', 'uses dueAt when isAssignment'
+
+    date = new Date()
+    run ->
+      quiz.set 'lockAt', date
+      quiz.set 'quizType', 'graded_survey'
+
+    equal quiz.get('sortSlug'), date.toISOString() + 'ohi', 'uses lockAt when not isAssignment'
+
+    run -> quiz.set 'lockAt', null
+
+    equal quiz.get('sortSlug'), App.Quiz.SORT_LAST + 'ohi', 'uses a sort_last token when no date'
+
+  test "allDates", ->
+    date = new Date()
+    run ->
+      quiz.set 'lockAt', date
+      equal quiz.get("allDates").length, 1, 'builds the date'
+
 

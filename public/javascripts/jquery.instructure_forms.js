@@ -28,7 +28,7 @@ define([
   'jquery.instructure_misc_helpers' /* /\$\.uniq/ */,
   'jquery.instructure_misc_plugins' /* /\.log\(/ */,
   'compiled/jquery.rails_flash_notifications',
-  'redactor.editor_box' /* editorBox */,
+  'ckeditor.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */
 ], function(INST, I18n, $, _, FakeXHR) {
 
@@ -962,8 +962,8 @@ define([
       if(!$obj || $obj.length === 0 || name == "general") {
         $obj = $form;
       }
-      if($obj[0].tagName == 'TEXTAREA' && $obj.data('redactor')) {
-        $obj = $obj.redactor('getEditor');
+      if($obj[0].tagName == 'TEXTAREA' && $obj.next('.mceEditor').length) {
+        $obj = $obj.next().find(".mceIframeContainer");
       }
       errorDetails[name] = {object: $obj, message: msg};
       hasErrors = true;
@@ -1064,7 +1064,12 @@ define([
   $.moveErrorBoxes = function() {
     var list = [];
     var prevList = $.fn.errorBox.errorBoxes;
-    for(var idx in prevList) {
+    // ember does silly things with arrays
+    // so this for loop was changed from a for-in
+    // to how you see it below.
+    // That way, canvas doesn't blow up in some places
+    // ... at least not because of this
+    for(var idx = 0; idx < prevList.length; idx++) {
       var $obj = prevList[idx],
           $box = $obj.data('associated_error_box');
       if($box && $box.length && $box[0].parentNode) {

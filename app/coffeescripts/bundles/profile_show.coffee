@@ -23,7 +23,7 @@ require [
   'str/htmlEscape'
   'compiled/util/AvatarWidget'
   'jquery.instructure_forms'
-  'redactor.editor_box'
+  'ckeditor.editor_box'
 ], (I18n, {View}, $, htmlEscape, AvatarWidget) ->
 
   class ProfileShow extends View
@@ -97,7 +97,6 @@ require [
 
     validateForm: (event) ->
       validations =
-        required: ['user[short_name]']
         property_validations:
           'user_profile[title]': (value) ->
             if value && value.length > 255

@@ -483,14 +483,16 @@ describe "external tools" do
         @assignment = @course.assignments.create!(:title => "test assignment", :submission_types => "online_upload,online_url")
       end
 
-      def homework_submission_tool
-        @tool = @course.context_external_tools.new(:name => "bob", :consumer_key => "bob", :shared_secret => "bob", :url => "http://www.example.com/ims/lti")
-        @tool.homework_submission = {
-            :url => "http://#{HostUrl.default_host}/selection_test",
-            :selection_width => 400,
-            :selection_height => 400
-        }
-        @tool.save!
+      def homework_submission_tool(count=4)
+        count.times do |i|
+          @tool = @course.context_external_tools.new(:name => "bob-#{i}", :consumer_key => "bob", :shared_secret => "bob", :url => "http://www.example.com/ims/lti")
+          @tool.homework_submission = {
+              :url => "http://#{HostUrl.default_host}/selection_test",
+              :selection_width => 400,
+              :selection_height => 400
+          }
+          @tool.save!
+        end
       end
 
       def pick_submission_tool(iframe_link_selector)
@@ -530,7 +532,7 @@ describe "external tools" do
         wait_for_dom_ready
         f(".submit_assignment_link").click
         wait_for_ajax_requests
-        f(".submit_from_external_tool_option").should_not be_displayed
+        ff(".submit_from_external_tool_option").length.should == 0
         ff("#submit_assignment .cancel_button").select(&:displayed?).first.click
       end
 
@@ -540,9 +542,20 @@ describe "external tools" do
         wait_for_dom_ready
         f(".submit_assignment_link").click
         wait_for_ajax_requests
+        ff("li a.external-tool").length.should == 3
         f(".submit_from_external_tool_option").should be_displayed
         ff("#submit_assignment .cancel_button").select(&:displayed?).first.click
         # TODO: make sure the 'submit' button isn't enabled yed
+      end
+
+      it "should show tabs for two tools and not display the 'more' tab'" do
+        homework_submission_tool(2)
+        get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+        wait_for_dom_ready
+        f(".submit_assignment_link").click
+        wait_for_ajax_requests
+        ff("li a.external-tool").length.should == 2 
+        ff(".submit_from_external_tool_option").length.should == 0
       end
 
       it "should allow submission for a tool that returns a file URL for a file assignment" do
@@ -670,6 +683,80 @@ describe "external tools" do
           f('#external_tool_name').should have_attribute(:value, tool_name)
           f('#external_tool_shared_secret').should have_attribute(:value, "")
         end
+      end
+    end
+
+  end
+
+  describe 'showing external tools' do
+    before do
+      course_with_teacher_logged_in(active_all: true)
+      @tool = @course.context_external_tools.create!(
+        name: "new tool",
+        consumer_key: "key",
+        shared_secret: "secret",
+        url: "http://#{HostUrl.default_host}/selection_test",
+      )
+
+    end
+
+    it "assumes course navigation launch type" do
+      @tool.course_navigation = {}
+      @tool.save!
+      get "/courses/#{@course.id}/external_tools/#{@tool.id}"
+      in_frame('tool_content') do
+        keep_trying_until { ff("#basic_lti_link").size.should > 0 }
+      end
+    end
+
+    it "accepts an explicit launch type" do
+      @tool.migration_selection = {}
+      @tool.save!
+      get "/courses/#{@course.id}/external_tools/#{@tool.id}?launch_type=migration_selection"
+      in_frame('tool_content') do
+        keep_trying_until { ff("#basic_lti_link").size.should > 0 }
+      end
+    end
+
+    it "validates the launch type" do
+      @tool.course_navigation = {}
+      @tool.save!
+      get "/courses/#{@course.id}/external_tools/#{@tool.id}?launch_type=bad_type"
+      assert_flash_error_message(/couldn't find valid settings/i)
+    end
+
+    describe "display type" do
+      before do
+        @tool.course_navigation = {}
+        @tool.save!
+      end
+
+      it "defaults to normal display type" do
+        get "/courses/#{@course.id}/external_tools/#{@tool.id}"
+        f('#footer').should be_displayed
+        f('#left-side').should_not be_nil
+        f('#breadcrumbs').should_not be_nil
+        f('body').attribute('class').should_not include('full-width')
+      end
+
+      it "shows full width if top level property specified" do
+        @tool.settings[:display_type] = "full_width"
+        @tool.save!
+        get "/courses/#{@course.id}/external_tools/#{@tool.id}"
+        f('#footer').should_not be_displayed
+        f('#left-side').should be_nil
+        f('#breadcrumbs').should be_nil
+        f('body').attribute('class').should include('full-width')
+      end
+
+      it "shows full width if extension property specified" do
+        @tool.course_navigation[:display_type] = "full_width"
+        @tool.save!
+        get "/courses/#{@course.id}/external_tools/#{@tool.id}"
+        f('#footer').should_not be_displayed
+        f('#left-side').should be_nil
+        f('#breadcrumbs').should be_nil
+        f('body').attribute('class').should include('full-width')
       end
     end
 

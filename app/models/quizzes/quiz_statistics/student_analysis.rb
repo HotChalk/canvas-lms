@@ -19,7 +19,21 @@
 require 'csv'
 
 class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
+  CQS = CanvasQuizStatistics
+
+  # The question_data attributes that we'll expose with the question statistics
+  CQS_QuestionDataFields = %w[
+    id
+    question_type
+    question_text
+    position
+  ].map(&:to_sym).freeze
+
   include HtmlTextHelper
+
+  def readable_type
+    t('#quizzes.quiz_statistics.types.student_analysis', 'Student Analysis')
+  end
 
   class TemporaryUser < Struct.new(:id, :short_name)
   end
@@ -39,7 +53,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
   #   :submission_correct_count_average=>1,
   #   :questions=>
   #     [output of stats_for_question for every question in submission_data]
-  def generate
+  def generate(legacy=true)
     submissions = submissions_for_statistics
     # questions: questions from quiz#quiz_data
     #{1022=>
@@ -61,12 +75,14 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
     found_ids = {}
     score_counter = Stats::Counter.new
     questions_hash = {}
+    quiz_points = [quiz.current_points_possible.to_f, 1.0].max
     stats[:questions] = []
     stats[:multiple_attempts_exist] = submissions.any? { |s|
       s.attempt && s.attempt > 1
     }
     stats[:submission_user_ids] = Set.new
     stats[:submission_logged_out_users] = []
+    stats[:submission_scores] = Hash.new(0)
     stats[:unique_submission_count] = 0
     correct_cnt = incorrect_cnt = total_duration = 0
     submissions.each_with_index do |sub, index|
@@ -78,7 +94,9 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
         stats[:submission_logged_out_users] << temp_user
       end
       if !found_ids[sub.id]
+        percentile = (sub.score.to_f / quiz_points * 100).round
         stats[:unique_submission_count] += 1
+        stats[:submission_scores][percentile] += 1
         found_ids[sub.id] = true
       end
       answers = sub.submission_data || []
@@ -134,7 +152,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
         end
       end
       if obj[:answers] && obj[:question_type] != 'text_only_question'
-        stat = stats_for_question(obj, responses_for_question[obj[:id]])
+        stat = stats_for_question(obj, responses_for_question[obj[:id]], legacy)
         stats[:questions] << ['question', stat]
       end
     end
@@ -161,6 +179,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
 
   def to_csv
     start_progress
+    include_root_accounts = quiz.context.root_account.trust_exists?
     csv = CSV.generate do |csv|
       context = quiz.context
 
@@ -169,6 +188,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       columns << I18n.t('statistics.csv_columns.name', 'name') unless anonymous?
       columns << I18n.t('statistics.csv_columns.id', 'id') unless anonymous?
       columns << I18n.t('statistics.csv_columns.sis_id', 'sis_id') unless anonymous?
+      columns << I18n.t('statistics.csv_columns.root_account', 'root_account') if !anonymous? && include_root_accounts
       columns << I18n.t('statistics.csv_columns.section', 'section')
       columns << I18n.t('statistics.csv_columns.section_id', 'section_id')
       columns << I18n.t('statistics.csv_columns.section_sis_id', 'section_sis_id')
@@ -199,13 +219,18 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       submissions.each_with_index do |submission, i|
         update_progress(i, submissions.size)
         row = []
-        if submission.user
-          row << submission.user.name unless anonymous?
-          row << submission.user_id unless anonymous?
-          row << submission.user.sis_pseudonym_for(quiz.context.account).try(:sis_user_id) unless anonymous?
-        else
-          3.times do
-            row << ''
+        unless anonymous?
+          if submission.user
+            row << submission.user.name
+            row << submission.user_id
+            pseudonym = submission.user.sis_pseudonym_for(quiz.context.account, include_root_accounts)
+            row << pseudonym.try(:sis_user_id)
+            row << (pseudonym && HostUrl.context_host(pseudonym.account)) if include_root_accounts
+          else
+            3.times do
+              row << ''
+            end
+            row << '' if include_root_accounts
           end
         end
         section_name = []
@@ -284,7 +309,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       #submissions from users
       for_users = quiz.context.student_ids
       scope = quiz.quiz_submissions.where(:user_id => for_users)
-      logged_out = quiz.quiz_submissions.logged_out
+      logged_out = quiz.quiz_submissions.logged_out.where('NOT was_preview')
 
       all_submissions = []
       all_submissions = prep_submissions scope
@@ -293,16 +318,13 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
   end
 
   def prep_submissions(submissions)
-    if includes_all_versions?
-      submissions = submissions.includes(:versions)
+    subs = submissions.includes(:versions).map do |qs|
+      includes_all_versions? ? qs.attempts.version_models : qs.attempts.kept
     end
-    submissions.map { |qs|
-      includes_all_versions? ?
-        qs.submitted_attempts :
-        [qs.latest_submitted_attempt].compact
-    }.flatten.
-    select { |s| s && s.completed? && s.submission_data.is_a?(Array) }.
-    sort_by(&:updated_at).reverse
+    subs = subs.flatten.compact.select do |s|
+      s.completed? && s.submission_data.is_a?(Array)
+    end
+    subs.sort_by(&:updated_at).reverse
   end
 
   def strip_html_answers(question)
@@ -341,7 +363,20 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
   #   "unexpected_response_values"=>[],
   #   "user_ids"=>[1,2,3],
   #   "multiple_responses"=>false}],
-  def stats_for_question(question, responses)
+  def stats_for_question(question, responses, legacy=true)
+    if !legacy && CQS.can_analyze?(question)
+      output = {}
+
+      # the gem expects all hash keys to be symbols:
+      question = CQS::Util.deep_symbolize_keys(question.to_hash)
+      responses = responses.map(&CQS::Util.method(:deep_symbolize_keys))
+
+      output.merge! question.slice(*CQS_QuestionDataFields)
+      output.merge! CQS.analyze(question, responses)
+
+      return output
+    end
+
     question[:responses] = 0
     question[:response_values] = []
     question[:unexpected_response_values] = []
@@ -365,7 +400,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       :user_ids => question[:user_ids] - question[:answers].map { |a| a[:user_ids] }.flatten
     } rescue nil
     question[:answers] << none if none && none[:responses] > 0
-    question
+    question.to_hash.with_indifferent_access
   end
 
 end

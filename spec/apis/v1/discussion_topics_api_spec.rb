@@ -83,6 +83,7 @@ describe DiscussionTopicsController, type: :request do
     end
 
     def api_get_json
+      @course.clear_permissions_cache(@user)
       api_call(
         :get,
         "/api/v1/courses/#{@course.id}/discussion_topics/#{locked_item.id}",
@@ -162,7 +163,7 @@ describe DiscussionTopicsController, type: :request do
       lock_at = 2.months.from_now
       api_call(:post, "/api/v1/courses/#{@course.id}/discussion_topics",
                { :controller => "discussion_topics", :action => "create", :format => "json", :course_id => @course.to_param },
-               { :title => "test title", :message => "test <b>message</b>", :discussion_type => "threaded", 
+               { :title => "test title", :message => "test <b>message</b>", :discussion_type => "threaded",
                  :delayed_post_at => post_at.as_json, :lock_at => lock_at.as_json, :podcast_has_student_posts => '1', :require_initial_post => '1' })
       @topic = @course.discussion_topics.order(:id).last
       @topic.title.should == "test title"
@@ -290,7 +291,10 @@ describe DiscussionTopicsController, type: :request do
                   "locked"=>false,
                   "locked_for_user"=>false,
                   "author" => user_display_json(@topic.user, @topic.context).stringify_keys!,
-                  "permissions" => { "delete"=>true, "attach"=>true, "update"=>true }}
+                  "permissions" => { "delete"=>true, "attach"=>true, "update"=>true },
+                  "group_category_id" => nil,
+                  "can_group" => true,
+      }
     end
 
     describe "GET 'index'" do
@@ -357,9 +361,9 @@ describe DiscussionTopicsController, type: :request do
         end
         [@sub, @topic2, @topic3].each(&:lock!)
         @topic2.update_attribute(:pinned, true)
-        
+
         json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=unlocked",
-                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s, 
+                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
                           :per_page => '10', :scope => 'unlocked'})
         json.size.should == 1
         links = response.headers['Link'].split(',')
@@ -368,7 +372,7 @@ describe DiscussionTopicsController, type: :request do
         end
 
         json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=locked",
-                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s, 
+                        {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
                           :per_page => '10', :scope => 'locked'})
         json.size.should == 3
         links = response.headers['Link'].split(',')
@@ -391,7 +395,7 @@ describe DiscussionTopicsController, type: :request do
                          :per_page => '10', :scope => 'locked,unpinned'})
         json.size.should == 2
       end
-      
+
       it "should include all parameters in pagination urls" do
         @topic2 = create_topic(@course, :title => "Topic 2", :message => "<p>content here</p>")
         @topic3 = create_topic(@course, :title => "Topic 3", :message => "<p>content here</p>")
@@ -399,7 +403,7 @@ describe DiscussionTopicsController, type: :request do
           topic.type = 'Announcement'
           topic.save!
         end
-        
+
         json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=2&only_announcements=true&order_by=recent_activity&scope=unlocked",
                         {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,
                           :per_page => '2', :order_by => 'recent_activity', :only_announcements => 'true', :scope => 'unlocked'})
@@ -421,6 +425,45 @@ describe DiscussionTopicsController, type: :request do
         # get rid of random characters in podcast url
         json["podcast_url"].gsub!(/_[^.]*/, '_randomness')
         json.should == @response_json.merge("subscribed" => @topic.subscribed?(@user))
+      end
+
+      it "should properly translate a video media comment in the discussion topic's message" do
+        @topic.update_attributes(
+          message: '<p><a id="media_comment_m-spHRwKY5ATHvPQAMKdZV_g" class="instructure_inline_media_comment video_comment" href="/media_objects/m-spHRwKY5ATHvPQAMKdZV_g">this is a media comment</a></p>'
+        )
+
+        json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
+                        {:controller => 'discussion_topics_api', :action => 'show', :format => 'json', :course_id => @course.id.to_s, :topic_id => @topic.id.to_s})
+
+        video_tag = Nokogiri::XML(json["message"]).css("p video").first
+        video_tag["poster"].should == "http://www.example.com/media_objects/m-spHRwKY5ATHvPQAMKdZV_g/thumbnail?height=448&type=3&width=550"
+        video_tag["data-media_comment_type"].should == "video"
+        video_tag["preload"].should == "none"
+        video_tag["class"].should == "instructure_inline_media_comment"
+        video_tag["data-media_comment_id"].should == "m-spHRwKY5ATHvPQAMKdZV_g"
+        video_tag["controls"].should == "controls"
+        video_tag["src"].should == "http://www.example.com/courses/#{@course.id}/media_download?entryId=m-spHRwKY5ATHvPQAMKdZV_g&media_type=video&redirect=1"
+        video_tag.inner_text.should == "this is a media comment"
+
+      end
+
+      it "should properly translate a audio media comment in the discussion topic's message" do
+        @topic.update_attributes(
+          message: '<p><a id="media_comment_m-QgvagKCQATEtJAAMKdZV_g" class="instructure_inline_media_comment audio_comment"></a>this is a media comment</p>'
+        )
+
+        json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
+                        {:controller => 'discussion_topics_api', :action => 'show', :format => 'json', :course_id => @course.id.to_s, :topic_id => @topic.id.to_s})
+
+        message = Nokogiri::XML(json["message"])
+        audio_tag = message.css("p audio").first
+        audio_tag["data-media_comment_type"].should == "audio"
+        audio_tag["preload"].should == "none"
+        audio_tag["class"].should == "instructure_inline_media_comment"
+        audio_tag["data-media_comment_id"].should == "m-QgvagKCQATEtJAAMKdZV_g"
+        audio_tag["controls"].should == "controls"
+        audio_tag["src"].should == "http://www.example.com/courses/#{@course.id}/media_download?entryId=m-QgvagKCQATEtJAAMKdZV_g&media_type=audio&redirect=1"
+        message.css("p").inner_text.should == "this is a media comment"
       end
     end
 
@@ -679,6 +722,21 @@ describe DiscussionTopicsController, type: :request do
         @assignment.should be_deleted
       end
 
+      it "should transfer assignment group category to the discussion" do
+        group_category = @course.group_categories.create(:name => 'watup')
+        group = group_category.groups.create!(:name => "group1", :context => @course)
+        group.add_user(@user)
+        api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
+                 { :controller => "discussion_topics", :action => "update", :format => "json", :course_id => @course.to_param, :topic_id => @topic.to_param },
+                 { :assignment => { :group_category_id => group_category.id } })
+        @topic.reload
+
+        @topic.title.should == "Topic 1"
+        @topic.group_category.should == group_category
+        @topic.assignment.should be_present
+        @topic.assignment.group_category.should be_nil
+      end
+
       it "should allow pinning a topic" do
         api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}",
                  { controller: 'discussion_topics', action: 'update', format: 'json', course_id: @course.to_param, topic_id: @topic.to_param },
@@ -853,7 +911,9 @@ describe DiscussionTopicsController, type: :request do
       "permissions" => {"delete"=>true, "attach"=>true, "update"=>true},
       "locked" => false,
       "locked_for_user" => false,
-      "author" => user_display_json(gtopic.user, gtopic.context).stringify_keys!
+      "author" => user_display_json(gtopic.user, gtopic.context).stringify_keys!,
+      "group_category_id" => nil,
+      "can_group" => true,
     }
     json.should == expected
   end
@@ -892,7 +952,7 @@ describe DiscussionTopicsController, type: :request do
     @module.save!
     course_with_student(:course => @course)
 
-    @module.evaluate_for(@user, true).should be_unlocked
+    @module.evaluate_for(@user).should be_unlocked
     raw_api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/read",
                  { :controller => 'discussion_topics_api', :action => 'mark_topic_read', :format => 'json',
                    :course_id => @course.id.to_s, :topic_id => @topic.id.to_s })
@@ -911,7 +971,7 @@ describe DiscussionTopicsController, type: :request do
     @module.completion_requirements = { tag.id => {:type => 'must_view'} }
     @module.save!
 
-    @module.evaluate_for(@user, true).should be_unlocked
+    @module.evaluate_for(@user).should be_unlocked
     raw_api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/read",
                  { :controller => 'discussion_topics_api', :action => 'mark_topic_read', :format => 'json',
                    :course_id => @course.id.to_s, :topic_id => @topic.id.to_s })
@@ -926,7 +986,7 @@ describe DiscussionTopicsController, type: :request do
     @module.save!
     course_with_student(:course => @course)
 
-    @module.evaluate_for(@user, true).should be_unlocked
+    @module.evaluate_for(@user).should be_unlocked
     raw_api_call(:put, "/api/v1/courses/#{@course.id}/discussion_topics/#{@topic.id}/read_all",
                  { :controller => 'discussion_topics_api', :action => 'mark_all_read', :format => 'json',
                    :course_id => @course.id.to_s, :topic_id => @topic.id.to_s })
@@ -1893,7 +1953,25 @@ describe DiscussionTopicsController, type: :request do
       v0_r1 = v0['replies'][1]
       v0_r1['id'].should         == @reply2.id
       v0_r1['user_id'].should    == @teacher.id
-      v0_r1['message'].should    == "<p><a href=\"http://#{Account.default.domain}/courses/#{@course.id}/files/#{@reply2_attachment.id}/download?verifier=#{@reply2_attachment.uuid}\" data-api-endpoint=\"http://#{Account.default.domain}/api/v1/files/#{@reply2_attachment.id}\" data-api-returntype=\"File\">This is a file link</a></p>\n    <p>This is a video:\n      <video poster=\"http://#{Account.default.domain}/media_objects/0_abcde/thumbnail?height=448&amp;type=3&amp;width=550\" data-media_comment_type=\"video\" preload=\"none\" class=\"instructure_inline_media_comment\" data-media_comment_id=\"0_abcde\" controls=\"controls\" src=\"http://#{Account.default.domain}/courses/#{@course.id}/media_download?entryId=0_abcde&amp;redirect=1&amp;type=mp4\">link</video>\n    </p>"
+
+      message = Nokogiri::HTML::DocumentFragment.parse(v0_r1["message"])
+
+      a_tag = message.css("p a").first
+      a_tag["href"].should == "http://#{Account.default.domain}/courses/#{@course.id}/files/#{@reply2_attachment.id}/download?verifier=#{@reply2_attachment.uuid}"
+      a_tag["data-api-endpoint"].should == "http://#{Account.default.domain}/api/v1/files/#{@reply2_attachment.id}"
+      a_tag["data-api-returntype"].should == "File"
+      a_tag.inner_text.should == "This is a file link"
+
+      video_tag = message.css("p video").first
+      video_tag["poster"].should == "http://#{Account.default.domain}/media_objects/0_abcde/thumbnail?height=448&type=3&width=550"
+      video_tag["data-media_comment_type"].should == "video"
+      video_tag["preload"].should == "none"
+      video_tag["class"].should == "instructure_inline_media_comment"
+      video_tag["data-media_comment_id"].should == "0_abcde"
+      video_tag["controls"].should == "controls"
+      video_tag["src"].should == "http://#{Account.default.domain}/courses/#{@course.id}/media_download?entryId=0_abcde&media_type=video&redirect=1"
+      video_tag.inner_text.should == "link"
+
       v0_r1['parent_id'].should  == @root1.id
       v0_r1['created_at'].should == @reply2.created_at.as_json
       v0_r1['updated_at'].should == @reply2.updated_at.as_json

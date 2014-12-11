@@ -1,8 +1,8 @@
 #!/bin/bash
 result=0
 
-
-bundle install
+echo "################ lti_outbound ################"
+bundle check || bundle install
 bundle exec rspec spec
 let result=$result+$?
 

@@ -40,13 +40,23 @@
 #           "example": "s34643",
 #           "type": "string"
 #         },
+#         "integration_id": {
+#           "description": "Optional: The integration ID of the section. This field is only included if the user has permission to view SIS information.",
+#           "example": "3452342345",
+#           "type": "string"
+#         },
 #         "sis_import_id": {
 #           "description": "The unique identifier for the SIS import if created through SIS. This field is only included if the user has permission to manage SIS information.",
 #           "example": 47,
 #           "type": "integer"
 #         },
 #         "course_id": {
-#           "description": "The unique identifier for the course the section belongs to",
+#           "description": "The unique Canvas identifier for the course in which the section belongs",
+#           "example": 7,
+#           "type": "integer"
+#         },
+#         "sis_course_id": {
+#           "description": "The unique SIS identifier for the course in which the section belongs. This field is only included if the user has permission to view SIS information.",
 #           "example": 7,
 #           "type": "integer"
 #         },

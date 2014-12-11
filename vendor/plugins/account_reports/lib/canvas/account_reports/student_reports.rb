@@ -102,7 +102,7 @@ module Canvas::AccountReports
         time_span_join = Pseudonym.send(:sanitize_sql, condition)
 
         no_subs = root_account.all_courses.active.
-          select("p.user_id, p.sis_user_id, courses.id AS course_id,
+          select("p.user_id, p.sis_user_id, courses.id,
                   u.sortable_name, courses.name AS course_name,
                   courses.sis_source_id AS course_sis_id, cs.id AS section_id,
                   cs.sis_source_id AS section_sis_id, cs.name AS section_name,
@@ -135,10 +135,17 @@ module Canvas::AccountReports
         add_extra_text(I18n.t('account_reports.student.enrollment_states',
                               "Enrollment States: %{states};", states: enrollment_states_string))
 
-        headers = ['user id','user sis id','user name','section id',
-                   'section sis id', 'section name','course id',
-                   'course sis id', 'course name']
-        headers << 'enrollment state' if include_enrollment_state
+        headers = []
+        headers << I18n.t('#account_reports.report_header_user_id', 'user id')
+        headers << I18n.t('#account_reports.report_header_user_sis_id', 'user sis id')
+        headers << I18n.t('#account_reports.report_header_user_name', 'user name')
+        headers << I18n.t('#account_reports.report_header_section_id', 'section id')
+        headers << I18n.t('#account_reports.report_header_section_sis_id', 'section sis id')
+        headers << I18n.t('#account_reports.report_header_section_name', 'section name')
+        headers << I18n.t('#account_reports.report_header_course_id', 'course id')
+        headers << I18n.t('#account_reports.report_header_course_sis_id', 'course sis id')
+        headers << I18n.t('#account_reports.report_header_course_name', 'course name')
+        headers << I18n.t('#account_reports.report_header_enrollment_state', 'enrollment state') if include_enrollment_state
 
         csv << headers
         Shackles.activate(:slave) do
@@ -150,7 +157,7 @@ module Canvas::AccountReports
             row << u["section_id"]
             row << u["section_sis_id"]
             row << u["section_name"]
-            row << u["course_id"]
+            row << u["id"]
             row << u["course_sis_id"]
             row << u["course_name"]
             row << u["enrollment_state"] if include_enrollment_state
@@ -197,14 +204,25 @@ module Canvas::AccountReports
                              WHERE aua.user_id = enrollments.user_id
                                AND aua.context_id = enrollments.course_id
                                AND aua.context_type = 'Course'
-                             #{start})",param)
+                             #{start})", param)
 
         data = data.where(:enrollments => {:course_id => course}) if course
         data = add_term_scope(data, 'c')
         data = add_course_sub_account_scope(data, 'c') unless course
 
-        csv << ['user id','user sis id','name','section id','section sis id',
-                'section name','course id','course sis id','course name']
+        headers = []
+        headers << I18n.t('#account_reports.report_header_user_id', 'user id')
+        headers << I18n.t('#account_reports.report_header_user_sis_id', 'user sis id')
+        headers << I18n.t('#account_reports.report_header_name', 'name')
+        headers << I18n.t('#account_reports.report_header_section_id', 'section id')
+        headers << I18n.t('#account_reports.report_header_section_sis_id', 'section sis id')
+        headers << I18n.t('#account_reports.report_header_section_name', 'section name')
+        headers << I18n.t('#account_reports.report_header_course_id', 'course id')
+        headers << I18n.t('#account_reports.report_header_course_sis_id', 'course sis id')
+        headers << I18n.t('#account_reports.report_header_course_name', 'course name')
+
+        csv << headers
+
         Shackles.activate(:slave) do
           data.find_each do |u|
             row = []
@@ -231,7 +249,7 @@ module Canvas::AccountReports
       CSV.open(file, "w") do |csv|
 
         students = root_account.pseudonyms.active.
-          select('pseudonyms.last_request_at, pseudonyms.user_id,
+          select('pseudonyms.id, pseudonyms.last_request_at, pseudonyms.user_id,
                   pseudonyms.sis_user_id, users.sortable_name,
                   pseudonyms.current_login_ip').
           joins('INNER JOIN users ON users.id = pseudonyms.user_id')
@@ -252,7 +270,14 @@ module Canvas::AccountReports
             where('c.id = ?', course)
         end
 
-        csv << ['user id','user sis id','user name','last access at','last ip']
+        headers = []
+        headers << I18n.t('#account_reports.report_header_user_id', 'user id')
+        headers << I18n.t('#account_reports.report_header_user_sis_id', 'user sis id')
+        headers << I18n.t('#account_reports.report_header_user_name', 'user name')
+        headers << I18n.t('#account_reports.report_header_last_access_at', 'last access at')
+        headers << I18n.t('#account_reports.report_header_last_ip', 'last ip')
+
+        csv << headers
 
         pseudonyms_in_report = Set.new
         Shackles.activate(:slave) do

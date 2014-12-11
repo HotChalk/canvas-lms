@@ -19,9 +19,17 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 
 describe GroupCategory do
+  let_once(:account) { Account.default }
+
+  it 'delegates time_zone through to its context' do
+    zone = ActiveSupport::TimeZone["America/Denver"]
+    course = Course.new(time_zone: zone)
+    category = GroupCategory.new(context: course)
+    category.time_zone.should =~ /Mountain Time/
+  end
+
   context "protected_name_for_context?" do
     it "should be false for 'Student Groups' in accounts" do
-      account = Account.default
       GroupCategory.protected_name_for_context?('Student Groups', account).should be_false
     end
 
@@ -31,7 +39,6 @@ describe GroupCategory do
     end
 
     it "should be true for 'Imported Groups' in both accounts and courses" do
-      account = Account.default
       course = course_model
       GroupCategory.protected_name_for_context?('Imported Groups', account).should be_true
       GroupCategory.protected_name_for_context?('Imported Groups', course).should be_true
@@ -40,7 +47,6 @@ describe GroupCategory do
 
   context "student_organized_for" do
     it "should be nil in accounts" do
-      account = Account.default
       GroupCategory.student_organized_for(account).should be_nil
     end
 
@@ -67,7 +73,6 @@ describe GroupCategory do
     end
 
     it "should be a category belonging to the account with role 'communities'" do
-      account = Account.default
       category = GroupCategory.communities_for(account)
       category.should_not be_nil
       category.role.should eql('communities')
@@ -75,7 +80,6 @@ describe GroupCategory do
     end
 
     it "should be the the same category every time for the same account" do
-      account = Account.default
       category1 = GroupCategory.communities_for(account)
       category2 = GroupCategory.communities_for(account)
       category1.id.should eql(category2.id)
@@ -84,7 +88,6 @@ describe GroupCategory do
 
   context "imported_for" do
     it "should be a category belonging to the account with role 'imported' in accounts" do
-      account = Account.default
       category = GroupCategory.imported_for(account)
       category.should_not be_nil
       category.role.should eql('imported')
@@ -109,7 +112,6 @@ describe GroupCategory do
 
   context 'student_organized?' do
     it "should be true iff the role is 'student_organized', regardless of name" do
-      account = Account.default
       course = course_model
       GroupCategory.student_organized_for(course).should be_student_organized
       account.group_categories.create(:name => 'Student Groups').should_not be_student_organized
@@ -122,7 +124,6 @@ describe GroupCategory do
 
   context 'communities?' do
     it "should be true iff the role is 'communities', regardless of name" do
-      account = Account.default
       course = course_model
       GroupCategory.student_organized_for(course).should_not be_communities
       account.group_categories.create(:name => 'Communities').should_not be_communities
@@ -135,7 +136,6 @@ describe GroupCategory do
 
   context 'allows_multiple_memberships?' do
     it "should be true iff the category is student organized or communities" do
-      account = Account.default
       course = course_model
       GroupCategory.student_organized_for(course).allows_multiple_memberships?.should be_true
       account.group_categories.create(:name => 'Student Groups').allows_multiple_memberships?.should be_false
@@ -148,7 +148,6 @@ describe GroupCategory do
 
   context 'protected?' do
     it "should be true iff the category has a role" do
-      account = Account.default
       course = course_model
       GroupCategory.student_organized_for(course).should be_protected
       account.group_categories.create(:name => 'Student Groups').should_not be_protected
@@ -188,42 +187,14 @@ describe GroupCategory do
     end
   end
 
-  context 'configure_self_signup(enabled, restricted)' do
-    before :each do
-      @category = GroupCategory.new
-      @category.name = "foo"
-    end
 
-    it "should make self_signup? true and unrestricted_self_signup? true given (true, false)" do
-      @category.configure_self_signup(true, false)
-      @category.self_signup?.should be_true
-      @category.unrestricted_self_signup?.should be_true
-    end
-
-    it "should make self_signup? true and unrestricted_self_signup? false given (true, true)" do
-      @category.configure_self_signup(true, true)
-      @category.self_signup?.should be_true
-      @category.unrestricted_self_signup?.should be_false
-    end
-
-    it "should make self_signup? false and unrestricted_self_signup? false given (false, *)" do
-      @category.configure_self_signup(false, false)
-      @category.self_signup?.should be_false
-      @category.unrestricted_self_signup?.should be_false
-
-      @category.configure_self_signup(false, true)
-      @category.self_signup?.should be_false
-      @category.unrestricted_self_signup?.should be_false
-    end
-
-    it "should persist to the DB" do
-      @category.context = course()
-      @category.configure_self_signup(true, true)
-      @category.save!
-      @category.reload
-      @category.self_signup?.should be_true
-      @category.unrestricted_self_signup?.should be_false
-    end
+  it "can pass through selfsignup info given (enabled, restricted)" do
+    @category = GroupCategory.new
+    @category.name = "foo"
+    @category.context = course()
+    @category.configure_self_signup(true, false)
+    @category.self_signup?.should be_true
+    @category.unrestricted_self_signup?.should be_true
   end
 
   it "should default to no self signup" do
@@ -232,9 +203,14 @@ describe GroupCategory do
     category.unrestricted_self_signup?.should be_false
   end
 
+  it 'passes through a valid auto leader value when auto leader is enabled' do
+    category = GroupCategory.new
+    category.configure_auto_leader(true, 'RANDOM')
+    category.auto_leader.should == 'random'
+  end
+
   context "has_heterogenous_group?" do
     it "should be false for accounts" do
-      account = Account.default
       category = group_category(context: account)
       group = category.groups.create(:context => account)
       category.should_not have_heterogenous_group
@@ -266,8 +242,22 @@ describe GroupCategory do
     end
   end
 
+  describe "max_membership_change" do
+    it "should update groups if the group limit changed" do
+      course_with_teacher(:active_all => true)
+      category = group_category
+      category.group_limit = 2
+      category.save
+      group = category.groups.create(:context => @course)
+      group.max_membership.should == 2
+      category.group_limit = 4
+      category.save
+      group.reload.max_membership.should == 4
+    end
+  end
+
   describe "group_for" do
-    before :each do
+    before :once do
       course_with_teacher(:active_all => true)
       student_in_course(:active_all => true)
       @category = group_category
@@ -318,6 +308,20 @@ describe GroupCategory do
       grouped_memberships[group2.id].size.should == 3
     end
 
+    it "assigns leaders according to policy" do
+      course_with_teacher_logged_in(:active_all => true)
+      category = @course.group_categories.create(:name => "Group Category")
+      category.update_attribute(:auto_leader, 'first')
+      (1..3).each{|n| category.groups.create(:name => "Group #{n}", :context => @course) }
+      6.times{ @course.enroll_student(user_model).user }
+
+      groups = category.groups.active
+      groups.each{|group| group.reload.leader.should be_nil}
+      potential_members = @course.users_not_in_groups(groups)
+      category.distribute_members_among_groups(potential_members, groups)
+      groups.each{|group| group.reload.leader.should_not be_nil}
+    end
+
     it "should update cached due dates for affected assignments" do
       course_with_teacher_logged_in(:active_all => true)
       category = @course.group_categories.create(:name => "Group Category")
@@ -351,7 +355,7 @@ describe GroupCategory do
   end
 
   context "#assign_unassigned_members" do
-    before(:each) do
+    before(:once) do
       course_with_teacher_logged_in(:active_all => true)
       @category = @course.group_categories.create(:name => "Group Category")
     end

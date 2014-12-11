@@ -74,7 +74,7 @@ describe ContextController do
         UserMerge.from(user1).into(@user2)
 
         admin = user_model
-        Account.site_admin.add_user(admin)
+        Account.site_admin.account_users.create!(user: admin)
         user_session(admin)
 
         get 'roster_user', :course_id => course1.id, :id => @user2.id
@@ -105,8 +105,8 @@ describe ContextController do
 
   describe "GET '/media_objects/:id/thumbnail" do
     it "should redirect to kaltura even if the MediaObject does not exist" do
-      Kaltura::ClientV3.stubs(:config).returns({})
-      Kaltura::ClientV3.any_instance.expects(:thumbnail_url).returns("http://example.com/thumbnail_redirect")
+      CanvasKaltura::ClientV3.stubs(:config).returns({})
+      CanvasKaltura::ClientV3.any_instance.expects(:thumbnail_url).returns("http://example.com/thumbnail_redirect")
       get :media_object_thumbnail,
         :id => '0_notexist',
         :width => 100,

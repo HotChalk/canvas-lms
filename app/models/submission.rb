@@ -37,8 +37,25 @@ class Submission < ActiveRecord::Base
   has_many :rubric_assessments, :as => :artifact
   has_many :attachment_associations, :as => :context
   has_many :attachments, :through => :attachment_associations
+
+  # we no longer link submission comments and conversations, but we haven't fixed up existing
+  # linked conversations so this relation might be useful
+  # TODO: remove this when removing the conversationmessage asset columns
   has_many :conversation_messages, :as => :asset # one message per private conversation
+
   has_many :content_participations, :as => :content
+
+  EXPORTABLE_ATTRIBUTES = [
+    :id, :body, :url, :attachment_id, :grade, :score, :submitted_at, :assignment_id, :user_id, :submission_type, :workflow_state, :created_at, :updated_at, :group_id,
+    :attachment_ids, :processed, :process_attempts, :grade_matches_current_submission, :published_score, :published_grade, :graded_at, :student_entered_score, :grader_id,
+    :media_comment_id, :media_comment_type, :quiz_submission_id, :submission_comments_count, :has_rubric_assessment, :attempt, :context_code, :media_object_id,
+    :turnitin_data, :has_admin_comment, :cached_due_date
+  ]
+
+  EXPORTABLE_ASSOCIATIONS = [
+    :attachment, :assignment, :user, :grader, :group, :media_object, :student, :submission_comments, :assessment_requests, :assigned_assessments, :quiz_submission,
+    :rubric_assessment, :rubric_assessments, :attachments, :content_participations
+  ]
 
   serialize :turnitin_data, Hash
   validates_presence_of :assignment_id, :user_id
@@ -48,11 +65,12 @@ class Submission < ActiveRecord::Base
   include CustomValidations
   validates_as_url :url
 
-  scope :with_comments, includes(:submission_comments)
+  scope :with_comments, -> { includes(:submission_comments) }
   scope :after, lambda { |date| where("submissions.created_at>?", date) }
   scope :before, lambda { |date| where("submissions.created_at<?", date) }
   scope :submitted_before, lambda { |date| where("submitted_at<?", date) }
   scope :submitted_after, lambda { |date| where("submitted_at>?", date) }
+  scope :with_point_data, -> { where("submissions.score IS NOT NULL OR submissions.grade IS NOT NULL") }
 
   scope :for_context_codes, lambda { |context_codes| where(:context_code => context_codes) }
 
@@ -86,7 +104,7 @@ class Submission < ActiveRecord::Base
     conditions
   end
 
-  scope :needs_grading, where(needs_grading_conditions)
+  scope :needs_grading, -> { where(needs_grading_conditions) }
 
 
   sanitize_field :body, CanvasSanitize::SANITIZE
@@ -101,7 +119,7 @@ class Submission < ActiveRecord::Base
   after_save :touch_user
   after_save :update_assignment
   after_save :update_attachment_associations
-  after_save :submit_attachments_to_crocodoc
+  after_save :submit_attachments_to_canvadocs
   after_save :queue_websnap
   after_save :update_final_score
   after_save :submit_to_turnitin_later
@@ -174,7 +192,7 @@ class Submission < ActiveRecord::Base
     given { |user| user && user.id == self.user_id && !self.assignment.muted? }
     can :read_grade
 
-    given {|user, session| self.assignment.cached_context_grants_right?(user, session, :view_all_grades) }
+    given {|user, session| self.assignment.context.grants_right?(user, session, :view_all_grades) }
     can :read and can :read_grade
 
     given {|user| self.assignment && self.assignment.context && user && self.user &&
@@ -185,7 +203,7 @@ class Submission < ActiveRecord::Base
       self.assignment.context.observer_enrollments.find_by_user_id_and_associated_user_id_and_workflow_state(user.id, self.user.id, 'active').try(:grants_right?, user, :read_grades) }
     can :read_grade
 
-    given {|user, session| self.assignment.published? && self.assignment.cached_context_grants_right?(user, session, :manage_grades) }#admins.include?(user) }
+    given {|user, session| self.assignment.published? && self.assignment.context.grants_right?(user, session, :manage_grades) }#admins.include?(user) }
     can :read and can :comment and can :make_group_comment and can :read_grade and can :grade
 
     given {|user| self.assignment.published? && user && self.assessment_requests.map{|a| a.assessor_id}.include?(user.id) }
@@ -194,7 +212,7 @@ class Submission < ActiveRecord::Base
     given { |user, session|
       grants_right?(user, session, :read_grade) &&
       turnitin_data &&
-      (assignment.cached_context_grants_right?(user, session, :manage_grades) ||
+      (assignment.context.grants_right?(user, session, :manage_grades) ||
         case assignment.turnitin_settings[:originality_report_visibility]
           when 'immediate'; true
           when 'after_grading'; current_submission_graded?
@@ -288,9 +306,9 @@ class Submission < ActiveRecord::Base
     if self.turnitin_data && self.turnitin_data[asset_string] && self.turnitin_data[asset_string][:similarity_score]
       turnitin = Turnitin::Client.new(*self.context.turnitin_settings)
       self.send_later(:check_turnitin_status)
-      if self.grants_right?(user, nil, :grade)
+      if self.grants_right?(user, :grade)
         turnitin.submissionReportUrl(self, asset_string)
-      elsif self.grants_right?(user, nil, :view_turnitin_report)
+      elsif self.grants_right?(user, :view_turnitin_report)
         turnitin.submissionStudentReportUrl(self, asset_string)
       end
     else
@@ -460,14 +478,15 @@ class Submission < ActiveRecord::Base
   end
   private :attachment_fake_belongs_to_group
 
-  def submit_attachments_to_crocodoc
+  def submit_attachments_to_canvadocs
     if attachment_ids_changed?
       attachments = attachment_associations.map(&:attachment)
       attachments.each do |a|
-        a.send_later_enqueue_args :submit_to_crocodoc,
-          :n_strand     => 'crocodoc',
+        a.send_later_enqueue_args :submit_to_canvadocs, {
+          :n_strand     => 'canvadocs',
           :max_attempts => 1,
           :priority => Delayed::LOW_PRIORITY
+        }, 1, wants_annotation: true
       end
     end
   end
@@ -734,23 +753,23 @@ class Submission < ActiveRecord::Base
     state :graded
   end
 
-  scope :graded, where("submissions.grade IS NOT NULL")
+  scope :graded, -> { where("submissions.grade IS NOT NULL") }
 
-  scope :ungraded, where(:grade => nil).includes(:assignment)
+  scope :ungraded, -> { where(:grade => nil).includes(:assignment) }
 
   scope :in_workflow_state, lambda { |provided_state| where(:workflow_state => provided_state) }
 
-  scope :having_submission, where("submissions.submission_type IS NOT NULL")
-  scope :without_submission, where(submission_type: nil, workflow_state: "unsubmitted")
+  scope :having_submission, -> { where("submissions.submission_type IS NOT NULL") }
+  scope :without_submission, -> { where(submission_type: nil, workflow_state: "unsubmitted") }
 
-  scope :include_user, includes(:user)
+  scope :include_user, -> { includes(:user) }
 
-  scope :include_assessment_requests, includes(:assessment_requests, :assigned_assessments)
-  scope :include_versions, includes(:versions)
-  scope :include_submission_comments, includes(:submission_comments)
-  scope :speed_grader_includes, includes(:versions, :submission_comments, :attachments, :rubric_assessment)
+  scope :include_assessment_requests, -> { includes(:assessment_requests, :assigned_assessments) }
+  scope :include_versions, -> { includes(:versions) }
+  scope :include_submission_comments, -> { includes(:submission_comments) }
+  scope :speed_grader_includes, -> { includes(:versions, :submission_comments, :attachments, :rubric_assessment) }
   scope :for_user, lambda { |user| where(:user_id => user) }
-  scope :needing_screenshot, where("submissions.submission_type='online_url' AND submissions.attachment_id IS NULL AND submissions.process_attempts<3").order(:updated_at)
+  scope :needing_screenshot, -> { where("submissions.submission_type='online_url' AND submissions.attachment_id IS NULL AND submissions.process_attempts<3").order(:updated_at) }
 
   def needs_regrading?
     graded? && !grade_matches_current_submission?
@@ -841,19 +860,6 @@ class Submission < ActiveRecord::Base
     comment
   end
 
-  def conversation_groups
-    participating_instructors.map{ |i| [user, i] }
-  end
-
-  def conversation_message_data
-    latest = visible_submission_comments.where(:author_id => possible_participants_ids).last or return
-    {
-      :created_at => latest.created_at,
-      :author => latest.author,
-      :body => latest.comment
-    }
-  end
-
   def comment_authors
     visible_submission_comments(:include => :author).map(&:author)
   end
@@ -868,55 +874,6 @@ class Submission < ActiveRecord::Base
 
   def possible_participants_ids
     [user_id] + context.participating_instructors.uniq.map(&:id)
-  end
-
-  # ensure that conversations/messages are created/updated for all relevant
-  # participants as submission comments are added/removed. there should be a
-  # conversation between the submitter and each participating admin, and it
-  # should have a single conversation_message that represents the submission
-  # (there may of course be other regular messages in the conversation)
-  #
-  # ==== Arguments
-  # * <tt>trigger</tt> - Values of :create, :destroy, :migrate are supported.
-  # * <tt>overrides</tt> - Hash of overrides that can be passed through when
-  #                        updating the conversation.
-  #
-  # ==== Overrides
-  # * <tt>:skip_users</tt> - Gets passed through to <tt>Conversation</tt>.<tt>update_all_for_asset</tt>.
-  #                        nil by default, which means mark-as-unread for
-  #                        everyone but the author.
-  def create_or_update_conversations!(trigger, overrides={})
-    options = {}
-    case trigger
-    when :create
-      options[:update_participants] = true
-      options[:update_for_skips] = false
-      options[:skip_users] = overrides[:skip_users] || [conversation_message_data[:author]] # don't mark-as-unread for the author
-      options[:skip_users] << user if user.preferences[:use_new_conversations]
-      participating_instructors.each do |t|
-        # Check their settings and add to :skip_users if set to suppress.
-        if t.preferences[:no_submission_comments_inbox] == true ||
-          t.preferences[:use_new_conversations]
-          options[:skip_users] << t
-        end
-      end
-    when :destroy
-      options[:delete_all] = visible_submission_comments.empty?
-      options[:only_existing] = true
-    when :migrate # don't mark-as-unread for anybody or add to empty conversations
-      return unless conversation_message_data
-      options[:recalculate_count] = true
-      options[:recalculate_last_authored_at] = true
-      options[:only_existing] = true
-    end
-
-    Conversation.update_all_for_asset(self, options)
-  end
-
-  def self.batch_migrate_conversations!(ids)
-    find_all_by_id(ids).each do |sub|
-      sub.create_or_update_conversations!(:migrate)
-    end
   end
 
   def limit_comments(user, session=nil)
@@ -1120,6 +1077,10 @@ class Submission < ActiveRecord::Base
         :workflow_state => "unread",
       })
     end
+  end
+
+  def point_data?
+    !!(self.score || self.grade)
   end
 
   def read_state(current_user)

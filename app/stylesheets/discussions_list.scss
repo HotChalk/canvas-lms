@@ -61,12 +61,11 @@
   margin: 0 4px 0 -5px;
   float: left;
   cursor: ns-resize;
-  @include opacity(0.0);
-  .touch &, .discussion-topic:hover & { @include opacity(0.5); }
+  opacity: 0;
+  .touch &, .discussion-topic:hover & { opacity: 0.5; }
   .ui-sortable & { display: block; }
   &:hover, &:focus {
     opacity: 1 !important;
-    filter: alpha(opacity=100) !important;
   }
 }
 
@@ -176,7 +175,6 @@
   }
 
   .discussion-content {
-    -moz-box-sizing: border-box;
     box-sizing: border-box;
     display: table;
     vertical-align: middle;
@@ -266,7 +264,11 @@
     width: 45px;
 
     a {
-      color: #bbb;
+      @if $use_high_contrast {
+        color: #444;
+      } @else {
+        color: #bbb;
+      }
     }
 
     .al-options a {
@@ -288,7 +290,11 @@
 
   &.no-content {
     border-style: dashed;
-    color: #878d92;
+    @if $use_high_contrast {
+      color: #444;
+    } @else {
+      color: #878d92;
+    }
     display: none;
     margin: 5px;
     padding: 8px;

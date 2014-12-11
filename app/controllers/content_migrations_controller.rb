@@ -124,6 +124,7 @@
 #
 class ContentMigrationsController < ApplicationController
   include Api::V1::ContentMigration
+  include Api::V1::ExternalTools
 
   before_filter :require_context
   before_filter :require_auth
@@ -134,7 +135,7 @@ class ContentMigrationsController < ApplicationController
   #
   # @example_request
   #
-  #     curl https://<canvas>/api/v1/courses/<course_id>/content_migrations \ 
+  #     curl https://<canvas>/api/v1/courses/<course_id>/content_migrations \
   #         -H 'Authorization: Bearer <token>'
   #
   # @returns [ContentMigration]
@@ -154,6 +155,15 @@ class ContentMigrationsController < ApplicationController
 
       options = @plugins.map{|p| {:label => p.metadata(:select_text), :id => p.id}}
 
+      external_tools = ContextExternalTool.all_tools_for(@context).select(&:has_migration_selection?)
+      options.concat(external_tools.map do |et|
+        {
+          id: et.asset_string,
+          label: et.label_for('migration_selection', I18n.locale)
+        }
+      end)
+
+      js_env :EXTERNAL_TOOLS => external_tools_json(external_tools, @context, @current_user, session)
       js_env :UPLOAD_LIMIT => @context.storage_quota
       js_env :SELECT_OPTIONS => options
       js_env :QUESTION_BANKS => @context.assessment_question_banks.except(:includes).select([:title, :id]).active
@@ -161,6 +171,7 @@ class ContentMigrationsController < ApplicationController
       js_env :CONTENT_MIGRATIONS => content_migration_json_hash
       js_env(:OLD_START_DATE => unlocalized_datetime_string(@context.start_at, :verbose))
       js_env(:OLD_END_DATE => unlocalized_datetime_string(@context.conclude_at, :verbose))
+      js_env :ROOT_ACCOUNT_ID => (@context.respond_to?(:root_account_id) ? @context.root_account_id : nil)
     end
   end
 
@@ -170,7 +181,7 @@ class ContentMigrationsController < ApplicationController
   #
   # @example_request
   #
-  #     curl https://<canvas>/api/v1/courses/<course_id>/content_migrations/<id> \ 
+  #     curl https://<canvas>/api/v1/courses/<course_id>/content_migrations/<id> \
   #         -H 'Authorization: Bearer <token>'
   #
   # @returns ContentMigration
@@ -179,6 +190,11 @@ class ContentMigrationsController < ApplicationController
     @content_migration.check_for_pre_processing_timeout
     render :json => content_migration_json(@content_migration, @current_user, session)
   end
+
+  def migration_plugin_supported?(plugin)
+    Array(plugin.default_settings && plugin.default_settings[:valid_contexts]).include?(@context.class.to_s)
+  end
+  private :migration_plugin_supported?
 
   # @API Create a content migration
   #
@@ -267,50 +283,70 @@ class ContentMigrationsController < ApplicationController
   #
   # @example_request
   #
-  #   curl 'https://<canvas>/api/v1/courses/<course_id>/content_migrations' \ 
-  #        -F 'migration_type=common_cartridge_importer' \ 
-  #        -F 'settings[question_bank_name]=importquestions' \ 
-  #        -F 'date_shift_options[old_start_date]=1999-01-01' \ 
-  #        -F 'date_shift_options[new_start_date]=2013-09-01' \ 
-  #        -F 'date_shift_options[old_end_date]=1999-04-15' \ 
-  #        -F 'date_shift_options[new_end_date]=2013-12-15' \ 
-  #        -F 'date_shift_options[day_substitutions][1]=2' \ 
-  #        -F 'date_shift_options[day_substitutions][2]=3' \ 
-  #        -F 'date_shift_options[shift_dates]=true' \ 
-  #        -F 'pre_attachment[name]=mycourse.imscc' \ 
-  #        -F 'pre_attachment[size]=12345' \ 
-  #        -H 'Authorization: Bearer <token>' 
-  # 
+  #   curl 'https://<canvas>/api/v1/courses/<course_id>/content_migrations' \
+  #        -F 'migration_type=common_cartridge_importer' \
+  #        -F 'settings[question_bank_name]=importquestions' \
+  #        -F 'date_shift_options[old_start_date]=1999-01-01' \
+  #        -F 'date_shift_options[new_start_date]=2013-09-01' \
+  #        -F 'date_shift_options[old_end_date]=1999-04-15' \
+  #        -F 'date_shift_options[new_end_date]=2013-12-15' \
+  #        -F 'date_shift_options[day_substitutions][1]=2' \
+  #        -F 'date_shift_options[day_substitutions][2]=3' \
+  #        -F 'date_shift_options[shift_dates]=true' \
+  #        -F 'pre_attachment[name]=mycourse.imscc' \
+  #        -F 'pre_attachment[size]=12345' \
+  #        -H 'Authorization: Bearer <token>'
+  #
   # @returns ContentMigration
   def create
-    @plugin = Canvas::Plugin.find(params[:migration_type])
+    @plugin = find_migration_plugin params[:migration_type]
+
     if !@plugin
       return render(:json => { :message => t('bad_migration_type', "Invalid migration_type") }, :status => :bad_request)
     end
+    unless migration_plugin_supported?(@plugin)
+      return render(:json => { :message => t('unsupported_migration_type', "Unsupported migration_type for context") }, :status => :bad_request)
+    end
+
     settings = @plugin.settings || {}
     if settings[:requires_file_upload]
       if !(params[:pre_attachment] && params[:pre_attachment][:name].present?) && !(params[:settings] && params[:settings][:file_url].present?)
         return render(:json => {:message => t('must_upload_file', "File upload or url is required")}, :status => :bad_request)
       end
     end
-    lookup_sis_source_course_id unless params[:migration_type] == 'hotchalk'
+    unless params[:migration_type] == 'hotchalk'
+      source_course = lookup_sis_source_course
+    end
     if validator = settings[:required_options_validator]
       if res = validator.has_error(params[:settings], @current_user, @context)
         return render(:json => { :message => res.respond_to?(:call) ? res.call : res }, :status => :bad_request)
       end
     end
 
-    # Special case: check for Hotchalk package imports and add URL
-    if params[:migration_type] == 'hotchalk' && @plugin.enabled?
-      source_package_id = params[:settings][:source_course_id]
-      base_url = PluginSetting.settings_for_plugin(:hotchalk)['cl_base_url']
-      integration_key = PluginSetting.settings_for_plugin(:hotchalk)['cl_integration_key']
-      package_url = "https://#{base_url}/clws/integration/packages/#{source_package_id}/download?key=#{integration_key}"
-      params[:pre_attachment] = { :url => package_url, :name => "#{source_package_id}.imscc" }
-    end
-
-    @content_migration = @context.content_migrations.build(:user => @current_user, :context => @context, :migration_type => params[:migration_type])
+    @content_migration = @context.content_migrations.build(
+      user: @current_user,
+      context: @context,
+      migration_type: params[:migration_type],
+      initiated_source: :api
+    )
     @content_migration.workflow_state = 'created'
+    @content_migration.source_course = source_course if source_course
+
+    # Special case: check for Hotchalk package imports and add URL
+    if params[:migration_type] == 'hotchalk' && @plugin.enabled? && @context.respond_to?(:root_account)
+      begin
+        source_package_id = params[:settings][:source_course_id]
+        base_url = settings[:account_external_urls][@context.root_account_id.to_s]['cl_base_url']
+        integration_key = settings[:account_external_urls][@context.root_account_id.to_s]['cl_integration_key']
+        raise "Invalid Hotchalk plugin settings for account ID #{@context.root_account_id}" if base_url.blank? || integration_key.blank?
+        package_url = "https://#{base_url}/clws/integration/packages/#{source_package_id}/download?key=#{integration_key}"
+        params[:pre_attachment] = { :url => package_url, :name => "#{source_package_id}.imscc" }
+      rescue => e
+        @content_migration.fail_with_error!(e)
+        render :json => @content_migration.errors, :status => :bad_request
+        return
+      end
+    end
 
     update_migration
   end
@@ -328,17 +364,19 @@ class ContentMigrationsController < ApplicationController
   def update
     @content_migration = @context.content_migrations.find(params[:id])
     @content_migration.check_for_pre_processing_timeout
-    @plugin = Canvas::Plugin.find(@content_migration.migration_type)
-    lookup_sis_source_course_id
+    @plugin = find_migration_plugin @content_migration.migration_type
+    lookup_sis_source_course
     update_migration
   end
 
-  def lookup_sis_source_course_id
+  def lookup_sis_source_course
     if params.has_key?(:settings) && params[:settings].has_key?(:source_course_id)
-      params[:settings][:source_course_id] = api_find(Course, params[:settings][:source_course_id]).id
+      course = api_find(Course, params[:settings][:source_course_id])
+      params[:settings][:source_course_id] = course.id
+      course
     end
   end
-  private :lookup_sis_source_course_id
+  private :lookup_sis_source_course
 
 
   # @API List Migration Systems
@@ -347,7 +385,7 @@ class ContentMigrationsController < ApplicationController
   #
   # @returns [Migrator]
   def available_migrators
-    systems = ContentMigration.migration_plugins(true)
+    systems = ContentMigration.migration_plugins(true).select{|sys| migration_plugin_supported?(sys)}
     json = systems.map{|p| {
             :type => p.id,
             :requires_file_upload => !!p.settings[:requires_file_upload],
@@ -409,13 +447,28 @@ class ContentMigrationsController < ApplicationController
   def content_list
     @content_migration = @context.content_migrations.find(params[:id])
     base_url = api_v1_course_content_migration_selective_data_url(@context, @content_migration)
-    render :json => @content_migration.get_content_list(params[:type], base_url)
+    formatter = Canvas::Migration::Helpers::SelectiveContentFormatter.new(@content_migration, base_url)
+
+    unless formatter.valid_type?(params[:type])
+      return render :json => {:message => "unsupported migration type"}, :status => :bad_request
+    end
+    render :json => formatter.get_content_list(params[:type])
   end
 
   protected
 
   def require_auth
     authorized_action(@context, @current_user, :manage_content)
+  end
+
+  def find_migration_plugin(name)
+    if name =~ /context_external_tool/
+      plugin = Canvas::Plugin.new(name)
+      plugin.meta[:settings] = {requires_file_upload: true, worker: 'CCWorker', valid_contexts: %w{Course}}.with_indifferent_access
+      plugin
+    else
+      Canvas::Plugin.find(name)
+    end
   end
 
   def update_migration
@@ -453,7 +506,7 @@ class ContentMigrationsController < ApplicationController
         end
         @content_migration.save!
       elsif !params.has_key?(:do_not_run) || !Canvas::Plugin.value_to_boolean(params[:do_not_run])
-        @content_migration.queue_migration
+        @content_migration.queue_migration(@plugin)
       end
 
       render :json => content_migration_json(@content_migration, @current_user, session, preflight_json)

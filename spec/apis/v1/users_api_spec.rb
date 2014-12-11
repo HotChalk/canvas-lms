@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 - 2014 Instructure, Inc.
+# Copyright (C) 2011 - 2013 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -69,6 +69,8 @@ describe Api::V1::User do
           'sis_import_id' => nil,
           'id' => @user.id,
           'short_name' => 'User',
+          'sis_user_id' => 'xyz',
+          'integration_id' => nil,
           'login_id' => 'xyz',
           'sis_login_id' => 'xyz'
         }
@@ -89,9 +91,33 @@ describe Api::V1::User do
           'sis_import_id' => sis_batch.id,
           'id' => @user.id,
           'short_name' => 'User',
+          'sis_user_id' => 'xyz',
+          'integration_id' => nil,
           'login_id' => 'xyz',
           'sis_login_id' => 'xyz'
         }
+    end
+
+    it 'should use an sis pseudonym from another account if necessary' do
+      @user = User.create!(:name => 'User')
+      @account2 = Account.create!
+      @user.pseudonyms.create!(:unique_id => 'abc', :account => @account2) { |p| p.sis_user_id = 'a'}
+      Account.default.any_instantiation.stubs(:trust_exists?).returns(true)
+      Account.default.any_instantiation.stubs(:trusted_account_ids).returns([@account2.id])
+      HostUrl.expects(:context_host).with(@account2).returns('school1')
+      @user.stubs(:find_pseudonym_for_account).with(Account.default).returns(@pseudonym)
+      @test_api.user_json(@user, @admin, {}, [], Account.default).should == {
+          'name' => 'User',
+          'sortable_name' => 'User',
+          'id' => @user.id,
+          'short_name' => 'User',
+          'login_id' => 'abc',
+          'sis_login_id' => 'abc',
+          'sis_user_id' => 'a',
+          'integration_id' => nil,
+          'root_account' => 'school1',
+          'sis_import_id' => nil,
+      }
     end
 
     it 'should use the correct pseudonym' do
@@ -148,9 +174,12 @@ describe Api::V1::User do
                       "sis_user_id"=>"sis-user-id",
                       "id"=>@student.id,
                       "short_name"=>"Student",
-                      "login_id"=>"pvuser@example.com",
+                      "sis_user_id"=>"sis-user-id",
+                      "integration_id" => nil,
                       "sis_import_id"=>@student.pseudonym.sis_batch_id,
-                      "sis_login_id"=>"pvuser@example.com"}
+                      "sis_login_id"=>"pvuser@example.com",
+                      "login_id" => "pvuser@example.com"
+      }
     end
 
     it 'should support manually passing the context' do
@@ -266,7 +295,7 @@ describe "Users API", type: :request do
         json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?start_time=#{start_time}",
                            { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :start_time => start_time })
         json.size.should == 2
-        json.each { |j| TimeHelper.try_parse(j['created_at']).to_i.should be >= @timestamp.to_i }
+        json.each { |j| CanvasTime.try_parse(j['created_at']).to_i.should be >= @timestamp.to_i }
       end
 
       it "should recognize end_time parameter" do
@@ -275,7 +304,7 @@ describe "Users API", type: :request do
         json = api_call(:get, "/api/v1/users/#{@student.id}/page_views?end_time=#{end_time}",
                            { :controller => "page_views", :action => "index", :user_id => @student.to_param, :format => 'json', :end_time => end_time })
         json.size.should == 2
-        json.each { |j| TimeHelper.try_parse(j['created_at']).to_i.should be <= @timestamp.to_i }
+        json.each { |j| CanvasTime.try_parse(j['created_at']).to_i.should be <= @timestamp.to_i }
       end
     end
   end
@@ -289,7 +318,7 @@ describe "Users API", type: :request do
 
   it "shouldn't find users in other root accounts by sis id" do
     acct = account_model(:name => 'other root')
-    acct.add_user(@user)
+    acct.account_users.create!(user: @user)
     @me = @user
     course_with_student(:account => acct, :active_all => true, :user => user_with_pseudonym(:name => 's2', :username => 'other@example.com'))
     @other_user = @user
@@ -328,8 +357,10 @@ describe "Users API", type: :request do
           'sis_import_id' => nil,
           'id' => user.id,
           'short_name' => user.short_name,
-          'login_id' => user.pseudonym.unique_id,
-          'sis_login_id' => user.pseudonym.sis_user_id
+          'sis_user_id' => user.pseudonym.sis_user_id,
+          'integration_id' => nil,
+          'sis_login_id' => user.pseudonym.sis_user_id,
+          'login_id' => user.pseudonym.unique_id
         }]
       end
     end
@@ -413,7 +444,7 @@ describe "Users API", type: :request do
     context 'as a site admin' do
       before do
         @site_admin = user_with_pseudonym
-        Account.site_admin.add_user(@site_admin)
+        Account.site_admin.account_users.create!(user: @site_admin)
       end
 
       it "should allow site admins to create users" do
@@ -458,8 +489,16 @@ describe "Users API", type: :request do
           "sis_import_id" => user.pseudonym.sis_batch_id,
           "login_id"      => "test@example.com",
           "sis_login_id"  => "test@example.com",
+          "integration_id" => nil,
           "locale"        => "en"
         }
+      end
+
+      it "should catch invalid dates before passing to the database" do
+        json = api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
+                        { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
+                        { :pseudonym => { :unique_id => "test@example.com"},
+                          :user => { :name => "Test User", :birthdate => "-3587-11-20" } }, {}, {:expected_status => 400} )
       end
 
       it "should allow site admins to create users and auto-validate communication channel" do
@@ -606,12 +645,14 @@ describe "Users API", type: :request do
     end
     context "an admin user" do
       it "should be able to update a user" do
+        birthday = Time.now
         json = api_call(:put, @path, @path_options, {
           :user => {
             :name => 'Tobias Funke',
             :short_name => 'Tobias',
             :sortable_name => 'Funke, Tobias',
             :time_zone => 'Tijuana',
+            :birthdate => birthday.iso8601,
             :locale => 'en'
           }
         })
@@ -624,11 +665,27 @@ describe "Users API", type: :request do
           'sis_import_id' => nil,
           'id' => user.id,
           'short_name' => 'Tobias',
+          'integration_id' => nil,
           'login_id' => 'student@example.com',
           'sis_login_id' => 'student@example.com',
           'locale' => 'en'
         }
+        user.birthdate.to_date.should == birthday.to_date
         user.time_zone.name.should eql 'Tijuana'
+      end
+
+      it "should catch invalid dates" do
+        birthday = Time.now
+        json = api_call(:put, @path, @path_options, {
+            :user => {
+                :name => 'Tobias Funke',
+                :short_name => 'Tobias',
+                :sortable_name => 'Funke, Tobias',
+                :time_zone => 'Tijuana',
+                :birthdate => "-4000-02-01 10:20",
+                :locale => 'en'
+            }
+        }, {}, {:expected_status => 400})
       end
 
       it "should allow updating without any params" do

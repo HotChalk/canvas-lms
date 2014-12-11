@@ -61,7 +61,7 @@ describe Quizzes::QuizSubmissionsApiController, type: :request do
       @quiz_submission = @quiz.generate_submission(@student)
       @quiz_submission.submission_data = submission_data
       @quiz_submission.mark_completed
-      @quiz_submission.grade_submission
+      Quizzes::SubmissionGrader.new(@quiz_submission).grade_submission
       @quiz_submission.reload
     end
 
@@ -230,6 +230,14 @@ describe Quizzes::QuizSubmissionsApiController, type: :request do
         json['quiz_submissions'][0]['time_spent'].should == 5.minutes
       end
 
+      it 'should include questions_regraded_since_last_attempt' do
+        @quiz_submission.save!
+
+        json = qs_api_show
+        json.has_key?('quiz_submissions').should be_true
+        json['quiz_submissions'][0]['questions_regraded_since_last_attempt'].should == 0
+      end
+
       it 'should include html_url' do
         json = qs_api_show
         json.has_key?('quiz_submissions').should be_true
@@ -383,7 +391,7 @@ describe Quizzes::QuizSubmissionsApiController, type: :request do
 
       it 'should reject completing an already complete QS' do
         @quiz_submission.mark_completed
-        @quiz_submission.grade_submission
+        Quizzes::SubmissionGrader.new(@quiz_submission).grade_submission
 
         json = qs_api_complete true, {
           attempt: 1

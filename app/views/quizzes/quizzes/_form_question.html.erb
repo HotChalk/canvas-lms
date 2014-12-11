@@ -80,12 +80,12 @@
       <%= t('explanations.multi_answer_sets', "In the box below, every place you want to show an answer box, type a reference word (no spaces) surrounded by brackets") %><br/>
       (<%= t(:multi_answer_sets_example, 'i.e. "Roses are [color1], violets are [color2]"') %>)
     </div>
-    <div style="float: right; font-size: 0.8em;">
+    <div style="float: right; margin-right: 10%; font-size: 0.8em;">
       <a href="#" class="toggle_question_content_views_link"><%= t '#editor.switch_editor_html', "HTML Editor" %></a>
       <a href="#" class="toggle_question_content_views_link" style="display:none;"><%= t '#editor.switch_editor_visual', "Visual Editor" %></a>
     </div>
     <div class="clear"></div>
-    <div>
+    <div style="text-align: center;">
       <textarea style="width: 90%; height: 120px;" class="question_content" name="question_text"></textarea>
     </div>
     <b tabindex="0" role="heading" class="answers_header"><%= before_label(:answers, "Answers") %></b>
@@ -200,7 +200,7 @@
     <div class="clear"></div>
     <div class="button-container">
       <button type="button" class="btn btn-small cancel_link"><%= t('#buttons.cancel', "Cancel") %></button>
-      <button type="submit" class="btn btn-small submit_button btn-primary"><%= t('buttons.create_update_question', "Create/Update Question") %></button>
+      <button type="button" class="btn btn-small submit_button btn-primary"><%= t('buttons.create_update_question', "Create/Update Question") %></button>
     </div>
   </div>
 </div>

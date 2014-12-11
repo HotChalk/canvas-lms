@@ -16,38 +16,6 @@
 # based on http://henrik.nyh.se/2008/01/rails-truncate-html-helper
 
 module TextHelper
-  def strip_and_truncate(text, options={})
-    truncate_text(HtmlTextHelper.strip_tags(text), options)
-  end
-  module_function :strip_and_truncate
-
-  def truncate_text(text, options={})
-    truncated = text || ""
-
-    # truncate words
-    if options[:max_words]
-      word_separator = options[:word_separator] || I18n.t('lib.text_helper.word_separator', ' ')
-      truncated = truncated.split(word_separator)[0,options[:max_words]].join(word_separator)
-    end
-
-    max_length = options[:max_length] || 30
-    return truncated if truncated.length <= max_length
-
-    ellipsis = options[:ellipsis] || I18n.t('lib.text_helper.ellipsis', '...')
-    actual_length = max_length - ellipsis.length
-
-    # First truncate the text down to the bytes max, then lop off any invalid
-    # unicode characters at the end.
-    truncated = truncated[0,actual_length][/.{0,#{actual_length}}/mu]
-    truncated + ellipsis
-  end
-
-  def indent(text, spaces=2)
-    text = text.to_s rescue ""
-    indentation = " " * spaces
-    text.gsub(/\n/, "\n#{indentation}")
-  end
-
   def force_zone(time)
     (time.in_time_zone(@time_zone || Time.zone) rescue nil) || time
   end
@@ -87,13 +55,14 @@ def self.date_component(start_date, style=:normal)
     TextHelper.date_string(*args)
   end
 
-  def time_string(start_time, end_time=nil)
-    start_time = start_time.in_time_zone rescue start_time
-    end_time = end_time.in_time_zone rescue end_time
+  def time_string(start_time, end_time=nil, zone=nil)
+    zone ||= ::Time.zone
+    start_time = start_time.in_time_zone(zone) rescue start_time
+    end_time = end_time.in_time_zone(zone) rescue end_time
     return nil unless start_time
     result = I18n.l(start_time, :format => start_time.min == 0 ? :tiny_on_the_hour : :tiny)
     if end_time && end_time != start_time
-      result = I18n.t('time.ranges.times', "%{start_time} to %{end_time}", :start_time => result, :end_time => time_string(end_time))
+      result = I18n.t('time.ranges.times', "%{start_time} to %{end_time}", :start_time => result, :end_time => time_string(end_time, nil, zone))
     end
     result
   end
@@ -107,26 +76,27 @@ def self.date_component(start_date, style=:normal)
     end
   end
 
-  def datetime_string(start_datetime, datetime_type=:event, end_datetime=nil, shorten_midnight=false)
-    start_datetime = start_datetime.in_time_zone rescue start_datetime
+  def datetime_string(start_datetime, datetime_type=:event, end_datetime=nil, shorten_midnight=false, zone=nil)
+    zone ||= ::Time.zone
+    start_datetime = start_datetime.in_time_zone(zone) rescue start_datetime
     return nil unless start_datetime
-    end_datetime = end_datetime.in_time_zone rescue end_datetime
+    end_datetime = end_datetime.in_time_zone(zone) rescue end_datetime
     if !datetime_type.is_a?(Symbol)
       datetime_type = :event
       end_datetime = nil
     end
     end_datetime = nil if datetime_type == :due_date
 
-    def datetime_component(date_string, time, type)
+    def datetime_component(date_string, time, type, zone)
       if type == :due_date
-        I18n.t('time.due_date', "%{date} by %{time}", :date => date_string, :time => time_string(time))
+        I18n.t('time.due_date', "%{date} by %{time}", :date => date_string, :time => time_string(time, nil, zone))
       else
-        I18n.t('time.event', "%{date} at %{time}", :date => date_string, :time => time_string(time))
+        I18n.t('time.event', "%{date} at %{time}", :date => date_string, :time => time_string(time, nil, zone))
       end
     end
 
     start_date_string = date_string(start_datetime, datetime_type == :verbose ? :long : :no_words)
-    start_string = datetime_component(start_date_string, start_datetime, datetime_type)
+    start_string = datetime_component(start_date_string, start_datetime, datetime_type, zone)
 
     if !end_datetime || end_datetime == start_datetime
       if shorten_midnight && ((datetime_type == :due_date  && start_datetime.hour == 23 && start_datetime.min == 59) || (datetime_type == :event && start_datetime.hour == 0 && start_datetime.min == 0))
@@ -136,10 +106,10 @@ def self.date_component(start_date, style=:normal)
       end
     else
       if start_datetime.to_date == end_datetime.to_date
-        I18n.t('time.ranges.same_day', "%{date} from %{start_time} to %{end_time}", :date => start_date_string, :start_time => time_string(start_datetime), :end_time => time_string(end_datetime))
+        I18n.t('time.ranges.same_day', "%{date} from %{start_time} to %{end_time}", :date => start_date_string, :start_time => time_string(start_datetime, nil, zone), :end_time => time_string(end_datetime, nil, zone))
       else
         end_date_string = date_string(end_datetime, datetime_type == :verbose ? :long : :no_words)
-        end_string = datetime_component(end_date_string, end_datetime, datetime_type)
+        end_string = datetime_component(end_date_string, end_datetime, datetime_type, zone)
         I18n.t('time.ranges.different_days', "%{start_date_and_time} to %{end_date_and_time}", :start_date_and_time => start_string, :end_date_and_time => end_string)
       end
     end

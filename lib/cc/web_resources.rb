@@ -22,19 +22,23 @@ module CC
     def add_course_files
       return if for_course_copy
 
+      @html_exporter.referenced_files.keys.each do |att_id|
+        add_item_to_export("attachment_#{att_id}", "attachments")
+      end
+
       course_folder = Folder.root_folders(@course).first
       files_with_metadata = { :folders => [], :files => [] }
       @added_attachment_ids = Set.new
 
       zipper = ContentZipper.new(:check_user => false)
-      zipper.process_folder(course_folder, @zip_file, [CCHelper::WEB_RESOURCES_FOLDER]) do |file, folder_names|
+      zipper.process_folder(course_folder, @zip_file, [CCHelper::WEB_RESOURCES_FOLDER], :exporter => @manifest.exporter) do |file, folder_names|
         begin
           if file.is_a? Folder
             dir = File.join(folder_names[1..-1])
             files_with_metadata[:folders] << [file, dir] if file.hidden? || file.locked
             next
           end
-          
+
           @added_attachment_ids << file.id
           path = File.join(folder_names, file.display_name)
           migration_id = CCHelper.create_key(file)
@@ -160,7 +164,7 @@ module CC
     MAX_MEDIA_OBJECT_SIZE = 4.gigabytes
     def add_media_objects(html_content_exporter)
       return if for_course_copy
-      return unless Kaltura::ClientV3.config
+      return unless CanvasKaltura::ClientV3.config
 
       # check to make sure we don't export more than 4 gigabytes of media objects
       total_size = 0
@@ -178,8 +182,8 @@ module CC
         return
       end
 
-      client = Kaltura::ClientV3.new
-      client.startSession(Kaltura::SessionType::ADMIN)
+      client = CanvasKaltura::ClientV3.new
+      client.startSession(CanvasKaltura::SessionType::ADMIN)
 
       tracks = {}
       html_content_exporter.used_media_objects.each do |obj|
@@ -189,8 +193,8 @@ module CC
           info = html_content_exporter.media_object_infos[obj.id]
           next unless info && info[:asset]
 
-          unless Kaltura::ClientV3::ASSET_STATUSES[info[:asset][:status]] == :READY &&
-              url = (client.flavorAssetGetPlaylistUrl(obj.media_id, info[:asset][:id]) || client.flavorAssetGetDownloadUrl(info[:asset][:id]))
+          unless CanvasKaltura::ClientV3::ASSET_STATUSES[info[:asset][:status]] == :READY &&
+            url = (client.flavorAssetGetPlaylistUrl(obj.media_id, info[:asset][:id]) || client.flavorAssetGetDownloadUrl(info[:asset][:id]))
             add_error(I18n.t('course_exports.errors.media_file', "A media file failed to export"))
             next
           end
