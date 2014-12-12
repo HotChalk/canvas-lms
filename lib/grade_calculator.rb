@@ -59,6 +59,22 @@ class GradeCalculator
     end
   end
 
+  def compute_group_scores
+    @submissions = @course.submissions.
+        except(:order, :select).
+        for_user(@user_ids).
+        select("submissions.id, user_id, assignment_id, score")
+    submissions_by_user = @submissions.group_by(&:user_id)
+    @user_ids.map do |user_id|
+      user_submissions = submissions_by_user[user_id] || []
+      current, current_groups = calculate_current_score(user_id, user_submissions)
+      {
+        :final_score => current,
+        :group_scores => current_groups
+      }
+    end
+  end
+
   def compute_and_save_scores
     compute_scores
     save_scores

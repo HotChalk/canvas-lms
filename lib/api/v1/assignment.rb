@@ -195,13 +195,16 @@ module Api::V1::Assignment
       hash['only_visible_to_overrides'] = value_to_boolean(assignment.only_visible_to_overrides)
     end
 
-    if submission = opts[:submission]      
+    if submission = opts[:submission]
       if opts[:submission_include]
         hash['submission'] = submission_json(submission,assignment,user,session, nil, opts[:submission_include])
       else
         hash['submission'] = submission_json(submission,assignment,user,session)
       end
-      
+    end
+
+    if opts[:include_group]
+      hash['assignment_group_name'] = assignment.assignment_group.name
     end
 
     if opts[:include_submission]

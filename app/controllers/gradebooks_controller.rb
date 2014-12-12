@@ -21,6 +21,7 @@ class GradebooksController < ApplicationController
   include GradebooksHelper
   include KalturaHelper
   include Api::V1::AssignmentGroup
+  include Api::V1::Assignment
   include Api::V1::Submission
   include Api::V1::CustomGradebookColumn
 
@@ -46,7 +47,6 @@ class GradebooksController < ApplicationController
     if authorized_action(@presenter.student_enrollment, @current_user, :read_grades)
       log_asset_access("grades:#{@context.asset_string}", "grades", "other")
       if @presenter.student
-        add_crumb(@presenter.student_name, named_context_url(@context, :context_student_grades_url, @presenter.student_id))
 
         Shackles.activate(:slave) do
           #run these queries on the slave database for speed
@@ -57,25 +57,55 @@ class GradebooksController < ApplicationController
           @presenter.assignment_stats
         end
 
-        submissions_json = @presenter.submissions.map { |s|
-          {
-            'assignment_id' => s.assignment_id,
-            'score' => s.grants_right?(@current_user, :read_grade)? s.score  : nil
+        respond_to do |format|
+          format.html {
+            add_crumb(@presenter.student_name, named_context_url(@context, :context_student_grades_url, @presenter.student_id))
+
+            submissions_json = @presenter.submissions.map { |s|
+              {
+                'assignment_id' => s.assignment_id,
+                'score' => s.grants_right?(@current_user, :read_grade)? s.score  : nil
+              }
+            }
+            ags_json = light_weight_ags_json(@presenter.groups)
+            js_env submissions: submissions_json,
+                   assignment_groups: ags_json,
+                   group_weighting_scheme: @context.group_weighting_scheme,
+                   show_total_grade_as_points: @context.settings[:show_total_grade_as_points],
+                   grading_scheme: @context.grading_standard.try(:data) || GradingStandard.default_grading_standard,
+                   student_outcome_gradebook_enabled: @context.feature_enabled?(:student_outcome_gradebook),
+                   student_id: @presenter.student_id
+            render :action => 'grade_summary'
           }
-        }
-        ags_json = light_weight_ags_json(@presenter.groups)
-        js_env submissions: submissions_json,
-               assignment_groups: ags_json,
-               group_weighting_scheme: @context.group_weighting_scheme,
-               show_total_grade_as_points: @context.settings[:show_total_grade_as_points],
-               grading_scheme: @context.grading_standard.try(:data) || GradingStandard.default_grading_standard,
-               student_outcome_gradebook_enabled: @context.feature_enabled?(:student_outcome_gradebook),
-               student_id: @presenter.student_id
-        render :action => 'grade_summary'
+          format.json {
+            hash = @presenter.assignment_presenters.map { |s|
+              {
+                'assignment' => s.assignment.is_a?(Assignment) ? assignment_json(s.assignment, @current_user, session, include_group: true) : assignment_group_json(s.assignment),
+                'submission' => s.submission.is_a?(Submission) ? submission_json(s.submission, s.assignment, @current_user, session) : s.submission
+              }
+            }
+            render :json => hash
+          }
+        end
       else
         render :action => 'grade_summary_list'
       end
     end
+  end
+
+  def assignment_group_json(assignment_group)
+    ag = {
+      'id' => assignment_group.id,
+      'rules' => assignment_group.rules,
+      'title' => assignment_group.title,
+      'points_possible' => assignment_group.points_possible,
+      'score' => assignment_group.score,
+      'hard_coded' => assignment_group.hard_coded,
+      'special_class' => assignment_group.special_class,
+      'assignment_group_id' => assignment_group.assignment_group_id,
+      'group_weight' => assignment_group.group_weight,
+      'asset_string' => assignment_group.asset_string
+    }
   end
 
   def light_weight_ags_json(assignment_groups)
@@ -402,12 +432,16 @@ class GradebooksController < ApplicationController
           lambda{ |group| percentage[group.group_weight] }) :
         lambda{ |group| nil }
 
+    calc = GradeCalculator.new(@current_user.id, @context, :ignore_muted => false)
+    grades = calc.compute_group_scores
+
     groups = groups.map { |group|
       OpenObject.build('assignment',
         :id => 'group-' + group.id.to_s,
         :rules => group.rules,
         :title => group.name,
         :points_possible => points_possible[group],
+        :score => grades[0][:group_scores][group.id][:grade],
         :hard_coded => true,
         :special_class => 'group_total',
         :assignment_group_id => group.id,
@@ -419,6 +453,7 @@ class GradebooksController < ApplicationController
         :id => 'final-grade',
         :title => t('titles.total', 'Total'),
         :points_possible => (options[:out_of_final] ? '' : percentage[100]),
+        :score => grades[0][:final_score][:grade],
         :hard_coded => true,
         :special_class => 'final_grade',
         :asset_string => "final_grade_column") unless options[:exclude_total]

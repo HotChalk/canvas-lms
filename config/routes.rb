@@ -1583,6 +1583,10 @@ routes.draw do
       post 'accounts/:account_id/grading_standards', :action => :create
       post 'courses/:course_id/grading_standards', :action => :create
     end
+
+    scope(:controller => :gradebooks) do
+      get 'courses/:course_id/grades', :action => :grade_summary
+    end
   end
 
   # this is not a "normal" api endpoint in the sense that it is not documented
