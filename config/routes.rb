@@ -822,6 +822,7 @@ routes.draw do
   ApiRouteSet::V1.draw(self) do
     scope(:controller => :courses) do
       get 'courses', :action => :index, :path_name => 'courses'
+      get 'courses_by_date', :action => :index_by_date, :path_name => 'courses_by_date'
       put 'courses/:id', :action => :update
       get 'courses/:id', :action => :show, :path_name => 'course'
       delete 'courses/:id', :action => :destroy

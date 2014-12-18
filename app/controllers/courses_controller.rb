@@ -388,6 +388,57 @@ class CoursesController < ApplicationController
     end
   end
 
+  def index_by_date
+    respond_to do |format|
+      format.json {
+        all_enrollments = @current_user.enrollments.with_each_shard { |scope| scope.not_deleted }
+        @past_enrollments = []
+        @current_enrollments = []
+        @future_enrollments  = []
+        Canvas::Builders::EnrollmentDateBuilder.preload(all_enrollments)
+        all_enrollments.each do |e|
+          if [:completed, :rejected].include?(e.state_based_on_date)
+            @past_enrollments << e
+          else
+            start_at, end_at = e.enrollment_dates.first
+            if start_at && start_at > Time.now.utc
+              @future_enrollments << e unless %w(StudentEnrollment ObserverEnrollment).include?(e.type) && e.root_account.settings[:restrict_student_future_view]
+            else
+              @current_enrollments << e
+            end
+          end
+        end
+
+        @past_enrollments.sort_by!{|e| Canvas::ICU.collation_key(e.long_name)}
+        [@current_enrollments, @future_enrollments].each{|list| list.sort_by!{|e| [e.active? ? 1 : 0, Canvas::ICU.collation_key(e.long_name)] }}
+
+        hash = {}
+        hash[:past_enrollments] = []
+        hash[:current_enrollments] = []
+        hash[:future_enrollments] = []
+
+        includes = Set.new(Array(params[:include]))
+
+        @past_enrollments.each do |past_enrollments|
+          course = past_enrollments.course
+          hash[:past_enrollments] << course_json(course, @current_user, session, includes, [past_enrollments])
+        end
+
+        @current_enrollments.each do |current_enrollments|
+          course = current_enrollments.course
+          hash[:current_enrollments] << course_json(course, @current_user, session, includes, [current_enrollments])
+        end
+
+        @future_enrollments.each do |future_enrollments|
+          course = future_enrollments.course
+          hash[:future_enrollments]<< course_json(course, @current_user, session, includes, [future_enrollments])
+        end
+
+        render :json => hash
+      }
+    end
+  end
+
   # @API Create a new course
   # Create a new course
   #
