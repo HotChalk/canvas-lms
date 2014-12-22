@@ -22,7 +22,7 @@
   </p>
   <%= form_tag oauth2_auth_accept_path do %>
     <div class="button_box">
-      <%= link_to(t(:cancel, "Cancel"), oauth2_auth_deny_path, :class => "btn") %>
+      <!-- <%= link_to(t(:cancel, "Cancel"), oauth2_auth_deny_path, :class => "btn") %> -->
       <%=  submit_tag("Log in",  :class => "btn btn-primary") %>
     </div>
     <% unless @provider.scopes.blank? %>
