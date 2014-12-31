@@ -18,33 +18,33 @@
 /config/build.js
 /config/environments/*-local.rb
 /config/locales/generated/
+/config/RAILS4
 /db/schema.rb
 /db/*.sqlite*
 /db/*sql
 /exports/
-#Gemfile.lock
-#Gemfile.lock3
+Gemfile.lock
+Gemfile.lock2
+Gemfile.lock3
+Gemfile.lock4
 /log/
+/node_modules
 /public/app/
 /public/assets/
 /public/doc/api/
 /public/javascripts/compiled/
 /public/javascripts/jst/
+/public/javascripts/jsx/
 /public/javascripts/translations/
 /public/optimized/
 /public/stylesheets_compiled/
-/config/RAILS3
+/spec/javascripts/compiled/
+/spec/javascripts/requirejs_config.js
 /spec/javascripts/runner.html
 /spec/javascripts/tests.js
-/spec/javascripts/compiled/
 /tmp/
 /vendor/plugins/rails_upgrade
-/node_modules
-/spec/javascripts/tests.js
-/spec/javascripts/requirejs_config.js
-/vendor/bundle
 
-/.vagrant/
 # generated plugin stuff
 /app/coffeescripts/plugins/
 /app/stylesheets/plugins/
@@ -54,13 +54,17 @@
 /spec/coffeescripts/plugins/
 /spec/plugins/
 
-.ruby-version
+# generated client app stuff
+/public/javascripts/client_apps/
 
-/vendor/plugins/*/public/javascripts/compiled/
-
-#remove this once we move jqeury into bower
+# remove this once we move jquery into bower
 /public/javascripts/bower/jquery/
 
-[canvas-gems]
+# canvas-gems
 /gems/*/coverage
 /gems/*/tmp
+
+# Hotchalk
+/.vagrant/
+.ruby-version
+/vendor/plugins/*/public/javascripts/compiled/

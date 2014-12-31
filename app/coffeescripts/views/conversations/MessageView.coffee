@@ -38,6 +38,7 @@ define [
       @model.on('change:selected', (m) => @$el.toggleClass('active', m.get('selected')))
 
     onSelect: (e) ->
+      e.preventDefault()
       return if e and e.target.className.match(/star|read-state/)
       if e.shiftKey
         return @model.collection.selectRange(@model)
@@ -49,8 +50,9 @@ define [
       @model.set('selected', true)
       if @model.unread()
         @model.set('workflow_state', 'read')
+        @model.save() if @model.get('for_submission')
         @updateUnreadCount()
-
+        
     deselect: (modifier) ->
       @model.set('selected', false) if modifier
 
