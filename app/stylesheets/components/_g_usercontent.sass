@@ -41,41 +41,41 @@
     font-size: 100%
     font-weight: normal
   del, ins
-    text-decoration: none 
+    text-decoration: none
   ol, ul
-    list-style: none 
+    list-style: none
   nav ul
-    list-style-type: none 
+    list-style-type: none
   table
     border-collapse: separate
     border-spacing: 0
     background-color: transparent
     width: auto
     height: auto
-  :focus
-    outline: 0 
+  &:focus
+    outline: 0
   blockquote:before, blockquote:after, q:before, q:after
-    content: "" 
+    content: ""
   blockquote, q
-    quotes: "" "" 
+    quotes: "" ""
   input
-    margin: 0 
+    margin: 0
 
   /********** Deprecated and obsolete elements **********/
   applet, basefont, dir, font, isindex, menu, s, strike, u
     font-family: inherit
-    font-size: 100% 
-    font-weight: normal 
-    font-style: normal 
-    white-space: normal 
-    vertical-align: baseline 
-    text-decoration: inherit 
-    text-align: left 
-    color: inherit 
-    margin: 0 
-    padding: 0 
-    border: 0 
-    outline: 0 
+    font-size: 100%
+    font-weight: normal
+    font-style: normal
+    white-space: normal
+    vertical-align: baseline
+    text-decoration: inherit
+    text-align: left
+    color: inherit
+    margin: 0
+    padding: 0
+    border: 0
+    outline: 0
   dir, menu
     list-style: none
   nobr
@@ -87,108 +87,108 @@
 
   // baseline.base.css
   /******************** Base ********************/
-  h1, h2, h3, h4, h5, h6							
-    line-height: 1.2 
-  h4, h5, h6										
-    font-weight: bold 
-  b, strong, caption, th, thead, dt, legend		
-    font-weight: bold 
-  cite, dfn, em, i								
-    font-style: italic 
-  code, kbd, samp, pre, tt, var					
-    font-family: mono-space, monospace 
-  h1, h2, h3, h4, h5, h6							
-    word-spacing: -0.125em 
-  p												
+  h1, h2, h3, h4, h5, h6
+    line-height: 1.2
+  h4, h5, h6
+    font-weight: bold
+  b, strong, caption, th, thead, dt, legend
+    font-weight: bold
+  cite, dfn, em, i
+    font-style: italic
+  code, kbd, samp, pre, tt, var
+    font-family: mono-space, monospace
+  h1, h2, h3, h4, h5, h6
+    word-spacing: -0.125em
+  p
     word-spacing: 0.125em
     hyphenate: auto
     hyphenate-lines: 3
-  p+p												
-    text-indent: 1.5em 
-  p+p.no-indent									
-    text-indent: 0 
-  pre												
-    white-space: pre 
-  del												
-    text-decoration: line-through 
-  mark											
+  p+p
+    text-indent: 1.5em
+  p+p.no-indent
+    text-indent: 0
+  pre
+    white-space: pre
+  del
+    text-decoration: line-through
+  mark
     background: rgba(255, 255, 0, 0.4)
     padding: 0 .25em
-  ins												
-    color: #f00 
-  small, sup, sub									
-    font-size: 80% 
-  big												
+  ins
+    color: #f00
+  small, sup, sub
+    font-size: 80%
+  big
     font-size: 125%
     line-height: 80%
-  abbr, acronym									
+  abbr, acronym
     font-size: 85%
     text-transform: uppercase
     letter-spacing: .1em
-  abbr[title], acronym[title], dfn[title]			
+  abbr[title], acronym[title], dfn[title]
     border-bottom: 1px dotted black
     cursor: help
-  sup, sub										
-    line-height: 0 
-  sup												
-    vertical-align: super 
-  sub												
-    vertical-align: sub 
-  blockquote										
-    padding: 1.5em 
-  hr												
+  sup, sub
+    line-height: 0
+  sup
+    vertical-align: super
+  sub
+    vertical-align: sub
+  blockquote
+    padding: 1.5em
+  hr
     border: none
     background: #ddd
     width: 100%
-  ul, ol											
-    margin-left: 1.5em 
-  ul												
-    list-style: disc outside 
-  ol												
-    list-style: decimal outside 
-  input, select, button							
-    cursor: pointer 
-  table											
+  ul, ol
+    margin-left: 1.5em
+  ul
+    list-style: disc outside
+  ol
+    list-style: decimal outside
+  input, select, button
+    cursor: pointer
+  table
     font: inherit
     width: 100%
-  
+
   /* html 5 */
   article, aside, header, hgroup,
-  nav, figure, section, footer					
-    display: block 
+  nav, figure, section, footer
+    display: block
 
   // baseline.table.css
   /******************** Table ********************/
-  table								
+  table
     border-collapse: collapse
     border-top: solid 3px #000
     position: relative
     margin-top: 18px
-  
-  th, td								
+
+  th, td
     line-height: 18px
     padding: 9px 18px 8px 0
-  thead th, thead td					
-    padding-top: 7px 
-  tfoot th, tfoot td					
-    padding-bottom: 8px 
+  thead th, thead td
+    padding-top: 7px
+  tfoot th, tfoot td
+    padding-bottom: 8px
   tbody th, tbody td,
-  tfoot th, tfoot td					
-    border-top: solid 1px #000 
-   
-  th:first-child, td:first-child		
-    padding-left: 0 
-  th:last-child, td:last-child		
-    padding-right: 0 
+  tfoot th, tfoot td
+    border-top: solid 1px #000
+
+  th:first-child, td:first-child
+    padding-left: 0
+  th:last-child, td:last-child
+    padding-right: 0
 
   tbody tr:nth-child(odd) th,
-  tbody tr:nth-child(odd) td			
-    background: rgba(0, 0, 0, 0.035) 
-  
-  caption								
+  tbody tr:nth-child(odd) td
+    background: rgba(0, 0, 0, 0.035)
+
+  caption
     top: 5px
     margin-bottom: 18px
-    
+
   // baseline.type.css
   h1, h2, h3, h4, h5, h6
     position: relative
