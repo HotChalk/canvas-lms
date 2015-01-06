@@ -1,6 +1,6 @@
 require File.join(File.dirname(__FILE__), 'app/models/quizzes/quiz_question/learnosity_question')
 require File.join(File.dirname(__FILE__), 'app/models/quizzes/quiz_question/learnosity_answer')
-require File.join(File.dirname(__FILE__), 'app/models/quizzes/quiz_question/question_data_learnosity')
+require File.join(File.dirname(__FILE__), 'app/models/quizzes/quiz_question/question_data')
 
 Rails.configuration.to_prepare do
   Canvas::Plugin.register :learnosity, nil, {
