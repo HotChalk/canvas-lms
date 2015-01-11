@@ -216,3 +216,14 @@ define [
       return if locked && !model.get('can_lock')
 
       model.updateBucket(pinned: pinned, locked: locked)
+
+    # Internal: Handle change events for the Ordered By dropdown.
+    #
+    # e - Event object.
+    # ui - jQuery UI object.
+    #
+    # Returns nothing.
+    onOrderedByChange: (e) =>
+      val = e.target.value
+      @collection.comparator = DiscussionTopicsCollection[val]
+      @reorder()

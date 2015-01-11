@@ -25,6 +25,11 @@
         <% if k12? %></div><% end %>
       </a>
     </li>
+    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:show_resources_link] %>
+      <li id="resources_menu_item" class="menu-item">
+        <a href="<%= acct[:settings][:show_resources_link] %>" class="menu-item-no-drop" target="_blank"><%= t('menu.resources', 'Resources') %></a>
+      </li>
+    <% end %>
     <%# Inbox menu item currently only for K-12 %>
     <% if k12? %>
       <% unless @current_user.fake_student? %>

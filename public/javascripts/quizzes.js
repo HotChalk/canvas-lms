@@ -1907,7 +1907,7 @@ define([
         var text = $formQuestion.find(".question_content").editorBox('get_code');
         var editorContainer = $form.find('textarea.question_content').next();
         if(text.length < 16384) {
-          editorContainer.errorBox().remove();
+          editorContainer.hideErrors();
           $form.submit();
         } else {
           var offset = editorContainer.errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
