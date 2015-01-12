@@ -7,7 +7,6 @@ define([
   'jquery',
   'str/htmlEscape',
   'jqueryui/dialog',
-  'vendor/scribd.view',
   'jquery.instructure_misc_helpers',
   'jquery.instructure_misc_plugins',
   'jquery.dropdownList'

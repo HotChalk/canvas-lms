@@ -151,11 +151,15 @@ define [
       # handle a student locking their own discussion (they should lose permissions).
       if @model.get('locked') and !_.intersection(ENV.current_user_roles, ['teacher', 'ta', 'admin']).length
         base.permissions.delete = false
+
       # check for permission to lock the discussion topic based on due date (see TL-219)
       assignment = @model.get('assignment')
       base.permissions.lock = @model.get('locked') || !(assignment && assignment.dueAt() && (new Date(assignment.dueAt()) > new Date()))
       base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
       base.ENV = ENV
+      base.discussion_topic_menu_tools = ENV.discussion_topic_menu_tools
+      _.each base.discussion_topic_menu_tools, (tool) =>
+        tool.url = tool.base_url + "&discussion_topics[]=#{@model.get("id")}"
       base
 
     # Internal: Re-render for publish state change preserving focus

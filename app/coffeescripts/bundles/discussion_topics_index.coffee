@@ -85,7 +85,9 @@ require [
         pinned: !!options.pinned
         sortable: !!options.sortable
         title: @messages.lists[type]
-        titleHelp: (if _.include(['open', 'locked'], type) then @messages.help.title else null)
+        orderedBy: (if _.include(['open', 'locked'], type) then @messages.help.orderedBy else null)
+        recentActivity: @messages.help.recentActivity
+        dueDate: @messages.help.dueDate
         toggleMessage: @messages.toggleMessage
 
     # Internal: Attach events to the discussion topic collections.
