@@ -302,14 +302,26 @@ class CalendarEventsApiController < ApplicationController
       end
     end
 
-    scope = @type == :assignment ? assignment_scope : calendar_event_scope
-    events = Api.paginate(scope, self, api_v1_calendar_events_url)
-    ActiveRecord::Associations::Preloader.new(events, :child_events).run if @type == :event
-    events = apply_assignment_overrides(events) if @type == :assignment
-    mark_submitted_assignments(@current_user, events) if @type == :assignment
+    if @type == :all
+      assignments_scope = assignment_scope
+      events_scope = calendar_event_scope
+      assignments_events = Api.paginate(assignments_scope, self, api_v1_calendar_events_url)
+      calendar_events = Api.paginate(events_scope, self, api_v1_calendar_events_url)
+      CalendarEvent.send(:preload_associations, calendar_events, :child_events)
+      assignment_events = apply_assignment_overrides(assignments_events)
+      hash = calendar_events.map { |event| event_json(event, @current_user, session) }
+      hash += assignment_events.map { |event| event_json(event, @current_user, session) }
+    else
+      scope = @type == :assignment ? assignment_scope : calendar_event_scope
+      events = Api.paginate(scope, self, api_v1_calendar_events_url)
+      ActiveRecord::Associations::Preloader.new(events, :child_events).run if @type == :event
+      events = apply_assignment_overrides(events) if @type == :assignment
+      mark_submitted_assignments(@current_user, events) if @type == :assignment
+      hash = events.map { |event| event_json(event, @current_user, session) }
+    end
 
     if @errors.empty?
-      render :json => events.map { |event| event_json(event, @current_user, session) }
+      render :json => hash
     else
       render json: {errors: @errors.as_json}, status: :bad_request
     end
@@ -655,7 +667,15 @@ class CalendarEventsApiController < ApplicationController
       @end_date = @start_date.end_of_day if @end_date < @start_date
     end
 
-    @type ||= params[:type] == 'assignment' ? :assignment : :event
+    # @type ||= params[:type] == 'assignment' || params[:type] == 'assignment' ? :assignment : :event
+    @type ||= case params[:type]
+    when 'assignment'
+      :assignment
+    when 'event'
+      :event
+    else
+      :all
+    end
 
     @context ||= @current_user
     # refactor opportunity: get_all_pertinent_contexts expects the list of
@@ -733,8 +753,9 @@ class CalendarEventsApiController < ApplicationController
     end
 
     unless other.empty?
-      sql << '(assignments.context_code IN (?) AND assignments.workflow_state = ?)'
-      conditions << other.map(&:asset_string)
+      # sql << '(assignments.context_code IN (?) AND assignments.workflow_state = ?)'
+      sql << 'assignments.workflow_state = ?'
+      # conditions << other.map(&:asset_string)
       conditions << 'published'
     end
 
