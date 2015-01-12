@@ -65,6 +65,8 @@ module Api::V1::StreamItem
         hash['conversation_id'] = stream_item.asset_id
         hash['private'] = data.private
         hash['participant_count'] = data.participant_count
+        hash['sender'] = prepare_user(stream_item.asset.conversation_messages[0].author)
+        hash['first_message'] = stream_item.asset.conversation_messages[0]
         hash['html_url'] = conversation_url(stream_item.asset_id)
       when 'Message'
         hash['message_id'] = stream_item.asset_id
@@ -104,7 +106,7 @@ module Api::V1::StreamItem
 
     items = @current_user.shard.activate do
       scope = @current_user.visible_stream_item_instances(opts).includes(:stream_item)
-      Api.paginate(scope, self, self.send(paginate_url, @context), default_per_page: 21).to_a
+      Api.paginate(scope, self, self.send(paginate_url, @context), default_per_page: 100).to_a
     end
     render :json => items.select(&:stream_item).map { |i| stream_item_json(i, i.stream_item, @current_user, session) }
   end
@@ -126,5 +128,11 @@ module Api::V1::StreamItem
       }.values.sort_by{ |i| i[:type] }
     end
     render :json => items
+  end
+
+  def prepare_user(user)
+    res = user.attributes.slice('id', 'name', 'short_name')
+    res['short_name'] ||= res['name']
+    res
   end
 end
