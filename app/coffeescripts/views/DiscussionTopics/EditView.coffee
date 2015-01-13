@@ -188,6 +188,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         sections: @sections
         showSectionDropdown: @sections.length > 1
         sectionListIsEmpty: @sections.length < 1
+        courseSectionId: @model.get("course_section_id")
 
       @sectionSelector.render()
 

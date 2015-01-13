@@ -1,22 +1,20 @@
-{{#unless parentModel.id}}
-  {{#if showSectionDropdown}}
-    <fieldset>
-      <div class="control-group">
-        <label class="control-label" for="course_section_id">{{#t "section"}}Section{{/t}}</label>
-        <div class="controls">
-            <select id="course_section_id" name="course_section_id">
-              {{#each sections}}
-                  <option value="{{id}}">{{name}}</option>
-              {{/each}}
-            </select>
-        </div>
+{{#if showSectionDropdown}}
+  <fieldset>
+    <div class="control-group">
+      <label class="control-label" for="course_section_id">{{#t "section"}}Section{{/t}}</label>
+      <div class="controls">
+          <select id="course_section_id" name="course_section_id">
+            {{#each sections}}
+                <option value="{{id}}" {{#ifEqual id ../courseSectionId}}selected='selected'{{/ifEqual}}>{{name}}</option>
+            {{/each}}
+          </select>
       </div>
-    </fieldset>
+    </div>
+  </fieldset>
+{{else}}
+  {{#unless sectionListIsEmpty}}
+    <input id="course_section_id" name="course_section_id" type="hidden" value="{{sections.0.id}}">
   {{else}}
-    {{#unless sectionListIsEmpty}}
-      <input id="course_section_id" name="course_section_id" type="hidden" value="{{sections.0.id}}">
-    {{else}}
-      <input id="course_section_id" name="course_section_id" type="hidden" value="">
-    {{/unless}}
-  {{/if}}
-{{/unless}}
+    <input id="course_section_id" name="course_section_id" type="hidden" value="">
+  {{/unless}}
+{{/if}}
