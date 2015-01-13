@@ -3,7 +3,8 @@ class DropBrokenQuizSubmissionEventPartitions < ActiveRecord::Migration
   BAD_PARTITIONS = [
     Time.new(2014, 11),
     Time.new(2014, 12),
-    Time.new(2015, 1)
+    Time.new(2015, 1),
+    Time.new(2015, 2)
   ]
 
   def up
