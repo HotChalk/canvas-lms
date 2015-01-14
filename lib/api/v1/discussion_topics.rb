@@ -113,7 +113,8 @@ module Api::V1::DiscussionTopics
       locked: topic.locked?, can_lock: topic.can_lock?,
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
-      group_category_id: topic.group_category_id, can_group: topic.can_group? }
+      group_category_id: topic.group_category_id, can_group: topic.can_group?,
+      course_section: topic.course_section_id.nil? ? nil : topic.course_section.name }
   end
 
   # Public: Serialize discussion entries for returning a JSON response. This method,
