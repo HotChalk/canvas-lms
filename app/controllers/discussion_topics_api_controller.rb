@@ -115,7 +115,14 @@ class DiscussionTopicsApiController < ApplicationController
       end
 
       participant_info = participants.map do |participant|
-        user_display_json(participant, @context.is_a_context? && @context)
+        json = user_display_json(participant, @context.is_a_context? && @context)
+        # in the context of a course discussion, include the list of sections that each participant belongs to
+        if @context && @context.is_a_context? && @topic.context_type == 'Course'
+          json.merge!({:sections => participant.cached_current_enrollments.select {|e| e.active? && e.course_id == @context.id}.
+              map(&:course_section).compact.uniq.
+              map(&:name).sort})
+        end
+        json
       end
 
       unread_entries = entry_ids - DiscussionEntryParticipant.read_entry_ids(entry_ids, @current_user)

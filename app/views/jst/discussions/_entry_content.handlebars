@@ -26,7 +26,12 @@
           {{/if}}
         </a>
       </h2>
-      <div class="discussion-pubdate hide-if-collapsed">{{friendlyDatetime created_at pubdate=true contextSensitive=true}}</div>
+      <div class="discussion-pubdate hide-if-collapsed">
+        {{friendlyDatetime created_at pubdate=true contextSensitive=true}}
+        {{#if author.sections}}
+          - {{list author.sections separator=", "}}
+        {{/if}}
+      </div>
       <div class="show-if-collapsed discussion-subtitle summary ellipsis">{{summary}}</div>
     </div>
     <div class="admin-links hide-if-collapsed">
