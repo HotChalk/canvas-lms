@@ -451,6 +451,15 @@ class DiscussionTopicsController < ApplicationController
 
       @padless = true
 
+      sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
+      user_sections = if current_user_is_account_admin
+                        sections.collect(&:id)
+                      elsif @context.is_a?(Course)
+                        @current_user.sections_for_course(@context).collect(&:id)
+                      else
+                        []
+                      end
+
       log_asset_access(@topic, 'topics', 'topics')
       respond_to do |format|
         if @topic.deleted?
@@ -493,7 +502,8 @@ class DiscussionTopicsController < ApplicationController
               :CAN_SUBSCRIBE => !@topic.subscription_hold(@current_user, @context_enrollment, session),
               :CURRENT_USER => user_display_json(@current_user),
               :INITIAL_POST_REQUIRED => @initial_post_required,
-              :THREADED => @topic.threaded?
+              :THREADED => @topic.threaded?,
+              :CURRENT_USER_VISIBLE_SECTIONS => user_sections
             }
             if params[:hide_student_names]
               env_hash[:HIDE_STUDENT_NAMES] = true
