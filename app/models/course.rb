@@ -73,7 +73,8 @@ class Course < ActiveRecord::Base
                   :public_syllabus,
                   :course_format,
                   :time_zone,
-                  :account_program
+                  :account_program,
+                  :limit_section_visibility
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :name, :account_id, :group_weighting_scheme, :workflow_state, :uuid, :start_at, :conclude_at, :grading_standard_id, :is_public, :allow_student_wiki_edits,
@@ -227,6 +228,7 @@ class Course < ActiveRecord::Base
   after_save :update_final_scores_on_weighting_scheme_change
   after_save :update_account_associations_if_changed
   after_save :set_self_enrollment_code
+  after_save :set_section_visibility
   before_validation :verify_unique_sis_source_id
   validates_presence_of :account_id, :root_account_id, :enrollment_term_id, :workflow_state
   validates_length_of :syllabus_body, :maximum => maximum_long_text_length, :allow_nil => true, :allow_blank => true
@@ -1613,7 +1615,7 @@ class Course < ActiveRecord::Base
   def enroll_user(user, type='StudentEnrollment', opts={})
     enrollment_state = opts[:enrollment_state]
     section = opts[:section]
-    limit_privileges_to_course_section = opts[:limit_privileges_to_course_section]
+    limit_privileges_to_course_section = (type == 'StudentEnrollment' ? self.limit_section_visibility : opts[:limit_privileges_to_course_section])
     associated_user_id = opts[:associated_user_id]
 
     role = opts[:role] || Enrollment.get_built_in_role_for_type(type)
@@ -2059,7 +2061,7 @@ class Course < ActiveRecord::Base
       :storage_quota, :tab_configuration, :allow_wiki_comments,
       :turnitin_comments, :self_enrollment, :license, :indexed, :locale,
       :hide_final_grade, :hide_distribution_graphs,
-      :allow_student_discussion_topics, :lock_all_announcements ]
+      :allow_student_discussion_topics, :lock_all_announcements, :limit_section_visibility ]
   end
 
   def set_course_dates_if_blank(shift_options)
@@ -2543,6 +2545,7 @@ class Course < ActiveRecord::Base
   add_setting :large_roster, :boolean => true, :default => lambda { |c| c.root_account.large_course_rosters? }
   add_setting :public_syllabus, :boolean => true, :default => false
   add_setting :course_format
+  add_setting :limit_section_visibility, :boolean => true, :default => true
 
   def user_can_manage_own_discussion_posts?(user)
     return true if allow_student_discussion_editing?
@@ -2819,5 +2822,11 @@ class Course < ActiveRecord::Base
   def do_auto_publish
     logger.info "Auto-publishing course: #{self.inspect}"
     process_event('offer')
+  end
+
+  def set_section_visibility
+    self.student_enrollments.each do |e|
+      Enrollment.limit_privileges_to_course_section!(self, e.user, self.limit_section_visibility)
+    end
   end
 end
