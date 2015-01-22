@@ -398,10 +398,13 @@ table.formtable td
     font-size: 1.1em
     font-weight: bold
 
-  .unpublished .name a
-    color: #888
+  .unpublished
+    background-color: #ffffd5
 
-  .details
+  .concluded
+    background-color: #eaeaea
+
+  .details, .sections
     color: #888
     font-size: 0.8em
     margin: 0 0 0 10px
@@ -415,6 +418,31 @@ table.formtable td
       color: #eee
       a
         color: #bbb
+
+ul.courses
+  margin-left: 0px
+
+  li.course
+    margin-left: 10px
+    margin-bottom: 10px
+    div.course
+      padding-top: 5px
+      padding-left: 5px
+      border: 1px solid #eee
+
+  .info
+    .status
+      color: #888
+      margin-right: 5px
+
+  .sections
+    border: 1px solid #eee
+    border-top: none
+    .row
+      margin-left: 0
+      padding: 5px
+      &:not(:first-child)
+        border-top: 1px solid #eee
 
 .touch .course,
 .touch .group,
