@@ -118,7 +118,8 @@ module Api::V1::StreamItem
         scope = scope.where('"submissions"."submission_comments_count">0')
         scope = scope.where('"submissions"."user_id"=?', opts[:submission_user_id]) if opts.has_key?(:submission_user_id)
       end
-      Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 100).to_a
+      # Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 100).to_a
+      scope
     end
     json = items.select(&:stream_item).map { |i| stream_item_json(i, i.stream_item, @current_user, session) }
     json.select! {|hash| hash['submission_comments'].present?} if opts[:asset_type] == 'Submission'
