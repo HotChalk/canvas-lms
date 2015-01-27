@@ -106,6 +106,10 @@ module Importers
         item.external_feed = context.external_feeds.where(migration_id: options[:external_feed_migration_id]).first
       end
       item.assignment = fetch_assignment
+      item.grade_replies_separately = options[:grade_replies_separately]
+      if item.grade_replies_separately
+        item.reply_assignment = fetch_reply_assignment
+      end
 
       if options[:attachment_ids].present?
         item.message += Attachment.attachment_list_from_migration(context, options[:attachment_ids])
@@ -129,6 +133,13 @@ module Importers
           submission_format: 'discussion_topic', due_date: options.due_date,
           title: options[:grading][:title]
         }, context, migration)
+      end
+    end
+
+    def fetch_reply_assignment
+      return nil unless context.respond_to?(:assignments)
+      if options[:reply_assignment]
+        Importers::AssignmentImporter.import_from_migration(options[:reply_assignment], context, migration)
       end
     end
 

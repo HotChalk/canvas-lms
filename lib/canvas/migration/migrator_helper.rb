@@ -393,6 +393,12 @@ module MigratorHelper
             topic[:assignment_migration_id] = a_mig_id
           end
         end
+        if t[:reply_assignment] && a_mig_id = t[:reply_assignment][:migration_id]
+          if assign = @overview[:assignments].find{|a| a[:migration_id] == a_mig_id}
+            assign[:topic_migration_id] = t[:migration_id]
+            topic[:reply_assignment_migration_id] = a_mig_id
+          end
+        end
       end
     end
     if @course[:assignment_groups]

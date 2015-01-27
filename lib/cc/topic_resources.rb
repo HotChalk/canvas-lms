@@ -1,4 +1,3 @@
-
 # Copyright (C) 2011 Instructure, Inc.
 #
 # This file is part of Canvas.
@@ -124,6 +123,13 @@ module CC
         assignment_migration_id = CCHelper.create_key(topic.assignment)
         doc.assignment(:identifier=>assignment_migration_id) do |a|
           AssignmentResources.create_canvas_assignment(a, topic.assignment, @manifest)
+        end
+      end
+      if topic.grade_replies_separately && topic.reply_assignment && !topic.reply_assignment.deleted?
+        doc.grade_replies_separately 'true'
+        reply_assignment_migration_id = CCHelper.create_key(topic.reply_assignment)
+        doc.reply_assignment(:identifier=>reply_assignment_migration_id) do |a|
+          AssignmentResources.create_canvas_assignment(a, topic.reply_assignment, @manifest)
         end
       end
     end

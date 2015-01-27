@@ -153,6 +153,8 @@
             </xs:restriction>
           </xs:simpleType>
         </xs:element>
+        <xs:element name="reply_assignment" type="assignmentType" minOccurs="0"/>
+        <xs:element name="grade_replies_separately" type="xs:boolean" minOccurs="0"/>
       </xs:all>
       <xs:attribute name="identifier" type="xs:ID" use="required"/>
     </xs:complexType>

@@ -63,6 +63,11 @@ module CC::Importer::Canvas
         if asmnt_node = meta_doc.at_css('assignment')
           topic['assignment'] = parse_canvas_assignment_data(asmnt_node)
         end
+
+        topic['grade_replies_separately'] = get_bool_val(meta_doc, 'grade_replies_separately')
+        if asmnt_node = meta_doc.at_css('reply_assignment')
+          topic['reply_assignment'] = parse_canvas_assignment_data(asmnt_node)
+        end
       end
 
       topic
