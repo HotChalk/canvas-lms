@@ -12,18 +12,18 @@
     <div class="details ellipsis">
       <div>
         <div class="row">
-          <div class="span1">
+          <div class="span">
             <strong><%= before_label(t(:code, "Code")) %></strong>
             <span> <%= course.course_code %></span>
           </div>
           <% if course.enrollment_term %>
-            <div class="span1">
+            <div class="span">
               <strong><%= before_label(t(:term, "Term")) %></strong>
               <span> <%= course.enrollment_term.name %></span>
             </div>
           <% end %>
           <% if course.respond_to?(:sis_source_id) && course.sis_source_id %>
-            <div class="span1">
+            <div class="span">
               <strong><%= before_label(t(:crn, "CRN")) %></strong>
               <span> <%= course.sis_source_id %></span>
             </div>
