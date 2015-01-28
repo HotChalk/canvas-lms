@@ -14,8 +14,8 @@ cite, dfn, em, i								{ font-style: italic; }
 code, kbd, samp, pre, tt, var					{ font-family: mono-space, monospace; }
 h1, h2, h3, h4, h5, h6							{ word-spacing: -0.125em; }
 p												{ word-spacing: 0.125em; hyphenate: auto; hyphenate-lines: 3; }
-p+p												{ text-indent: 1.5em; }
-p+p.no-indent									{ text-indent: 0; }
+/*p+p												{ text-indent: 1.5em; }*/
+/*p+p.no-indent									{ text-indent: 0; }*/
 pre												{ white-space: pre; }
 del												{ text-decoration: line-through; }
 mark											{ background: rgba(255, 255, 0, 0.4); padding: 0 .25em; }

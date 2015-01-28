@@ -186,8 +186,7 @@ define [
       $edit_course_syllabus_form.show()
       $course_syllabus.hide()
       $course_syllabus_details.hide()
-      $course_syllabus_body.editorBox()
-      $course_syllabus_body.editorBox 'set_code', $course_syllabus.data('syllabus_body')
+      $course_syllabus_body.val($course_syllabus.data('syllabus_body')).editorBox()
       if wikiSidebar
         wikiSidebar.attachToEditor $course_syllabus_body
         wikiSidebar.show()
