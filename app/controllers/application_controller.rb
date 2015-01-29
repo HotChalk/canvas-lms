@@ -1199,7 +1199,7 @@ class ApplicationController < ActionController::Base
       if Canvas::Plugin.find(:hotchalk).enabled? &&
           context.respond_to?(:root_account_id) &&
           uri.host == (PluginSetting.settings_for_plugin(:hotchalk)[:account_external_urls][context.root_account_id.to_s]['cl_proxy_url'] rescue nil)
-        @tag.url = @template.context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
+        @tag.url = named_context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
         render :template => 'context_modules/embedded_url_show'
       else
       render :template => 'context_modules/url_show'
