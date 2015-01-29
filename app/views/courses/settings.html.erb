@@ -334,6 +334,8 @@ TEXT
             <%= f.label :hide_distribution_graphs, :en => "Hide grade distribution graphs from students" %><br/>
             <%= f.check_box :lock_all_announcements %>
             <%= label_tag :course_lock_all_announcements, :en => 'Disable comments on announcements' %><br />
+            <%= f.check_box :limit_section_visibility%>
+            <%= f.label :limit_section_visibility, :en => "Students can see students in their section only" %><br/>
             <%= f.select :default_wiki_editing_roles, [
               [t('#course.wiki_permissions.only_teachers', "Only Teachers"), "teachers"],
               [t('#course.wiki_permissions.teachers_students', "Teacher and Students"), "teachers,students"],

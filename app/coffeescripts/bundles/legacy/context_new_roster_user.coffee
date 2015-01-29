@@ -55,9 +55,10 @@ require [
       , ((data) ->
           $user.loadingImage "remove"
           $(".elevate_enrollment_link_holder,.restrict_enrollment_link_holder").slideToggle()
-        ), (data) ->
-        $.flashError I18n.t("error.enrollment_change_failed", "Enrollment privilege change failed, please try again")
-        $user.loadingImage "remove"
+        ), ((data) ->
+          $.flashError I18n.t("error.enrollment_change_failed", "Enrollment privilege change failed, please try again")
+          $user.loadingImage "remove"
+        )
       event.preventDefault()
 
     $(".delete_enrollment_link").click (event) ->

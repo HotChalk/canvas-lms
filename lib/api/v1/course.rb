@@ -28,6 +28,7 @@ module Api::V1::Course
     settings[:allow_student_discussion_editing] = course.allow_student_discussion_editing?
     settings[:grading_standard_enabled] = course.grading_standard_enabled?
     settings[:grading_standard_id] = course.grading_standard_id
+    settings[:limit_section_visibility] = course.limit_section_visibility?
     settings
   end
 

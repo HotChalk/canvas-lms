@@ -593,6 +593,8 @@ class CoursesController < ApplicationController
         @course.apply_assignment_group_weights = value_to_boolean apply_assignment_group_weights
       end
 
+      @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
+
       changes = changed_settings(@course.changes, @course.settings)
 
       respond_to do |format|
@@ -1608,7 +1610,7 @@ class CoursesController < ApplicationController
       # Enrollment settings hash
       # Change :limit_privileges_to_course_section to be an explicit true/false value
       enrollment_options = params.slice(:course_section_id, :enrollment_type, :limit_privileges_to_course_section)
-      limit_privileges = value_to_boolean(enrollment_options[:limit_privileges_to_course_section])
+      limit_privileges = (params[:enrollment_type] == 'StudentEnrollment' ? @context.limit_section_visibility : value_to_boolean(enrollment_options[:limit_privileges_to_course_section]))
       enrollment_options[:limit_privileges_to_course_section] = limit_privileges
       enrollment_options[:role] = custom_role if custom_role
       list = UserList.new(params[:user_list],
@@ -1956,6 +1958,8 @@ class CoursesController < ApplicationController
           end
         end
       end
+
+      @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
 
       params[:course][:conclude_at] = params[:course].delete(:end_at) if api_request? && params[:course].has_key?(:end_at)
       respond_to do |format|

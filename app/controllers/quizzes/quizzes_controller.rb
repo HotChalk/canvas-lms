@@ -267,7 +267,9 @@ class Quizzes::QuizzesController < ApplicationController
              :ASSIGNMENT_OVERRIDES => assignment_overrides_json(@quiz.overrides_for(@current_user)),
              :DIFFERENTIATED_ASSIGNMENTS_ENABLED => @context.feature_enabled?(:differentiated_assignments),
              :QUIZ => quiz_json(@quiz, @context, @current_user, session),
-             :SECTION_LIST => sections.map { |section| { :id => section.id, :name => section.name } },
+             :SECTION_LIST => (@context.sections_visible_to(@current_user).map { |section|
+               {:id => section.id, :name => section.name }
+             }),
              :QUIZZES_URL => course_quizzes_url(@context),
              :QUIZ_IP_FILTERS_URL => api_v1_course_quiz_ip_filters_url(@context, @quiz),
              :CONTEXT_ACTION_SOURCE => :quizzes,

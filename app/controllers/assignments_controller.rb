@@ -414,7 +414,7 @@ class AssignmentsController < ApplicationController
         :GROUP_CATEGORIES => group_categories,
         :KALTURA_ENABLED => !!feature_enabled?(:kaltura),
         :POST_TO_SIS => @context.feature_enabled?(:post_grades),
-        :SECTION_LIST => (@context.course_sections.active.map { |section|
+        :SECTION_LIST => (@context.sections_visible_to(@current_user).map { |section|
           {:id => section.id, :name => section.name }
         }),
         :ASSIGNMENT_OVERRIDES =>
