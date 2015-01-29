@@ -1956,4 +1956,14 @@ class Assignment < ActiveRecord::Base
   ensure
     @new_record = new_record if @simply_versioned_version_model
   end
+
+  def unpublished_module
+    tags = ContentTag.where(:content_id => id, :content_type => 'Assignment')
+    tags.map { |tag|
+      if(tag.context_module.workflow_state == 'unpublished')
+        return true
+      end
+    }
+    return false
+  end
 end

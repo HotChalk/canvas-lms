@@ -101,6 +101,7 @@ module Api::V1::Assignment
                                            user,
                                            opts[:preloaded_user_content_attachments] || {})
     hash['muted'] = assignment.muted?
+    hash['unpublished_module'] = assignment.unpublished_module
     hash['html_url'] = course_assignment_url(assignment.context_id, assignment)
 
     if assignment.external_tool? && assignment.external_tool_tag.present?
