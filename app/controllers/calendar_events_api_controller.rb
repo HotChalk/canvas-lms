@@ -307,7 +307,7 @@ class CalendarEventsApiController < ApplicationController
       events_scope = calendar_event_scope
       assignments_events = Api.paginate(assignments_scope, self, api_v1_calendar_events_url)
       calendar_events = Api.paginate(events_scope, self, api_v1_calendar_events_url)
-      CalendarEvent.send(:preload_associations, calendar_events, :child_events)
+      ActiveRecord::Associations::Preloader.new(calendar_events, :child_events).run
       assignment_events = apply_assignment_overrides(assignments_events)
       hash = calendar_events.map { |event| event_json(event, @current_user, session) }
       hash += assignment_events.map { |event| event_json(event, @current_user, session) }
