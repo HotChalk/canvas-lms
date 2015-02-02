@@ -29,7 +29,7 @@ module Api::V1::DiscussionTopics
     discussion_type position course_section_id}
 
   # Public: DiscussionTopic methods to serialize.
-  ALLOWED_TOPIC_METHODS = [:user_name, :discussion_subentry_count]
+  ALLOWED_TOPIC_METHODS = [:user_name]
 
   # Public: Serialize an array of DiscussionTopic objects for returning as JSON.
   #
@@ -106,7 +106,8 @@ module Api::V1::DiscussionTopics
     { message: api_user_content(topic.message, context),
       require_initial_post: topic.require_initial_post?,
       user_can_see_posts: topic.user_can_see_posts?(user), podcast_url: url,
-      read_state: topic.read_state(user), unread_count: topic.unread_count(user),
+      read_state: topic.read_state(user), unread_count: topic.unread_count_for_enrollment(@context_enrollment, user),
+      discussion_subentry_count: topic.discussion_subentry_count_for_enrollment(@context_enrollment),
       subscribed: topic.subscribed?(user), topic_children: topic.child_topics.pluck(:id),
       attachments: attachments, published: topic.published?,
       can_unpublish: opts[:user_can_moderate] ? topic.can_unpublish?(opts) : false,

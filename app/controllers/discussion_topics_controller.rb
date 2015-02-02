@@ -263,9 +263,6 @@ class DiscussionTopicsController < ApplicationController
 
     scope = DiscussionTopic.search_by_attribute(scope, :title, params[:search_term])
 
-    scope = scope.select { |a|
-      a.course_section_id.nil? || @current_user.sections_for_course(@context).map(&:id).include?(a.course_section_id)
-    } unless current_user_is_account_admin
     states = params[:scope].split(',').map{|s| s.strip} if params[:scope]
     if states.present?
       if (states.include?('pinned') && states.include?('unpinned')) ||
@@ -284,6 +281,8 @@ class DiscussionTopicsController < ApplicationController
     if @context.feature_enabled?(:differentiated_assignments)
       scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
     end
+
+    scope = scope.where("discussion_topics.course_section_id IS NULL OR discussion_topics.course_section_id IN (:section_id_list)", :section_id_list => @context.sections_visible_to(@current_user).map(&:id)) unless current_user_is_account_admin
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
@@ -451,15 +450,6 @@ class DiscussionTopicsController < ApplicationController
 
       @padless = true
 
-      sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
-      user_sections = if current_user_is_account_admin
-                        sections.collect(&:id)
-                      elsif @context.is_a?(Course)
-                        @current_user.sections_for_course(@context).collect(&:id)
-                      else
-                        []
-                      end
-
       log_asset_access(@topic, 'topics', 'topics')
       respond_to do |format|
         if @topic.deleted?
@@ -502,8 +492,7 @@ class DiscussionTopicsController < ApplicationController
               :CAN_SUBSCRIBE => !@topic.subscription_hold(@current_user, @context_enrollment, session),
               :CURRENT_USER => user_display_json(@current_user),
               :INITIAL_POST_REQUIRED => @initial_post_required,
-              :THREADED => @topic.threaded?,
-              :CURRENT_USER_VISIBLE_SECTIONS => user_sections
+              :THREADED => @topic.threaded?
             }
             if params[:hide_student_names]
               env_hash[:HIDE_STUDENT_NAMES] = true
