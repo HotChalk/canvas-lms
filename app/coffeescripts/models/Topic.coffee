@@ -70,14 +70,10 @@ define [
       # doesn't return it to us
       @lastRoot = null
       @participants = {}
-      @visibleParticipants = []
-      @invisibleEntries = []
       @flattenParticipants()
-      @buildParticipantSectionMap()
       walk @data.view, 'replies', @parseEntry
       each @data.new_entries, @parseNewEntry
       #@maybeRemove entry for id, entry of @flattened
-      each @data.entries, @removeNonVisibleSections
       delete @lastRoot
       @data
 
@@ -92,11 +88,6 @@ define [
         entry.author = UNKNOWN_AUTHOR
 
     parseEntry: (entry) =>
-      # filter out entries and replies that are not visible to current user's section
-      unless entry.user_id in @visibleParticipants && entry.parent_id not in @invisibleEntries
-        @invisibleEntries.push entry.id
-        return null
-
       @flattened[entry.id] = entry
       parent = @flattened[entry.parent_id]
       entry.parent = parent
@@ -119,11 +110,6 @@ define [
       entry
 
     parseNewEntry: (entry) =>
-      # filter out entries and replies that are not visible to current user's section
-      unless entry.user_id in @visibleParticipants && entry.parent_id not in @invisibleEntries
-        @invisibleEntries.push entry.id
-        return null
-
       @flattened[entry.id] = entry
       parent = @flattened[entry.parent_id]
 
@@ -143,11 +129,3 @@ define [
         erase entry.parent.replies, entry if entry.parent?.replies?
         delete @flattened[entry.id]
 
-    buildParticipantSectionMap: ->
-      for participant in @data.participants
-        # participants not assigned to any particular section should always be visible
-        if participant.sections.length == 0
-          @visibleParticipants.push participant.id
-        for section in participant.sections
-          if $.inArray(parseInt(section.id), ENV.DISCUSSION.CURRENT_USER_VISIBLE_SECTIONS) >= 0
-            @visibleParticipants.push participant.id

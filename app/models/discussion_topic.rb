@@ -1163,4 +1163,31 @@ class DiscussionTopic < ActiveRecord::Base
   def create_materialized_view
     DiscussionTopic::MaterializedView.for(self).update_materialized_view_without_send_later
   end
+
+  # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
+  def discussion_subentry_count_for_enrollment(enrollment = nil)
+    return discussion_subentry_count if self.course_section_id
+
+    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
+    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
+      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
+      return discussion_entries.active.where(user_id: visible_user_ids).count
+    end
+    discussion_entries.active.count
+  end
+
+  # count unread discussion_entries for a given enrollment, considering section visibility restrictions
+  def unread_count_for_enrollment(enrollment = nil, user = nil)
+    return unread_count(user) if self.course_section_id
+
+    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
+      Shackles.activate(:slave) do
+        visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
+        visible_discussion_entry_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:id)
+        DiscussionEntryParticipant.where(user_id: enrollment.user_id, discussion_entry_id: visible_discussion_entry_ids, workflow_state: 'unread').count
+      end
+    else
+      unread_count(user)
+    end
+  end
 end

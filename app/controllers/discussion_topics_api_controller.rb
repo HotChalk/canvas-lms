@@ -103,6 +103,19 @@ class DiscussionTopicsApiController < ApplicationController
 
     if structure
 
+      unless current_user_is_account_admin
+        # if the current enrollment has limited section visibility, ensure that only the visible parts of the discussion topic are returned
+        if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
+          visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
+          entries = JSON.parse(structure)
+          entries.reject! {|e| !visible_user_ids.include?(e['user_id'].to_i) }
+          entries.each do |entry|
+            entry['replies'].reject! {|r| !visible_user_ids.include?(r['user_id'].to_i) } unless entry['replies'].nil?
+          end
+          structure = entries.to_json
+        end
+      end
+
       # we assume that json_structure will typically be served to users requesting string IDs
       unless stringify_json_ids?
         entries = JSON.parse(structure)
