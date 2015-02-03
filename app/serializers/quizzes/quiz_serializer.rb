@@ -1,5 +1,6 @@
 module Quizzes
   class QuizSerializer < Canvas::APISerializer
+    include Api::V1::QuizSubmission
     include LockedSerializer
     include PermissionsSerializer
 
@@ -21,7 +22,8 @@ module Quizzes
                 # :takeable,
                 :quiz_submissions_zip_url, :preview_url, :quiz_submission_versions_html_url,
                 :assignment_id, :one_time_results, :only_visible_to_overrides,
-                :assignment_group_id, :show_correct_answers_last_attempt
+                :assignment_group_id, :show_correct_answers_last_attempt,
+                :submission_for_current_user, :quiz_submission_versions
 
     def_delegators :@controller,
       # :api_v1_course_assignment_group_url,
@@ -58,13 +60,13 @@ module Quizzes
     #   end
     # end
 
-    # def quiz_submission
-    #   @quiz_submission ||= if @self_quiz_submissions
-    #     @self_quiz_submissions[quiz.id]
-    #   else
-    #     quiz.quiz_submissions.where(user_id: current_user).first
-    #   end
-    # end
+    def quiz_submission
+      @quiz_submission ||= if @self_quiz_submissions
+        @self_quiz_submissions[quiz.id]
+      else
+        quiz.quiz_submissions.where(user_id: current_user).first
+      end
+    end
 
     # def takeable
     #   return true if !quiz_submission
@@ -72,6 +74,11 @@ module Quizzes
     #   return true if quiz.unlimited_attempts?
     #   (quiz_submission.completed? && quiz_submission.attempts_left > 0)
     # end
+
+    def quiz_submission_versions
+      quiz_submission = quiz_submission()
+      quiz_submissions_json(quiz_submission.submitted_attempts, quiz, current_user, session)[:quiz_submissions] if quiz_submission
+    end
 
     def deleted
       quiz.deleted?
@@ -327,15 +334,16 @@ module Quizzes
       @user_finder ||= Quizzes::QuizUserFinder.new(quiz, current_user)
     end
 
-    # def submission_for_current_user
-    #   @submission_for_current_user ||= (
-    #     quiz.quiz_submissions.where(user_id: current_user).first
-    #   )
-    # end
+    def submission_for_current_user
+      @submission_for_current_user ||= (
+        quiz.quiz_submissions.where(user_id: current_user).first
+      )
+      quiz_submission_json(@submission_for_current_user, quiz, current_user, session) if @submission_for_current_user
+    end
 
-    # def submission_for_current_user?
-    #   !!submission_for_current_user
-    # end
+    def submission_for_current_user?
+      !!submission_for_current_user
+    end
 
     def has_file_uploads?
       quiz.has_file_upload_question?
