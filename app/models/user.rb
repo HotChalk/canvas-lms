@@ -1856,6 +1856,9 @@ class User < ActiveRecord::Base
           next unless si.present?
           next if si.asset_type == 'Submission'
           next if si.context_type == "Course" && si.context.concluded?
+          # do not display discussion topic / announcement stream items that belong to a section that a user cannot see
+          next if si.context_type == "Course" && si[:data].present? && si.data[:course_section_id].present? &&
+              !si.context.sections_visible_to(self).map(&:id).include?(si.data[:course_section_id])
           si.unread = sii.unread?
           si
         end.compact
