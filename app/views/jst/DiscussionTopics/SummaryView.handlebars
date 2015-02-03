@@ -58,6 +58,7 @@
     {{#if author}}
       <a class="discussion-author" href="{{author.html_url}}">{{author.display_name}}</a>
     {{/if}}
+    <span class="discussion-section">{{#if author}} - {{/if}}{{#if course_section}}{{course_section}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</span>
     <div class="discussion-summary ellipsis">{{summary}}</div>
   </div>
 </div>
