@@ -529,9 +529,7 @@ class AssignmentsApiController < ApplicationController
       if da_enabled = @context.feature_enabled?(:differentiated_assignments)
         scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
       end
-
-      assignments = Api.paginate(scope, self, api_v1_course_assignments_url(@context))
-
+      assignments = scope.all
       include_params = Array(params[:include])
 
       if include_params.include?('submission')
@@ -587,14 +585,14 @@ class AssignmentsApiController < ApplicationController
       get_all_pertinent_contexts
       get_sorted_assignments
 
-      @assignments.map! {|a| a.overridden_for(@current_user)}            
+      @assignments.map! {|a| a.overridden_for(@current_user)}
       if @current_user
         @submissions = @current_user.submissions.with_each_shard
         @submissions.each{ |s| s.mute if s.muted_assignment? }
       else
         @submissions = []
       end
-      
+
       # sort and condense the assignment list
       sorted = SortsAssignments.by_due_date({
         :assignments => @assignments,
@@ -620,10 +618,10 @@ class AssignmentsApiController < ApplicationController
       sortedAssignments[:upcoming] = assignments_json(@upcoming_assignments, @current_user, session, { include_submission: true })
       sortedAssignments[:undated] = assignments_json(@undated_assignments, @current_user, session, { include_submission: true })
       sortedAssignments[:past] = assignments_json(@past_assignments, @current_user, session, { include_submission: true })
-      
+
       render :json => sortedAssignments
     end
-  end  
+  end
 
   # @API Get a single assignment
   # Returns the assignment with the given id.
