@@ -10,6 +10,10 @@ require([
   'compiled/jquery.rails_flash_notifications'
 ], function(I18n, $, htmlEscape, signupDialog) {
 
+  $(window).load(function(){
+    $('#submit_button').removeAttr('disabled');
+  });
+
   $("#coenrollment_link").click(function(event) {
     event.preventDefault();
     signupDialog('parentDialog', I18n.t("parent_signup", "Parent Signup"));

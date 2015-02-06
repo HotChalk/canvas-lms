@@ -39,7 +39,7 @@
 
           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
           <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
-          <button type="submit" class="btn btn-primary" style="margin-top: 7px;"><%= t('submit', 'Submit') %></button>
+          <button id="submit_button" type="submit" class="btn btn-primary" style="margin-top: 7px;" disabled><%= t('submit', 'Submit') %></button>
         </div>
         <div>
           <div class="login-options">
