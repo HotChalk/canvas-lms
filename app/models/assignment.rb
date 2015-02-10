@@ -39,19 +39,21 @@ class Assignment < ActiveRecord::Base
     :notify_of_update, :time_zone_edited, :turnitin_enabled,
     :turnitin_settings, :context, :position, :allowed_extensions,
     :external_tool_tag_attributes, :freeze_on_copy,
-    :only_visible_to_overrides, :post_to_sis, :integration_id, :integration_data
+    :only_visible_to_overrides, :post_to_sis, :integration_id, :integration_data,
+    :course_section_id
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :title, :description, :due_at, :unlock_at, :lock_at, :points_possible, :min_score, :max_score, :mastery_score, :grading_type,
     :submission_types, :workflow_state, :context_id, :context_type, :assignment_group_id, :grading_scheme_id, :grading_standard_id, :location, :created_at,
     :updated_at, :group_category, :submissions_downloads, :peer_review_count, :peer_reviews_due_at, :peer_reviews_assigned, :peer_reviews, :automatic_peer_reviews,
     :all_day, :all_day_date, :could_be_locked, :cloned_item_id, :context_code, :position, :grade_group_students_individually, :anonymous_peer_reviews, :time_zone_edited,
-    :turnitin_enabled, :allowed_extensions, :needs_grading_count, :turnitin_settings, :muted, :group_category_id, :freeze_on_copy, :copied, :only_visible_to_overrides, :integration_id, :integration_data
+    :turnitin_enabled, :allowed_extensions, :needs_grading_count, :turnitin_settings, :muted, :group_category_id, :freeze_on_copy, :copied, :only_visible_to_overrides, :integration_id, :integration_data,
+    :course_section_id
   ]
 
   EXPORTABLE_ASSOCIATIONS = [
     :submissions, :attachments, :quiz, :assignment_group, :discussion_topic, :learning_outcome_alignments,
-    :rubric, :context, :grading_standard, :group_category
+    :rubric, :context, :grading_standard, :group_category, :course_section
   ]
 
   attr_accessor :previous_id, :updating_user, :copying, :user_submitted
@@ -74,6 +76,7 @@ class Assignment < ActiveRecord::Base
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => false, :allow_blank => true
   belongs_to :grading_standard
   belongs_to :group_category
+  belongs_to :course_section
 
   has_one :external_tool_tag, :class_name => 'ContentTag', :as => :context, :dependent => :destroy
   validates_associated :external_tool_tag, :if => :external_tool?

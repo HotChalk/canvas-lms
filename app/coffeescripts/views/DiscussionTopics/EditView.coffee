@@ -69,8 +69,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     isAnnouncement: => @model.constructor is Announcement
 
-    sections: ENV.USER_SECTION_LIST
-
     toJSON: ->
       data = super
       json = _.extend data, @options,
@@ -185,10 +183,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       @sectionSelector = new SectionSelector
         el: '#section_selector'
         parentModel: @model
-        sections: @sections
-        showSectionDropdown: @sections.length > 1
-        sectionListIsEmpty: @sections.length < 1
-        courseSectionId: @model.get("course_section_id")
 
       @sectionSelector.render()
 
@@ -282,7 +276,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           message: I18n.t 'title_required', 'Title is required'
         ]
       if data.message == ''
-        errors["message_area"] = [
+        errors["message"] = [
           message: I18n.t 'message_required', 'Message is required'
         ]
       if data.delay_posting == "0"

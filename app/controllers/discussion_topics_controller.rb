@@ -282,7 +282,7 @@ class DiscussionTopicsController < ApplicationController
       scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
     end
 
-    scope = scope.where("discussion_topics.course_section_id IS NULL OR discussion_topics.course_section_id IN (:section_id_list)", :section_id_list => @context.sections_visible_to(@current_user).map(&:id)) unless current_user_is_account_admin
+    scope = scope.where("discussion_topics.course_section_id IS NULL OR discussion_topics.course_section_id IN (:section_id_list)", :section_id_list => @context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context)
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
@@ -380,14 +380,13 @@ class DiscussionTopicsController < ApplicationController
 
 
       categories = @context.respond_to?(:group_categories) ? @context.group_categories : []
-      sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
-      user_sections = if current_user_is_account_admin
-                        sections.map { |section| { id: section.id, name: section.name } }.unshift({ :id => '', :name => 'Everybody' })
-                      elsif @context.is_a?(Course)
-                        @current_user.sections_for_course(@context).map { |section| { id: section.id, name: section.name } }
-                      else
-                        []
-                      end
+      if @current_user.account_admin?(@context)
+        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
+      else
+        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
+      end
+      user_sections = sections.map { |section| { id: section.id, name: section.name } }
+      user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
 
       js_hash = {DISCUSSION_TOPIC: hash,
                  SECTION_LIST: sections.map { |section| { id: section.id, name: section.name } },
@@ -400,6 +399,7 @@ class DiscussionTopicsController < ApplicationController
                  DRAFT_STATE: @topic.draft_state_enabled?,
                  POST_GRADES: @context.feature_enabled?(:post_grades),
                  DIFFERENTIATED_ASSIGNMENTS_ENABLED: @context.feature_enabled?(:differentiated_assignments),
+                 LIMIT_PRIVILEGES_TO_COURSE_SECTION: (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section]),
                  CANCEL_TO: named_context_url(@context, (@topic.is_a?(Announcement) ? :context_announcements_url : :context_discussion_topics_url))}
       append_sis_data(js_hash)
       js_env(js_hash)
@@ -961,6 +961,7 @@ class DiscussionTopicsController < ApplicationController
         update_api_assignment(@assignment, params[:assignment].merge(@topic.attributes.slice('title')), @current_user)
         @assignment.submission_types = 'discussion_topic'
         @assignment.saved_by = :discussion_topic
+        @assignment.course_section = @topic.course_section
         @topic.assignment = @assignment
         @topic.save!
       end
@@ -980,6 +981,7 @@ class DiscussionTopicsController < ApplicationController
         update_api_assignment(@reply_assignment, params[:reply_assignment], @current_user)
         @reply_assignment.submission_types = 'discussion_topic'
         @reply_assignment.saved_by = :discussion_topic
+        @reply_assignment.course_section = @topic.course_section
         @topic.reply_assignment = @reply_assignment
         @topic.grade_replies_separately = true
         @topic.save!

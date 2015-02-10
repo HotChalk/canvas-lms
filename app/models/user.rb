@@ -2631,4 +2631,18 @@ class User < ActiveRecord::Base
     result = nil unless I18n.locale_available?(result)
     result
   end
+
+  def account_admin?(context)
+    return false if context.nil?
+    admin_role = Role.get_built_in_role('AccountAdmin')
+    account = if context.is_a?(Course)
+                context.root_account
+              elsif context.is_a?(Account)
+                context.root_account? ? context : context.root_account
+              else
+                nil
+              end
+    return false unless admin_role && account
+    account.account_users.for_user(self).where(role_id: admin_role.id).first.present?
+  end
 end

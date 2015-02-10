@@ -13,6 +13,7 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
+  'compiled/views/assignments/SectionSelector'
   'compiled/jquery/toggleAccessibly'
   'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
@@ -21,7 +22,7 @@ define [
   'compiled/jquery.rails_flash_notifications'
 ], (INST, I18n, ValidatedFormView, _, $, wikiSidebar, template,
 userSettings, TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
-AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardShortcuts) ->
+AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibly, RCEKeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
 
@@ -49,6 +50,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
     EXTERNAL_TOOLS_CONTENT_TYPE = '#assignment_external_tool_tag_attributes_content_type'
     EXTERNAL_TOOLS_CONTENT_ID = '#assignment_external_tool_tag_attributes_content_id'
     EXTERNAL_TOOLS_NEW_TAB = '#assignment_external_tool_tag_attributes_new_tab'
+    SECTION_SELECTOR = '#section_selector'
 
     els: _.extend({}, @::els, do ->
       els = {}
@@ -72,6 +74,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       els["#{EXTERNAL_TOOLS_NEW_TAB}"] = '$externalToolsNewTab'
       els["#{EXTERNAL_TOOLS_CONTENT_TYPE}"] = '$externalToolsContentType'
       els["#{EXTERNAL_TOOLS_CONTENT_ID}"] = '$externalToolsContentId'
+      els["#{SECTION_SELECTOR}"] = '$sectionSelector'
       els
     )
 
@@ -91,6 +94,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
     @child 'gradingTypeSelector', "#{GRADING_TYPE_SELECTOR}"
     @child 'groupCategorySelector', "#{GROUP_CATEGORY_SELECTOR}"
     @child 'peerReviewsSelector', "#{PEER_REVIEWS_FIELDS}"
+    @child 'sectionSelector', "#{SECTION_SELECTOR}"
 
     initialize: (options) ->
       super
@@ -99,6 +103,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', -> window.location = @get 'html_url'
       @gradingTypeSelector.on 'change:gradingType', @handleGradingTypeChange
+      @sectionSelector.parentModel = @model
 
     handleCancel: (ev) =>
       ev.preventDefault()
@@ -108,7 +113,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       ["assignment_group_id","grading_type","submission_type","submission_types",
        "points_possible","allowed_extensions","peer_reviews","peer_review_count",
        "automatic_peer_reviews","group_category_id","grade_group_students_individually",
-       "turnitin_enabled"]
+       "turnitin_enabled","course_section_id"]
 
     setDefaultsIfNew: =>
       if @assignment.isNew()

@@ -3,6 +3,7 @@ module DatesOverridable
     :has_no_overrides
   attr_writer :without_overrides
   include DifferentiableAssignment
+  include SectionAssignment
 
   def self.included(base)
     base.has_many :assignment_overrides, :dependent => :destroy
@@ -68,7 +69,7 @@ module DatesOverridable
   def all_due_dates
     due_at_overrides = assignment_overrides.loaded? ? assignment_overrides.select{|ao| ao.active? && ao.due_at_overridden} : assignment_overrides.active.overriding_due_at
     dates = due_at_overrides.map(&:as_hash)
-    dates << base_due_date_hash unless differentiated_assignments_applies?
+    dates << base_due_date_hash unless differentiated_assignments_applies? || assigned_to_section?
     dates
   end
 
@@ -80,7 +81,7 @@ module DatesOverridable
     elsif context.user_has_been_student?(user) || context.user_has_been_admin?(user) || context.user_has_been_observer?(user)
       overrides = overrides_for(user)
       overrides = overrides.map(&:as_hash)
-      unless differentiated_assignments_applies?
+      unless differentiated_assignments_applies? || assigned_to_section?
         overrides << base_due_date_hash if overrides.empty? || context.user_has_been_admin?(user)
       end
       overrides

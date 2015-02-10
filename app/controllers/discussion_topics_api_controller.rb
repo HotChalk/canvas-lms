@@ -103,7 +103,7 @@ class DiscussionTopicsApiController < ApplicationController
 
     if structure
 
-      unless current_user_is_account_admin
+      unless @current_user.account_admin?(@context)
         # if the current enrollment has limited section visibility, ensure that only the visible parts of the discussion topic are returned
         if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
           visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
