@@ -27,6 +27,7 @@ class DiscussionTopic < ActiveRecord::Base
   include HtmlTextHelper
   include ContextModuleItem
   include SearchTermHelper
+  include SectionAssignment
 
   attr_accessible :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
@@ -225,6 +226,9 @@ class DiscussionTopic < ActiveRecord::Base
       self.reply_assignment.submission_types = "discussion_topic"
       self.reply_assignment.saved_by = :discussion_topic
       self.reply_assignment.workflow_state = 'published' if self.reply_assignment.deleted?
+      if self.draft_state_enabled?
+        self.reply_assignment.workflow_state = published? ? 'published' : 'unpublished'
+      end
       self.reply_assignment.save
     end
   end
@@ -256,6 +260,10 @@ class DiscussionTopic < ActiveRecord::Base
 
   def for_assignment?
     self.assignment && self.assignment.submission_types =~ /discussion_topic/
+  end
+
+  def for_reply_assignment?
+    self.reply_assignment && self.reply_assignment.submission_types =~ /discussion_topic/
   end
 
   def for_group_discussion?
@@ -728,6 +736,10 @@ class DiscussionTopic < ActiveRecord::Base
       self.assignment.destroy unless self.assignment.deleted?
     end
 
+    if self.for_reply_assignment? && self.root_topic_id.blank?
+      self.reply_assignment.destroy unless self.reply_assignment.deleted?
+    end
+
     self.child_topics.each do |child|
       child.destroy
     end
@@ -741,6 +753,10 @@ class DiscussionTopic < ActiveRecord::Base
       self.assignment.restore(:discussion_topic)
     end
 
+    if from != :assignment && self.for_reply_assignment? && self.root_topic_id.blank?
+      self.reply_assignment.restore(:discussion_topic)
+    end
+
     self.child_topics.each do |child|
       child.restore
     end
@@ -750,9 +766,11 @@ class DiscussionTopic < ActiveRecord::Base
     @saved_by = type
     if self.discussion_entries.empty?
       self.assignment = nil
+      self.reply_assignment = nil
       self.destroy
     else
       self.assignment = nil
+      self.reply_assignment = nil
       self.save
     end
     self.child_topics.each{|t| t.unlink_from(:assignment) }
@@ -903,7 +921,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participants(include_observers=false)
     participants = [ self.user ]
-    if self.course_section_id.nil?
+    if !self.assigned_to_section?
       participants += context.participants(include_observers)
     else
       participants += self.course_section.admins
@@ -1166,7 +1184,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
   def discussion_subentry_count_for_enrollment(enrollment = nil)
-    return discussion_subentry_count if self.course_section_id
+    return discussion_subentry_count if self.assigned_to_section?
 
     # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
@@ -1178,7 +1196,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count unread discussion_entries for a given enrollment, considering section visibility restrictions
   def unread_count_for_enrollment(enrollment = nil, user = nil)
-    return unread_count(user) if self.course_section_id
+    return unread_count(user) if self.assigned_to_section?
 
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
       Shackles.activate(:slave) do

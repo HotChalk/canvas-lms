@@ -16,3 +16,13 @@ define [
 
     initialize: (options) ->
       super
+      @sections ?= ENV.USER_SECTION_LIST
+      @showSectionDropdown = @sections.length > 1
+      @sectionListIsEmpty = @sections.length < 1
+      @courseSectionId = @parentModel.courseSectionId
+
+    toJSON: =>
+      sections: @sections
+      showSectionDropdown: @showSectionDropdown
+      sectionListIsEmpty: @sectionListIsEmpty
+      courseSectionId: @courseSectionId

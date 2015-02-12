@@ -41,6 +41,7 @@ module Api::V1::Assignment
       grade_group_students_individually
       group_category_id
       grading_standard_id
+      course_section_id
     )
   }
 
@@ -50,6 +51,7 @@ module Api::V1::Assignment
       due_at
       assignment_group_id
       post_to_sis
+      course_section_id
     )
   }
 
@@ -275,6 +277,7 @@ module Api::V1::Assignment
     notify_of_update
     integration_id
     integration_data
+    course_section_id
   )
 
   API_ALLOWED_TURNITIN_SETTINGS = %w(

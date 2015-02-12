@@ -212,6 +212,13 @@ class AssignmentGroup < ActiveRecord::Base
       scope = user.assignments_visibile_in_course(context).
               where(:assignment_group_id => assignment_groups).published
     end
+
+    # if necessary, filter out assignments that do not belong to the current user's sections
+    unless user.account_admin?(context)
+      visible_sections = context.respond_to?(:sections_visible_to) ? context.sections_visible_to(user).map(&:id) : []
+      scope = scope.where(course_section_id: visible_sections)
+    end
+
     includes.any? ? scope.preload(includes) : scope
   end
 

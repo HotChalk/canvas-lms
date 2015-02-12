@@ -409,6 +409,14 @@ class AssignmentsController < ApplicationController
         assignment_group_json(group, @current_user, session, [], {stringify_json_ids: true})
       end
 
+      if @current_user.account_admin?(@context)
+        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
+      else
+        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
+      end
+      user_sections = sections.map { |section| { id: section.id, name: section.name } }
+      user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
+
       hash = {
         :ASSIGNMENT_GROUPS => json_for_assignment_groups,
         :GROUP_CATEGORIES => group_categories,
@@ -417,12 +425,14 @@ class AssignmentsController < ApplicationController
         :SECTION_LIST => (@context.sections_visible_to(@current_user).map { |section|
           {:id => section.id, :name => section.name }
         }),
+        :USER_SECTION_LIST => user_sections,
         :ASSIGNMENT_OVERRIDES =>
           (assignment_overrides_json(
             @assignment.overrides_for(@current_user)
             )),
         :ASSIGNMENT_INDEX_URL => polymorphic_url([@context, :assignments]),
-        :DIFFERENTIATED_ASSIGNMENTS_ENABLED => @context.feature_enabled?(:differentiated_assignments)
+        :DIFFERENTIATED_ASSIGNMENTS_ENABLED => @context.feature_enabled?(:differentiated_assignments),
+        :LIMIT_PRIVILEGES_TO_COURSE_SECTION => (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section])
       }
 
       hash[:ASSIGNMENT] = assignment_json(@assignment, @current_user, session, override_dates: false)
