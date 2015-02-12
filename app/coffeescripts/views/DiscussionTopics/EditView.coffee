@@ -222,12 +222,16 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
 
+      if !!data.attachment
+        data.delayed_post_at = Date.parse(data.delayed_post_at).toString() if data.delayed_post_at
+        data.lock_at = Date.parse(data.lock_at).toString() if data.lock_at
+
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
 
       data
 
-    updateAssignment: (model_key, data) =>      
+    updateAssignment: (model_key, data) =>
       @dueDateOverrideView.updateOverrides()
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
