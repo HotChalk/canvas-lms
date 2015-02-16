@@ -70,6 +70,8 @@ class Quizzes::QuizzesController < ApplicationController
       scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
     end
 
+    scope = scope.where("quizzes.course_section_id IS NULL OR quizzes.course_section_id IN (:section_id_list)", :section_id_list => @context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context)
+
     quizzes = scope.sort_by do |quiz|
       due_date = quiz.assignment ? quiz.assignment.due_at : quiz.lock_at
       [
@@ -259,6 +261,14 @@ class Quizzes::QuizzesController < ApplicationController
         flash[:notice] = t('notices.has_submissions_already', "Keep in mind, some students have already taken or started taking this quiz")
       end
 
+      if @current_user.account_admin?(@context)
+        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
+      else
+        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
+      end
+      @user_sections = sections.map { |section| { id: section.id, name: section.name } }
+      @user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
+
       regrade_options = Hash[@quiz.current_quiz_question_regrades.map do |qqr|
         [qqr.quiz_question_id, qqr.regrade_option]
       end]
@@ -293,7 +303,7 @@ class Quizzes::QuizzesController < ApplicationController
           @assignment_group = @context.assignment_groups.active.where(id: assignment_group_id).first
         end
         if @assignment_group
-          @assignment = @context.assignments.build(:title => params[:quiz][:title], :due_at => params[:quiz][:lock_at], :submission_types => 'online_quiz')
+          @assignment = @context.assignments.build(:title => params[:quiz][:title], :due_at => params[:quiz][:lock_at], :submission_types => 'online_quiz', :course_section_id => params[:quiz][:course_section_id])
           @assignment.assignment_group = @assignment_group
           @assignment.saved_by = :quiz
           @assignment.save
@@ -361,6 +371,11 @@ class Quizzes::QuizzesController < ApplicationController
 
           if params[:assignment]
             @quiz.assignment.post_to_sis = params[:assignment][:post_to_sis]
+            @quiz.assignment.save
+          end
+
+          if @quiz.assignment.present?
+            @quiz.assignment.course_section_id = params[:quiz][:course_section_id]
             @quiz.assignment.save
           end
 

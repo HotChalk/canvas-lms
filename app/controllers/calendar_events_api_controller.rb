@@ -786,6 +786,13 @@ class CalendarEventsApiController < ApplicationController
 
     # in courses with diff assignments on, only show the visible assignments
     scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id))
+
+    # filter out assignments assigned to a different section, if applicable
+    unless contexts.any? { |context| @current_user.account_admin?(context) }
+      section_ids = contexts.select { |context| context.is_a?(Course) }.collect { |context| context.sections_visible_to(@current_user).map(&:id) }.flatten.uniq
+      scope = scope.where("assignments.course_section_id IS NULL OR assignments.course_section_id IN (:section_id_list)", :section_id_list => section_ids)
+    end
+
     scope
   end
 

@@ -37,7 +37,8 @@ class Quizzes::Quiz < ActiveRecord::Base
     :require_lockdown_browser_for_results, :context, :notify_of_update,
     :one_question_at_a_time, :cant_go_back, :show_correct_answers_at, :hide_correct_answers_at,
     :require_lockdown_browser_monitor, :lockdown_browser_monitor_data,
-    :one_time_results, :only_visible_to_overrides, :show_correct_answers_last_attempt
+    :one_time_results, :only_visible_to_overrides, :show_correct_answers_last_attempt,
+    :course_section_id
 
   attr_readonly :context_id, :context_type
   attr_accessor :notify_of_update
@@ -63,6 +64,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course']
   belongs_to :assignment
   belongs_to :assignment_group
+  belongs_to :course_section
 
   def self.polymorphic_names
     [self.base_class.name, "Quiz"]
@@ -79,10 +81,11 @@ class Quizzes::Quiz < ActiveRecord::Base
     :require_lockdown_browser, :require_lockdown_browser_for_results,
     :one_question_at_a_time, :cant_go_back, :show_correct_answers_at,
     :hide_correct_answers_at, :require_lockdown_browser_monitor,
-    :lockdown_browser_monitor_data, :only_visible_to_overrides
+    :lockdown_browser_monitor_data, :only_visible_to_overrides,
+    :course_section_id
   ]
 
-  EXPORTABLE_ASSOCIATIONS = [:quiz_questions, :quiz_submissions, :quiz_groups, :quiz_statistics, :attachments, :quiz_regrades, :context, :assignment, :assignment_group]
+  EXPORTABLE_ASSOCIATIONS = [:quiz_questions, :quiz_submissions, :quiz_groups, :quiz_statistics, :attachments, :quiz_regrades, :context, :assignment, :assignment_group, :course_section]
 
   validates_length_of :description, :maximum => maximum_long_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => true
