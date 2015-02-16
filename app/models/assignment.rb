@@ -1961,12 +1961,8 @@ class Assignment < ActiveRecord::Base
   end
 
   def unpublished_module
-    tags = ContentTag.where(:content_id => id, :content_type => 'Assignment')
-    tags.map { |tag|
-      if(tag.context_module.workflow_state == 'unpublished')
-        return true
-      end
-    }
-    return false
+    return !!(self.locked_by_module_item?(@current_user, true) ||
+      (self.quiz && self.quiz.locked_by_module_item?(@current_user, true)) ||
+      (self.discussion_topic && self.discussion_topic.locked_by_module_item?(@current_user, true)))
   end
 end
