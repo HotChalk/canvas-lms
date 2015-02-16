@@ -1871,9 +1871,6 @@ class User < ActiveRecord::Base
           next if data_context_type == "Assignment" && (data_assignment = Assignment.find(data_context_id) || nil).present? &&
               data_assignment.course_section_id.present? && !visible_sections.include?(data_assignment.course_section_id)
 
-
-          puts "##### si #{si.inspect}"
-
           si.unread = sii.unread?
           si
         end.compact
