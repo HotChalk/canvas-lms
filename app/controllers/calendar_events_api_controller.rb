@@ -742,7 +742,11 @@ class CalendarEventsApiController < ApplicationController
 
   def assignment_context_scope
     # contexts have to be partitioned into two groups so they can be queried effectively
-    contexts = @contexts.select { |c| @context_codes.include?(c.asset_string) }
+    contexts = if params[:context_codes]
+      @contexts.select { |c| @context_codes.include?(c.asset_string) }
+    else
+      @contexts
+    end
     view_unpublished, other = contexts.partition { |c| c.grants_right?(@current_user, session, :view_unpublished_items) }
 
     sql = []
@@ -753,9 +757,8 @@ class CalendarEventsApiController < ApplicationController
     end
 
     unless other.empty?
-      # sql << '(assignments.context_code IN (?) AND assignments.workflow_state = ?)'
-      sql << 'assignments.workflow_state = ?'
-      # conditions << other.map(&:asset_string)
+      sql << '(assignments.context_code IN (?) AND assignments.workflow_state = ?)'
+      conditions << other.map(&:asset_string)
       conditions << 'published'
     end
 
