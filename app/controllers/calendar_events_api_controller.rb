@@ -793,7 +793,7 @@ class CalendarEventsApiController < ApplicationController
     # filter out assignments assigned to a different section, if applicable
     unless contexts.any? { |context| @current_user.account_admin?(context) }
       section_ids = contexts.select { |context| context.is_a?(Course) }.collect { |context| context.sections_visible_to(@current_user).map(&:id) }.flatten.uniq
-      scope = scope.where("assignments.course_section_id IS NULL OR assignments.course_section_id IN (:section_id_list)", :section_id_list => section_ids)
+      scope = scope.visible_to_sections(section_ids)
     end
 
     scope

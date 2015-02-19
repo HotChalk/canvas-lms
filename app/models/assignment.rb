@@ -1739,6 +1739,8 @@ class Assignment < ActiveRecord::Base
   scope :unpublished, -> { where(:workflow_state => 'unpublished') }
   scope :published, -> { where(:workflow_state => 'published') }
 
+  scope :visible_to_sections, lambda { |section_ids| where("course_section_id IS NULL OR course_section_id IN (?)", section_ids) }
+
   def overdue?
     due_at && due_at <= Time.now
   end
