@@ -216,7 +216,8 @@ class AssignmentGroup < ActiveRecord::Base
     # if necessary, filter out assignments that do not belong to the current user's sections
     unless user.account_admin?(context)
       visible_sections = context.respond_to?(:sections_visible_to) ? context.sections_visible_to(user).map(&:id) : []
-      scope = scope.where(course_section_id: visible_sections)
+      scope = scope.where("assignments.course_section_id IS NULL OR assignments.course_section_id IN (:section_id_list)",
+       section_id_list: visible_sections)
     end
 
     includes.any? ? scope.preload(includes) : scope
