@@ -98,7 +98,12 @@ class SectionsController < ApplicationController
       end
 
       includes = Array(params[:include])
-      result = @context.active_course_sections.map { |section| section_json(section, @current_user, session, includes) }
+      sections = if @current_user.account_admin?(@context)
+                   @context.active_course_sections
+                 else
+                   @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
+                 end
+      result = sections.map { |section| section_json(section, @current_user, session, includes) }
 
       render :json => result
     end

@@ -1,7 +1,11 @@
 <% js_bundle :link_content_dialog %>
 <% jammit_css :select_content_dialog %>
 <% only ||= nil # only is an optimization, so that tabs that aren't going to be used won't have their data loaded %>
-<% cache([@context, 'link_context_content_dialog', only].cache_key) do %>
+<% course_section_ids = nil %>
+<% unless @current_user.account_admin?(@context) %>
+  <% course_section_ids = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).map(&:id).sort : [] %>
+<% end %>
+<% cache([@context, course_section_ids, 'link_context_content_dialog', only].cache_key) do %>
   <div id="link_context_content_dialog" style="display: none;">
     <div style="<%= hidden if only && only.size == 1 %>">
       <a href="<%= context_url(@context, :context_external_tool_resource_selection_url, "{{ id }}") %>" id="select_content_resource_selection_url" style="display: none;">&nbsp;</a>
@@ -77,7 +81,11 @@
         </div>
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
-          <% @context.quizzes.active.limit(400).each do |quiz| %>
+          <% quizzes = @context.quizzes.active.limit(400) %>
+          <% unless course_section_ids.nil? %>
+              <% quizzes = quizzes.visible_to_sections(course_section_ids) %>
+          <% end %>
+          <% quizzes.each do |quiz| %>
             <option value="<%= quiz.id %>"><%= quiz.title %></option>
           <% end %>
         </select>
@@ -94,7 +102,11 @@
         <select class="module_item_select" multiple>
           <% @context.assignment_groups.active.include_active_assignments.each do |group| %>
             <optgroup label="<%= group.name %>">
-            <% group.active_assignments.no_graded_quizzes_or_topics.limit(200).each do |assignment| %>
+            <% assignments = group.active_assignments.no_graded_quizzes_or_topics.limit(200) %>
+            <% unless course_section_ids.nil? %>
+              <% assignments = assignments.visible_to_sections(course_section_ids) %>
+            <% end %>
+            <% assignments.each do |assignment| %>
               <option value="<%= assignment.id %>"><%= assignment.title %></option>
             <% end %>
             </optgroup>
@@ -134,7 +146,11 @@
         </div>
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
-          <% @context.discussion_topics.active.only_discussion_topics.scoped({:limit => 200}).each do |topic| %>
+          <% discussion_topics = @context.discussion_topics.active.only_discussion_topics.scoped({:limit => 200}) %>
+          <% unless course_section_ids.nil? %>
+            <% discussion_topics = discussion_topics.visible_to_sections(course_section_ids) %>
+          <% end %>
+          <% discussion_topics.each do |topic| %>
             <option value="<%= topic.id %>"><%= topic.title %></option>
           <% end %>
         </select>

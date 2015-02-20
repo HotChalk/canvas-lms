@@ -282,7 +282,7 @@ class DiscussionTopicsController < ApplicationController
       scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
     end
 
-    scope = scope.where("discussion_topics.course_section_id IS NULL OR discussion_topics.course_section_id IN (:section_id_list)", :section_id_list => @context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context)
+    scope = scope.visible_to_sections(@context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context)
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 

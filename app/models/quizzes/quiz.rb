@@ -1164,6 +1164,8 @@ class Quizzes::Quiz < ActiveRecord::Base
     where(:quiz_student_visibilities => { :user_id => student_ids, :course_id => course_ids })
   }
 
+  scope :visible_to_sections, lambda { |section_ids| where("course_section_id IS NULL OR course_section_id IN (?)", section_ids) }
+
   def teachers
     context.teacher_enrollments.map(&:user)
   end
