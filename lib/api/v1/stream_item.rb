@@ -68,6 +68,8 @@ module Api::V1::StreamItem
         hash['sender'] = prepare_user(stream_item.asset.conversation_messages[0].author)
         hash['first_message'] = stream_item.asset.conversation_messages[0]
         hash['html_url'] = conversation_url(stream_item.asset_id)
+        participant = @current_user.conversation_participant(stream_item.asset_id)
+        hash['read_state'] = participant.read?
       when 'Message'
         hash['message_id'] = stream_item.asset_id
         # this type encompasses a huge number of different types of messages,
