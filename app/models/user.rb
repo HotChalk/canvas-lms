@@ -239,7 +239,7 @@ class User < ActiveRecord::Base
 
   scope :enrolled_in_course_between, lambda { |course_ids, start_at, end_at| joins(:enrollments).where(:enrollments => { :course_id => course_ids, :created_at => start_at..end_at }) }
 
-  scope :for_course_with_last_login, lambda { |course, root_account_id, enrollment_type|
+  scope :for_course_with_last_login, lambda { |course, root_account_id, enrollment_type, course_sections = nil|
     # add a field to each user that is the aggregated max from current_login_at and last_login_at from their pseudonyms
     scope = select("users.*, MAX(current_login_at) as last_login, MAX(current_login_at) IS NULL as login_info_exists").
       # left outer join ensures we get the user even if they don't have a pseudonym
@@ -249,6 +249,7 @@ class User < ActiveRecord::Base
       SQL
     scope = scope.where("enrollments.workflow_state<>'deleted'")
     scope = scope.where(:enrollments => { :type => enrollment_type }) if enrollment_type
+    scope = scope.where(:enrollments => { :course_section_id => course_sections.map(&:id) }) if course_sections
     # the trick to get unique users
     scope.group("users.id")
   }
@@ -572,6 +573,8 @@ class User < ActiveRecord::Base
     includes(:user_services).where(:user_services => { :service => service.to_s })
   }
   scope :enrolled_before, lambda { |date| where("enrollments.created_at<?", date) }
+
+  scope :enrolled_in_sections, lambda { |course_section_ids| where("enrollments.course_section_id IN (?)", course_section_ids) }
 
   def group_memberships_for(context)
     groups.where('groups.context_id' => context,

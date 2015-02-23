@@ -804,7 +804,8 @@ class CoursesController < ApplicationController
   def recent_students
     get_context
     if authorized_action(@context, @current_user, :read_reports)
-      scope = User.for_course_with_last_login(@context, @context.root_account_id, 'StudentEnrollment')
+      course_sections = @current_user.account_admin?(@context) ? nil : @context.sections_visible_to(@current_user)
+      scope = User.for_course_with_last_login(@context, @context.root_account_id, 'StudentEnrollment', course_sections)
       scope = scope.order('login_info_exists, last_login DESC')
       users = Api.paginate(scope, self, api_v1_course_recent_students_url)
       user_json_preloads(users)
