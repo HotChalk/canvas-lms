@@ -1615,7 +1615,7 @@ class Course < ActiveRecord::Base
   def enroll_user(user, type='StudentEnrollment', opts={})
     enrollment_state = opts[:enrollment_state]
     section = opts[:section]
-    limit_privileges_to_course_section = (type == 'StudentEnrollment' ? self.limit_section_visibility : opts[:limit_privileges_to_course_section])
+    limit_privileges_to_course_section = ((type == 'StudentEnrollment' || type == 'StudentViewEnrollment') ? self.limit_section_visibility : opts[:limit_privileges_to_course_section])
     associated_user_id = opts[:associated_user_id]
 
     role = opts[:role] || Enrollment.get_built_in_role_for_type(type)
@@ -2634,8 +2634,8 @@ class Course < ActiveRecord::Base
     enrollments.select { |e| e.active? }.map(&:user).uniq
   end
 
-  def student_view_student
-    fake_student = find_or_create_student_view_student
+  def student_view_student(current_user = nil)
+    fake_student = find_or_create_student_view_student(current_user)
     fake_student = sync_enrollments(fake_student)
     fake_student
   end
@@ -2644,12 +2644,21 @@ class Course < ActiveRecord::Base
   # to appear is to ensure that it does not have a pseudonym or any
   # account_associations. if either of these conditions is false, something is
   # wrong.
-  def find_or_create_student_view_student
-    if self.student_view_students.active.count == 0
+  def find_or_create_student_view_student(current_user = nil)
+    is_admin = current_user && current_user.account_admin?(self)
+    fake_student_sections = (!current_user || is_admin) ? nil : self.sections_visible_to(current_user).map(&:id).sort
+    student_view_students = self.student_view_students.active
+    if fake_student_sections
+      student_view_students = student_view_students.select { |s| s.preferences[:fake_student_sections] == fake_student_sections }
+    elsif is_admin
+      student_view_students = student_view_students.select { |s| !s.preferences.has_key?(:fake_student_sections) }
+    end
+    if student_view_students.count == 0
       fake_student = nil
       User.skip_updating_account_associations do
         fake_student = User.new(:name => t('student_view_student_name', "Test Student"))
         fake_student.preferences[:fake_student] = true
+        fake_student.preferences[:fake_student_sections] = fake_student_sections if fake_student_sections
         fake_student.workflow_state = 'registered'
         fake_student.save
         # hash the unique_id so that it's hard to accidently enroll the user in
@@ -2659,7 +2668,7 @@ class Course < ActiveRecord::Base
       end
       fake_student
     else
-      self.student_view_students.active.first
+      student_view_students.first
     end
   end
   private :find_or_create_student_view_student
@@ -2669,7 +2678,9 @@ class Course < ActiveRecord::Base
   def sync_enrollments(fake_student)
     self.default_section unless course_sections.active.any?
     Enrollment.suspend_callbacks(:update_cached_due_dates) do
+      fake_student_sections = fake_student.preferences[:fake_student_sections]
       self.course_sections.active.each do |section|
+        next if fake_student_sections && !fake_student_sections.include?(section.id)
         # enroll fake_student will only create the enrollment if it doesn't already exist
         self.enroll_user(fake_student, 'StudentViewEnrollment',
                          :allow_multiple_enrollments => true,

@@ -2112,7 +2112,7 @@ class CoursesController < ApplicationController
     get_context
     if @current_user.fake_student? && authorized_action(@context, @real_current_user, :use_student_view)
       # destroy the exising student
-      @fake_student = @context.student_view_student
+      @fake_student = @context.student_view_student(logged_in_user)
       # but first, remove all existing quiz submissions / submissions
       Submission.where(quiz_submission_id: @fake_student.quiz_submissions.select(:id)).destroy_all
       @fake_student.quiz_submissions.destroy_all
@@ -2124,7 +2124,7 @@ class CoursesController < ApplicationController
   end
 
   def enter_student_view
-    @fake_student = @context.student_view_student
+    @fake_student = @context.student_view_student(logged_in_user)
     session[:become_user_id] = @fake_student.id
     return_url = course_path(@context)
     session.delete(:masquerade_return_to)
