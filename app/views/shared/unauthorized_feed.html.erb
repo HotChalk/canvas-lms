@@ -6,6 +6,6 @@
   <%= @problem %>
   </p>
   <p><%= t('feedback', %{If you're pretty sure this url was supposed to work, please tell us how you got here by clicking the link below, and we'll look into it.}) %></p>
-  <a href="#" style="font-size: 1.2em;" class="submit_error_link discussion-topic"><%= t('links.feedback', %{Tell us what you were looking for}) %></a>
+  <a href="https://embersupport.zendesk.com/hc/en-us" style="font-size: 1.2em;" class="discussion-topic"><%= t('links.feedback', %{Click here to access our Knowledge Base and submit a ticket to let us know what happened}) %></a>
   <%= render :partial => "shared/errors/error_form", :locals => {:status => 400} %>
 </div>

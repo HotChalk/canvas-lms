@@ -7994,8 +7994,8 @@ en:
   links: 
     dashboard: "My Dashboard"
     errors: 
-      4xx_feedback: "Click here to tell us what you were looking for."
-      feedback: "Click here to tell us what happened"
+      4xx_feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened."
+      feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened"
     help: Help
     show_me_where: "Show Me Where"
   logged_out_user: "Logged Out User %{user_counter}"
@@ -14037,7 +14037,7 @@ en:
       bad_params: "The parameters for the feed you were trying to access are invalid."
       feedback: "If you're pretty sure this url was supposed to work, please tell us how you got here by clicking the link below, and we'll look into it."
       links: 
-        feedback: "Tell us what you were looking for"
+        feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened"
       title: "Invalid Feed"
     user_header_navigation: 
       navigation: 
