@@ -1861,18 +1861,22 @@ class User < ActiveRecord::Base
           next if si.context_type == "Course" && si.context.concluded?
 
           # filter out specific items not visible to the user's current section
-          next unless si[:data].present?
-          visible_sections = si.context.sections_visible_to(self).map(&:id)
+          if si.context_type == "Course"
+            # do not display discussion topic / announcement stream items that belong to a section that a user cannot see
+            visible_sections = si.context.sections_visible_to(self).map(&:id)
+            next if si.data[:course_section_id].present? && !visible_sections.include?(si.data[:course_section_id])
 
-          # do not display discussion topic / announcement stream items that belong to a section that a user cannot see
-          next if si.context_type == "Course" && si.data[:course_section_id].present? &&
-              !visible_sections.include?(si.data[:course_section_id])
-
-          # do not display assignment stream items that belong to a section that a user cannot see
-          data_context_id = si.data[:context_id]
-          data_context_type = si.data[:context_type]
-          next if data_context_type == "Assignment" && (data_assignment = Assignment.find(data_context_id) || nil).present? &&
-              data_assignment.course_section_id.present? && !visible_sections.include?(data_assignment.course_section_id)
+            # do not display assignment stream items that belong to a section that a user cannot see
+            data_context_id = si.data[:context_id]
+            data_context_type = si.data[:context_type]
+            next if data_context_type == "Assignment" && (data_assignment = Assignment.find(data_context_id) || nil).present? &&
+                data_assignment.course_section_id.present? && !visible_sections.include?(data_assignment.course_section_id)
+          elsif si.context_type == "AssignmentOverride"
+            assignment_override = AssignmentOverride.find(si.context_id)
+            if assignment_override && assignment_override.set_type == 'CourseSection'
+              next unless assignment_override.set.users.include?(self)
+            end
+          end
 
           si.unread = sii.unread?
           si
