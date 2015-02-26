@@ -934,11 +934,12 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def active_participants(include_observers=false)
-    if self.context.respond_to?(:available?) && !self.context.available? && self.context.respond_to?(:participating_admins)
+    result = if self.context.respond_to?(:available?) && !self.context.available? && self.context.respond_to?(:participating_admins)
       self.context.participating_admins
     else
       self.participants(include_observers)
     end
+    result - excluded_participants
   end
 
   def active_participants_with_visibility
@@ -952,6 +953,12 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participating_users(user_ids)
     context.respond_to?(:participating_users) ? context.participating_users(user_ids) : User.find(user_ids)
+  end
+
+  def excluded_participants
+    # returns a list of participants that are excluded from this assignment based on section visibility restrictions
+    return [] unless assigned_to_section?
+    context.current_enrollments.excluding_section(self.course_section_id).map(&:user)
   end
 
   def subscribers
