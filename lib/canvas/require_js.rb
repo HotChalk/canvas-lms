@@ -61,7 +61,9 @@ module Canvas
         @paths ||= {
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.2.min',
+          :uploadify => '../flash/uploadify/jquery.uploadify-3.2',
+          'swfobject' => 'vendor/swfobject/swfobject',
+          'swfupload' => 'vendor/swfupload/swfupload',
           'ckeditor-core' => 'ckeditor/ckeditor',
           'ckeditor-jquery' => 'ckeditor/adapters/jquery'
         }.update(cache_busting ? cache_busting_paths : {}).
@@ -130,7 +132,7 @@ module Canvas
               exports: 'FileAPI'
             },
             'uploadify': {
-              deps: ['jquery'],
+              deps: ['jquery', 'swfobject', 'swfupload'],
               exports: '$'
             },
             'vendor/bootstrap-select/bootstrap-select' : {
