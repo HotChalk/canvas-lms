@@ -40,7 +40,9 @@ define([
       }
     });
     $(".datetime_field").datetime_field();
-    $("#add_notification_form textarea").editorBox().width('100%');
+    if ($("#add_notification_form textarea").length > 0) {
+      $("#add_notification_form textarea").editorBox().width('100%');
+    }
     $("#add_notification_form .datetime_field").bind('blur change', function() {
       var date = Date.parse($(this).val());
       if(date) {
