@@ -115,7 +115,8 @@ module Api::V1::DiscussionTopics
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
       group_category_id: topic.group_category_id, can_group: topic.can_group?,
-      course_section: topic.course_section_id.nil? ? nil : topic.course_section.name }
+      course_section: topic.course_section_id.nil? ? nil : topic.course_section.name,
+      context_type: topic.context_type }
   end
 
   # Public: Serialize discussion entries for returning a JSON response. This method,
