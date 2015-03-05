@@ -1199,4 +1199,9 @@ class Submission < ActiveRecord::Base
   def without_graded_submission?
     !self.has_submission? && !self.graded?
   end
+
+  scope :visible_to_sections, lambda { |section_ids|
+    where("assignments.course_section_id IS NULL OR assignments.course_section_id IN (?)", section_ids)
+  }
+
 end

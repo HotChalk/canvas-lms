@@ -39,7 +39,8 @@ define([
   'media_comments' /* mediaComment */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/droppable' /* /\.droppable/ */,
-  'jqueryui/progressbar' /* /\.progressbar/ */
+  'jqueryui/progressbar' /* /\.progressbar/ */,
+  'uploadify'
 ], function(_, INST, I18n, $, htmlEscape) {
 
   if(typeof ENV.contexts === "string"){

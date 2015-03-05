@@ -943,6 +943,7 @@ class Enrollment < ActiveRecord::Base
         select("enrollments.*").
         readonly(false)
   }
+  scope :excluding_section, lambda { |course_section_id| where("course_section_id<>?", course_section_id) }
   def self.cached_temporary_invitations(email)
     if Enrollment.cross_shard_invitations?
       Shard.birth.activate do

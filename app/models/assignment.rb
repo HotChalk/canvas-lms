@@ -904,7 +904,7 @@ class Assignment < ActiveRecord::Base
   end
 
   def participants
-    return context.participants unless differentiated_assignments_applies?
+    return context.participants - excluded_participants unless differentiated_assignments_applies?
     participants_with_visibility
   end
 
@@ -912,6 +912,12 @@ class Assignment < ActiveRecord::Base
     users = context.participating_admins
     users += students_with_visibility
     users.uniq
+  end
+
+  def excluded_participants
+    # returns a list of participants that are excluded from this assignment based on section visibility restrictions
+    return [] unless assigned_to_section?
+    context.current_enrollments.excluding_section(self.course_section_id).map(&:user)
   end
 
   def set_default_grade(options={})
