@@ -6,7 +6,7 @@ version 0.5.2
 */
 
 /******************** Base ********************/
-body											{ font-family: helvetica, arial, sans-serif; line-height: 1.5; background: white; color: black; }
+body											{ font-family: helvetica, arial, sans-serif; line-height: 1.5; background: white; color: black; margin: 20px; }
 h1, h2, h3, h4, h5, h6							{ line-height: 1.2; }
 h4, h5, h6										{ font-weight: bold; }
 b, strong, caption, th, thead, dt, legend		{ font-weight: bold; }
