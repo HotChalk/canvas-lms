@@ -228,6 +228,7 @@ class RoleOverridesController < ApplicationController
   #     create_collaborations            -- [STADo] Create student collaborations
   #     create_conferences               -- [STADo] Create web conferences
   #     manage_admin_users               -- [ Tad ] Add/remove other teachers, course designers or TAs to the course
+  #     manage_announcements             -- [sTADo] Manage (add / edit / delete) announcements
   #     manage_assignments               -- [ TADo] Manage (add / edit / delete) assignments and quizzes
   #     manage_calendar                  -- [sTADo] Add, edit and delete events on the course calendar
   #     manage_content                   -- [ TADo] Manage all other course content

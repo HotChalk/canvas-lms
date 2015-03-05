@@ -12994,6 +12994,7 @@ en:
       manage_groups: "Manage (create / edit / delete) groups"
       manage_interaction_alerts: "Manage alerts"
       manage_links: "Manage role and trust links"
+      manage_nonglobal_announcements: "Manage (add / edit / delete) announcements"
       manage_outcomes: "Manage learning outcomes"
       manage_role_overrides: "Manage permissions"
       manage_rubrics: "Create and edit assessing rubrics"
