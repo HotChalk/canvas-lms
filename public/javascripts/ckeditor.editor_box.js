@@ -133,11 +133,13 @@ define([
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
       removePlugins: 'image,liststyle,tabletools,contextmenu',
       removeButtons: '',
-      contentsCss: [CKEDITOR.getUrl('contents.css'),
+      contentsCss: [
           '/stylesheets/static/baseline.reset.css',
           '/stylesheets/static/baseline.base.css',
           '/stylesheets/static/baseline.table.css',
-          '/stylesheets/static/baseline.type.css'],
+          '/stylesheets/static/baseline.type.css',
+          '/stylesheets/static/baseline.dialog.css',
+          CKEDITOR.getUrl('contents.css')],
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);

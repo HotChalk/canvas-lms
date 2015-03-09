@@ -1,0 +1,10 @@
+/*
+Baseline - a designer framework
+Copyright (C) 2009 Stephane Curzi, ProjetUrbain.com
+Creative Commons Attribution-Share Alike 3.0 License
+version 0.5
+*/
+
+/******************** Baseline grid: 13/18px ********************/
+ul.cke_panel_list span					{ line-height: initial; }
+.cke_combopanel { width: 175px !important; }
