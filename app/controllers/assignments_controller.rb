@@ -116,9 +116,8 @@ class AssignmentsController < ApplicationController
     end
     if authorized_action(@assignment, @current_user, :read)
 
-      if (da_on = @context.feature_enabled?(:differentiated_assignments)) &&
-           @current_user && @assignment &&
-           !@assignment.visible_to_user?(@current_user, differentiated_assignments: da_on)
+      if @current_user && @assignment &&
+        ((da_on = @context.feature_enabled?(:differentiated_assignments) && !@assignment.visible_to_user?(@current_user, differentiated_assignments: da_on) || ((!@current_user.account_admin?(@context) && @context.respond_to?(:sections_visible_to)) && @assignment.course_section_id != nil && !@context.sections_visible_to(@current_user).map(&:id).include?(@assignment.course_section_id)))) &&
         respond_to do |format|
           flash[:error] = t 'notices.assignment_not_available', "The assignment you requested is not available to your course section."
           format.html { redirect_to named_context_url(@context, :context_assignments_url) }

@@ -143,7 +143,7 @@ class Quizzes::QuizzesController < ApplicationController
       # optionally force auth even for public courses
       return if value_to_boolean(params[:force_user]) && !force_user
 
-      if @current_user && !@quiz.visible_to_user?(@current_user)
+      if (@current_user && !@quiz.visible_to_user?(@current_user)) || ((!@current_user.account_admin?(@context) && @context.respond_to?(:sections_visible_to)) && @quiz.course_section_id != nil && !@context.sections_visible_to(@current_user).map(&:id).include?(@quiz.course_section_id))
         if @current_user.quiz_submissions.where(quiz_id: @quiz).any?
           flash[:notice] = t 'notices.submission_doesnt_count', "This quiz will no longer count towards your grade."
         else

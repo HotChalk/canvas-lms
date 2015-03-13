@@ -426,7 +426,7 @@ class DiscussionTopicsController < ApplicationController
     end
 
     if authorized_action(@topic, @current_user, :read)
-      if @current_user && @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user)
+      if (@current_user && @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user)) || ((!@current_user.account_admin?(@context) && @context.respond_to?(:sections_visible_to)) && @topic.course_section_id != nil && !@context.sections_visible_to(@current_user).map(&:id).include?(@topic.course_section_id))
         respond_to do |format|
           flash[:error] = t 'notices.discussion_not_availible', "You do not have access to the requested discussion."
           format.html { redirect_to named_context_url(@context, :context_discussion_topics_url) }
