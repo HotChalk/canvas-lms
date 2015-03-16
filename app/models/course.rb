@@ -1129,6 +1129,12 @@ class Course < ActiveRecord::Base
     # because students can't see prior enrollments)
     given { |user| self.account_membership_allows(user, :read_roster) }
     can :read_prior_roster
+
+    given { |user| self.account_membership_allows(user, :export_course_content) }
+    can :export_course_content
+
+    given { |user| self.account_membership_allows(user, :import_course_content) }
+    can :import_course_content
   end
 
   def allows_gradebook_uploads?

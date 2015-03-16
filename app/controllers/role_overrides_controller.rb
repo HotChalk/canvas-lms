@@ -197,6 +197,8 @@ class RoleOverridesController < ApplicationController
   #
   #     [For Account-Level Roles Only]
   #     become_user                      -- Become other users
+  #     export_course_content            -- Export course content
+  #     import_course_content            -- Import course content
   #     manage_account_memberships       -- Add/remove other admins for the account
   #     manage_account_settings          -- Manage account-level settings
   #     manage_alerts                    -- Manage global alerts
