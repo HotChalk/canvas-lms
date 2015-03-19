@@ -267,6 +267,7 @@ class CoursesController < ApplicationController
   skip_after_filter :update_enrollment_last_activity_at, only: [:enrollment_invitation]
 
   include Api::V1::Course
+  include Api::V1::CourseSection
   include Api::V1::Progress
 
   # @API List your courses
@@ -2226,5 +2227,14 @@ class CoursesController < ApplicationController
 
     CourseLinkValidator.queue_course(@context)
     render :json => {:success => true}
+  end
+
+  def user_sections
+    get_context
+    return unless authorized_action(@context, @current_user, :manage_content)
+
+    user_sections = @context.sections_visible_to(@current_user)
+    hash = course_sections_json(user_sections)
+    render :json => hash
   end
 end

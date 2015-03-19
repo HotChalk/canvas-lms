@@ -1779,7 +1779,8 @@ class Course < ActiveRecord::Base
             :title => entry.title,
             :description => entry.message,
             :start_at => entry.start_at,
-            :end_at => entry.end_at
+            :end_at => entry.end_at,
+            :course_section_id => entry.course_section_id
           )
           event.workflow_state = 'read_only'
           event.workflow_state = 'cancelled' if entry.cancelled?

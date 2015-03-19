@@ -40,10 +40,14 @@
           </select>
         </td>
       </tr>
+      <tr class="course_section" style="display: none;">
+        <td><label for="course_section">Section:</td>
+        <td class="course_section_holder"></td>
+      </tr>
     </table>
   </div>
   <div class="popover-links-holder event-details-footer pull-right">
     <a href="#" class="event_button btn btn-secondary more_options_link">{{#t "links.more_options"}}More Options{{/t}}</a>
-    <button type="submit" class="event_button btn btn-primary">{{#t "#buttons.submit"}}Submit{{/t}}</button>
+    <button id="submit_button" type="submit" class="event_button btn btn-primary">{{#t "#buttons.submit"}}Submit{{/t}}</button>
   </div>
 </form>
