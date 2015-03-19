@@ -764,6 +764,16 @@ class RoleOverride < ActiveRecord::Base
         :label => lambda { t('permissions.manage_feature_flags', "Enable or disable features at an account level") },
         :true_for => %w(AccountAdmin),
         :available_to => %w(AccountAdmin AccountMembership)
+      },
+      :export_course_content => {
+        :label => lambda { t('permissions.export_course_content', "Export course content") },
+        :true_for => %w(AccountAdmin),
+        :available_to => %w(AccountAdmin AccountMembership)
+      },
+      :import_course_content => {
+        :label => lambda { t('permissions.import_course_content', "Import course content") },
+        :true_for => %w(AccountAdmin),
+        :available_to => %w(AccountAdmin AccountMembership)
       }
     })
 
