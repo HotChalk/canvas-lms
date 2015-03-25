@@ -131,6 +131,8 @@ define [
 
     selectedSection: null
 
+    uniqueSection: null,
+
     selectedAssignment: null
 
     weightingScheme: null
@@ -704,3 +706,10 @@ define [
       enrollments.clear()
       fetchAllPages(url, records: enrollments)
     ).observes('showConcludedEnrollments')
+
+    verifySections: (->
+      content = @get('sections').get('content')
+      if content.length == 1
+        @set 'uniqueSection', content[0].id
+      return
+    ).observes('sections.isLoaded')
