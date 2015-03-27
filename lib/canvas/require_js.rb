@@ -132,7 +132,7 @@ module Canvas
               exports: 'FileAPI'
             },
             'uploadify': {
-              deps: ['jquery', 'swfobject', 'swfupload'],
+              deps: ['jquery', 'swfupload'],
               exports: '$'
             },
             'vendor/bootstrap-select/bootstrap-select' : {

@@ -1,12 +1,17 @@
-define(['jquery', 'swfobject', 'swfupload'],function($, swfobject) {
-
 /*
 Uploadify v3.2.1
 Copyright (c) 2012 Reactive Apps, Ronnie Garcia
 Released under the MIT License <http://www.opensource.org/licenses/mit-license.php> 
 */
 
-(function($) {
+// UMD dance - https://github.com/umdjs/umd
+!function(root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define(['jquery'], factory);
+  } else {
+    factory(root.jQuery);
+  }
+}(this, function($) {
 
 	// These methods can be called by adding them as the first argument in the uploadify plugin call
 	var methods = {
@@ -911,7 +916,5 @@ Released under the MIT License <http://www.opensource.org/licenses/mit-license.p
 		}
 
 	}
-
-})($);
 
 });
