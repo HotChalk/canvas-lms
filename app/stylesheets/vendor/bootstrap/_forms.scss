@@ -80,13 +80,18 @@ input[type="color"],
 .uneditable-input {
   display: inline-block;
   height: $baseLineHeight;
-  padding: 4px 4px 4px 8px;
+  padding: 8px;
   margin-bottom: $baseLineHeight / 2;
   font-size: $baseFontSize;
   line-height: $baseLineHeight;
   color: $gray;
   @include border-radius($inputBorderRadius);
   vertical-align: middle;
+}
+
+// LMS-926: Letters "q-y-p-g-j" are shown cut off on FF
+input.input-block-level {
+  height: auto;
 }
 
 // Reset appearance properties for textual inputs and textarea
