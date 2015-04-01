@@ -90,8 +90,8 @@
         <td><%= f.label :enrollment_term_id, :en => "Enrollment Term" %></td>
         <td><%= f.select :enrollment_term_id, @root_account.enrollment_terms.active.order(EnrollmentTerm.nulls(:first, :start_at)).map{|t| [t.name, t.id] }, :selected => @term && @term.id %></td>
       </tr><tr>
-        <td><%= f.label :limit_section_visibility, :en => "Student Visibility" %></td>
-        <td><%= f.select :limit_section_visibility, [[t(:section_only, "Can see students in their section only"), true], [t(:all_students, "Can see all students in course"), false]], :selected => true %></td>
+        <td><%= f.label :limit_section_visibility, :en => "Section Visibility" %></td>
+        <td><%= f.select :limit_section_visibility, [[t(:section_only, "Can see fellow section users only"), true], [t(:all_students, "Can see all users in course"), false]], :selected => true %></td>
       </tr><tr>
         <td colspan="2">
           <div class="button-container">
