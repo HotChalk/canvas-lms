@@ -612,6 +612,10 @@ class Enrollment < ActiveRecord::Base
     result = self.save
     if result
       self.user.try(:update_account_associations)
+      @stream_items = self.user.try(:cached_recent_stream_items, { :contexts => @contexts }) || []
+      @stream_items.each do |stream_item|
+        stream_item.destroy_user_stream_item_instances(self.user.id)
+      end
       self.user.touch
     end
     result
