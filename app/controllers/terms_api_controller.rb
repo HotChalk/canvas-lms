@@ -96,4 +96,43 @@ class TermsApiController < ApplicationController
       render json: {enrollment_terms: enrollment_terms_json(terms, @current_user, session)}
     end
   end
+
+  def create
+    overrides = params[:enrollment_term].delete(:overrides) rescue nil
+    @term = @context.enrollment_terms.active.build(params[:enrollment_term])
+    @term.sis_source_id = params[:enrollment_term].delete(:sis_term_id)
+    if @term.save
+      @term.set_overrides(@context, overrides)
+      render :json => enrollment_term_json(@term, @current_user, session, :include => :enrollment_dates_overrides)
+    else
+      render :json => @term.errors, :status => :bad_request
+    end
+  end
+
+  def update
+    overrides = params[:enrollment_term].delete(:overrides) rescue nil
+    @term = @context.enrollment_terms.active.find(params[:id])
+    root_account = @context.root_account
+    if sis_id = params[:enrollment_term].delete(:sis_term_id)
+      if sis_id != @account.sis_source_id && root_account.grants_right?(@current_user, session, :manage_sis)
+        if sis_id == ''
+          @term.sis_source_id = nil
+        else
+          @term.sis_source_id = sis_id
+        end
+      end
+    end
+    if @term.update_attributes(params[:enrollment_term])
+      @term.set_overrides(@context, overrides)
+      render :json => enrollment_term_json(@term, @current_user, session, :include => :enrollment_dates_overrides)
+    else
+      render :json => @term.errors, :status => :bad_request
+    end
+  end
+
+  def destroy
+    @term = @context.enrollment_terms.find(params[:id])
+    @term.destroy
+    render :json => enrollment_term_json(@term, @current_user, session)
+  end
 end

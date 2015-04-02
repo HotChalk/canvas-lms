@@ -888,6 +888,9 @@ routes.draw do
 
     scope(:controller => :terms_api) do
       get 'accounts/:account_id/terms', :action => :index, :path_name => 'enrollment_terms'
+      post 'accounts/:account_id/terms', :action => :create, :path_name => 'enrollment_terms_create'
+      put 'accounts/:account_id/terms/:id', :action => :update, :path_name => 'enrollment_terms_update'
+      delete 'accounts/:account_id/terms/:id', :action => :destroy, :path_name => 'enrollment_terms_delete'
     end
 
     scope(:controller => :authentication_audit_api) do
