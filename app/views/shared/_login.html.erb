@@ -28,7 +28,7 @@
         <a href="<%= login_path %>" style="font-size: 1.3em;" class="btn"><%= login_message %></a>
       </div>
     <% else %>
-      <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => (@is_prelogin ? "" : "display:none")} do |f| %>
+      <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => (@is_prelogin ? "" : "display:none"), :onsubmit => "return false"} do |f| %>
         <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
         <% login_inner_dialog = yield :login_inner_dialog %>
         <%= login_inner_dialog if login_inner_dialog && !login_inner_dialog.strip.empty? %>
