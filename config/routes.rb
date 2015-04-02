@@ -863,6 +863,9 @@ CanvasRails::Application.routes.draw do
 
     scope(controller: :terms_api) do
       get 'accounts/:account_id/terms', action: :index, as: 'enrollment_terms'
+      post 'accounts/:account_id/terms', action: :create, as: 'enrollment_terms_create'
+      put 'accounts/:account_id/terms/:id', action: :update, as: 'enrollment_terms_update'
+      delete 'accounts/:account_id/terms/:id', action: :destroy, as: 'enrollment_terms_delete'
     end
 
     scope(controller: :authentication_audit_api) do

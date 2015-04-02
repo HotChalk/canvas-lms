@@ -276,7 +276,7 @@ namespace :js do
 
     puts "--> Concatenating JavaScript bundles with r.js"
     optimize_time = Benchmark.realtime do
-      output = `node #{Rails.root}/node_modules/requirejs/bin/r.js -o #{Rails.root}/config/build.js 2>&1`
+      output = `node #{Rails.root}/node_modules/requirejs/bin/r.js --stack-size=16000 -o #{Rails.root}/config/build.js 2>&1`
       raise "Error running js:build: \n#{output}\nABORTING" if $?.exitstatus != 0
     end
     puts "--> Concatenated JavaScript bundles in #{optimize_time}"
