@@ -35,6 +35,7 @@ ul												{ list-style: disc outside; }
 ol												{ list-style: decimal outside; }
 input, select, button							{ cursor: pointer; }
 table											{ font: inherit; width: 100%; }
+s, strike, del                                  { text-decoration: line-through; }
 
 /* html 5 */
 article, aside, header, hgroup,
