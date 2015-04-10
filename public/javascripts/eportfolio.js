@@ -145,8 +145,8 @@ define([
           $edit.find(".edit_section").val(sectionData.section_content);
         } else if(edit_type == "edit_rich_text_content") {
           $edit.find(".edit_section").attr('id', 'edit_' + $section.attr('id'));
-          $edit.find(".edit_section").editorBox()
-            .editorBox('set_code', sectionData.section_content);
+          $edit.find(".edit_section").val(sectionData.section_content);
+          $edit.find(".edit_section").editorBox();
         }
       });
       $("#edit_page_form :text:first").focus().select();
