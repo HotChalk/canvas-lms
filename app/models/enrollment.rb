@@ -506,13 +506,14 @@ class Enrollment < ActiveRecord::Base
     # In the future, we should probably allow configuring it for students,
     # possibly section-wide (i.e. "Students in this section can see students
     # from all other sections")
-    if self.is_a?(TeacherEnrollment) || self.is_a?(TaEnrollment)
-      self.limit_privileges_to_course_section = false if self.limit_privileges_to_course_section.nil?
-    elsif self.is_a?(StudentEnrollment)
-      self.limit_privileges_to_course_section = self.course.limit_section_visibility if self.limit_privileges_to_course_section.nil?
-    else
-      self.limit_privileges_to_course_section = false
-    end
+    # if self.is_a?(TeacherEnrollment) || self.is_a?(TaEnrollment)
+    #   self.limit_privileges_to_course_section = false if self.limit_privileges_to_course_section.nil?
+    # else
+    #   self.limit_privileges_to_course_section = false
+    # end
+
+    # Hotchalk: always infer privileges from the master course setting
+    self.limit_privileges_to_course_section = self.course.limit_section_visibility rescue true
     true
   end
 

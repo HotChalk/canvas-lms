@@ -1621,7 +1621,7 @@ class Course < ActiveRecord::Base
   def enroll_user(user, type='StudentEnrollment', opts={})
     enrollment_state = opts[:enrollment_state]
     section = opts[:section]
-    limit_privileges_to_course_section = ((type == 'StudentEnrollment' || type == 'StudentViewEnrollment') ? self.limit_section_visibility : opts[:limit_privileges_to_course_section])
+    limit_privileges_to_course_section = ((type == 'TeacherEnrollment' || type == 'TaEnrollment') ? opts[:limit_privileges_to_course_section] : self.limit_section_visibility)
     associated_user_id = opts[:associated_user_id]
 
     role = opts[:role] || Enrollment.get_built_in_role_for_type(type)
@@ -2843,7 +2843,7 @@ class Course < ActiveRecord::Base
   end
 
   def set_section_visibility
-    self.student_enrollments.each do |e|
+    self.current_enrollments.each do |e|
       Enrollment.limit_privileges_to_course_section!(self, e.user, self.limit_section_visibility)
     end
   end
