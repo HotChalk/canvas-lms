@@ -1421,7 +1421,9 @@ class User < ActiveRecord::Base
           result = Shard.partition_by_shard(course_ids) do |shard_course_ids|
             courses = Course.find(shard_course_ids)
             courses_with_da = courses.select{|c| c.feature_enabled?(:differentiated_assignments)}
+            sections = courses.collect {|c| c.sections_visible_to(self)}.flatten.map(&:id)
             Assignment.for_course(shard_course_ids).
+              visible_to_sections(sections).
               filter_by_visibilities_in_given_courses(self.id, courses_with_da.map(&:id)).
               published.
               due_between_with_overrides(due_after,1.week.from_now).
@@ -1456,7 +1458,10 @@ class User < ActiveRecord::Base
           limit = opts[:limit]
 
           result = Shard.partition_by_shard(course_ids) do |shard_course_ids|
+            courses = Course.find(shard_course_ids)
+            sections = courses.collect {|c| c.sections_visible_to(self)}.flatten.map(&:id)
             as = Assignment.for_course(shard_course_ids).active.
+              visible_to_sections(sections).
               expecting_submission.
               not_ignored_by(self, 'grading').
               need_grading_info(limit)
