@@ -198,7 +198,7 @@ class Enrollment < ActiveRecord::Base
     }
 
     p.dispatch :enrollment_accepted
-    p.to {self.course.admins - [self.user] }
+    p.to {(self.course.admins.select {|a| (self.course.sections_visible_to(a) & self.course.sections_visible_to(self.user)).any?}) - [self.user] }  # only notify users who can access this enrollment's associated sections
     p.whenever { |record|
       record.course &&
       !record.just_created && (record.changed_state(:active, :invited) || record.changed_state(:active, :creation_pending))
