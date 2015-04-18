@@ -2,6 +2,4 @@
   RewriteEngine On
   RewriteCond %{HTTP_USER_AGENT} "android|blackberry|googlebot-mobile|iemobile|ipad|iphone|ipod|opera mobile|palmos|webos" [NC]
   RewriteRule ^$ /mobile/index.html [R,L]
-  RewriteCond %{QUERY_STRING} !^debug_js [NC]
-  RewriteRule ^courses/([0-9]+)?/gradebook$ %{REQUEST_URI}?debug_js=1 [L]
 </IfModule>
