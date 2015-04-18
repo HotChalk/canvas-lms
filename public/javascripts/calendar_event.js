@@ -28,6 +28,7 @@ define([
   'jquery.loadingImg' /* loadingImg, loadingImage */,
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'ckeditor.editor_box' /* editorBox */,
+  'ckeditor-all',
   'vendor/date' /* Date.parse */
 ], function(tz, I18n, $, wikiSidebar) {
 

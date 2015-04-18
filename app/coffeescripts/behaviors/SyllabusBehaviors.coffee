@@ -27,6 +27,7 @@ define [
   'jquery.instructure_misc_plugins' # ifExists, showIf #
   'jquery.loadingImg' # loadingImage #
   'ckeditor.editor_box' # editorBox #
+  'ckeditor-all'
   'vendor/jquery.scrollTo' # /\.scrollTo/ #
   'jqueryui/datepicker' # /\.datepicker/ #
 ], ($, calendarMonths, wikiSidebar, KeyboardShortcuts) ->

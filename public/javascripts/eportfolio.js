@@ -38,6 +38,7 @@ define([
   'jquery.loadingImg' /* loadingImage */,
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'ckeditor.editor_box' /* editorBox */,
+  'ckeditor-all',
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/progressbar' /* /\.progressbar/ */,
   'jqueryui/sortable' /* /\.sortable/ */

@@ -17,6 +17,7 @@ define [
   'compiled/jquery/toggleAccessibly'
   'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
+  'ckeditor-all'
   'jqueryui/dialog'
   'jquery.toJSON'
   'compiled/jquery.rails_flash_notifications'

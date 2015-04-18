@@ -33,6 +33,7 @@ define([
   'jquery.templateData' /* getTemplateData */,
   'media_comments' /* mediaComment */,
   'ckeditor.editor_box' /* editorBox */,
+  'ckeditor-all',
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/tabs' /* /\.tabs/ */
 ], function(I18n, $, _, GoogleDocsTreeView, homework_submission_tool, HomeworkSubmissionLtiContainer, RCEKeyboardShortcuts) {

@@ -36,7 +36,7 @@ define([
   'jquery',
   'compiled/editor/editorAccessibility', /* editorAccessibility */
   'INST', // for IE detection; need to handle links in a special way
-  'ckeditor-all', // CKEditor
+  //'ckeditor-all', // CKEditor
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.instructure_misc_plugins' /* /\.indicate/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,

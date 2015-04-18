@@ -5,6 +5,7 @@ define [
   'Backbone'
   'compiled/fn/preventDefault'
   'ckeditor.editor_box'
+  'ckeditor-all'
 ], (_, I18n, $, Backbone, preventDefault) ->
 
   ##

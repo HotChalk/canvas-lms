@@ -10,6 +10,7 @@ define [
   'i18n!pages'
   'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
+  'ckeditor-all'
 ], ($, _, Backbone, wikiSidebar, template, ValidatedFormView, WikiPageDeleteDialog, WikiPageReloadView, I18n, KeyboardShortcuts) ->
 
   class WikiPageEditView extends ValidatedFormView

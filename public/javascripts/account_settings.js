@@ -9,6 +9,7 @@ define([
   'jquery.instructure_misc_plugins', // confirmDelete, showIf, /\.log/
   'jquery.loadingImg', // loadingImg, loadingImage
   'ckeditor.editor_box', // editorBox
+  'ckeditor-all',
   'vendor/date', // Date.parse
   'vendor/jquery.scrollTo', // /\.scrollTo/
   'jqueryui/tabs' // /\.tabs/
