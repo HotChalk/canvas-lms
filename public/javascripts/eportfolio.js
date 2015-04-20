@@ -815,9 +815,8 @@ define([
     $(".manage_sections_link,#section_list_manage .done_editing_button").click(function(event) {
       event.preventDefault();
       if($("#section_list").hasClass('editing')) {
-        $("#section_list").sortable('destroy');
+        $("#section_list").sortable('destroy').removeClass('editing');
         $("#section_list_manage").removeClass('editing');
-        $("#section_list").removeClass('editing').sortable('disable');
         var manage_sections = I18n.t('buttons.manage_sections', "Manage Sections");
         $(".arrange_sections_link").text(manage_sections).val(manage_sections);
         $(".add_section").hide();
