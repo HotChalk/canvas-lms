@@ -43,6 +43,22 @@ define([
   'vendor/jquery.ba-tinypubsub'
 ], function(I18nObj, $, EditorAccessibility, INST) {
 
+  // Find the URL of the RequireJS script, which we will use to infer the correct
+  // base URL for CKEDITOR
+  var basePath = '';
+  var tags = document.getElementsByTagName('script');
+  for (var i = 0; i < tags.length; i++) {
+    var index = tags[i].src.lastIndexOf('/vendor/require.js');
+    if (index >= 0) {
+      basePath = tags[i].src.slice(0, index);
+      basePath = basePath.substr(basePath.lastIndexOf('/'));
+      break;
+    }
+  }
+
+  // Set CKEDITOR_BASEPATH global variable
+  window.CKEDITOR_BASEPATH = basePath + '/ckeditor/';
+
   var enableBookmarking = !!INST.browser.ie;
   $(document).ready(function() {
     enableBookmarking = !!INST.browser.ie;

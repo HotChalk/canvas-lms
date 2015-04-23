@@ -28,7 +28,7 @@ module Canvas
             # plugins have their name prepended, since that's we do the paths
             name = file.sub(PATH_REGEX, '\2')
             unless name == 'compiled/bundles/common'
-              hash[name] = { :name => name, :exclude => ['common', 'compiled/tinymce', 'ckeditor-all'] }
+              hash[name] = { :name => name, :exclude => ['common', 'ckeditor-all'] }
             end
             hash
           }
@@ -103,7 +103,7 @@ module Canvas
       end
 
       def cache_busting_paths
-        { 'compiled/tinymce' => 'compiled/tinymce.js?v2' } # hack: increment to purge browser cached bundles after tiny change
+        {}
       end
 
       def shims
