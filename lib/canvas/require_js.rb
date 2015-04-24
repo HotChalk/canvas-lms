@@ -63,9 +63,7 @@ module Canvas
           :jqueryui => 'vendor/jqueryui',
           :uploadify => '../flash/uploadify/jquery.uploadify-3.2',
           'swfobject' => 'vendor/swfobject/swfobject',
-          'swfupload' => 'vendor/swfupload/swfupload',
-          'ckeditor-core' => 'ckeditor/ckeditor',
-          'ckeditor-jquery' => 'ckeditor/adapters/jquery'
+          'swfupload' => 'vendor/swfupload/swfupload'
         }.update(cache_busting ? cache_busting_paths : {}).
           update(plugin_paths).
           update(Canvas::RequireJs::PluginExtension.paths).
@@ -146,9 +144,6 @@ module Canvas
             'handlebars': {
               deps: ['bower/handlebars/handlebars.runtime.amd'],
               exports: 'Handlebars'
-            },
-            'ckeditor-jquery': {
-              deps:['jquery', 'ckeditor-core']
             },
             'vendor/i18n': {
               exports: 'I18n'

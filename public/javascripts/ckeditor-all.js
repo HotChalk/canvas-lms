@@ -1,5 +1,5 @@
 define([
-  'ckeditor-jquery',
+  'ckeditor/ckeditor',
 
   // Add all required modules for plugins here. CKEditor doesn't use RequireJS to load dependencies, so we
   // are forced to load them synchronously in each plugin file. However, they must already have been loaded for
