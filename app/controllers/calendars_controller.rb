@@ -109,6 +109,10 @@ class CalendarsController < ApplicationController
       if info[:can_create_appointment_groups] && context.respond_to?("group_categories")
         info[:group_categories] = context.group_categories.active.select([:id, :name]).map {|gc| { :id => gc.id, :asset_string => gc.asset_string, :name => gc.name } }
       end
+      if context.is_a?(Course)
+        info[:code] = context.course_code
+        info[:sections] = info[:course_sections].map {|cs| cs[:name]}.join(', ')
+      end
       info
     end
     Api.recursively_stringify_json_ids(@contexts_json)
