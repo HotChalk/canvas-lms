@@ -32,9 +32,10 @@
         <td><label for="calendar_event_context">{{#t "calendar"}}Calendar:{{/t}}</td>
         <td>
           <select id="calendar_event_context" class="context_id" name="calendar_event[context_code]">
+            {{#unless isEditing}}<option value=""></option>{{/unless}}
             {{#each contexts}}
               {{#if can_create_calendar_events}}
-                <option value="{{asset_string}}">{{name}}</option>
+                <option value="{{asset_string}}">{{#ifEqual type 'user'}}Personal Calendar, {{/ifEqual}}{{name}}</option>
               {{/if}}
             {{/each}}
           </select>

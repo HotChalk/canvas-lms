@@ -20,6 +20,7 @@ define [
         contexts: @event.possibleContexts()
         lockedTitle: @event.lockedTitle
         location_name: @event.location_name
+        isEditing: !!@event.id
       }))
       $(selector).append @form
 
@@ -177,6 +178,10 @@ define [
 
     formSubmit: (jsEvent) =>
       jsEvent.preventDefault()
+
+      if $('#calendar_event_context').val() == ''
+        $('#calendar_event_context').errorBox("Select a calendar", true)
+        return
 
       data = @getFormData()
       location_name = data.location_name || ''
