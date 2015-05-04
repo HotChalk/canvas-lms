@@ -53,7 +53,7 @@ define [
         courseText = I18n.t('#helpers.course', 'Course')
         courseDatetime = $.datetimeString(datetime, timezone: ENV.CONTEXT_TIMEZONE)
         if localDatetime != courseDatetime
-          titleText = "#{localText}: #{localDatetime}<br>#{courseText}: #{courseDatetime}"
+          titleText = "#{localText}: #{localDatetime} - #{courseText}: #{courseDatetime}"
 
       if justText
         new Handlebars.SafeString titleText
