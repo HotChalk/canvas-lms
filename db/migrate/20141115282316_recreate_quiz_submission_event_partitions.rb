@@ -7,7 +7,8 @@ class RecreateQuizSubmissionEventPartitions < ActiveRecord::Migration
     Time.new(2015, 2),
     Time.new(2015, 3),
     Time.new(2015, 4),
-    Time.new(2015, 5)
+    Time.new(2015, 5),
+    Time.new(2015, 6)
   ]
 
   def up
