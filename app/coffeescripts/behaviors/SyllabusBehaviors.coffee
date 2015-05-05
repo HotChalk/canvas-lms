@@ -20,15 +20,17 @@ define [
   'jquery' # jQuery, $ #
   'calendar_move' # calendarMonths #
   'wikiSidebar'
+  'compiled/views/editor/KeyboardShortcuts'
   'jquery.instructure_date_and_time' # dateString, datepicker #
   'jquery.instructure_forms' # formSubmit, formErrors #
   'jquery.instructure_misc_helpers' # scrollSidebar #
   'jquery.instructure_misc_plugins' # ifExists, showIf #
   'jquery.loadingImg' # loadingImage #
   'ckeditor.editor_box' # editorBox #
+  'ckeditor-all'
   'vendor/jquery.scrollTo' # /\.scrollTo/ #
   'jqueryui/datepicker' # /\.datepicker/ #
-], ($, calendarMonths, wikiSidebar) ->
+], ($, calendarMonths, wikiSidebar, KeyboardShortcuts) ->
 
   specialDatesAreHidden = false
 
@@ -169,6 +171,10 @@ define [
 
   # Binds to edit syllabus dom events
   bindToEditSyllabus = ->
+
+    # Add the backbone view for keyboardshortup help here
+    $('.toggle_views_link').first().before((new KeyboardShortcuts()).render().$el)
+
     $edit_course_syllabus_form = $('#edit_course_syllabus_form')
     $course_syllabus_body = $('#course_syllabus_body')
     $course_syllabus = $('#course_syllabus')

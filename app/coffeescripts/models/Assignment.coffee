@@ -68,9 +68,6 @@ define [
       return @get 'name' unless arguments.length > 0
       @set 'name', newName
 
-    postToSIS:  =>
-      return @get 'post_to_sis' unless arguments.length > 0
-
     pointsPossible: (points) =>
       return @get('points_possible') || 0 unless arguments.length > 0
       @set 'points_possible', points
@@ -137,6 +134,10 @@ define [
         thing in ['online', 'online_text_entry',
           'media_recording', 'online_url', 'online_upload']
 
+    postToSIS: (postToSisBoolean) =>
+      return @get 'post_to_sis' unless arguments.length > 0
+      @set 'post_to_sis', postToSisBoolean
+
     peerReviews: (peerReviewBoolean) =>
       return @get 'peer_reviews' unless arguments.length > 0
       @set 'peer_reviews', peerReviewBoolean
@@ -184,6 +185,9 @@ define [
       @set 'group_category_id', id
 
     canGroup: -> !@get('has_submitted_submissions')
+
+    differentiatedAssignmentsEnabled: ->
+      ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED || false
 
     gradingStandardId: (id) =>
       return @get('grading_standard_id') unless arguments.length > 0
@@ -270,6 +274,10 @@ define [
       else
         return @dueAt()
 
+    courseSectionId: (id) =>
+      return @get('course_section_id') unless arguments.length > 0
+      @set 'course_section_id', id
+
     toView: =>
       fields = [
         'name', 'dueAt','description','pointsPossible', 'lockAt', 'unlockAt',
@@ -284,7 +292,7 @@ define [
         'frozenAttributes', 'freezeOnCopy', 'canFreeze', 'isSimple',
         'gradingStandardId', 'isLetterGraded', 'isGpaScaled', 'assignmentGroupId', 'iconType',
         'published', 'htmlUrl', 'htmlEditUrl', 'labelId', 'position', 'postToSIS',
-        'multipleDueDates', 'allDates', 'isQuiz', 'singleSectionDueDate'
+        'multipleDueDates', 'allDates', 'isQuiz', 'singleSectionDueDate', 'courseSectionId'
       ]
       if ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         fields.push 'isOnlyVisibleToOverrides'

@@ -6,7 +6,12 @@
 <% login_handle_name = @domain_root_account.login_handle_name rescue AccountAuthorizationConfig.default_login_handle_name %>
 <div id="modal-box" class="login-box">
     <div id="modal-box-inner">
-    <h1>HotChalk Ember</h1>
+    <div class="clearfix">
+      <h1 class="span4">HotChalk Ember</h1>
+      <% if @domain_root_account.feature_enabled?(:course_catalog) %>
+        <a href="/search/all_courses" class="pull-right"><%= t('browse_courses', 'Browse courses') %></a>
+      <% end %>
+    </div>
     <% if @is_delegated %>
       <div id="login_form">
         <% if flash[:delegated_message] %>
@@ -14,8 +19,8 @@
             <div class="error_text"><%= flash[:delegated_message] %></div>
           </div>
         <% end %>
-        <% 
-           login_message = t('default_login_message', "Log in at your institution") 
+        <%
+           login_message = t('default_login_message', "Log in at your institution")
            if @domain_root_account && @domain_root_account.display_name
              login_message = t('login_at_account', "Log in at %{school_name}", :school_name => @domain_root_account.display_name)
            end
@@ -23,7 +28,7 @@
         <a href="<%= login_path %>" style="font-size: 1.3em;" class="btn"><%= login_message %></a>
       </div>
     <% else %>
-      <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => (@is_prelogin ? "" : "display:none")} do |f| %>
+      <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => (@is_prelogin ? "" : "display:none"), :onsubmit => "return false"} do |f| %>
         <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
         <% login_inner_dialog = yield :login_inner_dialog %>
         <%= login_inner_dialog if login_inner_dialog && !login_inner_dialog.strip.empty? %>
@@ -34,7 +39,7 @@
 
           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
           <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
-          <button type="submit" class="btn btn-primary" style="margin-top: 7px;"><%= t('submit', 'Submit') %></button>
+          <button id="submit_button" type="submit" class="btn btn-primary" style="margin-top: 7px;" disabled><%= t('submit', 'Submit') %></button>
         </div>
         <div>
           <div class="login-options">
@@ -80,15 +85,15 @@
         </div>
       <% end %>
     <% end %>
-  
+
     <%= form_for :pseudonym_session, :url => forgot_password_path, :html => {:id => "forgot_password_form", :style => "display: none;"} do |f| %>
-  
-      <p><%= t('login_handle', "Enter your %{login_handle_name} and we'll send you a link to change your password.", :login_handle_name => login_handle_name) %></p>
+
+      <p id="forgot_password_instructions"><%= t('login_handle', "Enter your %{login_handle_name} and we'll send you a link to change your password.", :login_handle_name => login_handle_name) %></p>
       <div>
-        <span class=" field-with-fancyplaceholder"><label for="pseudonym_session_unique_id_forgot"><%= login_handle_name %></label><input class="email_address text" type="text" name="pseudonym_session[unique_id_forgot]" value="<%= @unauthorized_user.email rescue '' %>" id="pseudonym_session_unique_id_forgot" /></span>
+        <span class=" field-with-fancyplaceholder"><label for="pseudonym_session_unique_id_forgot"><%= login_handle_name %></label><input aria-describedby="forgot_password_instructions" class="email_address text" type="text" name="pseudonym_session[unique_id_forgot]" value="<%= @unauthorized_user.email rescue '' %>" id="pseudonym_session_unique_id_forgot" /></span>
         <button type="submit" class="btn btn-primary"><%= t('buttons.request_password', 'Request Password') %></button>
       </div>
-  
+
       &larr; <%= link_to t('back_to_login', "Back to Login"), login_path, :class => "login_link" %>
     <% end %>
   </div>

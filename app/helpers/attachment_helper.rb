@@ -21,27 +21,12 @@ module AttachmentHelper
   def doc_preview_attributes(attachment, attrs={})
     if attachment.crocodoc_available?
       begin
-        crocodoc = attachment.crocodoc_document
-        session_url = crocodoc.session_url(:user => @current_user)
-        attrs[:crocodoc_session_url] = session_url
+        attrs[:crocodoc_session_url] = attachment.crocodoc_url(@current_user)
       rescue => e
         ErrorReport.log_exception('crocodoc', e)
       end
     elsif attachment.canvadocable?
-      blob = {
-        user_id: @current_user.global_id,
-        attachment_id: attachment.global_id,
-      }.to_json
-      hmac = Canvas::Security.hmac_sha1(blob)
-      attrs[:canvadoc_session_url] = canvadoc_session_path(blob: blob, hmac: hmac)
-    elsif attachment.scribdable? && scribd_doc = attachment.scribd_doc
-      begin
-        attrs[:scribd_doc_id] = scribd_doc.doc_id
-        attrs[:scribd_access_key] = scribd_doc.access_key
-        attrs[:public_url] = attachment.authenticated_s3_url
-      rescue => e
-        ErrorReport.log_exception('scribd', e)
-      end
+      attrs[:canvadoc_session_url] = attachment.canvadoc_url(@current_user)
     end
     attrs[:attachment_id] = attachment.id
     attrs[:mimetype] = attachment.mimetype
@@ -52,12 +37,6 @@ module AttachmentHelper
     end
     if attachment.pending_upload? || attachment.processing?
       attrs[:attachment_preview_processing] = true
-    end
-    if attachment.scribd_doc_missing?
-      url_helper = "#{context_name}_file_scribd_render_url"
-      if self.respond_to?(url_helper)
-        attrs[:attachment_scribd_render_url] = self.send(url_helper, attachment.context, attachment.id)
-      end
     end
     attrs.inject("") { |s,(attr,val)| s << "data-#{attr}=#{val} " }
   end
@@ -73,5 +52,16 @@ module AttachmentHelper
       canvadoc_session_url: attachment.canvadoc_url(@current_user),
       crocodoc_session_url: attachment.crocodoc_url(@current_user),
     }
+  end
+
+  def filter_by_section(files)
+    files.keep_if { |file|
+      sections_current_user = @context.sections_visible_to(@current_user).map(&:id)
+      sections_file_user = @context.sections_visible_to(file.user).map(&:id)
+      @current_user.account_admin?(@context) ||
+        !@context.respond_to?(:sections_visible_to) ||
+        (sections_current_user & sections_file_user).count > 0
+    }
+    files
   end
 end

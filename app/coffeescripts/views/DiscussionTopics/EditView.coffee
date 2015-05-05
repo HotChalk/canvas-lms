@@ -5,6 +5,7 @@ define [
   'compiled/views/assignments/GradingTypeSelector'
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
+  'compiled/views/assignments/PostToSisSelector'
   'compiled/views/assignments/SectionSelector'
   'underscore'
   'jst/DiscussionTopics/EditView'
@@ -16,12 +17,14 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
+  'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
+  'ckeditor-all'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
-GroupCategorySelector, PeerReviewsSelector, SectionSelector, _, template, wikiSidebar,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog) ->
+GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, SectionSelector, _, template, wikiSidebar,
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
 
@@ -67,8 +70,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     isAnnouncement: => @model.constructor is Announcement
 
-    sections: ENV.USER_SECTION_LIST
-
     toJSON: ->
       data = super
       json = _.extend data, @options,
@@ -83,6 +84,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         isLargeRoster: ENV?.IS_LARGE_ROSTER || false
         threaded: data.discussion_type is "threaded"
         draftStateEnabled: ENV.DRAFT_STATE && ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_MODERATE
+        differentiatedAssignmentsEnabled: @model.differentiatedAssignmentsEnabled()
       json.assignment = json.assignment.toView()
       json.reply_assignment = json.reply_assignment.toView()
       json
@@ -116,15 +118,19 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
+      _.defer(@renderPostToSisOptions) if ENV.POST_GRADES
       _.defer(@renderSectionOptions)
       _.defer(@watchUnload)
+      _.defer(@attachKeyboardShortcuts)
 
       _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
 
       @$(".datetime_field").datetime_field()
 
-
       this
+
+    attachKeyboardShortcuts: =>
+        $('.rte_switch_views_link').first().before((new KeyboardShortcuts()).render().$el)
 
     renderAssignmentGroupOptions: (el, basePrefix, parentModel) =>
       @assignmentGroupSelector = new AssignmentGroupSelector
@@ -166,13 +172,18 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
 #      @peerReviewSelector.render()
 
+    renderPostToSisOptions: =>
+      @postToSisSelector = new PostToSisSelector
+        el: '#post_to_sis_options'
+        parentModel: @assignment
+        nested: true
+
+      @postToSisSelector.render()
+
     renderSectionOptions: =>
       @sectionSelector = new SectionSelector
         el: '#section_selector'
         parentModel: @model
-        sections: @sections
-        showSectionDropdown: @sections.length > 1
-        sectionListIsEmpty: @sections.length < 1
 
       @sectionSelector.render()
 
@@ -206,18 +217,24 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
 
+      if !!data.attachment
+        data.delayed_post_at = Date.parse(data.delayed_post_at).toString() if data.delayed_post_at
+        data.lock_at = Date.parse(data.lock_at).toString() if data.lock_at
+
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
 
       data
 
-    updateAssignment: (model_key, data) =>      
+    updateAssignment: (model_key, data) =>
       @dueDateOverrideView.updateOverrides()
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
       data.unlock_at = defaultDate?.get('unlock_at') or null
       data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
+      if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
 
       assignment = @model.get(model_key)
       assignment or= @model.createAssignment()
@@ -237,6 +254,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
+          da_enabled: ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
           success: =>
             missingDateDialog.$dialog.dialog('close').remove()
             @model.get('assignment')?.setNullDates()
@@ -263,7 +281,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           message: I18n.t 'title_required', 'Title is required'
         ]
       if data.message == ''
-        errors["message_area"] = [
+        errors["message"] = [
           message: I18n.t 'message_required', 'Message is required'
         ]
       if data.delay_posting == "0"

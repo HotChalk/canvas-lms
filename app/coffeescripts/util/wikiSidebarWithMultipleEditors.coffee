@@ -2,6 +2,7 @@ define [
   'jquery'
   'wikiSidebar'
   'ckeditor.editor_box'
+  'ckeditor-all'
 ], ($, wikiSidebar) ->
 
   $.subscribe 'editorBox/focus', ($editor) ->

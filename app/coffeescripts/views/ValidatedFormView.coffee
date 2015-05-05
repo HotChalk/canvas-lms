@@ -201,7 +201,7 @@ define [
       selector = @fieldSelectors?[field] or "[name='#{field}']"
       $el = @$(selector)
       if $el.data('rich_text')
-        $el = $el.next('.mceEditor').find(".mceIframeContainer")
+        $el = $el.next('.cke').find('.cke_wysiwyg_frame')
       if $el.length > 1 # e.g. hidden input + checkbox, show it by the checkbox
         $el = $el.not('[type=hidden]')
       $el

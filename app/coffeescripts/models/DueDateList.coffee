@@ -12,7 +12,7 @@ define [
       # how many course sections before we add defaults
       @courseSectionsLength = @sections.length
 
-      @sections.add Section.defaultDueDateSection()
+      @sections.add Section.defaultDueDateSection() unless ENV.LIMIT_PRIVILEGES_TO_COURSE_SECTION
 
       includeDefaultDate = @overrides.length < @courseSectionsLength or
         @courseSectionsLength is 0

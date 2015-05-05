@@ -28,6 +28,10 @@ class DiscussionTopicsApiController < ApplicationController
   before_filter :require_initial_post, except: [:add_entry, :mark_topic_read,
                                                 :mark_topic_unread, :show,
                                                 :unsubscribe_topic]
+  before_filter :check_differentiated_assignments, only: [:replies, :entries,
+                                                          :add_entry, :add_reply,
+                                                          :show, :view, :entry_list,
+                                                          :subscribe_topic]
 
   # @API Get a single topic
   #
@@ -99,6 +103,19 @@ class DiscussionTopicsApiController < ApplicationController
 
     if structure
 
+      unless @current_user.account_admin?(@context)
+        # if the current enrollment has limited section visibility, ensure that only the visible parts of the discussion topic are returned
+        if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
+          visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
+          entries = JSON.parse(structure)
+          entries.reject! {|e| !visible_user_ids.include?(e['user_id'].to_i) }
+          entries.each do |entry|
+            entry['replies'].reject! {|r| !visible_user_ids.include?(r['user_id'].to_i) } unless entry['replies'].nil?
+          end
+          structure = entries.to_json
+        end
+      end
+
       # we assume that json_structure will typically be served to users requesting string IDs
       unless stringify_json_ids?
         entries = JSON.parse(structure)
@@ -108,10 +125,18 @@ class DiscussionTopicsApiController < ApplicationController
 
       participants = Shard.partition_by_shard(participant_ids) do |shard_ids|
         User.find(shard_ids)
-        end
+      end
 
       participant_info = participants.map do |participant|
-        user_display_json(participant, @context.is_a_context? && @context)
+        json = user_display_json(participant, @context.is_a_context? && @context)
+        # in the context of a course discussion, include the list of sections that each participant belongs to
+        if @context && @context.is_a_context? && @topic.context_type == 'Course'
+          json.merge!({:sections => participant.cached_current_enrollments.select {|e| e.active? && e.course_id == @context.id}.
+              map(&:course_section).compact.uniq.
+              map {|s| {:id => s.id, :name => s.name}}.
+              sort {|x| x[:name]}})
+        end
+        json
       end
 
       unread_entries = entry_ids - DiscussionEntryParticipant.read_entry_ids(entry_ids, @current_user)
@@ -141,7 +166,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # @argument message [String] The body of the entry.
   #
-  # @argument attachment [Optional] a multipart/form-data form-field-style
+  # @argument attachment a multipart/form-data form-field-style
   #   attachment. Attachments larger than 1 kilobyte are subject to quota
   #   restrictions.
   #
@@ -253,7 +278,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # @argument message [String] The body of the entry.
   #
-  # @argument attachment [Optional] a multipart/form-data form-field-style
+  # @argument attachment a multipart/form-data form-field-style
   #   attachment. Attachments larger than 1 kilobyte are subject to quota
   #   restrictions.
   #
@@ -406,7 +431,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # No request fields are necessary.
   #
-  # @argument forced_read_state [Optional, Boolean]
+  # @argument forced_read_state [Boolean]
   #   A boolean value to set all of the entries' forced_read_state. No change
   #   is made if this argument is not specified.
   # 
@@ -427,7 +452,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # No request fields are necessary.
   #
-  # @argument forced_read_state [Optional, Boolean]
+  # @argument forced_read_state [Boolean]
   #   A boolean value to set all of the entries' forced_read_state. No change is
   #   made if this argument is not specified.
   # 
@@ -447,7 +472,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # No request fields are necessary.
   #
-  # @argument forced_read_state [Optional, Boolean]
+  # @argument forced_read_state [Boolean]
   #   A boolean value to set the entry's forced_read_state. No change is made if
   #   this argument is not specified.
   #
@@ -468,7 +493,7 @@ class DiscussionTopicsApiController < ApplicationController
   #
   # No request fields are necessary.
   #
-  # @argument forced_read_state [Optional, Boolean]
+  # @argument forced_read_state [Boolean]
   #   A boolean value to set the entry's forced_read_state. No change is made if
   #   this argument is not specified.
   #
@@ -599,6 +624,11 @@ class DiscussionTopicsApiController < ApplicationController
     if authorized_action(@entry, @current_user, :read)
       render_state_change_result @entry.change_read_state(new_state, @current_user, opts)
     end
+  end
+
+  def check_differentiated_assignments
+    return true unless da_on = @context.feature_enabled?(:differentiated_assignments)
+    return render_unauthorized_action if @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user, differentiated_assignments: da_on)
   end
 
   # the result of several state change functions are the following:

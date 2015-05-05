@@ -15,7 +15,7 @@
   <%= form_tag oauth2_auth_accept_path do %>
     <div class="button_box">
       <button type="submit" class="btn btn-large btn-primary"><%= t 'login', 'Log In' %></button>
-      <%= link_to(t(:cancel, "Cancel"), oauth2_auth_deny_path, :class => "btn btn-large") %>
+      <!-- <%= link_to(t(:cancel, "Cancel"), oauth2_auth_deny_path, :class => "btn btn-large") %> -->
     </div>
     <% if true#unless @provider.scopes.blank? %>
       <div class="control-group">

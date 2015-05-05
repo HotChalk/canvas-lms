@@ -36,13 +36,28 @@ define([
   'jquery',
   'compiled/editor/editorAccessibility', /* editorAccessibility */
   'INST', // for IE detection; need to handle links in a special way
-  'ckeditor-all', // CKEditor
+  //'ckeditor-all', // CKEditor
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.instructure_misc_plugins' /* /\.indicate/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
-  'vendor/jquery.ba-tinypubsub',
-  'vendor/scribd.view' /* scribd */
+  'vendor/jquery.ba-tinypubsub'
 ], function(I18nObj, $, EditorAccessibility, INST) {
+
+  // Find the URL of the RequireJS script, which we will use to infer the correct
+  // base URL for CKEDITOR
+  var basePath = '';
+  var tags = document.getElementsByTagName('script');
+  for (var i = 0; i < tags.length; i++) {
+    var index = tags[i].src.lastIndexOf('/vendor/require.js');
+    if (index >= 0) {
+      basePath = tags[i].src.slice(0, index);
+      basePath = basePath.substr(basePath.lastIndexOf('/'));
+      break;
+    }
+  }
+
+  // Set CKEDITOR_BASEPATH global variable
+  window.CKEDITOR_BASEPATH = basePath + '/ckeditor/';
 
   var enableBookmarking = !!INST.browser.ie;
   $(document).ready(function() {
@@ -134,11 +149,13 @@ define([
       extraPlugins: 'instructure_external_tools,instructure_links,instructure_image',
       removePlugins: 'image,liststyle,tabletools,contextmenu',
       removeButtons: '',
-      contentsCss: [CKEDITOR.getUrl('contents.css'),
+      contentsCss: [
           '/stylesheets/static/baseline.reset.css',
           '/stylesheets/static/baseline.base.css',
           '/stylesheets/static/baseline.table.css',
-          '/stylesheets/static/baseline.type.css'],
+          '/stylesheets/static/baseline.type.css',
+          '/stylesheets/static/baseline.dialog.css',
+          CKEDITOR.getUrl('contents.css')],
       on: {
         focus: function(evt) {
           var $editor = $(evt.editor.element);

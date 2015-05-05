@@ -9,8 +9,7 @@
 <!--[if !(IE)]><!--> <html class="not-ie scripts-not-loaded" lang=<%= @locale %>> <!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title><%= yield :page_title || t('default_page_title', "HotChalk Ember LMS") %></title>
-  <noscript> <h1>You need to have javascript enabled in order to access this site.</h1> </noscript>
+  <title><%= (yield :page_title).presence || @page_title || t('default_page_title', "HotChalk Ember LMS") %></title>
   <!--[if lte IE 8]> <meta http-equiv=refresh content="0; URL=/ie-8-is-not-supported.html" /> <![endif]-->
 
   <%= yield :auto_discovery %>
@@ -45,14 +44,19 @@
     ga('create', 'UA-52928316-1', 'auto');
     ga('send', 'pageview');
   </script>
+  <!-- Begin Inspectlet Embed Code -->
+  <script type="text/javascript" id="inspectletjs">
+    window.__insp = window.__insp || [];
+    __insp.push(['wid', 1695757460]);
+    (function() {
+      function __ldinsp(){var insp = document.createElement('script'); insp.type = 'text/javascript'; insp.async = true; insp.id = "inspsync"; insp.src = ('https:' == document.location.protocol ? 'https' : 'http') + '://cdn.inspectlet.com/inspectlet.js'; var x = document.getElementsByTagName('script')[0]; x.parentNode.insertBefore(insp, x); }
+      if (window.attachEvent){
+        window.attachEvent('onload', __ldinsp);
+      }else{
+        window.addEventListener('load', __ldinsp, false);
+      }
+    })();
+  </script>
+  <!-- End Inspectlet Embed Code -->
 </head>
-<body class="<%= (@body_classes).uniq.join(" ") %>">
-<!-- Google Tag Manager -->
-<noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-MC7WJC"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-MC7WJC');</script>
-<!-- End Google Tag Manager -->
+

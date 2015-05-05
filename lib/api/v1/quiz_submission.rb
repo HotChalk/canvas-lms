@@ -40,6 +40,7 @@ module Api::V1::QuizSubmission
     kept_score
     score
     score_before_regrade
+    has_seen_results
     validation_token
     workflow_state
   ].freeze
@@ -58,9 +59,9 @@ module Api::V1::QuizSubmission
       methods: QUIZ_SUBMISSION_JSON_FIELD_METHODS.dup
     })
 
-    hash.merge!({
-      html_url: course_quiz_quiz_submission_url(context, quiz, qs),
-    })
+    # hash.merge!({
+    #   html_url: course_quiz_quiz_submission_url(context, quiz, qs),
+    # })
 
     hash
   end

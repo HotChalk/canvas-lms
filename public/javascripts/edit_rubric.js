@@ -53,6 +53,43 @@ define([
       rubricEditing.sizeRatings($criterion);
       return $criterion;
     },
+    addNewRatingColumn: function($this) {
+      var $rubric = $this.parents(".rubric");
+      $this.addClass('add_column');
+      if($rubric.hasClass('editing')){
+        var $td = $this.clone(true).removeClass('edge_rating'),
+            pts = parseFloat($this.find(".points").text()),
+            $criterion = $this.parents(".criterion"),
+            $criterionPoints = $criterion.find(".criterion_points"),
+            criterion_total = parseFloat($criterionPoints.val(), 10) || 5,
+            data = { description: "Rating Description" },
+            hasClassAddLeft = $this.hasClass('add_left');
+        if($this.hasClass('add_left')) {
+          var more_points = parseFloat($this.prev(".rating").find(".points").text());
+          data.points = Math.round((pts + more_points) / 2);
+          if(data.points == pts || data.points == more_points) {
+            data.points = pts;
+          }
+        } else {
+          var less_points = parseFloat($this.next(".rating").find(".points").text());
+          data.points = Math.round((pts + less_points) / 2);
+          if(data.points == pts || data.points == less_points) {
+            data.points = less_points;
+          }
+        }
+        $td.fillTemplateData({data: data});
+        if(hasClassAddLeft) {
+          $this.before($td);
+        } else {
+          $this.after($td);
+        }
+        rubricEditing.hideCriterionAdd($rubric);
+        rubricEditing.updateCriterionPoints($criterion);
+        rubricEditing.sizeRatings($criterion);
+        $td.focus();
+      }
+      return false;
+    },
     onFindOutcome: function(outcome) {
       var $rubric = $('.rubric table.rubric_table:visible:first'),
           $criterion;
@@ -420,10 +457,7 @@ define([
 
 
   rubricEditing.init = function() {
-    var limitToOneRubric = $('.add_rubric_link').data('limit_to_one_rubric');
-    if (typeof limitToOneRubric === typeof undefined) {
-      limitToOneRubric = false;
-    }
+    var limitToOneRubric = !$("#rubrics").hasClass('raw_listing');
     var $rubric_dialog = $("#rubric_dialog"),
         $rubric_long_description_dialog = $("#rubric_long_description_dialog");
 
@@ -437,7 +471,7 @@ define([
           isLearningOutcome = $(this).parents(".criterion").hasClass("learning_outcome_criterion"),
           data              = $criterion.getTemplateData({textValues: ['long_description', 'description']});
 
-      if(editing) {
+      if(editing && !isLearningOutcome) {
         $rubric_long_description_dialog
           .fillFormData(data)
           .find('.editing').show()
@@ -572,7 +606,7 @@ define([
       var $rubric = rubricEditing.addRubric();
       $("#rubrics").append($rubric.show());
       $rubric.find(":text:first").focus().select();
-      $(".add_rubric_link").hide();
+        $(".add_rubric_link").hide();
     });
 
     $("#rubric_dialog")
@@ -739,9 +773,6 @@ define([
         $rubric.find(".rubric_table caption .title").text(data['rubric[title]']);
         $rubric.find(".rubric_total").text(data['points_possible']);
         $rubric.removeClass('editing');
-        if(!limitToOneRubric) {
-          $(".add_rubric_link").show().focus();
-        }
         if($rubric.attr('id') == 'rubric_new') {
           $rubric.attr('id', 'rubric_adding');
         } else {
@@ -767,6 +798,9 @@ define([
                                           {one: '%{count} point possible', other: '%{count} points possible' },
                                           {count: rubric.points_possible || 0})
           $(".discussion-title .discussion-points").text(discussion_points_text);
+        }
+        if(!limitToOneRubric) {
+          $(".add_rubric_link").show();
         }
         $rubric.find(".rubric_title .links:not(.locked)").show();
       }
@@ -864,6 +898,7 @@ define([
     }).delegate('.rating', 'mouseout', function(event) {
       $(this).data('hover_offset', null).data('hover_width', null);
     }).delegate('.delete_rating_link', 'click', function(event) {
+      var $target = $(this).closest('tr');
       event.preventDefault();
       rubricEditing.hideCriterionAdd($(this).parents(".rubric"));
       $(this).parents(".rating").fadeOut(function() {
@@ -871,41 +906,15 @@ define([
         $(this).remove();
         rubricEditing.sizeRatings($criterion);
       });
+      $target.focus();
+    }).delegate('.add_rating_link_after', 'click', function(event) {
+      event.preventDefault();
+      var $this = $(this).parents('td.rating');
+      $this.addClass('add_right');
+      rubricEditing.addNewRatingColumn($this);
     }).delegate('.add_column', 'click', function(event) {
-      var $this = $(this),
-          $rubric = $this.parents(".rubric");
-      if($rubric.hasClass('editing')){
-        var $td = $this.clone(true).removeClass('edge_rating'),
-            pts = parseFloat($this.find(".points").text()),
-            $criterion = $this.parents(".criterion"),
-            $criterionPoints = $criterion.find(".criterion_points"),
-            criterion_total = parseFloat($criterionPoints.val(), 10) || 5,
-            data = { description: "Rating Description" },
-            hasClassAddLeft = $this.hasClass('add_left');
-        if($this.hasClass('add_left')) {
-          var more_points = parseFloat($this.prev(".rating").find(".points").text());
-          data.points = Math.round((pts + more_points) / 2);
-          if(data.points == pts || data.points == more_points) {
-            data.points = pts;
-          }
-        } else {
-          var less_points = parseFloat($this.next(".rating").find(".points").text());
-          data.points = Math.round((pts + less_points) / 2);
-          if(data.points == pts || data.points == less_points) {
-            data.points = less_points;
-          }
-        }
-        $td.fillTemplateData({data: data});
-        if(hasClassAddLeft) {
-          $this.before($td);
-        } else {
-          $this.after($td);
-        }
-        rubricEditing.hideCriterionAdd($rubric);
-        rubricEditing.updateCriterionPoints($criterion);
-        rubricEditing.sizeRatings($criterion);
-      }
-      return false;
+      var $this = $(this);
+      rubricEditing.addNewRatingColumn($this);
     });
     $(".criterion_points").keydown(function(event) {
       if(event.keyCode == 13) {
@@ -916,9 +925,12 @@ define([
       rubricEditing.updateCriterionPoints($(this).parents(".criterion"));
     });
     $("#edit_criterion").delegate(".cancel_button", 'click', function(event) {
+      var $target = $(this).closest('td.criterion_description').find('.edit_criterion_link');
       rubricEditing.hideEditCriterion();
+      $target.focus();
     });
     $("#edit_criterion_form").submit(function(event) {
+      var $target = $(this).closest('td.criterion_description').find('.edit_criterion_link');
       event.preventDefault();
       event.stopPropagation();
       var data = $(this).parents("#edit_criterion").getFormData();
@@ -926,11 +938,15 @@ define([
       delete data['description'];
       $(this).parents(".criterion").fillTemplateData({data: data});
       rubricEditing.hideEditCriterion();
+      $target.focus();
     });
     $("#edit_rating").delegate(".cancel_button", 'click', function(event) {
+      var $target = $(this).closest('td.rating').find('.edit_rating_link');
       rubricEditing.hideEditRating();
+      $target.focus();
     });
     $("#edit_rating_form").submit(function(event) {
+      var $target = $(this).closest('td.rating').find('.edit_rating_link');
       event.preventDefault();
       event.stopPropagation();
       var data = $(this).parents("#edit_rating").getFormData();
@@ -945,6 +961,7 @@ define([
         $(this).parents(".criterion").find(".criterion_points").val(data.points);
       }
       rubricEditing.updateCriterionPoints($(this).parents(".criterion"), true);
+      $target.focus();
     });
     $("#edit_rubric_form .rubric_custom_rating").change(function() {
       $(this).parents(".rubric").find("tr.criterion")

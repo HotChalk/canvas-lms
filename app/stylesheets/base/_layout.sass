@@ -3,12 +3,17 @@
 body, html
   height: 100%
 body
-  background-color: white
   min-width: $min_main_width
-
+  background: white
+  
+    
+  
   &.no-headers, &.embedded
     #header, #topbar, #left-side, #breadcrumbs
       display: none !important
+    @if $is-k12
+      .canvas-header
+        display: none !important
     #footer
       display: none
     #wrapper
@@ -23,7 +28,7 @@ body
       padding-top: 0
 
   &.embedded
-    #wrapper-container, #wrapper, #main
+    #application, #wrapper-container, #wrapper, #main
       height: 100%
     #main
       min-height: 0
@@ -40,6 +45,7 @@ body
       h2, .h2
         display: none
     .embedded-footer
+
       position: absolute
       bottom: 0
       width: 100%
@@ -63,26 +69,26 @@ body
     background: #fff
 
 // so we don't get the non-interactionable content
-// .scripts-not-loaded
-//   a:not([href]), a[href="#"], button:not([type])
-//    visibility: hidden !important
+.scripts-not-loaded
+  a:not([href]), a[href="#"], button:not([type])
+    visibility: hidden !important
 
-#wrapper-container
-  // the sole purpose of this div is to make it so the shadow on #wrapper does not cause the page to have scroll bars.
-  overflow: hidden
 #wrapper
   +pie-clearfix
 
 #main
   position: relative
   z-index: 10
-  background-color: $bodyBackground
-  border: 1px solid $listBorderColor
-  border-top: 0
+  background-color: $bodyBackground  
+  border: 1px solid #eee;
+  border-top: none;
   margin-bottom: 40px
   +pie-clearfix
   min-height: 450px
   max-width: $max_main_width
+  @if $is-k12
+    border: none
+    
 
 #content
   padding: 1em
@@ -113,8 +119,8 @@ body
   #right-side-wrapper
     display: block
     float: right
-  #breadcrumbs + #right-side-wrapper
-    margin-top: -28px
+    position: absolute
+    top: 0
   #main
     margin-right: $right_side_width
   #header-inner
@@ -142,39 +148,6 @@ body
 // **********************************************************************************
 // end classes applied to body
 
-#breadcrumbs
-  border-bottom: 1px solid #efefef
-  overflow: hidden
-  background-color: #fff
-  ul
-    +reset-list
-    +clearfix
-    margin-left: 10px
-    color: #637178
-    font-size: 12px
-    li
-      float: left
-      height: 27px
-      line-height: 29px
-      padding-left: 12px
-      margin-left: 8px
-      @include bg-image(breadcrumb-chevron, png, no-repeat, 0, 50%, transparent, 5px, 9px)
-      &:first-child
-        background: none
-        padding-left: 0
-        margin-left: 0
-    .home a
-      color: #ccc
-      i
-        margin-right: -5px
-        vertical-align: text-bottom
-        &:before
-          font-size: 12px
-
-  .ellipsis
-    display: inline-block
-
-
 #footer
   color: #5c5c5c
   font-size: 11px
@@ -197,3 +170,11 @@ body
     // ie7 supports :first-child so this will work on everything we support.
     &:first-child
       border-left: none
+
+div.content_notice
+  margin: 12px
+  margin-bottom: 6px
+  div
+    display: inline-block
+  i
+    padding-right: 8px

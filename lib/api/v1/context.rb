@@ -23,16 +23,21 @@ module Api::V1::Context
       context_type = obj.context_type
       id = obj.context_id
       name = obj.context.name
+      if(context_type == 'Course')
+        code = (obj.respond_to?(:data) && obj.data.respond_to?(:context_short_name)) ? obj.data.context_short_name : nil
+      end
     elsif (obj.respond_to?(:context_code) || obj.is_a?(OpenObject)) && obj.context_code.present?
       context_type, id = obj.context_code.split("_", 2)
     else
       return {}
     end
-    {
+    hash = {
       'context_type' => context_type.camelcase,
       "#{context_type.underscore}_id" => id.to_i,
       "#{context_type.underscore}_name" => name,
     }
+    hash.merge!({ "#{context_type.underscore}_code" => code }) if(context_type == 'Course')
+    hash
   end
 
 end

@@ -1,4 +1,5 @@
 require 'lib/canvas/require_js/plugin_extension'
+require 'lib/canvas/require_js/client_app_extension'
 module Canvas
   module RequireJs
     class << self
@@ -31,7 +32,7 @@ module Canvas
             end
             hash
           }
-    
+
         # inject any bundle extensions defined in plugins
         extensions_for("*").each do |bundle, extensions|
           if app_bundles["compiled/bundles/#{bundle}"]
@@ -60,24 +61,31 @@ module Canvas
         @paths ||= {
           :common => 'compiled/bundles/common',
           :jqueryui => 'vendor/jqueryui',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.1',
-          'ic-dialog' => 'vendor/ic-dialog/dist/main.amd',
+          :uploadify => '../flash/uploadify/jquery.uploadify-3.2',
           'swfobject' => 'vendor/swfobject/swfobject',
-          'swfupload' => 'vendor/swfupload/swfupload',
-          'ckeditor-core' => 'ckeditor/ckeditor',
-          'ckeditor-jquery' => 'ckeditor/adapters/jquery'
-        }.update(cache_busting ? cache_busting_paths : {}).update(plugin_paths).update(Canvas::RequireJs::PluginExtension.paths).to_json.gsub(/([,{])/, "\\1\n    ")
+          'swfupload' => 'vendor/swfupload/swfupload'
+        }.update(cache_busting ? cache_busting_paths : {}).
+          update(plugin_paths).
+          update(Canvas::RequireJs::PluginExtension.paths).
+          update(Canvas::RequireJs::ClientAppExtension.paths).
+          to_json.
+          gsub(/([,{])/, "\\1\n    ")
+      end
+
+      def map
+        @map ||= Canvas::RequireJs::ClientAppExtension.map.to_json
       end
 
       def packages
         @packages ||= [
-          {'name' => 'ic-data', 'location' => 'bower/ic-data/dist/amd'},
           {'name' => 'ic-ajax', 'location' => 'bower/ic-ajax/dist/amd'},
           {'name' => 'ic-styled', 'location' => 'bower/ic-styled'},
           {'name' => 'ic-menu', 'location' => 'bower/ic-menu'},
           {'name' => 'ic-tabs', 'location' => 'bower/ic-tabs/dist/amd'},
-          {'name' => 'ic-lazy-list', 'location' => 'bower/ic-lazy-list/dist/amd'},
+          {'name' => 'ic-droppable', 'location' => 'bower/ic-droppable/dist/amd'},
+          {'name' => 'ic-sortable', 'location' => 'bower/ic-sortable/dist/amd'},
           {'name' => 'ic-modal', 'location' => 'bower/ic-modal/dist/amd'},
+          {'name' => 'ic-lazy-list', 'location' => 'bower/ic-lazy-list'},
           {'name' => 'ember-qunit', 'location' => 'bower/ember-qunit/dist/amd'},
         ].to_json
       end
@@ -95,10 +103,17 @@ module Canvas
       def cache_busting_paths
         {}
       end
-      
+
       def shims
         <<-JS.gsub(%r{\A +|^ {8}}, '')
           {
+            'bower/react-router/dist/react-router': {
+              deps: ['react'],
+              exports: 'ReactRouter'
+            },
+            'bower/react-modal/dist/react-modal': {
+              deps: ['react']
+            },
             'bower/ember/ember': {
               deps: ['jquery', 'handlebars'],
               exports: 'Ember'
@@ -115,7 +130,7 @@ module Canvas
               exports: 'FileAPI'
             },
             'uploadify': {
-              deps: ['jquery', 'swfobject', 'swfupload'],
+              deps: ['jquery', 'swfupload'],
               exports: '$'
             },
             'vendor/bootstrap-select/bootstrap-select' : {
@@ -130,8 +145,8 @@ module Canvas
               deps: ['bower/handlebars/handlebars.runtime.amd'],
               exports: 'Handlebars'
             },
-            'ckeditor-jquery': {
-              deps:['jquery', 'ckeditor-core']
+            'vendor/i18n': {
+              exports: 'I18n'
             }
           }
         JS

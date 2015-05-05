@@ -1,10 +1,9 @@
 define [
-  'jquery'
-  'jst/assignments/ExternalContentHomeworkSubmissionView'
-], ($, template) ->
+  'jquery',
+  'Backbone'
+], ($, Backbone) ->
 
   class ExternalContentHomeworkSubmissionView extends Backbone.View
-    template: template
     @optionProperty 'externalTool'
 
     events:
@@ -26,4 +25,4 @@ define [
       event.preventDefault()
       event.stopPropagation()
       @model.set('comment', @$el.find('.submission_comment').val())
-      @trigger 'submit', @externalTool, @model
+      @submitHomework()
