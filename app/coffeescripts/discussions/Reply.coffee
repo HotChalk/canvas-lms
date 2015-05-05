@@ -9,6 +9,7 @@ define [
   'compiled/fn/preventDefault'
   'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
+  'ckeditor-all'
 ], (Backbone, _, I18n, $, Entry, htmlEscape, replyAttachmentTemplate, preventDefault, KeyboardShortcuts) ->
 
   class Reply

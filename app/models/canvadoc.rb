@@ -40,10 +40,23 @@ class Canvadoc < ActiveRecord::Base
   end
 
   def session_url
-    Canvas.timeout_protection("canvadocs", raise_on_timeout: true) do
-      session = canvadocs_api.session(document_id)
-      canvadocs_api.view(session["id"])
+    # The 'session' API call may fail if the document is not yet ready for viewing. This process usually
+    # completes a few seconds after the initial upload, so we check a few times before giving up.
+    attempts = 3
+    backoff = 1 # initial wait time is 1 second
+    begin
+      return Canvas.timeout_protection("canvadocs", raise_on_timeout: true) do
+        session = canvadocs_api.session(document_id)
+        canvadocs_api.view(session["id"])
+      end
+    rescue JSON::ParserError => e
+      logger.warn "unable to retrieve session_url for document_id #{document_id}"
+      Kernel.sleep(backoff)
+      attempts -= 1
+      backoff *= 2
+      retry unless attempts.zero?
     end
+    nil
   end
 
   def available?

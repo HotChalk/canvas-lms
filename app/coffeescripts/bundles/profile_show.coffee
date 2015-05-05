@@ -24,6 +24,7 @@ require [
   'compiled/util/AvatarWidget'
   'jquery.instructure_forms'
   'ckeditor.editor_box'
+  'ckeditor-all'
 ], (I18n, {View}, $, htmlEscape, AvatarWidget) ->
 
   class ProfileShow extends View

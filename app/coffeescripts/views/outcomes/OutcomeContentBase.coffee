@@ -23,6 +23,7 @@ define [
   'compiled/views/ValidatedFormView'
   'compiled/views/editor/KeyboardShortcuts'
   'ckeditor.editor_box'
+  'ckeditor-all'
   'compiled/jquery.rails_flash_notifications'
   'jquery.disableWhileLoading'
 ], (I18n, $, _, ValidatedFormView, RCEKeyboardShortcuts) ->

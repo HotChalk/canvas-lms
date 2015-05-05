@@ -30,7 +30,64 @@
   // which modules should have their dependencies concatenated into them
   modules: [
 
-    { name: "common", include: ['translations/_core'], exclude: ['ckeditor-all'] },
+    // non "app" bundles, should be careful not to try to have too many of these
+    {
+      name: "ckeditor-all",
+
+      // this stuff is already in common, should be able to make this a smaller
+      // list since some things depend on others in the list, yes, its a bit crazy
+      // this is the intersection of common and tinymce, we need to script this
+      // config file...
+      exclude: [
+        'i18n',
+        'str/escapeRegex',
+        'vendor/date',
+        'jquery',
+        'str/pluralize',
+        'INST',
+        'str/htmlEscape',
+        'i18nObj',
+        'vendor/jquery.scrollTo',
+        'vendor/jqueryui/core',
+        'vendor/jqueryui/widget',
+        'vendor/jqueryui/mouse',
+        'vendor/jqueryui/position',
+        'translations/instructure',
+        'i18n!instructure',
+        'compiled/util/objectCollection',
+        'vendor/spin',
+        'vendor/jquery.spin',
+        'jquery.google-analytics',
+        'vendor/jquery.ba-hashchange',
+        'vendor/jqueryui/effects/drop',
+        'compiled/jquery.rails_flash_notifications',
+        'jquery.dropdownList',
+        'vendor/jqueryui/progressbar',
+        'translations/media_comments',
+        'i18n!media_comments',
+        'vendor/jqueryui/button',
+        'vendor/jqueryui/draggable',
+        'jqueryui/draggable',
+        'vendor/jqueryui/resizable',
+        'vendor/jqueryui/dialog',
+        'jquery.instructure_jquery_patches',
+        'vendor/jqueryui/datepicker',
+        'vendor/jqueryui/sortable',
+        'jquery.scrollToVisible',
+        'vendor/jqueryui/tabs',
+        'jquery.disableWhileLoading',
+        'jquery.keycodes',
+        'jquery.instructure_date_and_time',
+        'jquery.instructure_misc_plugins',
+        'ckeditor.editor_box',
+        'jquery.instructure_forms',
+        'jquery.ajaxJSON',
+        'jquery.instructure_misc_helpers',
+        'media_comments'
+      ]
+    },
+
+    { name: "common", include: ['translations/_core'] },
 
     // "apps"
     <%= app_bundles %>

@@ -8,6 +8,10 @@
             role="checkbox"></span>
       <label id="group_{{asset_string}}_checkbox_label">
         {{name}}
+        {{#if code}}
+          <br />
+          <span class="context_list_label">{{code}}{{#if sections}} - <span class="sections">{{sections}}</span>{{/if}}</span>
+        {{/if}}
       </label>
     </li>
   {{/each}}

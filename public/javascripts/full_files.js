@@ -23,6 +23,7 @@ define([
   'jquery' /* jQuery, $ */,
   'str/htmlEscape',
   'ckeditor.editor_box',
+  'ckeditor-all',
   'jqueryui/draggable' /* /\.draggable/ */,
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.doc_previews' /* loadDocPreview */,

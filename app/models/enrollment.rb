@@ -198,7 +198,7 @@ class Enrollment < ActiveRecord::Base
     }
 
     p.dispatch :enrollment_accepted
-    p.to {self.course.admins - [self.user] }
+    p.to {(self.course.admins.select {|a| (self.course.sections_visible_to(a) & self.course.sections_visible_to(self.user)).any?}) - [self.user] }  # only notify users who can access this enrollment's associated sections
     p.whenever { |record|
       record.course &&
       !record.just_created && (record.changed_state(:active, :invited) || record.changed_state(:active, :creation_pending))
@@ -506,13 +506,14 @@ class Enrollment < ActiveRecord::Base
     # In the future, we should probably allow configuring it for students,
     # possibly section-wide (i.e. "Students in this section can see students
     # from all other sections")
-    if self.is_a?(TeacherEnrollment) || self.is_a?(TaEnrollment)
-      self.limit_privileges_to_course_section = false if self.limit_privileges_to_course_section.nil?
-    elsif self.is_a?(StudentEnrollment)
-      self.limit_privileges_to_course_section = self.course.limit_section_visibility if self.limit_privileges_to_course_section.nil?
-    else
-      self.limit_privileges_to_course_section = false
-    end
+    # if self.is_a?(TeacherEnrollment) || self.is_a?(TaEnrollment)
+    #   self.limit_privileges_to_course_section = false if self.limit_privileges_to_course_section.nil?
+    # else
+    #   self.limit_privileges_to_course_section = false
+    # end
+
+    # Hotchalk: always infer privileges from the master course setting
+    self.limit_privileges_to_course_section = self.course.limit_section_visibility rescue true
     true
   end
 

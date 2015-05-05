@@ -1612,7 +1612,7 @@ class CoursesController < ApplicationController
       # Enrollment settings hash
       # Change :limit_privileges_to_course_section to be an explicit true/false value
       enrollment_options = params.slice(:course_section_id, :enrollment_type, :limit_privileges_to_course_section)
-      limit_privileges = (params[:enrollment_type] == 'StudentEnrollment' ? @context.limit_section_visibility : value_to_boolean(enrollment_options[:limit_privileges_to_course_section]))
+      limit_privileges = (['TeacherEnrollment', 'TaEnrollment'].include?(params[:enrollment_type]) ? value_to_boolean(enrollment_options[:limit_privileges_to_course_section]) : @context.limit_section_visibility)
       enrollment_options[:limit_privileges_to_course_section] = limit_privileges
       enrollment_options[:role] = custom_role if custom_role
       list = UserList.new(params[:user_list],

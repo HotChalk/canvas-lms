@@ -103,7 +103,7 @@ class TermsApiController < ApplicationController
     @term.sis_source_id = params[:enrollment_term].delete(:sis_term_id)
     if @term.save
       @term.set_overrides(@context, overrides)
-      render :json => enrollment_term_json(@term, @current_user, session, :include => :enrollment_dates_overrides)
+      render :json => enrollment_term_json(@term, @current_user, session, [], [:enrollment_dates_overrides])
     else
       render :json => @term.errors, :status => :bad_request
     end
@@ -124,7 +124,7 @@ class TermsApiController < ApplicationController
     end
     if @term.update_attributes(params[:enrollment_term])
       @term.set_overrides(@context, overrides)
-      render :json => enrollment_term_json(@term, @current_user, session, :include => :enrollment_dates_overrides)
+      render :json => enrollment_term_json(@term, @current_user, session, [], [:enrollment_dates_overrides])
     else
       render :json => @term.errors, :status => :bad_request
     end
