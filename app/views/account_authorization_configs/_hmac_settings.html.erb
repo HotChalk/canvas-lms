@@ -3,8 +3,8 @@
 <% form_id = @account_config.hmac_authentication? ? 'auth_form' : 'hmac_form' %>
 <% active = @account_config.hmac_authentication? ? 'class="active"' : '' %>
 <div id="hmac_div" <%= raw active %>>
-<% form_tag(context_url(@account, :context_update_all_authorization_configs_url), :method => :put, :id => form_id, :class => "auth_type hmac_form") do %>
-  <% fields_for @account_config, :index => 0 do |f| %>
+<%= form_tag(context_url(@account, :context_update_all_authorization_configs_url), :method => :put, :id => form_id, :class => "auth_type hmac_form") do %>
+  <%= fields_for :account_authorization_config, @account_config, :index => 0 do |f| %>
     <%= f.hidden_field :auth_type, :value => 'hmac' %>
     <%= f.hidden_field :id %>
     <table class="formtable" style="margin-left: 20px;">
