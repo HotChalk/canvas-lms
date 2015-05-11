@@ -41,7 +41,7 @@ class ApplicationController < ActionController::Base
   protect_from_forgery
   # load_user checks masquerading permissions, so this needs to be cleared first
   before_filter :clear_cached_contexts
-  before_filter :load_account, :load_user, :load_user_root_account
+  before_filter :load_account, :load_user
   before_filter ::Filters::AllowAppProfiling
   before_filter :check_pending_otp
   before_filter :set_user_id_header
@@ -247,13 +247,6 @@ class ApplicationController < ActionController::Base
     @domain_root_account = request.env['canvas.domain_root_account'] || LoadAccount.default_domain_root_account
     @files_domain = request.host_with_port != HostUrl.context_host(@domain_root_account) && HostUrl.is_file_host?(request.host_with_port)
     @domain_root_account
-  end
-
-  # loads an alternate domain root account for the current user if required
-  def load_user_root_account
-    if @current_user && @current_pseudonym && @domain_root_account && ![Account.site_admin, Account.default].include?(@current_pseudonym.account)
-      @domain_root_account = @current_pseudonym.account.root_account || @current_pseudonym.account
-    end
   end
 
   def set_response_headers
