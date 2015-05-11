@@ -31,7 +31,7 @@ module Api::V1::CalendarEvent
     else
       assignment_event_json(event, user, session)
     end
-    hash[:context_name] = context.name
+    hash[:context_name] = context && context.name
     hash
   end
 
