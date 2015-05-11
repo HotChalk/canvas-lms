@@ -1,6 +1,14 @@
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/text text/html text/plain text/xml text/css application/x-javascript application/javascript text/javascript application/json
 </IfModule>
+
+# LMS-1155: This is temporary, remove as soon as CUP updates configuration
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{QUERY_STRING} !account_id=
+  RewriteRule ^login/hmac     login/hmac?account_id=1 [QSA]
+</IfModule>
+
 #<IfModule mod_rewrite.c>
 #  RewriteEngine On
 #  RewriteCond %{HTTP_USER_AGENT} "android|blackberry|googlebot-mobile|iemobile|ipad|iphone|ipod|opera mobile|palmos|webos" [NC]

@@ -835,6 +835,7 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def hmac_login
+    load_root_account(params[:account_id])
     unless @domain_root_account.account_authorization_config.hmac_authentication?
       return render :status => 400, :json => {:message => "HMAC authentication not configured for account #{@domain_root_account.name}"}
     end
