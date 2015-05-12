@@ -1840,4 +1840,11 @@ class ApplicationController < ActionController::Base
   def self.region
     nil
   end
+
+  # HOTCHALK - For logging client IPs and user IDs with lograge
+  def append_info_to_payload(payload)
+    super
+    payload[:remote_ip] = request.remote_ip
+    payload[:user_id] = @current_user.id unless @current_user.nil?
+  end
 end
