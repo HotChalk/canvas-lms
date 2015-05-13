@@ -338,6 +338,7 @@ class PseudonymSessionsController < ApplicationController
   end
 
   def saml_consume
+    load_root_account(params[:account_id])
     if saml_response?
       # Break up the SAMLResponse into chunks for logging (a truncated version was probably already
       # logged with the request when using syslog)
@@ -481,6 +482,7 @@ class PseudonymSessionsController < ApplicationController
 
   # POST /logout
   def saml_logout
+    load_root_account(params[:account_id])
     if saml_response?
       increment_saml_stat("logout_response_received")
       saml_response = Onelogin::Saml::LogoutResponse::parse(params[:SAMLResponse])
@@ -939,6 +941,9 @@ class PseudonymSessionsController < ApplicationController
         response.merge!({:auth_url => "/login?account_id=#{root_account.id}"})
       elsif aac.auth_type == 'hmac'
         response.merge!({:auth_url => aac.log_in_url})
+      elsif aac.auth_type == 'saml'
+        logger.info "resolve login to saml"
+        response.merge!({:auth_url => "/login?account_id=#{root_account.id}"})
       end
     end
     render :json => response
