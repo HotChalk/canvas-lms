@@ -146,4 +146,5 @@ gem 'workflow', :path => 'gems/workflow'
 
 # New Relic Monitoring
 gem 'newrelic_rpm', '3.9.1.236'
-
+# Lograge Logging
+gem "lograge", '0.3.1'

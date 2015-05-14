@@ -2231,7 +2231,7 @@ class CoursesController < ApplicationController
 
   def user_sections
     get_context
-    return unless authorized_action(@context, @current_user, :manage_content)
+    return unless authorized_action(@context, @current_user, :read)
 
     user_sections = @context.sections_visible_to(@current_user)
     hash = course_sections_json(user_sections)
