@@ -169,6 +169,11 @@ module AuthenticationMethods
     # required by the user throttling middleware
     session[:user_id] = @current_user.global_id if @current_user
 
+    # loads an alternate domain root account for the current user if required
+    if @current_user && @current_pseudonym && ![Account.site_admin, Account.default].include?(@current_pseudonym.account)
+      @domain_root_account = @current_pseudonym.account.root_account || @current_pseudonym.account
+    end
+
     if @current_user && %w(become_user_id me become_teacher become_student).any? { |k| params.key?(k) }
       request_become_user = nil
       if params[:become_user_id]

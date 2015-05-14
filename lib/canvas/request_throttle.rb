@@ -166,13 +166,14 @@ class RequestThrottle
       CanvasStatsd::Statsd.timing("requests_user_cpu.cluster_#{account.shard.database_server.id}", user_cpu)
     end
 
-    mem_stat = if starting_mem == 0 || ending_mem == 0
-                 "? ? ? ?"
-               else
-                 "#{starting_mem} #{ending_mem} #{ending_mem - starting_mem} #{@@last_sample}"
-               end
+    # HOTCHALK - commented this out because we already have this info via NewRelic
+    # mem_stat = if starting_mem == 0 || ending_mem == 0
+    #              "? ? ? ?"
+    #            else
+    #              "#{starting_mem} #{ending_mem} #{ending_mem - starting_mem} #{@@last_sample}"
+    #            end
 
-    Rails.logger.info "[STAT] #{mem_stat} #{user_cpu} #{system_cpu}"
+    #Rails.logger.info "[STAT] #{mem_stat} #{user_cpu} #{system_cpu}"
     @@last_sample = ending_mem
   end
 
