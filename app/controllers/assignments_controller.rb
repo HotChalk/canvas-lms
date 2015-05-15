@@ -170,12 +170,17 @@ class AssignmentsController < ApplicationController
       log_asset_access(@assignment, "assignments", @assignment.assignment_group)
 
       @assignment_menu_tools = external_tools_display_hashes(:assignment_menu)
-
       respond_to do |format|
         if @assignment.submission_types == 'online_quiz' && @assignment.quiz
           format.html { redirect_to named_context_url(@context, :context_quiz_url, @assignment.quiz.id) }
-        elsif @assignment.submission_types == 'discussion_topic' && @assignment.discussion_topic && @assignment.discussion_topic.grants_right?(@current_user, session, :read)
-          format.html { redirect_to named_context_url(@context, :context_discussion_topic_url, @assignment.discussion_topic.id) }
+        elsif @assignment.submission_types == 'discussion_topic' 
+          topic = @assignment.discussion_topic
+          topic ||= DiscussionTopic.find_by_reply_assignment_id(@assignment.id)
+          if topic && topic.grants_right?(@current_user, session, :read)
+            format.html { redirect_to named_context_url(@context, :context_discussion_topic_url, topic.id) }
+          else
+            format.html { render :action => 'show' }
+          end
         elsif @assignment.submission_types == 'attendance'
           format.html { redirect_to named_context_url(@context, :context_attendance_url, :anchor => "assignment/#{@assignment.id}") }
         elsif @assignment.submission_types == 'external_tool' && @assignment.external_tool_tag && @unlocked
