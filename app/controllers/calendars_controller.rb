@@ -113,6 +113,9 @@ class CalendarsController < ApplicationController
       if context.is_a?(Course)
         info[:code] = context.course_code
         info[:sections] = info[:course_sections].map {|cs| cs[:name]}.join(', ')
+        # LMS-1201: filter out courses that are concluded or have not yet started
+        now = Time.now
+        info[:inactive] = !!context.concluded? || (context.end_at && context.end_at < now) || (context.start_at && context.start_at > now)
       end
       info
     end

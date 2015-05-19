@@ -19,7 +19,9 @@ define [
              catch e
                {}
 
-      availableContexts = (c.asset_string for c in contexts)
+      filteredContexts = contexts.filter (c) ->
+        c.type != 'user' && !c.inactive
+      availableContexts = (c.asset_string for c in filteredContexts)
       @contexts   = fragmentData.show.split(',') if fragmentData.show
       @contexts or= selectedContexts
       @contexts or= userSettings.get('checked_calendar_codes')
