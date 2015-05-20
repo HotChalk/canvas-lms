@@ -5,6 +5,8 @@
 # LMS-1155: This is temporary, remove as soon as CUP updates configuration
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  RewriteCond %{HTTP_HOST} hotchalklearn.com$ [NC]
+  RewriteRule ^(.*)$ https://hotchalkember.com/$1 [L,R=301]
   RewriteCond %{QUERY_STRING} !account_id=
   RewriteRule ^login/hmac     login/hmac?account_id=1 [QSA]
 </IfModule>
