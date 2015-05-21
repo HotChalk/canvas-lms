@@ -589,6 +589,15 @@ class Assignment < ActiveRecord::Base
     self.save!
 
     self.discussion_topic.destroy if self.discussion_topic && !self.discussion_topic.deleted?
+    if self.reply_assignment?
+      # Reply assignments can be deleted without deleting the parent discussion topic
+      discussion_topic = DiscussionTopic.find_by_reply_assignment_id(self.id)
+      unless discussion_topic.deleted?
+        discussion_topic.reply_assignment = nil
+        discussion_topic.grade_replies_separately = false
+        discussion_topic.save!
+      end
+    end
     self.quiz.destroy if self.quiz && !self.quiz.deleted?
   end
 
