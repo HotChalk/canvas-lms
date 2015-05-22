@@ -1674,7 +1674,7 @@ class ApplicationController < ActionController::Base
     @notices ||= begin
       notices = []
       if !browser_supported? && !@embedded_view && !cookies['unsupported_browser_dismissed']
-        notices << {:type => 'warning', :content => unsupported_browser, :classes => 'unsupported_browser'}
+        notices << {:type => 'error', :content => {:html => unsupported_browser}, :classes => 'unsupported_browser'}
       end
       if error = flash[:error]
         flash.delete(:error)
@@ -1702,7 +1702,7 @@ class ApplicationController < ActionController::Base
   helper_method :flash_notices
 
   def unsupported_browser
-    t("#application.warnings.unsupported_browser", "Your browser does not meet the minimum requirements for Canvas. Please visit the *Canvas Guides* for a complete list of supported browsers.", :wrapper => view_context.link_to('\1', 'http://guides.instructure.com/s/2204/m/4214/l/41056-which-browsers-does-canvas-support'))
+    t("#application.warnings.unsupported_browser", "You are using #{session[:browser_name]}! We strongly recommend an alternate browser like <a href=\"http://www.google.com/chrome/\" target=\"new\">Chrome</a> or <a href=\"http://www.firefox.com\" target=\"new\">Firefox</a> to ensure a better Ember experience.<br><a href=\"https://support.hotchalkember.com/hc/en-us/articles/205139665-Check-Ember-browser-requirements\" target=\"new\">Read more about our suggested browsers.")
   end
 
   def browser_supported?
@@ -1713,6 +1713,7 @@ class ApplicationController < ActionController::Base
     key = request.user_agent.to_s.sum # keep cookie size in check. a legitimate collision here would be 1. extremely unlikely and 2. not a big deal
     if key != session[:browser_key]
       session[:browser_key] = key
+      session[:browser_name] = UserAgent.parse(request.user_agent).browser
       session[:browser_supported] = Browser.supported?(request.user_agent)
     end
     session[:browser_supported]
