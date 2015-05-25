@@ -863,4 +863,43 @@ module ApplicationHelper
         html_safe
     end
   end
+
+  def include_google_analytics
+    snippet = ""
+    @google_analytics_config ||= ConfigFile.load('external_web_tools')
+    if @google_analytics_config['enable_google_analytics']
+      snippet = %[<script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+          ga('create', 'UA-52928316-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        ]
+    end
+    snippet.html_safe
+  end
+
+  def include_inspectlet
+    snippet = ""
+    @inspectlet_config ||= ConfigFile.load('external_web_tools')
+    if @inspectlet_config['enable_inspectlet']
+      snippet = %[ <script type="text/javascript" id="inspectletjs">
+        window.__insp = window.__insp || [];
+        __insp.push(['wid', 1695757460]);
+        (function() {
+          function __ldinsp(){var insp = document.createElement('script'); insp.type = 'text/javascript'; insp.async = true; insp.id = "inspsync"; insp.src = ('https:' == document.location.protocol ? 'https' : 'http') + '://cdn.inspectlet.com/inspectlet.js'; var x = document.getElementsByTagName('script')[0]; x.parentNode.insertBefore(insp, x); }
+          if (window.attachEvent){
+            window.attachEvent('onload', __ldinsp);
+          }else{
+            window.addEventListener('load', __ldinsp, false);
+          }
+        })();
+      </script>
+    ]
+    end
+    snippet.html_safe
+  end
+
 end
