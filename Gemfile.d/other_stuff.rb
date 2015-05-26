@@ -145,6 +145,6 @@ gem 'utf8_cleaner', :path => 'gems/utf8_cleaner'
 gem 'workflow', :path => 'gems/workflow'
 
 # New Relic Monitoring
-gem 'newrelic_rpm', '3.9.1.236'
+gem 'newrelic_rpm'
 # Lograge Logging
 gem "lograge", '0.3.1'

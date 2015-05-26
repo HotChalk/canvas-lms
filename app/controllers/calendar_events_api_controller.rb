@@ -710,7 +710,7 @@ class CalendarEventsApiController < ApplicationController
     if @current_user
       @section_codes = selected_contexts.inject([]) { |ary, context|
         next ary unless context.is_a?(Course)
-        ary + context.sections_visible_to(@current_user).map(&:asset_string)
+        ary + (@current_user.account_admin?(context) ? context.course_sections : context.sections_visible_to(@current_user)).map(&:asset_string)
       }
     end
 
