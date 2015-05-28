@@ -788,7 +788,7 @@ GEM
       polyglot (>= 0.3.1)
     tzinfo (0.3.39)
     uniform_notifier (1.9.0)
-    useragent (0.10.0)
+    useragent (0.13.3)
     uuid (2.3.2)
       macaddr (~> 1.0)
     uuidtools (2.1.4)
@@ -998,7 +998,7 @@ DEPENDENCIES
   treetop (= 1.4.15)
   twitter!
   tzinfo (= 0.3.39)
-  useragent (= 0.10.0)
+  useragent (= 0.13.3)
   utf8_cleaner!
   uuid (= 2.3.2)
   uuidtools (= 2.1.4)
