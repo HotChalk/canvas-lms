@@ -214,6 +214,12 @@ ul.user_list div.enrollment_type.pending {
     padding: 4px 0 4px 25px;
     border: solid $section_tabs_border_bottom_color;
     border-width: 0 1px 1px;
+    div.links {
+      float: right;
+      display: inline-block;
+      padding-right: 10px;
+      visibility: hidden;
+    }
     &:hover, &:focus {
       background-color: $section_tabs_hover_background_color;
       z-index: 0;
@@ -221,6 +227,9 @@ ul.user_list div.enrollment_type.pending {
       text-decoration: none;
       .disabled_message {
         display: none;
+      }
+      .links a {
+        visibility: visible;
       }
     }
     .disabled_message {

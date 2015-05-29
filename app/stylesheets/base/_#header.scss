@@ -26,28 +26,29 @@ $masquerade-link-color: $ic-color-alert;
 
 // the #header.no-user #header-logo part here is so that it overrides the byuh logo
 #header-logo, #header.no-user #header-logo {
-  @include bg-image("canvas/header_canvas_logo", "png", no-repeat, left, top, transparent, 110px, 26px);
-  width: 135px;
-  height: 26px;
-  left: 16px;
-  bottom: 21px;
+  @include bg-image("canvas/header_canvas_logo", "png", no-repeat, left, top, transparent);
+  width: 191px;
+  height: 70px;
+  left: 15px;
+  bottom: 0px;
+  top: 0px!important;
   position: absolute;
   text-indent: -9999px;
 }
 
 // TODO: remove this style once people have time to update their logo-related custom
 // css. See related code in app/coffeescripts/bundles/common.coffee too.
-#header-logo.original, #header.no-user #header-logo.original {
-  bottom: 12px;
-}
+//#header-logo.original, #header.no-user #header-logo.original {
+//  bottom: 12px;
+//}
 
 #header-logo-secondary {
-  display: none;
-  @include bg-image("canvas/header_canvas_logo", "png", no-repeat, left, top, transparent, 110px, 26px);
-  width: 135px;
-  height: 26px;
-  right: 26px;
-  bottom: 6px;
+  display: block;
+  @include bg-image("canvas/logo-hotchalk-light", "png", no-repeat, left, top, transparent, 110px, 26px);
+  width: 93px;
+  height: 20px;
+  right: 20px;
+  bottom: 16px;
   position: absolute;
 }
 
@@ -61,10 +62,11 @@ $masquerade-link-color: $ic-color-alert;
   @if $is-k12 == false {
     position: relative;
     z-index: 11;
-    background-color: $ic-header-background;
+    background-color: #fff;
+    border-bottom: 1px solid #ccc;
     &.no-user {
       background-position: 0 -25px;
-      min-height: 45px;
+      min-height: 75px;
       #header-logo {
         top: 11px;
         left: 6px;
@@ -168,6 +170,7 @@ $masquerade-link-color: $ic-color-alert;
   }
   #identity-help-container a {
     padding: 1px 8px;
+    color: black;
   }
 }
 
@@ -208,6 +211,8 @@ $masquerade-link-color: $ic-color-alert;
     float: left;
   }
   .menu-item-title, .menu-item-no-drop {
+    text-shadow: none;
+    color: #666;
     position: relative;
     z-index: 100;
     text-decoration: none;
