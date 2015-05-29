@@ -33,13 +33,14 @@ define [
 
     fetch: (options = {}) ->
       options.data = _.extend content_types: @parentFolder?.contentTypes, options.data || {}
+      options.data.use_verifiers = 1 if @parentFolder?.useVerifiers
       res = super options
 
     parse: (response) ->
       if response and @parentFolder
         previewUrl = @parentFolder.previewUrl()
         _.each response, (file) ->
-          file.preview_url = if previewUrl
+          file.rce_preview_url = if previewUrl
             previewUrl.replace('{{id}}', file.id.toString())
           else
             file.url

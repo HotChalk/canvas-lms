@@ -25,7 +25,8 @@ define [
         wrappers[new Array(parseInt(key.replace('w', '')) + 2).join('*')] = value
         delete options[key]
       options.wrapper = wrappers if wrappers['*']
-      options[key] = this[key] for key in this
+      unless this instanceof Window
+        options[key] = this[key] for key in this
       new Handlebars.SafeString htmlEscape(I18n.t(args..., options))
 
     __i18nliner_escape: (val) ->
@@ -53,12 +54,12 @@ define [
         courseText = I18n.t('#helpers.course', 'Course')
         courseDatetime = $.datetimeString(datetime, timezone: ENV.CONTEXT_TIMEZONE)
         if localDatetime != courseDatetime
-          titleText = "#{localText}: #{localDatetime} - #{courseText}: #{courseDatetime}"
+          titleText = "#{htmlEscape localText}: #{htmlEscape localDatetime} - #{htmlEscape courseText}: #{htmlEscape courseDatetime}"
 
       if justText
         new Handlebars.SafeString titleText
       else
-        new Handlebars.SafeString "data-tooltip title=\"#{titleText}\""
+        new Handlebars.SafeString "data-tooltip data-html-tooltip-title=\"#{htmlEscape titleText}\""
 
     # expects: a Date object or an ISO string
     friendlyDatetime : (datetime, {hash: {pubdate, contextSensitive}}) ->
@@ -69,17 +70,22 @@ define [
       if contextSensitive and ENV and ENV.CONTEXT_TIMEZONE
         timeTitle = Handlebars.helpers.contextSensitiveDatetimeTitle(datetime, hash: {justText: true})
       else
-        timeTitle = $.datetimeString(datetime)
+        timeTitle = htmlEscape $.datetimeString(datetime)
 
-      new Handlebars.SafeString "<time data-tooltip title='#{timeTitle}' datetime='#{datetime.toISOString()}' #{'pubdate' if pubdate}>#{$.friendlyDatetime(fudged)}</time>"
+      new Handlebars.SafeString "<time data-tooltip data-html-tooltip-title='#{htmlEscape timeTitle}' datetime='#{datetime.toISOString()}' #{$.raw('pubdate' if pubdate)}>#{$.friendlyDatetime(fudged)}</time>"
 
 
+    fudge: (datetime) ->
+      $.fudgeDateForProfileTimezone(datetime)
+
+    unfudge: (datetime) ->
+      $.unfudgeDateForProfileTimezone(datetime)
 
     # expects: a Date object or an ISO string
     formattedDate : (datetime, format, {hash: {pubdate}}) ->
       return unless datetime?
       datetime = tz.parse(datetime) unless _.isDate datetime
-      new Handlebars.SafeString "<time data-tooltip title='#{$.datetimeString(datetime)}' datetime='#{datetime.toISOString()}' #{'pubdate' if pubdate}>#{datetime.toString(format)}</time>"
+      new Handlebars.SafeString "<time data-tooltip title='#{$.datetimeString(datetime)}' datetime='#{datetime.toISOString()}' #{$.raw('pubdate' if pubdate)}>#{htmlEscape datetime.toString(format)}</time>"
 
     # IMPORTANT: these next two handlebars helpers emit profile-timezone
     # human-formatted strings. don't send them as is to the server (you can
@@ -138,6 +144,40 @@ define [
     # formats a date as a string, using the given i18n format string
     strftime : (date = '', fmtstr) ->
       I18n.strftime date, fmtstr
+
+    ##
+    # outputs the format preferred for date inputs to prompt KB and SR
+    # users with for interacting with datepickers
+    #
+    # @public
+    #
+    # @param {string} format defaults to 'datetime', if 'date' only returns
+    #   the date portion of the format, same for 'time'
+    #
+    # @returns {String} the format to include for all datepickers
+    accessibleDateFormat: (format='datetime')->
+      if format is 'date'
+        I18n.t "#helpers.accessible_date_only_format", "YYYY-MM-DD"
+      else if format is 'time'
+        I18n.t "#helpers.accessible_time_only_format", "hh:mm"
+      else
+        I18n.t "#helpers.accessible_date_format", "YYYY-MM-DD hh:mm"
+
+    ##
+    # outputs the prompt to include in labels attached to date pickers for
+    # screenreader consumption
+    #
+    # @public
+    #
+    # @param {string} format defaults to 'datetime', if 'date' only returns
+    #   the date portion of the format, same for 'time'
+    #
+    # @returns {String} the prompt for telling SRs about how to
+    #   input a date
+    datepickerScreenreaderPrompt: (format='datetime')->
+      promptText = I18n.t "#helpers.accessible_date_prompt", "Format Like"
+      format = Handlebars.helpers.accessibleDateFormat(format)
+      "#{promptText} #{format}"
 
     mimeClass: mimeClass
 
@@ -332,11 +372,11 @@ define [
       attributes = for key, val of inputProps when val?
         "#{htmlEscape key}=\"#{htmlEscape val}\""
 
-      hiddenDisabled = if inputProps.disabled then "disabled" else ""
+      hiddenDisabledHtml = if inputProps.disabled then "disabled" else ""
 
       new Handlebars.SafeString """
-        <input name="#{htmlEscape inputProps.name}" type="hidden" value="0" #{hiddenDisabled}>
-        <input #{attributes.join ' '} />
+        <input name="#{htmlEscape inputProps.name}" type="hidden" value="0" #{hiddenDisabledHtml}>
+        <input #{$.raw attributes.join ' '} />
       """
 
     toPercentage: (number) ->
@@ -470,6 +510,16 @@ define [
     or: (args..., options) ->
       for arg in args when arg
         return arg
+
+    # Public: returns icon for outcome mastery level
+    #
+    addMasteryIcon: (status, options={}) ->
+      iconType = {
+        'exceeds': 'check-plus'
+        'mastery': 'check'
+        'near': 'plus'
+      }[status] or 'x'
+      new Handlebars.SafeString "<i aria-hidden='true' class='icon-#{htmlEscape iconType}'></i>"
 
   }
 

@@ -53,7 +53,7 @@ describe "Module Items API", type: :request do
                                                :unlock_at => @christmas,
                                                :require_sequential_progress => true)
     @module2.prerequisites = "module_#{@module1.id}"
-    @wiki_page = @course.wiki.front_page
+    @wiki_page = @course.wiki.wiki_pages.create!(:title => "wiki title", :body => "")
     @wiki_page.workflow_state = 'active'; @wiki_page.save!
     @wiki_page_tag = @module2.add_item(:id => @wiki_page.id, :type => 'wiki_page')
     @attachment = attachment_model(:context => @course)
@@ -246,7 +246,7 @@ describe "Module Items API", type: :request do
           "position" => 2,
           "title" => @attachment_tag.title,
           "indent" => 0,
-          "url" => "http://www.example.com/api/v1/files/#{@attachment.id}",
+          "url" => "http://www.example.com/api/v1/courses/#{@course.id}/files/#{@attachment.id}",
           "published" => false,
           "module_id" => @module2.id
       })

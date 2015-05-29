@@ -17,18 +17,26 @@
 #
 
 # # enforce the version of bundler itself, to avoid any surprises
-required_bundler_version = '1.6.0'..'1.7.6'
-gem 'bundler', [">=#{required_bundler_version.first}", "<=#{required_bundler_version.last}"]
+req_bundler_version_floor, req_bundler_version_ceiling = '1.7.10', '1.9.4'
+bundler_requirements = [">=#{req_bundler_version_floor}",
+                        "<=#{req_bundler_version_ceiling}"]
+gem 'bundler', bundler_requirements
 
-unless required_bundler_version.include?(Bundler::VERSION)
-  if Bundler::VERSION < required_bundler_version.first
-    bundle_command = "gem install bundler -v #{required_bundler_version.last}"
+# we still manually do this check because older bundler versions don't validate the version requirement
+# of the bundler gem once the bundle has been initially installed
+unless Gem::Requirement.new(*bundler_requirements).satisfied_by?(Gem::Version.new(Bundler::VERSION))
+  if Gem::Version.new(Bundler::VERSION) < Gem::Version.new(req_bundler_version_floor)
+    bundle_command = "gem install bundler -v #{req_bundler_version_ceiling}"
   else
     require 'shellwords'
-    bundle_command = "bundle _#{required_bundler_version.last}_ #{ARGV.map { |a| Shellwords.escape(a) }.join(' ')}"
+    bundle_command = "bundle _#{req_bundler_version_ceiling}_ " +
+                     "#{ARGV.map { |a| Shellwords.escape(a) }.join(' ')}"
   end
 
-  warn "Bundler version #{required_bundler_version.first} is required; you're currently running #{Bundler::VERSION}. Maybe try `#{bundle_command}`, or `gem uninstall bundler -v #{Bundler::VERSION}`."
+  warn "Bundler version #{req_bundler_version_floor} is required; " +
+       "you're currently running #{Bundler::VERSION}. " +
+       "Maybe try `#{bundle_command}`, or " +
+       "`gem uninstall bundler -v #{Bundler::VERSION}`."
   exit 1
 end
 
@@ -68,43 +76,40 @@ git_source(:github) do |repo_name|
   "https://github.com/#{repo_name}.git"
 end
 
-module CanvasBundlerRuntime
-  def self.included(klass)
-    klass.send(:remove_method, :cache)
-  end
-
-  def cache(custom_path = nil)
-    cache_path = cache_path(custom_path)
-    FileUtils.mkdir_p(cache_path) unless File.exist?(cache_path)
-
-    all_platforms = true # Bundler.config[:all_platforms]
-    Bundler.ui.info "Updating files in vendor/cache"
-    specs = if all_platforms
-              @definition.resolve.map(&:__materialize__)
-            else
-              self.specs
-            end
-    specs.each do |spec|
-      spec.source.send(:fetch_gem, spec) if all_platforms && spec.source.respond_to?(:fetch_gem, true)
-      spec.source.cache(spec, custom_path) if spec.source.respond_to?(:cache)
+if Gem::Version.new(Bundler::VERSION) < Gem::Version.new('1.8.0')
+  module CanvasBundlerRuntime
+    def self.included(klass)
+      klass.send(:remove_method, :cache)
     end
 
-    Dir[cache_path.join("*/.git")].each do |git_dir|
-      FileUtils.rm_rf(git_dir)
-      FileUtils.touch(File.expand_path("../.bundlecache", git_dir))
-    end
+    def cache(custom_path = nil)
+      cache_path = cache_path(custom_path)
+      FileUtils.mkdir_p(cache_path) unless File.exist?(cache_path)
 
-    prune_cache(custom_path) unless Bundler.settings[:no_prune]
+      all_platforms = true # Bundler.config[:all_platforms]
+      Bundler.ui.info "Updating files in vendor/cache"
+      specs = if all_platforms
+                @definition.resolve.map(&:__materialize__)
+              else
+                self.specs
+              end
+      specs.each do |spec|
+        spec.source.send(:fetch_gem, spec) if all_platforms && spec.source.respond_to?(:fetch_gem, true)
+        spec.source.cache(spec, custom_path) if spec.source.respond_to?(:cache)
+      end
+
+      Dir[cache_path.join("*/.git")].each do |git_dir|
+        FileUtils.rm_rf(git_dir)
+        FileUtils.touch(File.expand_path("../.bundlecache", git_dir))
+      end
+
+      prune_cache(custom_path) unless Bundler.settings[:no_prune]
+    end
   end
+  Bundler::Runtime.send(:include, CanvasBundlerRuntime)
 end
-Bundler::Runtime.send(:include, CanvasBundlerRuntime)
 
-if RUBY_VERSION >= '2.2'
+platforms :ruby_20, :ruby_21, :ruby_22 do
   gem 'syck', '1.0.4'
   gem 'iconv', '1.0.4'
-else
-  platforms :ruby_20, :ruby_21 do
-    gem 'syck', '1.0.4'
-    gem 'iconv', '1.0.4'
-  end
 end

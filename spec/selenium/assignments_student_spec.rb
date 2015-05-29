@@ -1,5 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignments_common')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/google_drive_common')
 
 describe "assignments" do
   include_examples "in-process server selenium tests"
@@ -11,7 +12,6 @@ describe "assignments" do
     end
 
     before do
-      Account.default.enable_feature!(:draft_state)
       @due_date = Time.now.utc + 2.days
       @assignment = @course.assignments.create!(:title => 'default assignment', :name => 'default assignment', :due_at => @due_date)
     end
@@ -69,7 +69,9 @@ describe "assignments" do
 
       get "/courses/#{@course.id}/assignments/#{assignment.id}"
 
-      expect(ffj('.formtable input[name="submission[group_comment]"]').size).to eq 3
+      acceptable_tabs = ffj('#submit_online_upload_form,#submit_online_text_entry_form,#submit_online_url_form')
+      expect(acceptable_tabs.size).to be 3
+      acceptable_tabs.each { |tabby| expect(ffj('.formtable input[name="submission[group_comment]"]', tabby).size).to be 1 }
     end
 
     it "should not show assignments in an unpublished course" do
@@ -179,6 +181,79 @@ describe "assignments" do
       end
     end
 
+    context "google drive" do
+      before(:each) do
+        PluginSetting.create!(:name => 'google_docs', :settings => {})
+        PluginSetting.create!(:name => 'google_drive', :settings => {})
+        set_up_google_docs()
+      end
+
+      it "should have a google doc tab if google docs is enabled", :priority => "1", :test_id => 161884 do
+        @assignment.update_attributes(:submission_types => 'online_upload')
+        get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+        f('.submit_assignment_link').click
+        wait_for_animations
+
+        expect(f("a[href*='submit_google_doc_form']")).to_not be_nil
+      end
+
+      context "select file or folder" do
+        before(:each) do
+          # mock out function calls
+          google_service_connection = mock()
+          google_service_connection.stubs(:service_type).returns('google_drive')
+          google_service_connection.stubs(:retrieve_access_token).returns('access_token')
+          google_service_connection.stubs(:verify_access_token).returns(true)
+
+          # mock files to show up from "google drive"
+          file_list = create_file_list
+          google_service_connection.stubs(:list_with_extension_filter).returns(file_list)
+
+          ApplicationController.any_instance.stubs(:google_service_connection).returns(google_service_connection)
+
+          # create assignment
+          @assignment.update_attributes(:submission_types => 'online_upload')
+          get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+          f('.submit_assignment_link').click
+          f("a[href*='submit_google_doc_form']").click
+          wait_for_animations
+        end
+
+        it "should select a file from google drive", :priority => "1", :test_id => 161886 do
+          # find file in list
+          # the file we are looking for is created as the second file in the list
+          expect(ff(".filename")[1]).to include_text("test.mydoc")
+        end
+
+        it "should select a file in a folder from google drive", :priority => "1", :test_id => 161885 do
+          # open folder
+          f(".folder").click
+          wait_for_animations
+
+          # find file in list
+          expect(f(".filename")).to include_text("nested.mydoc")
+        end
+      end
+
+      it "forces users to authenticate", :priority => "1", :test_id => 161892 do
+        # stub out google drive
+        google_service_connection = mock()
+        google_service_connection.stubs(:service_type).returns('google_drive')
+        google_service_connection.stubs(:retrieve_access_token).returns(nil)
+        google_service_connection.stubs(:verify_access_token).returns(nil)
+        ApplicationController.any_instance.stubs(:google_service_connection).returns(google_service_connection)
+
+        @assignment.update_attributes(:submission_types => 'online_upload')
+        get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+        f('.submit_assignment_link').click
+        f("a[href*='submit_google_doc_form']").click
+        wait_for_animations
+
+        # button that forces users to authenticate if they want to use google drive
+        expect(fln("Authorize Google Drive Access")).to be_truthy
+      end
+    end
+
     it "should list the assignments" do
       ag = @course.assignment_groups.first
 
@@ -279,24 +354,4 @@ describe "assignments" do
       end
     end
   end
-end
-
-def setup_sections_and_overrides_all_future
-  # All in the future by default
-  @unlock_at = Time.now.utc + 6.days
-  @due_at    = Time.now.utc + 10.days
-  @lock_at   = Time.now.utc + 11.days
-
-  @assignment.due_at    = @due_at
-  @assignment.unlock_at = @unlock_at
-  @assignment.lock_at   = @lock_at
-  @assignment.save!
-  # 2 course sections, student in second section.
-  @section1 = @course.course_sections.create!(:name => 'Section A')
-  @section2 = @course.course_sections.create!(:name => 'Section B')
-  @course.student_enrollments.scoped.delete_all  # get rid of existing student enrollments, mess up section enrollment
-  # Overridden lock dates for 2nd section - different dates, but still in future
-  @override = assignment_override_model(:assignment => @assignment, :set => @section2,
-                                        :lock_at => @lock_at + 12.days,
-                                        :unlock_at => Time.now.utc + 3.days)
 end

@@ -52,6 +52,35 @@ describe CoursesController do
       end
     end
 
+    describe 'current_enrollments' do
+      it "should group enrollments by course and type" do
+        # enrollments with multiple sections of the same type should be de-duped
+        course(:active_all => true)
+        user(:active_all => true)
+        sec1 = @course.course_sections.create!(:name => "section1")
+        sec2 = @course.course_sections.create!(:name => "section2")
+        ens = []
+        ens << @course.enroll_student(@user, :section => sec1, :allow_multiple_enrollments => true)
+        ens << @course.enroll_student(@user, :section => sec2, :allow_multiple_enrollments => true)
+        ens << @course.enroll_teacher(@user, :section => sec2, :allow_multiple_enrollments => true)
+        ens.each(&:accept!)
+
+        user_session(@user)
+        get 'index'
+        expect(response).to be_success
+        current_ens = assigns[:current_enrollments]
+        expect(current_ens.count).to eql(2)
+
+        student_e = current_ens.detect(&:student?)
+        teacher_e = current_ens.detect(&:teacher?)
+        expect(student_e.course_section).to be_nil
+        expect(teacher_e.course_section).to eq sec2
+
+        expect(assigns[:past_enrollments]).to eql([])
+        expect(assigns[:future_enrollments]).to eql([])
+      end
+    end
+
     describe 'past_enrollments' do
       it "should include 'completed' courses" do
         enrollment1 = course_with_student active_all: true
@@ -110,6 +139,67 @@ describe CoursesController do
         expect(response).to be_success
         expect(assigns[:past_enrollments]).to eq [enrollment3, enrollment2]
         expect(assigns[:current_enrollments]).to eq [enrollment1]
+        expect(assigns[:future_enrollments]).to be_empty
+      end
+
+      it "should not include 'invited' enrollments whose term is past" do
+        @student = user
+
+        # by enrollment term
+        enrollment = course_with_student user: @student, course_name: 'Three', :active_course => true
+        past_term = Account.default.enrollment_terms.create! name: 'past term', start_at: 1.month.ago, end_at: 1.day.ago
+        enrollment.course.enrollment_term = past_term
+        enrollment.course.save!
+        enrollment.reload
+
+        expect(enrollment.workflow_state).to eq "invited"
+        expect(enrollment).to_not be_invited # state_based_on_date
+
+        user_session(@student)
+        get 'index'
+        expect(response).to be_success
+        expect(assigns[:past_enrollments]).to be_empty
+        expect(assigns[:future_enrollments]).to be_empty
+      end
+
+      it "should not include the course if the caller is a student or observer and the course restricts students viewing courses after the end date" do
+        course1 = Account.default.courses.create!(:restrict_student_past_view => true)
+        course1.offer!
+
+        enrollment = course_with_student course: course1
+        enrollment.accept!
+
+        teacher = user_with_pseudonym(:active_all => true)
+        teacher_enrollment = course_with_teacher course: course1, :user => teacher
+        teacher_enrollment.accept!
+
+        course1.conclude_at = 1.month.ago
+        course1.save!
+
+        course1.enrollment_term.update_attribute(:end_at, 1.month.ago)
+
+        user_session(@student)
+        get 'index'
+        expect(response).to be_success
+        expect(assigns[:past_enrollments]).to be_empty
+        expect(assigns[:current_enrollments]).to be_empty
+        expect(assigns[:future_enrollments]).to be_empty
+
+        observer = user_with_pseudonym(active_all: true)
+        o = @student.user_observers.build; o.observer = observer; o.save!
+        user_session(observer)
+        get 'index'
+        expect(response).to be_success
+        expect(assigns[:past_enrollments]).to be_empty
+        expect(assigns[:current_enrollments]).to be_empty
+        expect(assigns[:future_enrollments]).to be_empty
+
+        $bloo = true
+        user_session(teacher)
+        get 'index'
+        expect(response).to be_success
+        expect(assigns[:past_enrollments]).to eq [teacher_enrollment]
+        expect(assigns[:current_enrollments]).to be_empty
         expect(assigns[:future_enrollments]).to be_empty
       end
     end
@@ -220,12 +310,22 @@ describe CoursesController do
         expect(assigns[:future_enrollments].map(&:course_id)).to eq [course1.id, course2.id]
       end
 
+      it "should include courses with accepted enrollments and future start dates" do
+        course1 = Account.default.courses.create! start_at: 1.month.from_now, restrict_enrollments_to_course_dates: true, name: 'A'
+        course1.offer!
+        student_in_course course: course1, active_all: true
+        user_session(@student)
+        get 'index'
+        expect(assigns[:future_enrollments].map(&:course_id)).to eq [course1.id]
+      end
+
       it "should be empty if the caller is a student or observer and the root account restricts students viewing courses before the start date" do
         course1 = Account.default.courses.create! start_at: 1.month.from_now, restrict_enrollments_to_course_dates: true
         course1.offer!
         enrollment1 = course_with_student course: course1
         enrollment1.root_account.settings[:restrict_student_future_view] = true
         enrollment1.root_account.save!
+        expect(course1.restrict_student_future_view?).to be_truthy # should inherit
 
         user_session(@student)
         get 'index'
@@ -242,6 +342,15 @@ describe CoursesController do
         expect(assigns[:past_enrollments]).to be_empty
         expect(assigns[:current_enrollments]).to be_empty
         expect(assigns[:future_enrollments]).to be_empty
+
+        teacher = user_with_pseudonym(:active_all => true)
+        teacher_enrollment = course_with_teacher course: course1, :user => teacher
+        user_session(teacher)
+        get 'index'
+        expect(response).to be_success
+        expect(assigns[:past_enrollments]).to be_empty
+        expect(assigns[:current_enrollments]).to be_empty
+        expect(assigns[:future_enrollments]).to eq [teacher_enrollment]
       end
     end
  end
@@ -506,29 +615,57 @@ describe CoursesController do
       assert_unauthorized
     end
 
-    it "should show unauthorized/authorized to a student for a future course depending on restrict_student_future_view setting" do
-      course_with_student_logged_in(:active_course => 1)
-      a = @course.root_account
-      a.settings[:restrict_student_future_view] = true
-      a.save!
-
-      @course.start_at = Time.now + 2.weeks
-      @course.restrict_enrollments_to_course_dates = true
-      @course.save!
-
-      get 'show', :id => @course.id
-      assert_status(401)
-      expect(assigns[:unauthorized_message]).not_to be_nil
-
-      a.settings[:restrict_student_future_view] = false
-      a.save!
-
+    def check_course_show(should_show)
       controller.instance_variable_set(:@context_all_permissions, nil)
       controller.instance_variable_set(:@js_env, nil)
 
       get 'show', :id => @course.id
-      expect(response).to be_success
-      expect(assigns[:context]).to eql(@course)
+      if should_show
+        expect(response).to be_success
+        expect(assigns[:context]).to eql(@course)
+      else
+        assert_status(401)
+      end
+    end
+
+    it "should show unauthorized/authorized to a student for a future course depending on restrict_student_future_view setting" do
+      course_with_student_logged_in(:active_course => 1)
+
+      @course.start_at = Time.now + 2.weeks
+      @course.restrict_enrollments_to_course_dates = true
+      @course.restrict_student_future_view = true
+      @course.save!
+
+      check_course_show(false)
+      expect(assigns[:unauthorized_message]).not_to be_nil
+
+      @course.restrict_student_future_view = false
+      @course.save!
+
+      check_course_show(true)
+    end
+
+    it "should show unauthorized/authorized to a student for a past course depending on restrict_student_past_view setting" do
+      course_with_student_logged_in(:active_course => 1)
+
+      @course.conclude_at = 2.weeks.ago
+      @course.restrict_enrollments_to_course_dates = true
+      @course.restrict_student_past_view = true
+      @course.save!
+
+      check_course_show(false)
+
+      # manually completed
+      @course.conclude_at = 2.weeks.from_now
+      @course.save!
+      @student.enrollments.first.complete!
+
+      check_course_show(false)
+
+      @course.restrict_student_past_view = false
+      @course.save!
+
+      check_course_show(true)
     end
 
     context "show feedback for the current course only on course front page" do
@@ -579,7 +716,6 @@ describe CoursesController do
       it "should disable management and set env urls on assignment homepage" do
         @course1.default_view = "assignments"
         @course1.save!
-        @course1.account.enable_feature!(:draft_state)
         get 'show', :id => @course1.id
         expect(controller.js_env[:URLS][:new_assignment_url]).not_to be_nil
         expect(controller.js_env[:PERMISSIONS][:manage]).to be_falsey
@@ -593,7 +729,6 @@ describe CoursesController do
       it "should not show unpublished assignments to students" do
         @course1.default_view = "assignments"
         @course1.save!
-        @course1.account.enable_feature!(:draft_state)
         @a1.unpublish
         get 'show', :id => @course1.id
         expect(assigns(:assignments).map(&:id).include?(@a1.id)).to be_falsey
@@ -608,8 +743,6 @@ describe CoursesController do
       end
 
       it "should work for wiki view with draft state enabled" do
-        @course1.account.allow_feature!(:draft_state)
-        @course1.enable_feature!(:draft_state)
         @course1.default_view = "wiki"
         @course1.save!
         @course1.wiki.wiki_pages.create!(:title => 'blah').set_as_front_page!
@@ -1181,6 +1314,40 @@ describe CoursesController do
       @course.reload
       expect(@course.account_id).to eq account2.id
     end
+
+    describe "touching content when public visibility changes" do
+      before :each do
+        user_session(@teacher)
+        @assignment = @course.assignments.create!(:name => "name")
+        @time = 1.day.ago
+        Assignment.where(:id => @assignment).update_all(:updated_at => @time)
+
+        @assignment.reload
+        expect(@assignment.updated_at).to eq @time
+      end
+
+      it "should touch content when is_public is updated" do
+        put 'update', :id => @course.id, :course => { :is_public => true }
+
+        @assignment.reload
+        expect(@assignment.updated_at).to_not eq @time
+      end
+
+      it "should touch content when is_public_to_auth_users is updated" do
+        put 'update', :id => @course.id, :course => { :is_public_to_auth_users => true }
+
+        @assignment.reload
+        expect(@assignment.updated_at).to_not eq @time
+      end
+
+      it "should not touch content when neither is updated" do
+        put 'update', :id => @course.id, :course => { :name => "name" }
+
+        @assignment.reload
+        expect(@assignment.updated_at).to eq @time
+      end
+    end
+
   end
 
   describe "POST 'unconclude'" do
@@ -1603,6 +1770,18 @@ describe CoursesController do
       delete 'reset_test_student', course_id: @course.id
       test_student.reload
       expect(test_student.quiz_submissions.size).to be_zero
+    end
+
+    it "removes submissions created by the test student" do
+      user_session(@teacher)
+      post 'student_view', course_id: @course.id
+      test_student = @course.student_view_student
+      assignment = @course.assignments.create!(:workflow_state => 'published')
+      sub = assignment.grade_student test_student, { :grade => 1, :grader => @teacher }
+      expect(test_student.submissions.size).not_to be_zero
+      delete 'reset_test_student', course_id: @course.id
+      test_student.reload
+      expect(test_student.submissions.size).to be_zero
     end
   end
 end

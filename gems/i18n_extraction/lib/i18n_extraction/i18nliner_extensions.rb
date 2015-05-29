@@ -24,7 +24,7 @@ class I18nliner::Extractors::TranslateCall
   alias_method_chain :validate_default, :html_check
 
   def validate_key_with_scoping_check
-    if @scope.root? && !@meta[:explicit_receiver] && !@meta[:inferred_key] && key !~ I18nliner::Scope::ABSOLUTE_KEY
+    if @scope.root? && !@meta[:explicit_receiver] && !@options[:i18nliner_inferred_key] && key !~ I18nliner::Scope::ABSOLUTE_KEY
       raise I18nliner::AmbiguousTranslationKeyError.new(@line, @key)
     end
     validate_key_without_scoping_check
@@ -158,7 +158,7 @@ class I18nliner::Processors::ErbProcessor
     remove_whitespace = true
     scope = case filename
     when /app\/messages\//
-      remove_whitespace = false unless filename =~ /html|facebook/
+      remove_whitespace = false unless filename =~ /html/
       filename.gsub(/.*app\/|\.erb/, '').gsub(/\/_?/, '.')
     when /app\/views\//
       filename.gsub(/.*app\/views\/|\.(html\.|fbml\.)?erb\z/, '').gsub(/\/_?/, '.')

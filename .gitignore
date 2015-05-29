@@ -15,10 +15,12 @@
 /app/coffeescripts/ember/*/main.coffee
 /app/views/info/styleguide.html.erb
 /config/*.yml
+/config/brand_variables.scss
 /config/build.js
 /config/environments/*-local.rb
 /config/locales/generated/
 /config/RAILS4
+/coverage/
 /db/schema.rb
 /db/*.sqlite*
 /db/*sql
@@ -44,6 +46,8 @@ Gemfile.lock4
 /spec/javascripts/tests.js
 /tmp/
 /vendor/plugins/rails_upgrade
+npm-debug.log
+/vendor/bundle
 
 # generated plugin stuff
 /app/coffeescripts/plugins/

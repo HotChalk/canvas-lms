@@ -58,6 +58,7 @@ module SIS
 
         @total_rows = 1
         @current_row = 0
+        @current_row_for_pause_vars = 0
     
         @progress_multiplier = opts[:progress_multiplier] || 1
         @progress_offset = opts[:progress_offset] || 0
@@ -88,7 +89,7 @@ module SIS
         importer
       end
 
-      def process
+      def prepare
         @tmp_dirs = []
         @files.each do |file|
           if File.file?(file)
@@ -122,6 +123,13 @@ module SIS
             end
           end
         end
+
+        @csvs
+      end
+
+      def process
+        prepare
+
         @parallelism = 1 if @total_rows <= @minimum_rows_for_parallel
 
         # calculate how often we should update progress to get 1% resolution
@@ -167,11 +175,17 @@ module SIS
         end
       rescue => e
         if @batch
-          error_report = ErrorReport.log_exception(:sis_import, e,
-            :message => "Importing CSV for account: #{@root_account.id} (#{@root_account.name}) sis_batch_id: #{@batch.id}: #{e.to_s}",
-            :during_tests => false
-          )
-          add_error(nil, I18n.t("Error while importing CSV. Please contact support. (Error report %{number})", number: error_report.id))
+          message = "Importing CSV for account"\
+            ": #{@root_account.id} (#{@root_account.name}) "\
+            "sis_batch_id: #{@batch.id}: #{e}"
+          err_id = Canvas::Errors.capture(e,{
+            type: :sis_import,
+            message: message,
+            during_tests: false
+          })[:error_report]
+          error_message = I18n.t("Error while importing CSV. Please contact support."\
+                                 " (Error report %{number})", number: err_id)
+          add_error(nil, error_message)
         else
           add_error(nil, "#{e.message}\n#{e.backtrace.join "\n"}")
           raise e
@@ -206,12 +220,12 @@ module SIS
         @warnings << [ csv ? csv[:file] : "", message ]
       end
     
-      def update_progress(count = 1)
-        @current_row += count
+      def update_progress
+        @current_row += 1
+        @current_row_for_pause_vars += 1
         return unless @batch
 
         if update_progress?
-          @last_progress_update = Time.now
           if @parallelism > 1
             SisBatch.transaction do
               lock_type = true
@@ -226,9 +240,10 @@ module SIS
           else
             @batch.fast_update_progress( (((@current_row.to_f/@total_rows) * @progress_multiplier) + @progress_offset) * 100)
           end
+          @last_progress_update = Time.now
         end
 
-        if @current_row.to_i % @pause_every == 0
+        if @current_row_for_pause_vars % @pause_every == 0
           sleep(@pause_duration)
           update_pause_vars
         end
@@ -250,11 +265,16 @@ module SIS
           importerObject.process(csv)
           run_next_importer(IMPORTERS[IMPORTERS.index(importer) + 1]) if complete_importer(importer)
         rescue => e
-          error_report = ErrorReport.log_exception(:sis_import, e,
-            :message => "Importing CSV for account: #{@root_account.id} (#{@root_account.name}) sis_batch_id: #{@batch.id}: #{e.to_s}",
-            :during_tests => false
-          )
-          add_error(nil, I18n.t("Error while importing CSV. Please contact support. (Error report %{number})", number: error_report.id))
+          message = "Importing CSV for account: "\
+            "#{@root_account.id} (#{@root_account.name}) sis_batch_id: #{@batch.id}: #{e}"
+          err_id = Canvas::Errors.capture(e, {
+            type: :sis_import,
+            message: message,
+            during_tests: false
+          })[:error_report]
+          error_message = I18n.t("Error while importing CSV. Please contact support. "\
+                                 "(Error report %{number})", number: err_id)
+          add_error(nil, error_message)
           @batch.processing_errors ||= []
           @batch.processing_warnings ||= []
           @batch.processing_errors.concat(@errors)
@@ -265,7 +285,7 @@ module SIS
           file.close if file
         end
       end
-    
+
       private
 
       def run_next_importer(importer)

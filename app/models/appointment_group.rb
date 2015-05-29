@@ -51,7 +51,8 @@ class AppointmentGroup < ActiveRecord::Base
   end
 
   def sub_contexts
-    appointment_group_sub_contexts.map &:sub_context
+    # I wonder how rails is adding multiples of the same sub_contexts
+    appointment_group_sub_contexts.uniq.map &:sub_context
   end
 
   validates_presence_of :workflow_state
@@ -241,12 +242,12 @@ class AppointmentGroup < ActiveRecord::Base
       next false unless active_contexts.all? { |c| c.grants_right? user, :manage_calendar }
       if appointment_group_sub_contexts.present? && appointment_group_sub_contexts.first.sub_context_type == 'CourseSection'
         sub_context_ids = appointment_group_sub_contexts.map(&:sub_context_id)
-        user_visible_sections = sub_context_ids & contexts.map { |c|
+        user_visible_section_ids = contexts.map { |c|
           c.section_visibilities_for(user).map { |v| v[:course_section_id] }
         }.flatten
-        next true if user_visible_sections.length == sub_contexts.length
+        next true if (sub_context_ids - user_visible_section_ids).empty?
       end
-      !contexts.all? { |c| c.visibility_limited_to_course_sections?(user) }
+      contexts.any? { |c| c.enrollment_visibility_level_for(user) == :full }
     }
     can :manage and can :manage_calendar and can :read and can :read_appointment_participants and
     can :create and can :update and can :delete
@@ -352,9 +353,10 @@ class AppointmentGroup < ActiveRecord::Base
           user
         else
           # can't have more than one group_category
-          raise "inconsistent appointment group" if sub_contexts.size > 1
-          sub_context_id = sub_contexts.first.id
-          user.groups.detect{ |g| g.group_category_id == sub_context_id }
+          group_categories = sub_contexts.find_all{|sc| sc.instance_of? GroupCategory }
+          raise %Q{inconsistent appointment group: #{self.id} #{group_categories.to_s}} if group_categories.length > 1
+          group_category_id = group_categories.first.id
+          user.groups.detect{ |g| g.group_category_id == group_category_id }
         end
       participant if participant && eligible_participant?(participant)
     end

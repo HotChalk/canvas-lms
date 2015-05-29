@@ -47,7 +47,7 @@ describe "course settings" do
     end
 
     it "should show the correct status with a tooltip when published and graded submissions" do
-      course_with_student_submissions({submission_points: true, draft_state: true})
+      course_with_student_submissions({submission_points: true})
       get "/courses/#{@course.id}/settings"
       course_status = f('#course-status')
       expect(course_status.text).to eq 'Course is Published'
@@ -240,13 +240,27 @@ describe "course settings" do
     it "should show the count of custom role enrollments" do
       teacher_role = custom_teacher_role("teach")
       student_role = custom_student_role("weirdo")
+
       custom_ta_role("taaaa")
       course_with_student(:course => @course, :role => student_role)
+      student_role.deactivate!
       course_with_teacher(:course => @course, :role => teacher_role)
       get "/courses/#{@course.id}/settings"
-      expect(fj('.summary tr:nth(1)').text).to match /weirdo:\s*1/
+      expect(fj('.summary tr:nth(1)').text).to match /weirdo \(inactive\):\s*1/
       expect(fj('.summary tr:nth(3)').text).to match /teach:\s*1/
       expect(fj('.summary tr:nth(5)').text).to match /taaaa:\s*None/
     end
+  end
+
+  it "should disable inherited settings if locked by the account" do
+    @account.settings[:restrict_student_future_view] = {:locked => true, :value => true}
+    @account.save!
+
+    get "/courses/#{@course.id}/settings"
+
+    expect(f('#course_restrict_student_past_view').attribute('disabled')).to be_nil
+    expect(f('#course_restrict_student_future_view').attribute('disabled')).to_not be_nil
+
+    expect(is_checked('#course_restrict_student_future_view')).to be_truthy
   end
 end

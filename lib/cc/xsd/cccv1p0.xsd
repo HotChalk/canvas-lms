@@ -32,6 +32,11 @@
         <xs:element name="grading_standard_identifier_ref" type="xs:string" minOccurs="0"/>
         <xs:element name="grading_standard_id" type="xs:integer" minOccurs="0"/>
         <xs:element name="storage_quota" type="xs:float" minOccurs="0"/>
+        <xs:element name="lock_all_announcements" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="public_syllabus" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="hide_distribution_graphs" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="allow_student_discussion_topics" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="allow_student_discussion_editing" type="xs:boolean" minOccurs="0"/>
         <xs:element name="default_view" minOccurs="0">
           <xs:simpleType>
             <xs:restriction base="xs:string">
@@ -70,7 +75,7 @@
       <xs:attribute name="identifier" type="xs:ID" use="required"/>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="assignment" type="assignmentType"/>
   <xs:complexType name="assignmentType">
     <xs:all minOccurs="0" maxOccurs="1">
@@ -82,6 +87,7 @@
       <xs:element name="all_day_date" type="xs:date" minOccurs="0"/>
       <xs:element name="assignment_group_identifierref" type="xs:string" minOccurs="0"/>
       <xs:element name="grading_standard_identifierref" type="xs:string" minOccurs="0"/>
+      <xs:element name="grading_standard_external_identifier" type="xs:string" minOccurs="0"/>
       <xs:element name="rubric_identifierref" type="xs:string" minOccurs="0"/>
       <xs:element name="rubric_external_identifier" type="xs:string" minOccurs="0"/>
       <xs:element name="rubric_use_for_grading" type="xs:boolean" minOccurs="0"/>
@@ -103,6 +109,8 @@
       <xs:element name="automatic_peer_reviews" type="xs:boolean" minOccurs="0"/>
       <xs:element name="anonymous_peer_reviews" type="xs:boolean" minOccurs="0"/>
       <xs:element name="grade_group_students_individually" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="external_tool_identifierref" type="xs:string" minOccurs="0"/>
+      <xs:element name="external_tool_external_identifier" type="xs:string" minOccurs="0"/>
       <xs:element name="external_tool_url" type="xs:string" minOccurs="0"/>
       <xs:element name="external_tool_new_tab" type="xs:boolean" minOccurs="0"/>
       <xs:element name="freeze_on_copy" type="xs:boolean" minOccurs="0"/>
@@ -121,7 +129,7 @@
     </xs:all>
     <xs:attribute name="identifier" type="xs:ID" use="required"/>
   </xs:complexType>
-  
+
   <xs:element name="topicMeta">
     <xs:complexType>
       <xs:all minOccurs="0" maxOccurs="1">
@@ -130,6 +138,7 @@
         <xs:element name="assignment" type="assignmentType" minOccurs="0"/>
         <xs:element name="posted_at" type="xs:dateTime" minOccurs="0"/>
         <xs:element name="delayed_post_at" type="xs:dateTime" minOccurs="0"/>
+        <xs:element name="lock_at" type="xs:dateTime" minOccurs="0"/>
         <xs:element name="position" type="xs:integer" minOccurs="0"/>
         <xs:element name="pinned" type="xs:boolean" minOccurs="0"/>
         <xs:element name="require_initial_post" type="xs:boolean" minOccurs="0"/>
@@ -159,7 +168,7 @@
       <xs:attribute name="identifier" type="xs:ID" use="required"/>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="modules">
     <xs:complexType>
       <xs:sequence>
@@ -173,7 +182,7 @@
               <xs:element name="end_at" type="xs:dateTime" minOccurs="0"/>
               <xs:element name="unlock_at" type="xs:dateTime" minOccurs="0"/>
               <xs:element name="require_sequential_progress" type="xs:boolean" minOccurs="0"/>
-              
+
               <xs:element name="prerequisites" minOccurs="0">
                 <xs:complexType>
                   <xs:sequence minOccurs="0" maxOccurs="unbounded">
@@ -189,7 +198,7 @@
                   </xs:sequence>
                 </xs:complexType>
               </xs:element>
-              
+
               <xs:element name="items" minOccurs="0">
                 <xs:complexType>
                   <xs:sequence minOccurs="0" maxOccurs="unbounded">
@@ -209,7 +218,7 @@
                   </xs:sequence>
                 </xs:complexType>
               </xs:element>
-              
+
               <xs:element name="completionRequirements" minOccurs="0">
                 <xs:complexType>
                   <xs:sequence minOccurs="0" maxOccurs="unbounded">
@@ -233,7 +242,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="externalFeeds">
     <xs:complexType>
       <xs:sequence>
@@ -251,7 +260,7 @@
                   </xs:restriction>
                 </xs:simpleType>
               </xs:element>
-              <xs:element name="feed_type" minOccurs="1">
+              <xs:element name="feed_type" minOccurs="0">
                 <xs:simpleType>
                   <xs:restriction base="xs:string">
                     <xs:enumeration value="rss/atom"/>
@@ -275,7 +284,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="assignmentGroups">
     <xs:complexType>
       <xs:sequence>
@@ -315,7 +324,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="gradingStandards">
     <xs:complexType>
       <xs:sequence>
@@ -443,7 +452,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="externalTools">
     <xs:complexType>
       <xs:sequence>
@@ -454,7 +463,7 @@
               <xs:element name="url" type="xs:anyURI" minOccurs="0"/>
               <xs:element name="description" type="xs:string" minOccurs="0"/>
               <xs:element name="domain" type="xs:string" minOccurs="0"/>
-              
+
               <xs:element name="privacy_level" minOccurs="1" default="anonymous">
                 <xs:simpleType>
                   <xs:restriction base="xs:string">
@@ -464,7 +473,7 @@
                   </xs:restriction>
                 </xs:simpleType>
               </xs:element>
-              
+
             </xs:all>
             <xs:attribute name="identifier" type="xs:ID" use="required"/>
           </xs:complexType>
@@ -472,7 +481,7 @@
       </xs:sequence>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="quiz">
     <xs:complexType>
       <xs:all minOccurs="0" maxOccurs="1">
@@ -499,6 +508,8 @@
         <xs:element name="allowed_attempts" type="xs:integer" minOccurs="0"/>
         <xs:element name="one_question_at_a_time" type="xs:boolean" minOccurs="0"/>
         <xs:element name="cant_go_back" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="one_time_results" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="show_correct_answers_last_attempt" type="xs:boolean" minOccurs="0"/>
         <xs:element name="assignment_group_identifierref" type="xs:string" minOccurs="0"/>
 
         <xs:element name="quiz_type" minOccurs="0" default="practice_quiz">
@@ -520,12 +531,12 @@
             </xs:restriction>
           </xs:simpleType>
         </xs:element>
-        
+
       </xs:all>
       <xs:attribute name="identifier" type="xs:ID" use="required"/>
     </xs:complexType>
   </xs:element>
-  
+
   <xs:element name="events">
     <xs:complexType>
       <xs:sequence>
@@ -606,7 +617,7 @@
                     <xs:element name="locked" type="xs:boolean" minOccurs="0"/>
                     <xs:element name="usage_rights" minOccurs="0" maxOccurs="1">
                       <xs:complexType>
-                        <xs:attribute name="use_justification" type="xs:string" use="required"/>
+                        <xs:attribute name="use_justification" type="xs:string" use="required">
                           <xs:simpleType>
                             <xs:restriction base="xs:string">
                               <xs:enumeration value="public_domain"/>

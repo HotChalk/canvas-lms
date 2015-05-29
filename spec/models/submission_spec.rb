@@ -17,13 +17,13 @@
 #
 
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
 require File.expand_path(File.dirname(__FILE__) + '/../lib/validates_as_url.rb')
 
 describe Submission do
   before(:once) do
-    @user = factory_with_protected_attributes(User, :name => "some student", :workflow_state => "registered")
-    @course = @context = factory_with_protected_attributes(Course, :name => "some course", :workflow_state => "available")
-    @context.enroll_student(@user)
+    course_with_student(active_all: true)
+    @context = @course
     @assignment = @context.assignments.new(:title => "some assignment")
     @assignment.workflow_state = "published"
     @assignment.save
@@ -138,6 +138,22 @@ describe Submission do
       @submission.reload
       expect((@submission.submitted_at.to_i - @submission.created_at.to_i).abs).to be < 1.minute
     end
+
+    it "should not create multiple versions on submission for discussion topics" do
+      course_with_student_logged_in(:active_all => true)
+      @topic = @course.discussion_topics.create(:title => "some topic")
+      @assignment = @course.assignments.create(:title => "some discussion assignment")
+      @assignment.submission_types = 'discussion_topic'
+      @assignment.save!
+      @topic.assignment_id = @assignment.id
+      @topic.save!
+
+      Timecop.freeze(1.second.ago) do
+        @assignment.submit_homework(@student, :submission_type => 'discussion_topic')
+      end
+      @assignment.submit_homework(@student, :submission_type => 'discussion_topic')
+      expect(@student.submissions.first.submission_history.count).to eq 1
+    end
   end
 
   context "broadcast policy" do
@@ -148,10 +164,7 @@ describe Submission do
         Notification.create(:name => 'Assignment Submitted Late')
         Notification.create(:name => 'Group Assignment Submitted Late')
 
-        @teacher = User.create(:name => "some teacher")
-        @student = User.create(:name => "a student")
-        @context.enroll_teacher(@teacher)
-        @context.enroll_student(@student)
+        course_with_teacher(course: @course, active_all: true)
       end
 
       it "should send the correct message when an assignment is turned in on-time" do
@@ -480,11 +493,11 @@ describe Submission do
         @turnitin_api.expects(:generateReport).with(@submission, @submission.asset_string).returns({})
 
         expects_job_with_tag('Submission#check_turnitin_status') do
-          @submission.check_turnitin_status(Submission::TURNITIN_RETRY-1)
+          @submission.check_turnitin_status(Submission::TURNITIN_STATUS_RETRY-1)
           expect(@submission.reload.turnitin_data[@submission.asset_string][:status]).to eq 'pending'
         end
 
-        @submission.check_turnitin_status(Submission::TURNITIN_RETRY)
+        @submission.check_turnitin_status(Submission::TURNITIN_STATUS_RETRY)
         @submission.reload
         updated_data = @submission.turnitin_data[@submission.asset_string]
         expect(updated_data[:status]).to eq 'error'
@@ -949,6 +962,9 @@ describe Submission do
 
   describe "cached_due_date" do
     it "should get initialized during submission creation" do
+      # create an invited user, so that the submission is not automatically
+      # created by the DueDateCacher
+      student_in_course
       @assignment.update_attribute(:due_at, Time.zone.now - 1.day)
 
       override = @assignment.assignment_overrides.build
@@ -1105,6 +1121,63 @@ describe Submission do
       s.save
       expect(a1.crocodoc_document(true)).to eq cd
       expect(a2.crocodoc_document).to eq a2.crocodoc_document
+    end
+  end
+
+  describe "cross-shard attachments" do
+    specs_require_sharding
+    it "should work" do
+      @shard1.activate do
+        @student = user(:active_user => true)
+        @attachment = Attachment.create! uploaded_data: StringIO.new('blah'), context: @student, filename: 'blah.txt'
+      end
+      course(:active_all => true)
+      @course.enroll_user(@student, "StudentEnrollment").accept!
+      @assignment = @course.assignments.create!
+
+      sub = @assignment.submit_homework(@user, attachments: [@attachment])
+      expect(sub.attachments).to eq [@attachment]
+    end
+  end
+
+  describe '.process_bulk_update' do
+    before(:once) do
+      course_with_teacher active_all: true
+      @u1, @u2 = n_students_in_course(2)
+      @a1, @a2 = 2.times.map {
+        @course.assignments.create! points_possible: 10
+      }
+      @progress = Progress.create!(context: @course, tag: "submissions_update")
+    end
+
+    it 'updates submissions on an assignment' do
+      Submission.process_bulk_update(@progress, @course, nil, @teacher, {
+        @a1.id.to_s => {
+          @u1.id => {posted_grade: 5},
+          @u2.id => {posted_grade: 10}
+        }
+      })
+
+      expect(@a1.submission_for_student(@u1).grade).to eql "5"
+      expect(@a1.submission_for_student(@u2).grade).to eql "10"
+    end
+
+    it 'updates submissions on multiple assignments' do
+      Submission.process_bulk_update(@progress, @course, nil, @teacher, {
+        @a1.id => {
+          @u1.id => {posted_grade: 5},
+          @u2.id => {posted_grade: 10}
+        },
+        @a2.id.to_s => {
+          @u1.id => {posted_grade: 10},
+          @u2.id => {posted_grade: 5}
+        }
+      })
+
+      expect(@a1.submission_for_student(@u1).grade).to eql "5"
+      expect(@a1.submission_for_student(@u2).grade).to eql "10"
+      expect(@a2.submission_for_student(@u1).grade).to eql "10"
+      expect(@a2.submission_for_student(@u2).grade).to eql "5"
     end
   end
 end

@@ -1,28 +1,40 @@
 define [
   'i18n!react_files'
   'react'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   'compiled/fn/preventDefault'
   '../modules/customPropTypes'
   '../modules/filesEnv'
   'compiled/models/File'
   'compiled/models/Folder'
+  './UsageRightsDialog'
   './RestrictedDialogForm'
   '../utils/openMoveDialog'
-  '../utils/openUsageRightsDialog'
   '../utils/downloadStuffAsAZip'
   '../utils/deleteStuff'
   'jquery'
   'jqueryui/dialog'
-], (I18n, React, withReactDOM, preventDefault, customPropTypes, filesEnv, File, Folder, RestrictedDialogForm, openMoveDialog, openUsageRightsDialog, downloadStuffAsAZip, deleteStuff, $) ->
+], (I18n, React, withReactElement, preventDefault, customPropTypes, filesEnv, File, Folder, UsageRightsDialogComponent, RestrictedDialogFormComponent, openMoveDialog, downloadStuffAsAZip, deleteStuff, $) ->
+
+  UsageRightsDialog = React.createFactory UsageRightsDialogComponent
+  RestrictedDialogForm = React.createFactory RestrictedDialogFormComponent
 
   ItemCog = React.createClass
     displayName: 'ItemCog'
 
     propTypes:
       model: customPropTypes.filesystemObject
+      modalOptions: React.PropTypes.object.isRequired
 
-    render: withReactDOM ->
+    openUsageRightsDialog: (event) ->
+      contents = UsageRightsDialog(
+        closeModal: @props.modalOptions.closeModal
+        itemsToManage: [@props.model]
+      )
+
+      @props.modalOptions.openModal(contents, => @refs.settingsCogBtn.getDOMNode().focus())
+
+    render: withReactElement ->
       if @props.model instanceof File
         externalToolMenuItems = @props.externalToolsForContext.map (tool) =>
           if @props.model.externalToolEnabled(tool)
@@ -53,13 +65,13 @@ define [
             returnFocusTo: @refs.settingsCogBtn.getDOMNode()
           })
 
-      span style: "min-width": "45px",
+      span style: minWidth: "45px",
 
         button {
           type: 'button'
           ref: 'settingsCogBtn'
           className: 'al-trigger al-trigger-gray btn btn-link'
-          'aria-label': I18n.t('settings', 'Settings')
+          'aria-label': I18n.t('Actions')
           'data-popup-within' : "#wrapper"
           'data-append-to-body' : true
         },
@@ -96,10 +108,10 @@ define [
 
               # don't show any usage rights related stuff to people that don't have the feature flag on
               if @props.usageRightsRequiredForContext
-                li {},
+                li {className: 'ItemCog__OpenUsageRights'},
                   a {
                     href: '#'
-                    onClick: wrap(openUsageRightsDialog)
+                    onClick: preventDefault(@openUsageRightsDialog)
                     ref: 'usageRights'
                   },
                     I18n.t('Manage Usage Rights')

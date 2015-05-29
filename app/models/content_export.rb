@@ -237,6 +237,7 @@ class ContentExport < ActiveRecord::Base
 
     asset_type ||= obj.class.table_name
     return true if is_set?(selected_content["all_#{asset_type}"])
+    return true if is_set?(selected_content["all_assignments"]) && asset_type == "assignment_groups"
 
     return false unless selected_content[asset_type]
     return true if is_set?(selected_content[asset_type][select_content_key(obj)])
@@ -266,14 +267,19 @@ class ContentExport < ActiveRecord::Base
   
   def add_error(user_message, exception_or_info=nil)
     self.settings[:errors] ||= []
+    er = nil
     if exception_or_info.is_a?(Exception)
-      er = ErrorReport.log_exception(:course_export, exception_or_info)
-      self.settings[:errors] << [user_message, "ErrorReport id: #{er.id}"]
+      out = Canvas::Errors.capture_exception(:course_export, exception_or_info)
+      er = out[:error_report]
+      self.settings[:errors] << [user_message, "ErrorReport id: #{er}"]
     else
       self.settings[:errors] << [user_message, exception_or_info]
     end
+    if self.content_migration
+      self.content_migration.add_issue(user_message, :error, error_report_id: er)
+    end
   end
-  
+
   def root_account
     self.context.try_rescue(:root_account)
   end

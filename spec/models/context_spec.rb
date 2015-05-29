@@ -19,11 +19,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 
 describe Context do
-  it "should not have draft_state_enabled" do
-    class TmpContext; include Context; end
-    expect(TmpContext.new).not_to be_feature_enabled(:draft_state)
-  end
-
   context "find_by_asset_string" do
     it "should find a valid course" do
       course = Course.create!
@@ -94,6 +89,23 @@ describe Context do
       expect(@course2.find_asset(@assignment.asset_string)).to eql(nil)
       expect(@course.find_asset("assignment_0")).to eql(nil)
       expect(@course.find_asset("")).to eql(nil)
+    end
+
+    describe "context" do
+      before(:once) do
+        @course = Course.create!
+        @course2 = Course.create!
+        attachment_model context: @course
+      end
+
+      it "should scope to context if context is provided" do
+        expect(Context.find_asset_by_asset_string(@attachment.asset_string, @course)).to eq(@attachment)
+        expect(Context.find_asset_by_asset_string(@attachment.asset_string, @course2)).to be_nil
+      end
+
+      it "should find in any context if context is not provided" do
+        expect(Context.find_asset_by_asset_string(@attachment.asset_string)).to eq(@attachment)
+      end
     end
   end
 

@@ -84,6 +84,7 @@ describe "Accounts API", type: :request do
               'root_account_id' => nil,
               'parent_account_id' => nil,
               'workflow_state' => 'active',
+              'default_time_zone' => 'Etc/UTC',
           },
           {
               'id' => @a2.id,
@@ -91,6 +92,7 @@ describe "Accounts API", type: :request do
               'root_account_id' => @a1.id,
               'parent_account_id' => @a1.id,
               'workflow_state' => 'active',
+              'default_time_zone' => 'America/Juneau',
           },
       ]
     end
@@ -200,8 +202,25 @@ describe "Accounts API", type: :request do
               'root_account_id' => nil,
               'parent_account_id' => nil,
               'workflow_state' => 'active',
+              'default_time_zone' => 'Etc/UTC',
           }
       )
+    end
+
+    it "should return the lti_guid" do
+      @a1.lti_guid = 'hey'
+      @a1.save!
+      json = api_call(:get, "/api/v1/accounts?include[]=lti_guid",
+                      { :controller => 'accounts', :action => 'index', :format => 'json', :include => ['lti_guid'] }, {})
+      expect(json[0]["lti_guid"]).to eq 'hey'
+    end
+
+    it "should honor deprecated includes parameter" do
+      @a1.lti_guid = 'hey'
+      @a1.save!
+      json = api_call(:get, "/api/v1/accounts?includes[]=lti_guid",
+                      { :controller => 'accounts', :action => 'index', :format => 'json', :includes => ['lti_guid'] }, {})
+      expect(json[0]["lti_guid"]).to eq 'hey'
     end
   end
 
@@ -411,6 +430,7 @@ describe "Accounts API", type: :request do
         expect(json.first['id']).to eq @c1.id
         expect(json.first['name']).to eq 'c1'
         expect(json.first['account_id']).to eq @c1.account_id
+        expect(json.first['is_public']).to eq true
 
         expect(json.last['id']).to eq @c2.id
         expect(json.last['name']).to eq 'c2'
@@ -431,6 +451,20 @@ describe "Accounts API", type: :request do
         expect(json.first['account_id']).to eq @c2.account_id
 
       end
+    end
+
+    it "should honor the includes[]" do
+      @c1 = course_model(:name => 'c1', :account => @a1, :root_account => @a1)
+      json = api_call(:get, "/api/v1/accounts/#{@a1.id}/courses?include[]=storage_quota_used_mb",
+                      { :controller => 'accounts', :action => 'courses_api', :account_id => @a1.to_param, :format => 'json', :include => ['storage_quota_used_mb'] }, {})
+      expect(json[0].has_key?("storage_quota_used_mb")).to be_truthy
+    end
+
+    it "should include enrollment term information for each course" do
+      @c1 = course_model(:name => 'c1', :account => @a1, :root_account => @a1)
+      json = api_call(:get, "/api/v1/accounts/#{@a1.id}/courses?include[]=term",
+                      { :controller => 'accounts', :action => 'courses_api', :account_id => @a1.to_param, :format => 'json', :include => ['term'] })
+      expect(json[0].has_key?('term')).to be_truthy
     end
 
     describe "courses filtered by state[]" do

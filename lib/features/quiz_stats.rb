@@ -7,5 +7,5 @@ Feature.register('quiz_stats' => {
       'Enable the new quiz statistics page for a course.'
   },
   applies_to: 'Course',
-  state: 'allowed'
+  state: 'on'
 })

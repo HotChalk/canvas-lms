@@ -1,9 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 
 describe "quizzes attempts" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include_examples "quizzes selenium tests"
 
@@ -19,8 +16,6 @@ describe "quizzes attempts" do
     #   spec: should create a quiz with a variety of quiz questions
     #
     quiz = @last_quiz
-
-    click_questions_tab
 
     create_multiple_choice_question     # 1x labelled <input /> here
 

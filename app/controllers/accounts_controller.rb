@@ -82,6 +82,11 @@ require 'csv'
 #           "example": "12",
 #           "type": "integer"
 #         },
+#         "lti_guid": {
+#           "description": "The account's identifier that is sent as context_id in LTI launches.",
+#           "example": "123xyz",
+#           "type": "string"
+#         },
 #         "workflow_state": {
 #           "description": "The state of the account. Can be 'active' or 'deleted'.",
 #           "example": "active",
@@ -104,6 +109,12 @@ class AccountsController < ApplicationController
   # students and even teachers will get an empty list in response, only
   # account admins can view the accounts that they are in.
   #
+  # @argument include[] [String, "lti_guid"|"registration_settings"]
+  #   Array of additional information to include.
+  #
+  #   "lti_guid":: the 'tool_consumer_instance_guid' that will be sent for this account on LTI launches
+  #   "registration_settings":: returns info about the privacy policy and terms of use
+  #
   # @returns [Account]
   def index
     respond_to do |format|
@@ -117,7 +128,10 @@ class AccountsController < ApplicationController
           @accounts = []
         end
         ActiveRecord::Associations::Preloader.new(@accounts, :root_account).run
-        render :json => @accounts.map { |a| account_json(a, @current_user, session, params[:includes] || [], false) }
+
+        # originally had 'includes' instead of 'include' like other endpoints
+        includes = params[:include] || params[:includes]
+        render :json => @accounts.map { |a| account_json(a, @current_user, session, includes || [], false) }
       end
     end
   end
@@ -245,6 +259,9 @@ class AccountsController < ApplicationController
   # @argument search_term [String]
   #   The partial course name, code, or full ID to match and return in the results list. Must be at least 3 characters.
   #
+  # @argument include[] [String, "needs_grading_count"|"syllabus_body"|"total_scores"|"term"|"course_progress"|"sections"|"storage_quota_used_mb"]
+  #   - All explanations can be seen in the {api:CoursesController#index Course API index documentation}
+  #
   # @returns [Course]
   def courses_api
     return unless authorized_action(@account, @current_user, :read)
@@ -302,10 +319,14 @@ class AccountsController < ApplicationController
       end
     end
 
+    includes = Set.new(Array(params[:include]))
+    # We only want to return the permissions for single courses and not lists of courses.
+    includes.delete 'permissions'
+
     @courses = Api.paginate(@courses, self, api_v1_account_courses_url)
 
     ActiveRecord::Associations::Preloader.new(@courses, [:account, :root_account])
-    render :json => @courses.map { |c| course_json(c, @current_user, session, [], nil) }
+    render :json => @courses.map { |c| course_json(c, @current_user, session, includes, nil) }
   end
 
   # Delegated to by the update action (when the request is an api_request?)
@@ -317,7 +338,7 @@ class AccountsController < ApplicationController
       # account settings (:manage_account_settings)
       account_settings = account_params.select {|k, v| [:name, :default_time_zone].include?(k.to_sym)}.with_indifferent_access
       unless account_settings.empty?
-        if is_authorized_action?(@account, @current_user, :manage_account_settings)
+        if @account.grants_right?(@current_user, session, :manage_account_settings)
           @account.errors.add(:name, t(:account_name_required, 'The account name cannot be blank')) if account_params.has_key?(:name) && account_params[:name].blank?
           @account.errors.add(:default_time_zone, t(:unrecognized_time_zone, "'%{timezone}' is not a recognized time zone", :timezone => account_params[:default_time_zone])) if account_params.has_key?(:default_time_zone) && ActiveSupport::TimeZone.new(account_params[:default_time_zone]).nil?
         else
@@ -330,7 +351,7 @@ class AccountsController < ApplicationController
       quota_settings = account_params.select {|k, v| [:default_storage_quota_mb, :default_user_storage_quota_mb,
                                                       :default_group_storage_quota_mb].include?(k.to_sym)}.with_indifferent_access
       unless quota_settings.empty?
-        if is_authorized_action?(@account, @current_user, :manage_storage_quotas)
+        if @account.grants_right?(@current_user, session, :manage_storage_quotas)
           [:default_storage_quota_mb, :default_user_storage_quota_mb, :default_group_storage_quota_mb].each do |quota_type|
             next unless quota_settings.has_key?(quota_type)
 
@@ -427,6 +448,21 @@ class AccountsController < ApplicationController
           params[:account].delete :services
         end
         if @account.grants_right?(@current_user, :manage_site_settings)
+
+          # handle branding stuff
+          if @account.root_account? && params[:account][:settings]
+            (Account::BRANDING_SETTINGS - [:msapplication_tile_color]).each do |setting|
+              if params[:account][:settings]["#{setting}_remove"] == "1"
+                params[:account][:settings][setting] = nil
+              elsif params[:account][:settings][setting].present?
+                attachment = Attachment.create(uploaded_data: params[:account][:settings][setting], context: @account)
+                params[:account][:settings][setting] = attachment.authenticated_s3_url(:expires => 15.years)
+              end
+            end
+          end
+
+
+
           # If the setting is present (update is called from 2 different settings forms, one for notifications)
           if params[:account][:settings] && params[:account][:settings][:outgoing_email_default_name_option].present?
             # If set to default, remove the custom name so it doesn't get saved
@@ -449,7 +485,7 @@ class AccountsController < ApplicationController
           end
         else
           # must have :manage_site_settings to update these
-          [ :admins_can_change_passwords,
+          ([ :admins_can_change_passwords,
             :admins_can_view_notifications,
             :enable_alerts,
             :enable_eportfolios,
@@ -459,7 +495,7 @@ class AccountsController < ApplicationController
             :show_resources_link,
             :global_includes,
             :gmail_domain
-          ].each do |key|
+          ] + Account::BRANDING_SETTINGS).each do |key|
             params[:account][:settings].try(:delete, key)
           end
         end
@@ -561,9 +597,12 @@ class AccountsController < ApplicationController
 
       @announcements = @account.announcements
       @external_integration_keys = ExternalIntegrationKey.indexed_keys_for(@account)
-      js_env :APP_CENTER => {
-        enabled: Canvas::Plugin.find(:app_center).enabled?
-      }
+      js_env({
+        APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
+        ENABLE_LTI2: @account.root_account.feature_enabled?(:lti2_ui),
+        LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
+        CONTEXT_BASE_URL: "/accounts/#{@context.id}"
+      })
     end
   end
 

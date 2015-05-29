@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+require 'nokogiri'
+
 describe WikiPagesController do
   before do
     course_with_teacher_logged_in(:active_all => true)
@@ -27,6 +29,13 @@ describe WikiPagesController do
     page = @course.wiki.wiki_pages.create!(attrs)
     page.publish! if page.unpublished?
     page
+  end
+
+  it "should still work with periods in titles for new pages" do
+    course_with_teacher_logged_in(:active_all => true, :user => user_with_pseudonym)
+
+    get "/courses/#{@course.id}/pages/windurs%203.won/edit?titleize=1"
+    expect(response).to be_success
   end
 
   it "should not render wiki page body at all if it was deleted" do
@@ -61,50 +70,43 @@ describe WikiPagesController do
 
   context "draft state forwarding" do
     before do
-      @front = @course.wiki.front_page
       @wiki_page = create_page :title => "a-page", :body => "body"
       @base_url = "/courses/#{@course.id}/"
       @course.reload
     end
 
-    context "draft state enabled" do
-      before do
-        @course.root_account.enable_feature!(:draft_state)
-      end
+    it "should forward /wiki to /pages index if no front page" do
+      @course.wiki.has_no_front_page = true
+      @course.wiki.save!
+      get @base_url + "wiki"
+      expect(response).to redirect_to(course_wiki_pages_url(@course))
+    end
 
-      it "should forward /wiki to /pages index if no front page" do
-        @course.wiki.has_no_front_page = true
-        @course.wiki.save!
-        get @base_url + "wiki"
-        expect(response).to redirect_to(course_pages_url(@course))
-      end
+    it "should render /wiki as the front page if there is one" do
+      @wiki_page.set_as_front_page!
+      get @base_url + "wiki"
+      expect(response).to be_success
+      expect(assigns[:page]).to eq @wiki_page
+    end
 
-      it "should forward /wiki to /pages/front-page" do
-        @front.save!
-        @front.set_as_front_page!
-        get @base_url + "wiki"
-        expect(response).to redirect_to(course_named_page_url(@course, "front-page"))
-      end
+    it "should forward /wiki/name to /pages/name" do
+      get @base_url + "wiki/a-page"
+      expect(response).to redirect_to(course_wiki_page_url(@course, "a-page"))
+    end
 
-      it "should forward /wiki/name to /pages/name" do
-        get @base_url + "wiki/a-page"
-        expect(response).to redirect_to(course_named_page_url(@course, "a-page"))
-      end
+    it "should forward module_item_id parameter" do
+      get @base_url + "wiki/a-page?module_item_id=123"
+      expect(response).to redirect_to(course_wiki_page_url(@course, "a-page") + "?module_item_id=123")
+    end
 
-      it "should forward module_item_id parameter" do
-        get @base_url + "wiki/a-page?module_item_id=123"
-        expect(response).to redirect_to(course_named_page_url(@course, "a-page") + "?module_item_id=123")
-      end
+    it "should forward /wiki/name/revisions to /pages/name/revisions" do
+      get @base_url + "wiki/a-page/revisions"
+      expect(response).to redirect_to(course_wiki_page_revisions_url(@course, "a-page"))
+    end
 
-      it "should forward /wiki/name/revisions to /pages/name/revisions" do
-        get @base_url + "wiki/a-page/revisions"
-        expect(response).to redirect_to(course_named_page_revisions_url(@course, "a-page"))
-      end
-
-      it "should forward /wiki/name/revisions/revision to /pages/name/revisions" do
-        get @base_url + "wiki/a-page/revisions/42"
-        expect(response).to redirect_to(course_named_page_revisions_url(@course, "a-page"))
-      end
+    it "should forward /wiki/name/revisions/revision to /pages/name/revisions" do
+      get @base_url + "wiki/a-page/revisions/42"
+      expect(response).to redirect_to(course_wiki_page_revisions_url(@course, "a-page"))
     end
 
   end

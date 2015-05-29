@@ -58,7 +58,13 @@
       value="{{pointsPossible}}"
       type="text"
       {{disabledIfIncludes frozenAttributes "points_possible"}}/>
+      <div aria-live="polite" role="alert">
+        <div id=point_change_warning class="alert">
+          {{#t}}If you change an assignment's points possible you must regrade the assignment.{{/t}}
+         </div>
+      </div>
   </div>
+
 </div>
 
 <div id="section_selector">
@@ -148,8 +154,13 @@
   <button type="button" class="btn cancel_button">
     {{#t "#buttons.cancel"}}Cancel{{/t}}
   </button>
+  {{#unless published}}
+    <button type="button" class="btn btn-default save_and_publish">
+      {{#t "buttons.save_and_publish"}}Save & Publish{{/t}}
+    </button>
+  {{/unless}}
   <button type="submit" class="btn btn-primary">
-    {{#t "buttons.update"}}Update Assignment{{/t}}
+    {{#t "buttons.save"}}Save{{/t}}
   </button>
 
 </div>

@@ -21,9 +21,6 @@ require File.expand_path(File.dirname(__FILE__) + '/../../spec_helper.rb')
 require 'csv'
 
 describe Quizzes::QuizStatistics do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   before(:once) do
     student_in_course(:active_all => true)
@@ -139,7 +136,7 @@ describe Quizzes::QuizStatistics do
   end
 
   describe 'self#large_quiz?' do
-    let :quiz_questions do
+    let :active_quiz_questions do
       Object.new.tap { |o| o.stubs(size: 50) }
     end
 
@@ -149,7 +146,7 @@ describe Quizzes::QuizStatistics do
 
     let :quiz do
       Quizzes::Quiz.new.tap do |quiz|
-        quiz.stubs(:quiz_questions).returns(quiz_questions)
+        quiz.stubs(:active_quiz_questions).returns(active_quiz_questions)
         quiz.stubs(:quiz_submissions).returns(quiz_submissions)
       end
     end

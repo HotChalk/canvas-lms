@@ -32,9 +32,10 @@
   </thead>
   <tbody>
     <% count = @students.offset %>
+    <% submissions_by_student = @submissions.index_by(&:user_id) %>
     <% @students.each do |student| %>
       <% count += 1 %>
-      <% submission = @submissions.detect{|s| s.user_id == student.id} %>
+      <% submission = submissions_by_student[student.id] %>
       <% student_name = (@quiz.survey? && @quiz.anonymous_submissions) ? t(:student_n, "Student %{n}", :n => count) : student.last_name_first %>
       <tr class="student <%= 'extendable' if submission && submission.extendable? %> <%= 'in_progress' if submission && submission.untaken? %> <%= 'manually_unlocked' if submission && submission.manually_unlocked %>" id="student_<%= student.id %>" data-started-at="<%= submission && submission.started_at && submission.started_at.iso8601 %>" data-end-at="<%= submission && submission.end_at && submission.end_at.iso8601 %>" data-user-id="<%= student.id %>">
         <td class="check">
@@ -220,7 +221,8 @@
 <div style="display: none;">
   <span class="now"><%= ActiveSupport::TimeWithZone.new(Time.now.utc, Time.zone) %></span>
   <a href="<%= context_url(@context, :context_quiz_moderate_url, @quiz.id, :page => params[:page], :last_updated_at => "{{ update }}") %>" class="update_url">&nbsp;</span>
-  <span class="last_updated_at"><%= @submissions.map(&:updated_at).max.try(:in_time_zone).try(:iso8601) %></span>
+  <% last_updated_at = @submissions.empty? ? nil : (@submissions.map(&:updated_at).max - 5.minutes).in_time_zone.iso8601 %>
+  <span class="last_updated_at"><%= last_updated_at %></span>
   <a href="<%= context_url(@context, :context_quiz_extensions_url, @quiz.id, "{{ user_id }}") %>" class="extension_url">&nbsp;</a>
   <a href="<%= context_url(@context, :api_v1_outstanding_quiz_submission_index_url) %>" class="outstanding_index_url">&nbsp;</a>
   <a href="<%= context_url(@context, :api_v1_outstanding_quiz_submission_grade_url) %>" class="outstanding_grade_url">&nbsp;</a>

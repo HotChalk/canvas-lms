@@ -58,7 +58,9 @@ module Api::V1::Attachment
     elsif !downloadable
       ''
     else
-      file_download_url(attachment, { :verifier => attachment.uuid, :download => '1', :download_frd => '1' }.merge(url_options))
+      h = { :download => '1', :download_frd => '1' }
+      h.merge!(:verifier => attachment.uuid) unless options[:omit_verifier_in_app] && respond_to?(:in_app?, true) && in_app?
+      file_download_url(attachment, h.merge(url_options))
     end
 
     thumbnail_download_url = if downloadable
@@ -69,6 +71,7 @@ module Api::V1::Attachment
 
     hash = {
       'id' => attachment.id,
+      'folder_id' => attachment.folder_id,
       'content-type' => attachment.content_type,
       'display_name' => attachment.display_name,
       'filename' => attachment.filename,
@@ -93,6 +96,9 @@ module Api::V1::Attachment
     if includes.include? 'preview_url'
       hash['preview_url'] = attachment.crocodoc_url(user) ||
                             attachment.canvadoc_url(user)
+    end
+    if includes.include? 'enhanced_preview_url'
+      hash['preview_url'] = context_url(attachment.context, :context_file_file_preview_url, attachment, annotate: 0)
     end
     if includes.include? 'usage_rights'
       hash['usage_rights'] = usage_rights_json(attachment.usage_rights, user)

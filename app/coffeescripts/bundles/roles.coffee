@@ -23,7 +23,7 @@ require [
         value : role.base_role_type
         label : role.label
 
-  account_base_types = [{value: 'AccountMembership', label: I18n.t('AccountMembership')}]
+  account_base_types = [{value: 'AccountMembership', label: ""}]
 
   # They will both use the same collection.
   rolesOverrideIndexView = new RolesOverrideIndexView 
@@ -66,6 +66,7 @@ require [
     container = $('.btn-group')
     if (container.has(event.target).length is 0 and !$(event.target).hasClass('.btn'))
       container.removeClass 'open'
+    return true
 
   $(document).on 'click', '.btn.dropdown-toggle', (event) ->
     event.preventDefault()

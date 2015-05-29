@@ -456,10 +456,11 @@ class Pseudonym < ActiveRecord::Base
     end
     !!res
   rescue => e
-    ErrorReport.log_exception(:ldap, e, {
-      :message => "LDAP authentication error",
-      :object => self.inspect.to_s,
-      :unique_id => self.unique_id,
+    Canvas::Errors.capture(e, {
+      type: :ldap,
+      message: "LDAP authentication error",
+      object: self.inspect.to_s,
+      unique_id: self.unique_id,
     })
     nil
   end

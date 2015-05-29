@@ -30,7 +30,7 @@ define [
       if (all_dates = @get('all_dates'))?
         @set 'all_dates', new DateGroupCollection(all_dates)
       if (@postToSISEnabled())
-        unless @get('post_to_sis') == true || @get('post_to_sis') == false
+        if !@get('id') && @get('post_to_sis') != false
           @set 'post_to_sis', true
 
     isQuiz: => @_hasOnlyType 'online_quiz'
@@ -113,6 +113,9 @@ define [
       submissionTypes = @_submissionTypes()
       @expectsSubmission() && !@get('locked_for_user') && !_.include(submissionTypes, 'online_quiz') && !_.include(submissionTypes, 'attendance')
 
+    hasSubmittedSubmissions: =>
+      @get('has_submitted_submissions')
+
     withoutGradedSubmission: =>
       sub = @get('submission')
       !sub? || sub.withoutGradedSubmission()
@@ -141,6 +144,10 @@ define [
     peerReviews: (peerReviewBoolean) =>
       return @get 'peer_reviews' unless arguments.length > 0
       @set 'peer_reviews', peerReviewBoolean
+
+    anonymousPeerReviews: (anonymousPeerReviewBoolean) =>
+      return @get 'anonymous_peer_reviews' unless arguments.length > 0
+      @set 'anonymous_peer_reviews', anonymousPeerReviewBoolean
 
     automaticPeerReviews: (autoPeerReviewBoolean) =>
       return @get 'automatic_peer_reviews' unless arguments.length > 0
@@ -282,7 +289,7 @@ define [
       fields = [
         'name', 'dueAt','description','pointsPossible', 'lockAt', 'unlockAt',
         'gradingType', 'notifyOfUpdate', 'peerReviews', 'automaticPeerReviews',
-        'peerReviewCount', 'peerReviewsAssignAt',
+        'peerReviewCount', 'peerReviewsAssignAt', 'anonymousPeerReviews',
         'acceptsOnlineUpload','acceptsMediaRecording', 'submissionType',
         'acceptsOnlineTextEntries', 'acceptsOnlineURL', 'allowedExtensions',
         'restrictFileExtensions', 'isOnlineSubmission', 'isNotGraded',

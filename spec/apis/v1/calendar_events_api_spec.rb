@@ -760,6 +760,15 @@ describe CalendarEventsApiController, type: :request do
         expect(json['title']).to eql "event (#{@course.default_section.name})"
         expect(json['hidden']).to be_falsey
       end
+
+      it "allows media comments in the event description" do
+        event.description = '<a href="/media_objects/abcde" class="instructure_inline_media_comment audio_comment" id="media_comment_abcde"><img></a>'
+        event.save!
+        child_event_id = event.child_event_ids.first
+        json = api_call(:get, "/api/v1/calendar_events/#{child_event_id}",
+                        {:controller => 'calendar_events_api', :action => 'show', :id => child_event_id.to_s, :format => 'json'})
+        expect(response).to be_success
+      end
     end
   end
 
@@ -957,37 +966,37 @@ describe CalendarEventsApiController, type: :request do
 
     context 'differentiated assignments on' do
       before :once do
-        course_with_teacher(:active_course => true, :active_enrollment => true, :user => @teacher)
-        @course.enable_feature!(:differentiated_assignments)
+        Timecop.travel(Time.utc(2015)) do
+          course_with_teacher(:active_course => true, :active_enrollment => true, :user => @teacher)
+          @course.enable_feature!(:differentiated_assignments)
 
-        @student_in_overriden_section = User.create
-        @student_in_general_section = User.create
+          @student_in_overriden_section = User.create
+          @student_in_general_section = User.create
 
-        @course.enroll_student(@student_in_general_section, :enrollment_state => 'active')
-        @section = @course.course_sections.create!(name: "test section")
-        student_in_section(@section, user: @student_in_overriden_section)
+          @course.enroll_student(@student_in_general_section, :enrollment_state => 'active')
+          @section = @course.course_sections.create!(name: "test section")
+          student_in_section(@section, user: @student_in_overriden_section)
 
 
-        @only_vis_to_o, @not_only_vis_to_o = (1..2).map{@course.assignments.create(:title => 'test assig', :workflow_state => 'published',:due_at => '2012-01-07 12:00:00')}
-        @only_vis_to_o.only_visible_to_overrides = true
-        @only_vis_to_o.save!
-        [@only_vis_to_o, @not_only_vis_to_o].each { |a| a.workflow_state = 'published'; a.save! }
+          @only_vis_to_o, @not_only_vis_to_o = (1..2).map{@course.assignments.create(:title => 'test assig', :workflow_state => 'published',:due_at => '2012-01-07 12:00:00')}
+          @only_vis_to_o.only_visible_to_overrides = true
+          @only_vis_to_o.save!
+          [@only_vis_to_o, @not_only_vis_to_o].each { |a| a.workflow_state = 'published'; a.save! }
 
-        create_section_override_for_assignment(@only_vis_to_o, {course_section: @section})
+          create_section_override_for_assignment(@only_vis_to_o, {course_section: @section})
+        end
       end
-
 
       context 'as a student' do
         it "only shows events for visible assignments" do
-          json = api_call_as_user(@student_in_overriden_section, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+          json = api_call_as_user(@student_in_overriden_section, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
             :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
           expect(json.size).to eql 2
 
-
-          json = api_call_as_user(@student_in_general_section, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+          json = api_call_as_user(@student_in_general_section, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
             :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
           expect(json.size).to eql 1
         end
       end
@@ -1000,9 +1009,9 @@ describe CalendarEventsApiController, type: :request do
         context 'following a student with visibility' do
           before{ @observer_enrollment.update_attribute(:associated_user_id, @student_in_overriden_section.id) }
           it "only shows events for assignments visible to that student" do
-            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
               :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
             expect(json.size).to eql 2
           end
         end
@@ -1014,9 +1023,9 @@ describe CalendarEventsApiController, type: :request do
             @course.enroll_user(@observer, "ObserverEnrollment", {:allow_multiple_enrollments => true, :associated_user_id => @student_in_general_section.id})
           end
           it "doesnt show duplicate events" do
-            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
               :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
             expect(json.size).to eql 2
           end
         end
@@ -1024,17 +1033,17 @@ describe CalendarEventsApiController, type: :request do
         context 'following a student without visibility' do
           before{ @observer_enrollment.update_attribute(:associated_user_id, @student_in_general_section.id) }
           it "only shows events for assignments visible to that student" do
-            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
               :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
             expect(json.size).to eql 1
           end
         end
         context 'in a section only' do
           it "shows events for all active assignment" do
-            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
+            json = api_call_as_user(@observer, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
               :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
+              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
             expect(json.size).to eql 2
           end
         end
@@ -1042,10 +1051,10 @@ describe CalendarEventsApiController, type: :request do
 
       context 'as a teacher' do
         it "shows events for all active assignment" do
-            json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2015-01-08&context_codes[]=course_#{@course.id}", {
-              :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-              :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2015-01-08'})
-            expect(json.size).to eql 2
+          json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
+            :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
+            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
+          expect(json.size).to eql 2
         end
       end
     end
@@ -1662,24 +1671,24 @@ describe CalendarEventsApiController, type: :request do
 
   context "calendar feed" do
     before :once do
-      now = Time.now
+      time = Time.utc(Time.now.year, Time.now.month, Time.now.day, 4, 20)
       @student = user(:active_all => true, :active_state => 'active')
       @course.enroll_student(@student, :enrollment_state => 'active')
       @student2 = user(:active_all => true, :active_state => 'active')
       @course.enroll_student(@student2, :enrollment_state => 'active')
 
 
-      @event = @course.calendar_events.create(:title => 'course event', :start_at => now + 1.day)
-      @assignment = @course.assignments.create(:title => 'original assignment', :due_at => now + 2.days)
+      @event = @course.calendar_events.create(:title => 'course event', :start_at => time + 1.day)
+      @assignment = @course.assignments.create(:title => 'original assignment', :due_at => time + 2.days)
       @override = assignment_override_model(
         :assignment => @assignment, :due_at => @assignment.due_at + 3.days, :set => @course.default_section)
 
       @appointment_group = AppointmentGroup.create!(
         :title => "appointment group", :participants_per_appointment => 4,
         :new_appointments => [
-          [now + 3.days, now + 3.days + 1.hour],
-          [now + 3.days + 1.hour, now + 3.days + 2.hours],
-          [now + 3.days + 2.hours, now + 3.days + 3.hours]],
+          [time + 3.days, time + 3.days + 1.hour],
+          [time + 3.days + 1.hour, time + 3.days + 2.hours],
+          [time + 3.days + 2.hours, time + 3.days + 3.hours]],
         :contexts => [@course])
 
       @appointment_event = @appointment_group.appointments[0]

@@ -55,10 +55,6 @@ describe AssignmentsController do
     end
 
     context "draft state" do
-      before :once do
-        @course.root_account.enable_feature!(:draft_state)
-      end
-
       it "should create a default group if none exist" do
         user_session(@student)
 
@@ -169,6 +165,25 @@ describe AssignmentsController do
       get 'show', :course_id => @course.id, :id => a.id
       GoogleDocs::Connection.unstub(:config)
     end
+
+    it 'should force users to use google drive if available' do
+      user_session(@student)
+      a = @course.assignments.create(:title => "some assignment")
+      plugin = Canvas::Plugin.find(:google_drive)
+      plugin_setting = PluginSetting.find_by_name(plugin.id) || PluginSetting.new(:name => plugin.id, :settings => plugin.default_settings)
+      plugin_setting.posted_settings = {}
+      plugin_setting.save!
+      google_docs_mock = mock('google_docs')
+      google_docs_mock.stubs(:verify_access_token).returns(true)
+      google_docs_mock.stubs(:service_type).returns(nil)
+      google_docs_mock.stubs(:retrieve_access_token).returns(nil)
+      controller.stubs(:google_service_connection).returns(google_docs_mock)
+      get 'show', :course_id => @course.id, :id => a.id
+
+      expect(response).to be_success
+      expect(assigns(:google_drive_upgrade)).to be_truthy
+    end
+
   end
 
   describe "GET 'syllabus'" do
@@ -204,7 +219,6 @@ describe AssignmentsController do
     end
 
     it "should default to unpublished for draft state" do
-      @course.root_account.enable_feature!(:draft_state)
       @course.require_assignment_group
 
       get 'new', :course_id => @course.id
@@ -246,7 +260,6 @@ describe AssignmentsController do
     end
 
     it "should default to unpublished if draft state is enabled" do
-      Account.default.enable_feature!(:draft_state)
       post 'create', :course_id => @course.id, :assignment => {:title => "some assignment"}
       expect(assigns[:assignment]).to be_unpublished
     end

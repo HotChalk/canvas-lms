@@ -2,16 +2,6 @@ Dir.glob('lib/canvas/plugins/validators/*').each do |file|
   require_dependency file
 end
 
-Canvas::Plugin.register('facebook', nil, {
-  :name => lambda{ t :name, 'Facebook' },
-  :description => lambda{ t :description, 'Canvas Facebook application' },
-  :website => 'http://www.facebook.com',
-  :author => 'Instructure',
-  :author_website => 'http://www.instructure.com',
-  :version => '1.0.0',
-  :settings_partial => 'plugins/facebook_settings',
-  :validator => 'FacebookValidator'
-})
 Canvas::Plugin.register('linked_in', nil, {
   :name => lambda{ t :name, 'LinkedIn' },
   :description => lambda{ t :description, 'LinkedIn integration' },
@@ -81,6 +71,16 @@ Canvas::Plugin.register('google_docs', :collaborations, {
   :version => '1.0.0',
   :settings_partial => 'plugins/google_docs_settings',
   :validator => 'GoogleDocsValidator'
+})
+Canvas::Plugin.register('google_drive', nil, {
+  :name => lambda{ t :name, 'Google Drive' },
+  :description => lambda{ t :description, 'Google Drive file sharing' },
+  :website => 'http://drive.google.com',
+  :author => 'Instructure',
+  :author_website => 'http://www.instructure.com',
+  :version => '1.0.0',
+  :settings_partial => 'plugins/google_drive_settings',
+  :validator => 'GoogleDriveValidator'
 })
 Canvas::Plugin.register('kaltura', nil, {
   :name => lambda{ t :name, 'Kaltura' },
@@ -286,10 +286,10 @@ Canvas::Plugin.register('app_center', nil, {
     :description => lambda{ t :description, 'App Center for tracking/installing external tools in Canvas' },
     :settings_partial => 'plugins/app_center_settings',
     :settings => {
-        :base_url => 'https://www.edu-apps.org',
+        :base_url => 'https://www.eduappcenter.com',
         :token => nil,
-        :apps_index_endpoint => '/api/v1/apps',
-        :app_reviews_endpoint => '/api/v1/apps/:id/reviews'
+        :apps_index_endpoint => '/api/v1/lti_apps',
+        :app_reviews_endpoint => '/api/v1/lti_apps/:id/reviews'
     },
     :validator => 'AppCenterValidator'
 })
@@ -307,6 +307,24 @@ Canvas::Plugin.register('pandapub', nil, {
   },
   :settings_partial => 'plugins/panda_pub_settings',
   :validator => 'PandaPubValidator'
+})
+Canvas::Plugins::TicketingSystem.register!
+Canvas::Plugin.register('live_events', nil, {
+  :name => lambda{ t :name, 'Live Events' },
+  :description => lambda{ t :description, 'Service for real-time events.' },
+  :author => 'Instructure',
+  :author_website => 'http://www.instructure.com',
+  :version => '1.0.0',
+  :settings => {
+    :kinesis_stream_name => nil,
+    :aws_access_key_id => nil,
+    :aws_secret_access_key => nil,
+    :aws_region => 'us-east-1',
+    :aws_endpoint => nil,
+  },
+  :encrypted_settings => [ :aws_secret_access_key ],
+  :settings_partial => 'plugins/live_events_settings',
+  :validator => 'LiveEventsValidator'
 })
 Canvas::Plugin.register('hotchalk', :export_system, {
     :name => 'Hotchalk',

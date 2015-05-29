@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2012 - 2014 Instructure, Inc.
+# Copyright (C) 2012 - 2015 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -103,19 +103,30 @@ module AccountReports
         users = add_user_sub_account_scope(users)
 
         Shackles.activate(:slave) do
-          users.find_each do |u|
-            row = []
-            row << u.user_id unless @sis_format
-            row << u.sis_user_id
-            row << u.unique_id
-            row << nil if @sis_format
-            # build a user object to be able to call methods on it
-            user = User.send(:instantiate, 'id' => u.user_id, 'sortable_name' => u.sortable_name, 'updated_at' => u.user_updated_at)
-            row << user.first_name
-            row << user.last_name
-            row << user.email
-            row << u.workflow_state
-            csv << row
+          users.find_in_batches do |batch|
+            emails = Shard.partition_by_shard(batch.map(&:user_id)) do |user_ids|
+                CommunicationChannel.
+                  email.
+                  unretired.
+                  select([:user_id, :path]).
+                  where(user_id: user_ids).
+                  order('user_id, position ASC').
+                  distinct_on(:user_id)
+            end.index_by(&:user_id)
+
+            batch.each do |u|
+              row = []
+              row << u.user_id unless @sis_format
+              row << u.sis_user_id
+              row << u.unique_id
+              row << nil if @sis_format
+              name_parts = User.name_parts(u.sortable_name)
+              row << name_parts[0] || '' # first name
+              row << name_parts[1] || '' # last name
+              row << emails[u.user_id].try(:path)
+              row << u.workflow_state
+              csv << row
+            end
           end
         end
       end
@@ -387,7 +398,7 @@ module AccountReports
       CSV.open(filename, "w") do |csv|
         if @sis_format
           # headers are not translated on sis_export to maintain import compatibility
-          headers = ['course_id', 'user_id', 'role', 'section_id', 'status', 'associated_user_id']
+          headers = ['course_id', 'user_id', 'role', 'role_id', 'section_id', 'status', 'associated_user_id']
         else
           headers = []
           headers << I18n.t('#account_reports.report_header_canvas_course_id', 'canvas_course_id')
@@ -395,6 +406,7 @@ module AccountReports
           headers << I18n.t('#account_reports.report_header_canvas_user_id', 'canvas_user_id')
           headers << I18n.t('#account_reports.report_header_user__id', 'user_id')
           headers << I18n.t('#account_reports.report_header_role', 'role')
+          headers << I18n.t('#account_reports.report_header_role_id', 'role_id')
           headers << I18n.t('#account_reports.report_header_canvas_section_id', 'canvas_section_id')
           headers << I18n.t('#account_reports.report_header_section__id', 'section_id')
           headers << I18n.t('#account_reports.report_header_status', 'status')
@@ -446,7 +458,12 @@ module AccountReports
         enrol = add_term_scope(enrol)
 
         Shackles.activate(:slave) do
-          enrol.find_each do |e|
+          # the "start" parameter is purely to
+          # force activerecord to use LIMIT/OFFSET
+          # rather than a cursor for this iteration
+          # because it often is big enough that the slave
+          # kills it mid-run (http://www.postgresql.org/docs/9.0/static/hot-standby.html)
+          enrol.find_each(start: 0) do |e|
             row = []
             if e.nxc_id == nil
               row << e.course_id unless @sis_format
@@ -458,6 +475,7 @@ module AccountReports
             row << e.user_id unless @sis_format
             row << e.pseudonym_sis_id
             row << e.sis_role
+            row << e.role_id
             row << e.course_section_id unless @sis_format
             row << e.course_section_sis_id
             row << e.enroll_state
@@ -593,11 +611,14 @@ module AccountReports
           headers << I18n.t('#account_reports.report_header_canvas_section_id', 'canvas_section_id')
           headers << I18n.t('#account_reports.report_header_section__id', 'section_id')
           headers << I18n.t('#account_reports.report_header_status', 'status')
+          headers << I18n.t('#account_reports.report_header_canvas_nonxlist_course_id', 'canvas_nonxlist_course_id')
+          headers << I18n.t('#account_reports.report_header_nonxlist_course_id', 'nonxlist_course_id')
         end
         csv << headers
         @domain_root_account = root_account
         xl = root_account.course_sections.
-          select("course_sections.*, courses.sis_source_id AS course_sis_id").
+          select("course_sections.*, courses.sis_source_id AS course_sis_id,
+                  nxc.sis_source_id AS nxc_sis_id").
           joins("INNER JOIN courses ON course_sections.course_id = courses.id
                  INNER JOIN courses nxc ON course_sections.nonxlist_course_id = nxc.id").
           where("course_sections.nonxlist_course_id IS NOT NULL")
@@ -629,6 +650,8 @@ module AccountReports
             row << x.id unless @sis_format
             row << x.sis_source_id
             row << x.workflow_state
+            row << x.nonxlist_course_id unless @sis_format
+            row << x.nxc_sis_id unless @sis_format
             csv << row
           end
         end

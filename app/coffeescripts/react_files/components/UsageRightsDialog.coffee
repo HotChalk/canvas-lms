@@ -12,11 +12,14 @@ define [
   '../utils/updateModelsUsageRights'
   './FilesystemObjectThumbnail'
   './DialogPreview'
+  'compiled/react/shared/utils/withReactElement'
   'compiled/jquery.rails_flash_notifications'
   'jquery.instructure_forms'
-], ($, _, React, I18n, preventDefault, customPropTypes, Folder, UsageRightsSelectBox, filesEnv, setUsageRights, updateModelsUsageRights, FilesystemObjectThumbnail, DialogPreview) ->
+], ($, _, React, I18n, preventDefault, customPropTypes, Folder, UsageRightsSelectBoxComponent, filesEnv, setUsageRights, updateModelsUsageRights, FilesystemObjectThumbnailComponent, DialogPreviewComponent, withReactElement) ->
 
-  {div, form, button, span, ul, li, i, a, hr} = React.DOM
+  UsageRightsSelectBox = React.createFactory UsageRightsSelectBoxComponent
+  FilesystemObjectThumbnail = React.createFactory FilesystemObjectThumbnailComponent
+  DialogPreview = React.createFactory DialogPreviewComponent
 
   MAX_THUMBNAILS_TO_SHOW = 5
   MAX_FOLDERS_TO_SHOW = 2
@@ -25,13 +28,14 @@ define [
     displayName: 'ManageUsageRightsModal'
 
     propTypes:
-      closeDialog: React.PropTypes.func
+      closeModal: React.PropTypes.func
       itemsToManage: React.PropTypes.arrayOf(customPropTypes.filesystemObject).isRequired
 
 
     componentWillMount: ->
       @copyright = @defaultCopyright()
       @use_justification = @defaultSelectedRight()
+      @cc_value = @defaultCCValue()
 
     apiUrl: "/api/v1/#{filesEnv.contextType}/#{filesEnv.contextId}/usage_rights"
 
@@ -41,10 +45,6 @@ define [
     submit: ->
       values = @refs.usageSelection.getValues()
 
-      # No copyright specified
-      if (@refs.usageSelection.refs.copyright? and !values.copyright)
-        $(@refs.usageSelection.refs.copyright.getDOMNode()).errorBox(I18n.t('You must specify the copyright holder.'))
-        return false
       # They didn't choose a copyright
       if (values.use_justification == 'choose')
         $(@refs.usageSelection.refs.usageRightSelection.getDOMNode()).errorBox(I18n.t('You must specify a usage right.'))
@@ -61,7 +61,7 @@ define [
           $.flashMessage(I18n.t('Usage rights have been set.'))
         else
           $.flashError(I18n.t('There was an error setting usage rights.'))
-        @props.closeDialog()
+        @props.closeModal()
 
       setUsageRights(@props.itemsToManage, usageRightValue, afterSet)
 
@@ -74,11 +74,17 @@ define [
         'choose'
 
     defaultCopyright: ->
-      copyright = @props.itemsToManage[0].get('usage_rights')?.legal_copyright || @props.itemsToManage[0].get('usage_rights')?.license
+      copyright = @props.itemsToManage[0].get('usage_rights')?.legal_copyright || ''
       if @props.itemsToManage.every((item) -> (item.get('usage_rights')?.legal_copyright == copyright) || (item.get('usage_rights')?.license == copyright))
         copyright
       else
         '' # They have different copyrights
+
+    defaultCCValue: ->
+      if (@use_justification == 'creative_commons')
+        @props.itemsToManage[0].get('usage_rights')?.license
+      else
+        null
 
     renderFileName: ->
       textToShow = if @props.itemsToManage.length > 1
@@ -111,6 +117,7 @@ define [
             tabIndex: '0'
             title: renderedNames
             'data-tooltip': 'right'
+            'data-tooltip-class': 'UsageRightsDialog__tooltip'
           },
             I18n.t("and %{count} more…", {count: toolTipFolders.length})
             span {className: 'screenreader-only'},
@@ -125,26 +132,45 @@ define [
         i {className: 'icon-warning UsageRightsDialog__warning'}
         I18n.t('Items selected have different usage rights.')
 
-    render: ->
-      form { ref: 'form', className: 'form-dialog', onSubmit: preventDefault(@submit)},
-        div {},
-          div {className: 'UsageRightsDialog__paddingFix grid-row'},
-            div {className: 'UsageRightsDialog__previewColumn col-xs-3'},
-              DialogPreview(itemsToShow: @props.itemsToManage)
-            div {className: 'UsageRightsDialog__contentColumn off-xs-1 col-xs-8'},
-              @renderDifferentRightsMessage() if ((@copyright == '' || @usageRight == 'choose') && @props.itemsToManage.length > 1 && @copyright != "undefined")
-              @renderFileName()
-              @renderFolderMessage()
-              UsageRightsSelectBox(ref: 'usageSelection', use_justification: @use_justification, copyright: @copyright)
-
-        div {className: 'form-controls'},
-          button {
-            type: 'button'
-            className: 'btn'
-            onClick: @props.closeDialog
-          }, I18n.t('Cancel')
-          button {
-            type: 'submit'
-            className: 'btn btn-primary'
-            'data-text-while-loading': I18n.t('saving', 'Saving...')
-          }, I18n.t('Save')
+    render: withReactElement ->
+      div {className: 'ReactModal__Layout'},
+        div {className: 'ReactModal__InnerSection ReactModal__Header'},
+          div {className: 'ReactModal__Header-Title'},
+            h4 {},
+              I18n.t('Manage Usage Rights')
+          div {className: 'ReactModal__Header-Actions'},
+            button {ref: 'cancelXButton', className: 'Button Button--icon-action', type: 'button', onClick: @props.closeModal},
+              i {className: 'icon-x'},
+                span {className: 'screenreader-only'},
+                  I18n.t('Close')
+        div {className: 'ReactModal__InnerSection ReactModal__Body'},
+          div { ref: 'form', className: 'form-dialog'},
+            div {},
+              div {className: 'UsageRightsDialog__paddingFix grid-row'},
+                div {className: 'UsageRightsDialog__previewColumn col-xs-3'},
+                  DialogPreview(itemsToShow: @props.itemsToManage)
+                div {className: 'UsageRightsDialog__contentColumn off-xs-1 col-xs-8'},
+                  @renderDifferentRightsMessage() if ((@copyright == '' || @usageRight == 'choose') && @props.itemsToManage.length > 1 && @copyright != "undefined")
+                  @renderFileName()
+                  @renderFolderMessage()
+                  UsageRightsSelectBox {
+                    ref: 'usageSelection'
+                    use_justification: @use_justification
+                    copyright: @copyright
+                    cc_value: @cc_value
+                  }
+        div {className: 'ReactModal__InnerSection ReactModal__Footer'},
+          div {className: 'ReactModal__Footer-Actions'},
+            button {
+              ref: 'cancelButton'
+              type: 'button'
+              className: 'btn'
+              onClick: @props.closeModal
+            },
+              I18n.t('Cancel')
+            button {
+              type: 'button'
+              onClick: @submit
+              className: 'btn btn-primary'
+            },
+              I18n.t('Save')

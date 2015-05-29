@@ -8,8 +8,14 @@ describe "gradebook2" do
       gradebook_data_setup
     end
 
+    it "should load the gradebook when the multiple grading periods feature is enabled and no grading periods have been created" do
+      @course.root_account.enable_feature!(:multiple_grading_periods)
+      get "/courses/#{@course.id}/gradebook2"
+      wait_for_ajaximations
+      expect(f('#gradebook-grid-wrapper')).to be_displayed
+    end
+
     it "hides unpublished/shows published assignments" do
-      @course.root_account.enable_feature!(:draft_state)
       assignment = @course.assignments.create! title: 'unpublished'
       assignment.unpublish
       get "/courses/#{@course.id}/gradebook2"
@@ -167,6 +173,20 @@ describe "gradebook2" do
       toggle_muting(@second_assignment)
       expect(fj(".container_1 .slick-header-column[id*='assignment_#{@second_assignment.id}'] .muted")).to be_nil
       expect(@second_assignment.reload).not_to be_muted
+    end
+
+    context "unpublished course" do
+      before do
+        @course.claim!
+        get "/courses/#{@course.id}/gradebook2"
+      end
+
+      it "should allow editing grades" do
+        cell = f('#gradebook_grid .container_1 .slick-row:nth-child(1) .l2')
+        expect(cell.text).to eq '10'
+        cell.click
+        expect(ff('.grade', cell)).to_not be_blank
+      end
     end
 
     context "concluded course" do
@@ -787,27 +807,6 @@ describe "gradebook2" do
     end
   end
 
-  describe "outcome gradebook" do
-    before(:each) do
-      gradebook_data_setup
-    end
-
-    it "should not be visible by default" do
-      get "/courses/#{@course.id}/gradebook2"
-      expect(ff('.gradebook-navigation').length).to eq 0
-    end
-
-    it "should be visible when enabled" do
-      Account.default.set_feature_flag!('outcome_gradebook', 'on')
-      get "/courses/#{@course.id}/gradebook2"
-      expect(ff('.gradebook-navigation').length).to eq 1
-
-      f('a[data-id=outcome]').click
-      wait_for_ajaximations
-      expect(f('.outcome-gradebook-container')).not_to be_nil
-    end
-  end
-
   describe "post_grades" do
     before(:each) do
       gradebook_data_setup
@@ -824,6 +823,22 @@ describe "gradebook2" do
       @course.save
       get "/courses/#{@course.id}/gradebook2"
       expect(ff('.post-grades-placeholder').length).to eq 1
+    end
+
+    it "should not be displayed if viewing outcome gradebook" do
+      Account.default.set_feature_flag!('post_grades', 'on')
+      Account.default.set_feature_flag!('outcome_gradebook', 'on')
+
+      get "/courses/#{@course.id}/gradebook2"
+
+      f('a[data-id=outcome]').click
+      wait_for_ajaximations
+      expect(f('.post-grades-placeholder')).not_to be_displayed
+
+      f('a[data-id=assignment]').click
+      wait_for_ajaximations
+
+      expect(f('.post-grades-placeholder')).to be_displayed
     end
   end
 end

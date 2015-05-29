@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'sanitize'
+
 class Quizzes::QuizSubmission < ActiveRecord::Base
   self.table_name = 'quiz_submissions'
 
@@ -24,6 +26,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   end
 
   include Workflow
+
   attr_accessible :quiz, :user, :temporary_user_code, :submission_data, :score_before_regrade, :has_seen_results
   attr_readonly :quiz_id, :user_id
   attr_accessor :grader_id
@@ -113,7 +116,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     can :read
 
     given {|user, session| quiz.context.grants_right?(user, session, :manage_grades) }
-    can :update_scores and can :add_attempts
+    can :update_scores and can :add_attempts and can :view_log
   end
 
   # override has_one relationship provided by simply_versioned
@@ -169,6 +172,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     result.title = "#{user.name}, #{quiz.title}: #{cached_question[:name]}"
 
     result.assessed_at = Time.now
+    result.submitted_at = self.finished_at
+
     result.save_to_version(result.attempt)
     result
   end
@@ -407,6 +412,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def score_to_keep
     if self.quiz && self.quiz.scoring_policy == "keep_highest"
       highest_score_so_far
+    elsif self.quiz && self.quiz.scoring_policy == "keep_average"
+      average_score_so_far
     else # keep_latest
       latest_score
     end
@@ -436,17 +443,28 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     @assignment_submission.save! if @assignment_submission
   end
 
-  def highest_score_so_far(exclude_version_id=nil)
+  def scores_for_versions(exclude_version_id)
+    versions = self.versions.reload.reject { |v| v.id == exclude_version_id } rescue []
     scores = {}
     scores[attempt] = self.score if self.score
-
-    versions = self.versions.reload.reject { |v| v.id == exclude_version_id } rescue []
 
     # only most recent version for each attempt - some have regraded a version
     versions.sort_by(&:number).reverse.each do |ver|
       scores[ver.model.attempt] ||= ver.model.score || 0.0
     end
 
+    scores
+  end
+  private :scores_for_versions
+
+  def average_score_so_far(exclude_version_id=nil)
+    scores = scores_for_versions(exclude_version_id)
+    (scores.values.sum.to_f / scores.size).round(2)
+  end
+  private :average_score_so_far
+
+  def highest_score_so_far(exclude_version_id=nil)
+    scores = scores_for_versions(exclude_version_id)
     scores.values.max
   end
 
@@ -543,8 +561,16 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     Quizzes::QuizSubmissionHistory.new(self)
   end
 
+  # Load the model for this quiz submission at a given attempt.
+  #
+  # @return [Quizzes::QuizSubmission|NilClass]
+  #   The submission model at that attempt, or nil if there's no such attempt.
+  def model_for_attempt(attempt)
+    attempts.model_for(attempt)
+  end
+
   def questions_regraded_since_last_attempt
-    return unless last_attempt = attempts.last
+    return if attempts.last.nil?
 
     version = attempts.last.versions.first
     quiz.questions_regraded_since(version.created_at)
@@ -619,7 +645,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     if self.quiz && self.user
       if self.score
         self.quiz.context_module_action(self.user, :scored, self.kept_score)
-      elsif self.finished_at
+      end
+      if self.finished_at
         self.quiz.context_module_action(self.user, :submitted)
       end
     end
@@ -675,7 +702,14 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
       res << answer
       tally += answer["points"].to_f rescue 0
     end
-    self.score = tally
+
+    # Graded surveys always get the full points
+    if quiz && quiz.graded_survey?
+      self.score = quiz.points_possible
+    else
+      self.score = tally
+    end
+
     self.submission_data = res
 
     # the interaction in here is messy
@@ -750,15 +784,15 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     p.dispatch :submission_graded
     p.to { user }
     p.whenever { |q_sub|
-      policy = BroadcastPolicies::QuizSubmissionPolicy.new(q_sub)
-      policy.should_dispatch_submission_graded?
+      BroadcastPolicies::QuizSubmissionPolicy.new(q_sub).
+        should_dispatch_submission_graded?
     }
 
     p.dispatch :submission_grade_changed
     p.to { user }
     p.whenever { |q_sub|
-      policy = BroadcastPolicies::QuizSubmissionPolicy.new(q_sub)
-      policy.should_dispatch_submission_grade_changed?
+      BroadcastPolicies::QuizSubmissionPolicy.new(q_sub).
+        should_dispatch_submission_grade_changed?
     }
 
     p.dispatch :submission_needs_grading
@@ -864,5 +898,10 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     participant.anonymous? ?
         where(temporary_user_code: participant.user_code) :
         where(user_id: participant.user.id)
+  end
+
+  def ensure_question_reference_integrity!
+    fixer = ::Quizzes::QuizSubmission::QuestionReferenceDataFixer.new
+    fixer.run!(self)
   end
 end

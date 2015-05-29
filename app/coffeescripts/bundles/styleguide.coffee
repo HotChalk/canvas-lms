@@ -47,7 +47,7 @@ require [
   $("#content").on iconEventsMap, ".demo-icons"
 
   # Accordion
-  $(".accordion").accordion header: "h3"
+  $("#styleguide_demo_accordion1, #styleguide_demo_accordion2").accordion header: "h3"
 
   # Tabs
   $("#styleguide-tabs-demo-regular").tabs()
@@ -149,3 +149,20 @@ require [
   $("#repeat").buttonset()
 
   $(".styleguide-datetime_field-example").datetime_field()
+  
+  #Global Navigation Hide/Show Subnav
+  selectCategory = (event) ->
+    event.preventDefault()
+    SgNavType = $(this).data('sg-category')
+    $(".Sg-header__Subnavigation section").addClass("isHidden")
+    $(".Sg-header__Subnavigation section." + SgNavType).removeClass("isHidden")
+    $(".Sg-header__Navigation a").removeClass('active')
+    $(this).addClass('active') 
+
+  $('.Sg-header__Navigation a').on('click', selectCategory);
+      
+
+
+    
+
+

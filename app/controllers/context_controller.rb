@@ -181,15 +181,23 @@ class ContextController < ApplicationController
 
   def roster
     return unless authorized_action(@context, @current_user, [:read_roster, :manage_students, :manage_admin_users])
-    log_asset_access("roster:#{@context.asset_string}", 'roster', 'other')
+    log_asset_access([ "roster", @context ], 'roster', 'other')
 
     if @context.is_a?(Course)
-      sections = @context.course_sections.active.select([:id, :name])
+      if @context.concluded?
+        sections = @context.course_sections.active.select([:id, :course_id, :name, :end_at, :restrict_enrollments_to_section_dates]).preload(:course)
+        concluded_sections = sections.select{|s| s.concluded?}.map{|s| "section_#{s.id}"}
+      else
+        sections = @context.course_sections.active.select([:id, :name])
+        concluded_sections = []
+      end
+
       all_roles = Role.role_data(@context, @current_user)
       load_all_contexts(:context => @context)
       js_env({
         :ALL_ROLES => all_roles,
-        :SECTIONS => sections.map { |s| { :id => s.id.to_s, :name => s.name } },
+        :SECTIONS => sections.map { |s| { :id => s.id.to_s, :name => s.name} },
+        :CONCLUDED_SECTIONS => concluded_sections,
         :USER_LISTS_URL => polymorphic_path([@context, :user_lists], :format => :json),
         :ENROLL_USERS_URL => course_enroll_users_url(@context),
         :SEARCH_URL => search_recipients_url,
@@ -282,13 +290,14 @@ class ContextController < ApplicationController
   def roster_user
     if authorized_action(@context, @current_user, :read_roster)
       if params[:id] !~ Api::ID_REGEX
-        # todo stop generating an error report and fix the bad input
-        ErrorReport.log_error('invalid_user_id',
-                              {message: "invalid user_id in ContextController::roster_user",
-                               current_user_id: @current_user.id,
-                               current_user_name: @current_user.sortable_name}.
-                                merge(ErrorReport.useful_http_env_stuff_from_request(request))
-        )
+        # TODO: stop generating an error report and fix the bad input
+
+        env_stuff = Canvas::Errors::Info.useful_http_env_stuff_from_request(request)
+        Canvas::Errors.capture('invalid_user_id', {
+          message: "invalid user_id in ContextController::roster_user",
+          current_user_id: @current_user.id,
+          current_user_name: @current_user.sortable_name
+        }.merge(env_stuff))
         raise ActiveRecord::RecordNotFound
       end
       user_id = Shard.relative_id_for(params[:id], Shard.current, @context.shard)
@@ -327,7 +336,7 @@ class ContextController < ApplicationController
           session,
           ['links', 'user_services']
         )
-        render :action => :new_roster_user
+        render :new_roster_user
         return false
       end
       true

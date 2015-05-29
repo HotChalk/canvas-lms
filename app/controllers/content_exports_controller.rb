@@ -89,7 +89,7 @@ class ContentExportsController < ApplicationController
       cancel_cache_buster
       send_file(filename, :type => 'text/xml', :disposition => 'inline')
     else
-      render :template => 'shared/errors/404_message', :status => :not_found
+      render 'shared/errors/404_message', status: :not_found
     end
   end
 
@@ -97,7 +97,7 @@ class ContentExportsController < ApplicationController
 
   def render_export(export)
     json = export.as_json(:only => [:id, :progress, :workflow_state],:methods => [:error_message])
-    json['content_export']['download_url'] = verified_file_download_url(export.attachment) if export.attachment
+    json['content_export']['download_url'] = verified_file_download_url(export.attachment, export) if export.attachment
     render :json => json
   end
 end

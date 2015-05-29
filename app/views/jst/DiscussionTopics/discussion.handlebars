@@ -22,9 +22,11 @@
         {{/if}}
         <a href="{{html_url}}" class="title">{{title}}</a>
       </h3>
-      <small {{ contextSensitiveDatetimeTitle last_reply_at }}>{{#t "last_post_date"}}Last post {{display_last_reply_at}}{{/t}}</small>
+      {{#if display_last_reply_at}}
+        <small {{ contextSensitiveDatetimeTitle last_reply_at }}>{{#t "last_post_date"}}Last post {{display_last_reply_at}}{{/t}}</small>
+      {{/if}}
       {{#ifEqual context_type 'Course'}}
-      <small>- {{#if course_section}}{{course_section}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</small>
+        <small>- {{#if course_section}}{{course_section}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</small>
       {{/ifEqual}}
     </div>
 
@@ -52,8 +54,8 @@
     </div>
 
     <div class="discussion-status">
-      <span id="publish-icon" class="publish-icon" {{#if ENV.DRAFT_STATE}} data-view="publishIcon" {{/if}}></span>
-      <a href="#" data-view="toggleableSubscriptionIcon" class="subscription-toggler">
+      <span id="publish-icon" class="publish-icon" data-view="publishIcon"></span>
+      <a href="#" data-view="toggleableSubscriptionIcon" class="subscription-toggler" role="button">
         <span class="screenreader-only">
           {{#if subscribed}}
             {{#t "user_subscribed"}}You are subscribed to this topic. Click to unsubscribe.{{/t}}
@@ -91,7 +93,7 @@
 
     <div class="discussion-actions">
       {{#if permissions.delete}}
-        <a href="#" class="al-trigger" role="button" id="manage_link">
+        <a href="#" class="al-trigger al-trigger-gray" role="button" id="manage_link">
           <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>
           <span class="screenreader-only">{{#t "manage"}}Manage{{/t}}</span>
         </a>
@@ -100,7 +102,7 @@
           {{#if locked}}
             <li>
               <a href="#" class="icon-lock">
-                {{#t "open_to_comments"}}Open to comments{{/t}}
+                {{#t "open_for_comments"}}Open for comments{{/t}}
               </a>
             </li>
           {{else}}

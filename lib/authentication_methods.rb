@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'casclient'
+
 module AuthenticationMethods
 
   def authorized(*groups)
@@ -65,7 +67,7 @@ module AuthenticationMethods
   end
 
   def load_pseudonym_from_access_token
-    return unless api_request? || params[:action] == 'oauth2_logout'
+    return unless api_request? || (params[:controller] == 'oauth2_provider' && params[:action] == 'destroy')
 
     token_string = AuthenticationMethods.access_token(request)
 
@@ -80,6 +82,9 @@ module AuthenticationMethods
         raise AccessTokenError
       end
       @access_token.used!
+
+      RequestContextGenerator.add_meta_header('at', @access_token.global_id)
+      RequestContextGenerator.add_meta_header('dk', @access_token.developer_key.global_id) if @access_token.developer_key
     end
   end
 
@@ -122,20 +127,20 @@ module AuthenticationMethods
             raise LoggedOutError
           end
         end
-      end
 
-      if @current_pseudonym &&
-         session[:cas_session] &&
-         @current_pseudonym.cas_ticket_expired?(session[:cas_session]) &&
-         @domain_root_account.cas_authentication?
+        if @current_pseudonym &&
+           session[:cas_session] &&
+           @current_pseudonym.cas_ticket_expired?(session[:cas_session]) &&
+           @domain_root_account.cas_authentication?
 
-        logger.info "Invalidating session: CAS ticket expired - #{session[:cas_session]}."
-        destroy_session
-        @current_pseudonym = nil
+          logger.info "Invalidating session: CAS ticket expired - #{session[:cas_session]}."
+          destroy_session
+          @current_pseudonym = nil
 
-        raise LoggedOutError if api_request? || request.format.json?
+          raise LoggedOutError if api_request? || request.format.json?
 
-        redirect_to_login
+          redirect_to_login
+        end
       end
 
       if params[:login_success] == '1' && !@current_pseudonym
@@ -146,14 +151,7 @@ module AuthenticationMethods
       @current_user = @current_pseudonym && @current_pseudonym.user
 
       if api_request?
-        # only allow api_key to be used if basic auth was sent, not if they're
-        # just using an app session
-        # this basic auth support is deprecated and marked for removal in 2012
-        if @pseudonym_session.try(:used_basic_auth?) && params[:api_key].present?
-          Shard.birth.activate { @developer_key = DeveloperKey.where(api_key: params[:api_key]).first }
-        end
-        @developer_key ||
-          request.get? ||
+        request.get? ||
           !allow_forgery_protection ||
           CanvasBreachMitigation::MaskingSecrets.valid_authenticity_token?(session, cookies, form_authenticity_param) ||
           CanvasBreachMitigation::MaskingSecrets.valid_authenticity_token?(session, cookies, request.headers['X-CSRF-Token']) ||

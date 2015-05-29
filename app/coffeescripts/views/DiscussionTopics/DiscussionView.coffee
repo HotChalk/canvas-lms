@@ -155,7 +155,8 @@ define [
       # check for permission to lock the discussion topic based on due date (see TL-219)
       assignment = @model.get('assignment')
       base.permissions.lock = @model.get('locked') || !(assignment && assignment.dueAt() && (new Date(assignment.dueAt()) > new Date()))
-      base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
+      if base.last_reply_at
+        base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
       base.ENV = ENV
       base.discussion_topic_menu_tools = ENV.discussion_topic_menu_tools
       _.each base.discussion_topic_menu_tools, (tool) =>

@@ -399,6 +399,21 @@ describe Group do
     end
   end
 
+  context "user_can_manage_own_discussion_posts" do
+    it "returns true if the context is an account" do
+      account = Account.default
+      group = account.groups.create
+      expect( group.user_can_manage_own_discussion_posts?(nil) ).to be_truthy
+    end
+
+    it "defers to the context if that context is a course" do
+      course_with_student
+      group = @course.groups.create
+      group.context.stubs(:user_can_manage_own_discussion_posts?).returns(false)
+      expect( group.user_can_manage_own_discussion_posts?(nil) ).to be_falsey
+    end
+  end
+
   context "invite_user" do
     it "should auto accept invitations" do
       course_with_student(:active_all => true)
@@ -591,34 +606,6 @@ describe Group do
     end
   end
 
-  describe "#feature_enabled?" do
-    before(:once) do
-      course_with_teacher(active_all: true)
-      @course.root_account.allow_feature!(:draft_state)
-    end
-
-    context "a course with :draft_state enabled" do
-      it "should pass its setting on to its groups" do
-        @course.enable_feature!(:draft_state)
-        expect(group(group_context: @course)).to be_feature_enabled(:draft_state)
-      end
-    end
-
-    context "an account with :draft_state enabled" do
-      before :once do
-        @course.root_account.enable_feature!(:draft_state)
-      end
-
-      it "should pass its setting on to course groups" do
-        expect(group(group_context: @course)).to be_feature_enabled(:draft_state)
-      end
-
-      it "should pass its setting on to account groups" do
-        expect(group(group_context: @course.root_account)).to be_feature_enabled(:draft_state)
-      end
-    end
-  end
-
   describe "#update_max_membership_from_group_category" do
     it "should set max_membership if there is a group category" do
       @group.group_category = @course.group_categories.build(:name => 'foo')
@@ -654,6 +641,31 @@ describe Group do
       expect(@group.users).to eq [@student]
       @group.destroy
       expect(@group.users(true)).to eq [@student]
+    end
+  end
+
+  describe 'includes_user?' do
+    before do
+      user_model
+      pseudonym_model(:user_id => @user.id)
+    end
+
+    it "returns true if a user is in the group" do
+      @group.add_user(@user)
+      expect(@group.includes_user?(@user)).to be_truthy
+    end
+
+    it "returns false if the user is not in the group" do
+      expect(@group.includes_user?(@user)).to be_falsey
+    end
+
+    it "returns false if no user object is given" do
+      expect(@group.includes_user?(nil)).to be_falsey
+    end
+
+    it "returns false if an unsaved user is given" do
+      @user = User.new
+      expect(@group.includes_user?(@user)).to be_falsey
     end
   end
 end

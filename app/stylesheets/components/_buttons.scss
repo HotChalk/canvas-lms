@@ -11,93 +11,127 @@
 /*
 @styleguide Buttons
 
-### Button Styles
+## The Basic Button
 
 ```html
-<p>
-  <button class="Button" type="button">.Button</button>
-  &nbsp;
-  <button class="Button" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--primary" type="button">.Button.Button--primary</button>
-  &nbsp;
-  <button class="Button Button--primary" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--primary Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--secondary" type="button">.Button.Button--secondary</button>
-  &nbsp;
-  <button class="Button Button--secondary" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--secondary Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--success" type="button">.Button.Button--success</button>
-  &nbsp;
-  <button class="Button Button--success" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--success Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--warning" type="button">.Button.Button--danger</button>
-  &nbsp;
-  <button class="Button Button--warning" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--warning Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--danger" type="button">.Button.Button--danger</button>
-  &nbsp;
-  <button class="Button Button--danger" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--danger Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
-<p>
-  <button class="Button Button--link" type="button">.Button.Button--link</button>
-  &nbsp;
-  <button class="Button Button--link" type="button" disabled>&[disabled]</button>
-  &nbsp;
-  <button class="Button Button--link Button--active" type="button" style="pointer-events: none">&.Button--active</button>
-</p>
+<button class="Button" type="button">My Awesome Button</button>
 ```
+## Button Styles
 
-### Button Sizes
+By adding on a modifier class, you can get the style of the button you need.
 
-Add an additional class `.btn-large`, `.btn-small`, `.btn-mini` to change button sizes
+<table class="ic-Table">
+  <thead>
+    <th>Class</th>
+    <th>Normal State</th>
+    <th>Active State</th>
+    <th>Disabled State</th>
+  </thead>
+  <tbody>
+    <tr>
+      <td>default</td>
+      <td><button class="Button" type="button">.Button</button></td>
+      <td><button class="Button Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button" type="button" disabled>&[disabled]</button></td>      
+    </tr>
+    <tr>
+      <td>.Button--primary</td>
+      <td><button class="Button Button--primary" type="button">.Button--primary</button></td>
+      <td><button class="Button Button--primary Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--primary" type="button" disabled>&[disabled]</button></td>
+    </tr>
+    <tr>
+      <td>.Button--secondary</td>
+      <td><button class="Button Button--secondary" type="button">.Button--secondary</button></td>
+      <td><button class="Button Button--secondary Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--secondary" type="button" disabled>&[disabled]</button></td>
+    </tr>
+    <tr>
+      <td>.Button--success</td>
+      <td><button class="Button Button--success" type="button">.Button--success</button></td>
+      <td><button class="Button Button--success Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--success" type="button" disabled>&[disabled]</button></td>
+    </tr>
+    <tr>
+      <td>.Button--warning</td>
+      <td><button class="Button Button--warning" type="button">.Button--warning</button></td>
+      <td><button class="Button Button--warning Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--warning" type="button" disabled>&[disabled]</button></td>
+    </tr>
+    <tr>
+      <td>.Button--danger</td>
+      <td><button class="Button Button--danger" type="button">.Button--danger</button></td>
+      <td><button class="Button Button--danger Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--danger" type="button" disabled>&[disabled]</button></td>        
+    </tr>
+    <tr>
+      <td>.Button--link</td>
+      <td><button class="Button Button--link" type="button">.Button--link</button></td>
+      <td><button class="Button Button--link Button--active" type="button" style="pointer-events: none">&.Button--active</button></td>
+      <td><button class="Button Button--link" type="button" disabled>&[disabled]</button></td>
+    </tr>
+    <tr>
+      <td>.Button--icon-action</td>
+      <td><button class="Button Button--icon-action" type="button"><i class="icon-edit"></i></button></td>
+      <td><button class="Button Button--icon-action Button--active" type="button" style="pointer-events: none"><i class="icon-trash"></i></button></td>
+      <td><button class="Button Button--icon-action" type="button" disabled><i class="icon-x"></i></button></td>
+    </tr> 
+  </tbody>
+</table>
 
 ```html
-<p>
-  <button class="btn btn-large" type="button">Large button</button>
-</p>
-<p>
-  <button class="btn" type="button">Default button</button>
-</p>
-<p>
-  <button class="btn btn-small" type="button">Small button</button>
-</p>
-<p>
-  <button class="btn btn-mini" type="button">Mini button</button>
-</p>
+<button class="Button Button--primary" type="button">Hey, I have a blue button!</button>
 ```
 
-### Artificial buttons
+## Button Sizes
+
+If you need to change a button's size, you can do so by adding the appropriate class
+
+<table class="ic-Table">
+  <thead>
+    <th>Class</th>
+    <th>Size</th>  
+  </thead>
+  <tbody>
+    <tr>
+      <td>default</td>
+      <td><button class="Button" type="button">.Button</button></td>
+    </tr>
+    <tr>
+      <td>.Button.Button--large</td>
+      <td><button class="Button Button--large" type="button">.Button-large</button></td>
+    </tr>    
+    <tr>
+      <td>.Button.Button--small</td>
+      <td><button class="Button Button--small" type="button">.Button-small</button></td>
+    </tr>
+    <tr>
+      <td>.Button.Button--mini</td>
+      <td><button class="Button Button--mini" type="button">.Button-mini</button></td>
+    </tr>    
+  </tbody>
+</table>
+
+```html
+<button class="Button Button--large" type="button">This is a massive button!</button>
+```
+
+
+## Artificial button
 
 To create something that acts like a button when you can't use a button element,
-listen to the "click" and "keyclick" events and add tabindex="0" and role="button".
+
+listen to the "click" and "keyclick" events and add `tabindex="0"` and `role="button"`
 
 ```html
 <div class="btn" tabindex="0" role="button">Activate me</div>
 ```
+
 */
 
-.btn, // <-- deprecated- do not use
+.btn,       // <-- deprecated- do not use
 .Button {
-  @if $use_new_styles { @include canvas-button(darken($canvas-neutral, 1%), $textColor, true); }
-  @else { @include canvas-button(darken($canvas-light, 3%), $textColor, true); }
+  @include canvas-button(darken($ic-color-light, 3%), $textColor);
   border-radius: $baseBorderRadius;
   transition: background-color 0.2s ease-in-out;
   display: inline-block;
@@ -112,16 +146,21 @@ listen to the "click" and "keyclick" events and add tabindex="0" and role="butto
   text-decoration: none;
   overflow: hidden;
   text-shadow: none;
+  user-select: none;
+  
+  &:focus { 
+    text-decoration: none;
+    outline: none;
+    @if $use_high_contrast == false { outline: none; }
+  }
 
-  // Hover state
   &:hover { text-decoration: none; }
 
-  // Focus state for keyboard and accessibility ONLY IN HIGH CONTRAST MODE
-  @if $use_high_contrast { 
-    &:focus { @include button-focus; } 
+  &.disabled, &[disabled] {
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.5;
   }
-  // If not high-contrast, the "canvas-button" mixin has the :focus state share the same styles as :hover
-  @else { &:focus { outline: none; } }
 
 }
 
@@ -180,46 +219,45 @@ listen to the "click" and "keyclick" events and add tabindex="0" and role="butto
 input[type="submit"],
 input[type="reset"],
 input[type="button"] {
-  &.btn-block {
-    width: 100%;
-  }
+  &.btn-block, &.Button--block { width: 100%; }
 }
 
 // Set the backgrounds
 // -------------------------
 
+$ic-brand-button--primary-bgd: $ic-brand-primary !default;
+$ic-brand-button--primary-text: $ic-color-light !default;
+$ic-brand-button--secondary-bgd: $ic-brand-secondary !default;
+$ic-brand-button--secondary-text: $ic-color-light !default;
+
+// Primary appears as blue
 .btn-primary, // <-- deprecated- do not use
 .Button--primary {
-  @include canvas-button($canvas-primary, $canvas-light, false);
-  @if $use_high_contrast {
-    &:focus { @include button-focus($canvas-action); }
-  }
+  @include canvas-button($ic-brand-button--primary-bgd, $ic-brand-button--primary-text);
 }
-// Warning appears are orange
+// Warning appears as orange
 .btn-warning, // <-- deprecated- do not use
 .Button--warning {
-  @include canvas-button($canvas-alert, $canvas-light, false);
+  @include canvas-button($ic-color-alert, $ic-color-light);
 }
 // Danger and error appear as red
 .btn-danger, // <-- deprecated- do not use
 .Button--danger {
-  @include canvas-button($canvas-danger, $canvas-light, false);
+  @include canvas-button($ic-color-danger, $ic-color-light);
 }
 // Success appears as green
 .btn-success, // <-- deprecated- do not use
 .Button--success {
-  @include canvas-button($canvas-success, $canvas-light, false);
+  @include canvas-button($ic-color-success, $ic-color-light);
 }
 // Info appears as a neutral blue
 .btn-info, // <-- deprecated- do not use
 .Button--secondary {
-  @include canvas-button($canvas-secondary, $canvas-light, false);
+  @include canvas-button($ic-brand-button--secondary-bgd, $ic-brand-button--secondary-text);
 }
 
 // Inverse appears as dark gray <-- deprecated- do not use
-.btn-inverse {
-  @include buttonBackground($btnInverseBackground, $btnInverseBackgroundHighlight);
-}
+.btn-inverse { @include buttonBackground($btnInverseBackground, $btnInverseBackgroundHighlight); }
 
 
 // Link buttons
@@ -238,23 +276,63 @@ input[type="button"] {
 .Button--link {
   border-color: transparent;
   cursor: pointer;
-  color: $linkColor;
+  color: $ic-link-color;
 
   &:hover {
-    color: $linkColorHover;
+    color: $ic-link-color-hover;
     text-decoration: underline;
     background: transparent;
   }
 
   &.active, &.Button--active, &:active {
-    background: rgba($canvas-dark, 0.05);
+    background: rgba($ic-color-dark, 0.05);
     box-shadow: none;
     border-color: transparent;
-    color: $linkColor;
+    color: $ic-link-color;
   }
 
   &.disabled, &[disabled] {
     color: $textColor;
     background: transparent;
   }
+}
+
+// Icon "action" buttons
+// --------------------------------------------------
+
+// Like link buttons, but containing only an icon, which appears in dark gray
+// Usually used to perform user actions like closing, editing, etc.
+
+.Button--icon-action {
+  transition: color 0.2s;
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 0;
+  color: $ic-icon-link-color;
+  &:hover, &:focus {
+    background: transparent;
+    color: $ic-icon-link-color-hover;  
+  }
+  &.active, &.Button--active, &:active {
+    background: transparent;
+    box-shadow: none;
+    border-color: transparent;
+    color: $ic-link-color;
+  }
+}
+
+// Handle jQueryUI-generated button classes
+.ui-button-icon-only .ui-button-text, .ui-button-icons-only .ui-button-text { @extend .ui-helper-hidden-accessible; }
+
+.ui-button {
+  position: relative;
+  @extend .Button;
+  &.ui-state-hover { @extend .Button:hover }
+  &.ui-state-focus { @extend .Button:focus }
+  &.ui-state-active { 
+    @extend .Button--active;
+    &:hover { @extend .Button--active; }
+  }
+  &.ui-state-disabled { @extend .Button.disabled; }
 }

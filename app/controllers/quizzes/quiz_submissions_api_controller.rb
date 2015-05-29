@@ -160,12 +160,12 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #    "quiz_submissions": [QuizSubmission]
   #  }
   def index
-    quiz_submissions = if is_authorized_action?(@context, @current_user, [:manage_grades, :view_all_grades])
+    quiz_submissions = if @context.grants_any_right?(@current_user, session, :manage_grades, :view_all_grades)
       # teachers have access to all student submissions
       Api.paginate @quiz.quiz_submissions.where(:user_id => visible_user_ids),
         self,
         api_v1_course_quiz_submissions_url(@context, @quiz)
-    elsif is_authorized_action?(@quiz, @current_user, :submit)
+    elsif @quiz.grants_right?(@current_user, session, :submit)
       # students have access only to their own
       @quiz.quiz_submissions.where(:user_id => @current_user)
     end
@@ -193,6 +193,10 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #  }
   def show
     if authorized_action(@quiz_submission, @current_user, :read)
+      if params.has_key?(:attempt)
+        retrieve_quiz_submission_attempt!(params[:attempt])
+      end
+
       serialize_and_render @quiz_submission
     end
   end
@@ -340,6 +344,9 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #  }
   def complete
     @service.complete @quiz_submission, params[:attempt]
+
+    # TODO: should this go in the service instead?
+    Canvas::LiveEvents.quiz_submitted(@quiz_submission)
 
     serialize_and_render @quiz_submission
   end

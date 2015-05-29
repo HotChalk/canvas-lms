@@ -12,10 +12,11 @@ define [
       props =
         models: [new Folder(id: 999)]
 
-      @restrictedDialogForm = React.renderComponent(RestrictedDialogForm(props), $('<div>').appendTo('body')[0])
+      @restrictedDialogForm = React.render(RestrictedDialogForm(props), $('<div>').appendTo('#fixtures')[0])
 
     teardown: ->
       React.unmountComponentAtNode(@restrictedDialogForm.getDOMNode().parentNode)
+      $("#fixtures").empty()
 
   test 'renders a publish input field', ->
     ok @restrictedDialogForm.refs.publishInput, "should have a publish input field"
@@ -36,10 +37,11 @@ define [
       props =
         models: [new Folder(id: 1000, hidden: false), new Folder(id: 999, hidden: true)]
 
-      @restrictedDialogForm = React.renderComponent(RestrictedDialogForm(props), $('<div>').appendTo('body')[0])
+      @restrictedDialogForm = React.render(RestrictedDialogForm(props), $('<div>').appendTo('#fixtures')[0])
 
     teardown: ->
       React.unmountComponentAtNode(@restrictedDialogForm.getDOMNode().parentNode)
+      $("#fixtures").empty()
 
   test 'defaults to having nothing selected when non common items are selected', ->
     equal @restrictedDialogForm.refs.publishInput.getDOMNode().checked, false, 'not selected'
@@ -65,28 +67,29 @@ define [
       props =
         models: [new Folder(id: 999)]
 
-      @restrictedDialogForm = React.renderComponent(RestrictedDialogForm(props), $('<div>').appendTo('body')[0])
+      @restrictedDialogForm = React.render(RestrictedDialogForm(props), $('<div>').appendTo('#fixtures')[0])
 
     teardown: ->
       React.unmountComponentAtNode(@restrictedDialogForm.getDOMNode().parentNode)
+      $("#fixtures").empty()
 
   test 'returns the correct object to publish an item', ->
     @restrictedDialogForm.refs.publishInput.getDOMNode().checked = true
     Simulate.change(@restrictedDialogForm.refs.publishInput .getDOMNode())
-    
-    expectedObject = 
+
+    expectedObject =
       'hidden': false
       'unlock_at': ''
       'lock_at': ''
       'locked' : false
-    
+
     deepEqual @restrictedDialogForm.extractFormValues(), expectedObject, "returns the correct object"
 
   test 'returns the correct object to unpublish an item', ->
     @restrictedDialogForm.refs.unpublishInput.getDOMNode().checked = true
     Simulate.change(@restrictedDialogForm.refs.unpublishInput .getDOMNode())
-    
-    expectedObject = 
+
+    expectedObject =
       'hidden': false
       'unlock_at': ''
       'lock_at': ''
@@ -97,8 +100,8 @@ define [
   test 'returns the correct object to hide an item', ->
     @restrictedDialogForm.refs.permissionsInput.getDOMNode().checked = true
     Simulate.change(@restrictedDialogForm.refs.permissionsInput.getDOMNode())
-    
-    expectedObject = 
+
+    expectedObject =
       'hidden': true
       'unlock_at': ''
       'lock_at': ''
@@ -111,10 +114,10 @@ define [
     Simulate.change(@restrictedDialogForm.refs.dateRange.getDOMNode())
     @restrictedDialogForm.refs.dateRange.getDOMNode().checked = true
 
-    @restrictedDialogForm.refs.unlock_at.getDOMNode().value = "something else"
-    @restrictedDialogForm.refs.lock_at.getDOMNode().value = "something"
+    $(@restrictedDialogForm.refs.unlock_at.getDOMNode()).data('unfudged-date', 'something else')
+    $(@restrictedDialogForm.refs.lock_at.getDOMNode()).data('unfudged-date', 'something')
 
-    expectedObject = 
+    expectedObject =
       'hidden': false
       'unlock_at': 'something else'
       'lock_at': 'something'
@@ -131,9 +134,10 @@ define [
       props =
         models: [new Folder(id: 999, hidden: true, lock_at: undefined, unlock_at: undefined)]
 
-      @restrictedDialogForm = React.renderComponent(RestrictedDialogForm(props), $('<div>').appendTo('body')[0])
+      @restrictedDialogForm = React.render(RestrictedDialogForm(props), $('<div>').appendTo('#fixtures')[0])
     teardown: ->
       React.unmountComponentAtNode(@restrictedDialogForm.getDOMNode().parentNode)
+      $("#fixtures").empty()
 
   test 'calls save on the model with only hidden if calendarOption is false', ->
     sinon.spy(@restrictedDialogForm.props.models[0], 'save')
@@ -147,8 +151,8 @@ define [
     Simulate.change(refs.permissionsInput.getDOMNode())
     @restrictedDialogForm.setState selectedOption: 'date_range'
 
-    refs.unlock_at.getDOMNode().value = '123'
-    refs.lock_at.getDOMNode().value = '123'
+    $(refs.unlock_at.getDOMNode()).data('unfudged-date', '123')
+    $(refs.lock_at.getDOMNode()).data('unfudged-date', '123')
 
     stubbedSave = sinon.spy(@restrictedDialogForm.props.models[0], 'save')
     Simulate.submit(refs.dialogForm.getDOMNode())
@@ -160,10 +164,11 @@ define [
     setup: ->
       props =
         models: [new Folder(id: 999, hidden: true, lock_at: undefined, unlock_at: undefined), new Folder(id: 1000, hidden: true, lock_at: undefined, unlock_at: undefined)]
+      @restrictedDialogForm = React.render(RestrictedDialogForm(props), $('<div>').appendTo('#fixtures')[0])
 
-      @restrictedDialogForm = React.renderComponent(RestrictedDialogForm(props), $('<div>').appendTo('body')[0])
     teardown: ->
       React.unmountComponentAtNode(@restrictedDialogForm.getDOMNode().parentNode)
+      $("#fixtures").empty()
 
   test 'commonly selected items will open the same defaulted options', ->
     equal @restrictedDialogForm.refs.permissionsInput.props.checked, true, 'permissionsInput is checked for all of the selected items'

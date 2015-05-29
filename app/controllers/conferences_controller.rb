@@ -63,6 +63,11 @@
 #           "example": "AdobeConnect",
 #           "type": "string"
 #         },
+#         "conference_key": {
+#           "description": "The 3rd party's ID for the conference",
+#           "example": "abcdjoelisgreatxyz",
+#           "type": "string"
+#         },
 #         "description": {
 #           "description": "The description for the conference",
 #           "example": "Conference Description",
@@ -173,7 +178,7 @@ class ConferencesController < ApplicationController
     @new_conferences, @concluded_conferences = conferences.partition { |conference|
       conference.ended_at.nil?
     }
-    log_asset_access("conferences:#{@context.asset_string}", "conferences", "other")
+    log_asset_access([ "conferences", @context ], "conferences", "other")
     scope = @context.users
     if @context.respond_to?(:participating_typical_users)
       scope = @context.participating_typical_users
@@ -222,7 +227,7 @@ class ConferencesController < ApplicationController
           format.json { render :json => WebConference.find(@conference).as_json(:permissions => {:user => @current_user, :session => session},
                                                                                 :url => named_context_url(@context, :context_conference_url, @conference)) }
         else
-          format.html { render :action => 'index' }
+          format.html { render :index }
           format.json { render :json => @conference.errors, :status => :bad_request }
         end
       end
@@ -246,7 +251,7 @@ class ConferencesController < ApplicationController
           format.json { render :json => @conference.as_json(:permissions => {:user => @current_user, :session => session},
                                                             :url => named_context_url(@context, :context_conference_url, @conference)) }
         else
-          format.html { render :action => "edit" }
+          format.html { render :edit }
           format.json { render :json => @conference.errors, :status => :bad_request }
         end
       end
@@ -282,6 +287,10 @@ class ConferencesController < ApplicationController
 
   def close
     if authorized_action(@conference, @current_user, :close)
+      unless @conference.active?
+        return render :json => { :message => 'conference is not active', :status => :bad_request }
+      end
+
       if @conference.close
         render :json => @conference.as_json(:permissions => {:user => @current_user, :session => session},
                                             :url => named_context_url(@context, :context_conference_url, @conference))

@@ -13,7 +13,9 @@ define [
   'compiled/grade_calculator'
   'compiled/gradebook2/OutcomeGradebookGrid'
   '../../shared/components/ic_submission_download_dialog_component'
-  ], (ajax, round, userSettings, fetchAllPages, parseLinkHeader, I18n, Ember, _, tz, AssignmentDetailsDialog, AssignmentMuter, GradeCalculator, outcomeGrid, ic_submission_download_dialog ) ->
+  'str/htmlEscape'
+  'compiled/models/grade_summary/CalculationMethodContent'
+  ], (ajax, round, userSettings, fetchAllPages, parseLinkHeader, I18n, Ember, _, tz, AssignmentDetailsDialog, AssignmentMuter, GradeCalculator, outcomeGrid, ic_submission_download_dialog, htmlEscape, CalculationMethodContent) ->
 
   {get, set, setProperties} = Ember
 
@@ -62,7 +64,7 @@ define [
       if Ember.$('#flash_message_holder li').size() > 0
         close = Ember.$('#flash_message_holder li a').text().trim()
         message = Ember.$('#flash_message_holder li').text().replace(close,'').trim()
-        node = Ember.$("<span role='alert'>#{message}</span>")
+        node = Ember.$("<span role='alert'>#{htmlEscape(message)}</span>")
         Ember.$(node).appendTo(Ember.$('#flash_screenreader_holder'))
     ).on('init')
 
@@ -85,9 +87,6 @@ define [
     showTotalAsPoints: (->
       ENV.GRADEBOOK_OPTIONS.show_total_grade_as_points
     ).property()
-
-    isDraftState: ->
-      ENV.GRADEBOOK_OPTIONS.draft_state_enabled
 
     publishToSisEnabled: (->
       ENV.GRADEBOOK_OPTIONS.publish_to_sis_enabled
@@ -209,7 +208,7 @@ define [
 
     updateAssignmentVisibilities: (assignment, userId) ->
       visibilities = get(assignment, 'assignment_visibility')
-      filteredVisibilities = visibilities.filter (id) ->
+      filteredVisibilities = visibilities?.filter (id) ->
         id != userId
       set(assignment, 'assignment_visibility', filteredVisibilities)
 
@@ -509,7 +508,7 @@ define [
         return if assignmentsProxy.findBy('id', as.id)
         @processAssignment(as, assignmentGroups)
 
-        shouldRemoveAssignment = (@isDraftState() and as.published is false) or
+        shouldRemoveAssignment = (as.published is false) or
           as.submission_types.contains 'not_graded' or
           as.submission_types.contains 'attendance' and !@get('showAttendance')
         if shouldRemoveAssignment
@@ -605,6 +604,7 @@ define [
       outcome = @get 'selectedOutcome'
       result = @get('outcome_rollups').find (x) ->
         x.user_id == student.id && x.outcome_id == outcome.id
+      result.mastery_points = outcome.mastery_points if result
       result or {
         user_id: student.id
         outcome_id: outcome.id
@@ -646,6 +646,15 @@ define [
         min: outcomeGrid.Math.min(scores)
         cnt: outcomeGrid.Math.cnt(scores)
     ).property('selectedOutcome', 'outcome_rollups')
+
+    calculationDetails: (->
+      return null unless @get('selectedOutcome')?
+      outcome = @get('selectedOutcome')
+      _.extend({
+        calculation_method: outcome.calculation_method
+        calculation_int: outcome.calculation_int
+      }, new CalculationMethodContent(outcome).present())
+    ).property('selectedOutcome')
 
     assignmentSubmissionTypes: (->
       types = @get('selectedAssignment.submission_types')

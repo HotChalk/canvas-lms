@@ -1,9 +1,10 @@
 define [
   'i18n!rubrics'
   'jquery'
+  'str/htmlEscape'
   'jqueryui/dialog'
   'vendor/jquery.ba-tinypubsub'
-], (I18n, $) ->
+], (I18n, $, htmlEscape) ->
 
   assignmentRubricDialog =
 
@@ -17,24 +18,22 @@ define [
         $triggers.each (i, el) ->
           noRubricExists = $(el).data('noRubricExists')
           url = $(el).data('url')
+          $focusReturnsTo = $ $(el).data('focusReturnsTo')
+    
           $(el).click (event) ->
             event.preventDefault()
-            assignmentRubricDialog.openDialog(url, noRubricExists)
+            assignmentRubricDialog.openDialog(url, noRubricExists, $focusReturnsTo)
 
-    initDialog: (url, noRubricExists) ->
+    initDialog: (url, noRubricExists, $focusReturnsTo) ->
       @dialogUrl = url
-
-      if @$dialog
-        @$dialog.dialog('destroy').remove()
-
-      @$dialog = $("<div><h4>#{I18n.t 'loading', 'Loading...'}</h4></div>").dialog
+      @$dialog.dialog('destroy').remove() if @$dialog
+      @$dialog = $("<div><h4>#{htmlEscape I18n.t 'loading', 'Loading...'}</h4></div>").dialog
         title: I18n.t("titles.assignment_rubric_details", "Assignment Rubric Details")
         width: 600
         modal: false
         resizable: true
         autoOpen: false
-        close: ->
-          window.location.reload()        
+        close: => $focusReturnsTo.focus()
 
       $.get url, (html) ->
         # weird hackery because the server returns a <div id="rubrics" style="display:none">
@@ -47,7 +46,7 @@ define [
           $.subscribe 'edit_rubric/initted', ->
             assignmentRubricDialog.$dialog.find('.btn.add_rubric_link').click()
 
-    openDialog: (url, noRubricExists) ->
-      @initDialog(url, noRubricExists) unless @dialogUrl == url
+    openDialog: (url, noRubricExists, $focusReturnsTo) ->
+      @initDialog(url, noRubricExists, $focusReturnsTo) unless @dialogUrl == url
       @$dialog.dialog 'open'
 

@@ -52,6 +52,9 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     EXTERNAL_TOOLS_CONTENT_ID = '#assignment_external_tool_tag_attributes_content_id'
     EXTERNAL_TOOLS_NEW_TAB = '#assignment_external_tool_tag_attributes_new_tab'
     SECTION_SELECTOR = '#section_selector'
+    ASSIGNMENT_POINTS_POSSIBLE = '#assignment_points_possible'
+    ASSIGNMENT_POINTS_CHANGE_WARN = '#point_change_warning'
+
 
     els: _.extend({}, @::els, do ->
       els = {}
@@ -76,18 +79,23 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       els["#{EXTERNAL_TOOLS_CONTENT_TYPE}"] = '$externalToolsContentType'
       els["#{EXTERNAL_TOOLS_CONTENT_ID}"] = '$externalToolsContentId'
       els["#{SECTION_SELECTOR}"] = '$sectionSelector'
+      els["#{ASSIGNMENT_POINTS_POSSIBLE}"] = '$assignmentPointsPossible'
+      els["#{ASSIGNMENT_POINTS_CHANGE_WARN}"] = '$pointsChangeWarning'
       els
     )
 
     events: _.extend({}, @::events, do ->
       events = {}
       events["click .cancel_button"] = 'handleCancel'
+      events["click .save_and_publish"] = 'saveAndPublish'
       events["change #{SUBMISSION_TYPE}"] = 'handleSubmissionTypeChange'
       events["change #{RESTRICT_FILE_UPLOADS}"] = 'handleRestrictFileUploadsChange'
       events["click #{ADVANCED_TURNITIN_SETTINGS}"] = 'showTurnitinDialog'
       events["change #{TURNITIN_ENABLED}"] = 'toggleAdvancedTurnitinSettings'
       events["change #{ALLOW_FILE_UPLOADS}"] = 'toggleRestrictFileUploads'
       events["click #{EXTERNAL_TOOLS_URL}"] = 'showExternalToolsDialog'
+      events["click #{EXTERNAL_TOOLS_URL}_screenreader_button"] = 'showExternalToolsDialogForScreenreader'
+      events["change #assignment_points_possible"] = 'handlePointsChange'
       events
     )
 
@@ -115,6 +123,11 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
        "points_possible","allowed_extensions","peer_reviews","peer_review_count",
        "automatic_peer_reviews","group_category_id","grade_group_students_individually",
        "turnitin_enabled","course_section_id"]
+
+    handlePointsChange:(ev) =>
+      ev.preventDefault()
+      if @assignment.hasSubmittedSubmissions()
+        @$pointsChangeWarning.toggleAccessibly(@$assignmentPointsPossible.val() != "#{@assignment.pointsPossible()}")
 
     setDefaultsIfNew: =>
       if @assignment.isNew()
@@ -153,6 +166,10 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
           @$externalToolsContentId.val(data['item[id]'])
           @$externalToolsUrl.val(data['item[url]'])
           @$externalToolsNewTab.prop('checked', data['item[new_tab]'] == '1')
+
+    showExternalToolsDialogForScreenreader: (ev) =>
+      ev.preventDefault()
+      @showExternalToolsDialog()
 
     toggleRestrictFileUploads: =>
       @$restrictFileUploadsOptions.toggleAccessibly @$allowFileUploads.prop('checked')
@@ -227,6 +244,7 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
+      data.published = true if @shouldPublish
       return data
 
     submit: (event) =>
@@ -242,7 +260,8 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
           da_enabled: ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
-          success: =>
+          success: (dateDialog) =>
+            dateDialog.dialog('close').remove()
             ValidatedFormView::submit.call(this)
         missingDateDialog.cancel = (e) ->
           missingDateDialog.$dialog.dialog('close').remove()
@@ -250,6 +269,16 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
         missingDateDialog.render()
       else
         super
+
+    saveAndPublish: (event) ->
+      @shouldPublish = true
+      @disableWhileLoadingOpts = {buttons: ['.save_and_publish']}
+      @submit(event)
+
+    onSaveFail: (xhr) =>
+      @shouldPublish = false
+      @disableWhileLoadingOpts = {}
+      super(xhr)
 
     _inferSubmissionTypes: (assignmentData) =>
       if assignmentData.grading_type == 'not_graded'
@@ -297,6 +326,7 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
         errors = @groupCategorySelector.validateBeforeSave(data, errors)
       errors = @_validatePointsPossible(data, errors)
       errors = @_validatePointsRequired(data, errors)
+      errors = @_validateExternalTool(data, errors)
       data2 =
         assignment_overrides: @dueDateOverrideView.getAllDates(data)
       errors = @dueDateOverrideView.validateBeforeSave(data2,errors)
@@ -339,8 +369,15 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     _validatePointsRequired: (data, errors) =>
       return errors unless _.include ['percent','letter_grade','gpa_scale'], data.grading_type
 
-      if data.points_possible == "0" or isNaN(parseFloat(data.points_possible))
+      if parseInt(data.points_possible,10) < 0 or isNaN(parseFloat(data.points_possible))
         errors["points_possible"] = [
-          message: I18n.t('points_possible_not_zero', "Points possible must be more than 0 for selected grading type")
+          message: I18n.t("Points possible must be 0 or more for selected grading type")
+        ]
+      errors
+
+    _validateExternalTool: (data, errors) =>
+      if data.submission_type == 'external_tool' and $.trim(data.external_tool_tag_attributes?.url?.toString()).length == 0
+        errors["external_tool_tag_attributes[url]"] = [
+          message: I18n.t 'External Tool URL cannot be left blank'
         ]
       errors

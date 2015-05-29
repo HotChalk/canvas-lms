@@ -9,7 +9,7 @@ define [
 
   module 'UploadDropZone',
     setup: ->
-      @uploadZone = React.renderComponent(UploadDropZone({}), node)
+      @uploadZone = React.render(UploadDropZone({}), node)
 
     teardown: ->
       React.unmountComponentAtNode(node)

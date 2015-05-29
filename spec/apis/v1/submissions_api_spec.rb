@@ -176,6 +176,19 @@ describe 'Submissions API', type: :request do
       expect(json["all_submissions"][0]["assignment_visible"]).to eq true
     end
 
+    it "should be able to handle an update without visibility when DA is on" do
+      @course.enable_feature!(:differentiated_assignments)
+      json = api_call(:put,
+        "/api/v1/sections/#{@section.id}/assignments/#{@a1.id}/submissions/#{@student1.id}",
+        { :controller => 'submissions_api', :action => 'update',
+        :format => 'json', :section_id => @section.id.to_s,
+        :assignment_id => @a1.id.to_s, :user_id => @student1.id.to_s },
+        { :submission => { :posted_grade => '75%' }})
+      expect(json["assignment_visible"]).to be_nil
+      expect(json["all_submissions"][0]["assignment_visible"]).to be_nil
+      expect(json["assignment_id"]).to eq @a1.id
+    end
+
     it "should return submissions for a section" do
       json = api_call(:get,
             "/api/v1/sections/sis_section_id:my-section-sis-id/assignments/#{@a1.id}/submissions/#{@student1.id}",
@@ -356,6 +369,8 @@ describe 'Submissions API', type: :request do
         'created_at' => se1.created_at.as_json,
         'updated_at' => se1.updated_at.as_json,
         'user_name' => 'User',
+        'rating_sum' => nil,
+        'rating_count' => nil,
       },
       {
         'id' => se2.id,
@@ -367,6 +382,8 @@ describe 'Submissions API', type: :request do
         'created_at' => se2.created_at.as_json,
         'updated_at' => se2.updated_at.as_json,
         'user_name' => 'User',
+        'rating_sum' => nil,
+        'rating_count' => nil,
       }].sort_by { |h| h['user_id'] }
     )
 
@@ -424,6 +441,8 @@ describe 'Submissions API', type: :request do
         'parent_id' => e1.id,
         'created_at' => se1.created_at.as_json,
         'updated_at' => se1.updated_at.as_json,
+        'rating_sum' => nil,
+        'rating_count' => nil,
       },
       {
         'id' => se2.id,
@@ -435,6 +454,8 @@ describe 'Submissions API', type: :request do
         'parent_id' => nil,
         'created_at' => se2.created_at.as_json,
         'updated_at' => se2.updated_at.as_json,
+        'rating_sum' => nil,
+        'rating_count' => nil,
       }].sort_by { |h| h['user_id'] }
     )
   end
@@ -723,6 +744,7 @@ describe 'Submissions API', type: :request do
              "filename" => "unknown.loser",
              "display_name" => "unknown.loser",
              "id" => sub1.attachments.first.id,
+             "folder_id" => sub1.attachments.first.folder_id,
              "size" => sub1.attachments.first.size,
              'unlock_at' => nil,
              'locked' => false,
@@ -791,6 +813,7 @@ describe 'Submissions API', type: :request do
                 "filename" => "unknown.loser",
                 "display_name" => "unknown.loser",
                 "id" => sub1.attachments.first.id,
+                "folder_id" => sub1.attachments.first.folder_id,
                 "size" => sub1.attachments.first.size,
                 'unlock_at' => nil,
                 'locked' => false,
@@ -876,6 +899,7 @@ describe 'Submissions API', type: :request do
                "filename" => "snapshot.png",
                "url" => "http://www.example.com/files/#{sub2a1.id}/download?download_frd=1&verifier=#{sub2a1.uuid}",
                "id" => sub2a1.id,
+               "folder_id" => sub2a1.folder_id,
                "size" => sub2a1.size,
                'unlock_at' => nil,
                'locked' => false,
@@ -902,6 +926,7 @@ describe 'Submissions API', type: :request do
            "filename" => "snapshot.png",
            "url" => "http://www.example.com/files/#{sub2a1.id}/download?download_frd=1&verifier=#{sub2a1.uuid}",
            "id" => sub2a1.id,
+           "folder_id" => sub2a1.folder_id,
            "size" => sub2a1.size,
            'unlock_at' => nil,
            'locked' => false,
@@ -923,6 +948,23 @@ describe 'Submissions API', type: :request do
         "workflow_state"=>"graded",
         "late"=>false}]
     expect(json.sort_by { |h| h['user_id'] }).to eq res.sort_by { |h| h['user_id'] }
+  end
+
+  it "should paginate submissions" do
+    student = user(:active_all => true)
+    course_with_teacher(:active_all => true)
+    @course.enroll_student(student).accept!
+    @assignment = @course.assignments.create!({
+      :title => 'assignment1',
+      :grading_type => 'points',
+      :points_possible => 12
+    })
+    json = api_call(:get, "/api/v1/courses/#{@course.id}/assignments/#{@assignment.id}/submissions.json", {
+      :controller => 'submissions_api', :action => 'index',
+      :format => 'json', :course_id => @course.to_param,
+      :assignment_id => @assignment.id
+    })
+    expect(response.header.has_key?("Link")).to be_truthy
   end
 
   it "should return nothing if no assignments in the course" do
@@ -1463,6 +1505,49 @@ describe 'Submissions API', type: :request do
     expect(json.size).to eq 2
     expect(json.detect { |u| u['user_id'] == student1.id }['submissions'].size).to eq 2
     expect(json.detect { |u| u['user_id'] == student2.id }['submissions'].size).to eq 0
+  end
+
+  context "Multiple Grading Periods" do
+    before :once do
+      @student1 = user(:active_all => true)
+      @student2 = user_with_pseudonym(:active_all => true)
+
+      course_with_teacher(:active_all => true)
+
+      @course.enroll_student(@student1).accept!
+      @course.enroll_student(@student2).accept!
+
+      @course.account.enable_feature!(:multiple_grading_periods)
+      gpg = @course.grading_period_groups.create!
+      @gp1 = gpg.grading_periods.create!(workflow_state: "active", weight: 50, start_date: 2.days.ago, end_date: 1.day.from_now)
+      @gp2 = gpg.grading_periods.create!(workflow_state: "active", weight: 50, start_date: 2.days.from_now, end_date: 1.month.from_now)
+      a1 = @course.assignments.create!(due_at: 1.minute.from_now, :submission_types => 'online_text_entry')
+      a2 = @course.assignments.create!(due_at: 1.week.from_now, :submission_types => 'online_text_entry')
+
+      submit_homework(a1, @student1)
+      submit_homework(a2, @student1) # only one in current grading period
+      submit_homework(a1, @student2)
+    end
+
+    it "should filter by grading period" do
+      json = api_call(:get,
+        "/api/v1/courses/#{@course.id}/students/submissions.json",
+        { :controller => 'submissions_api', :action => 'for_students',
+          :format => 'json', :course_id => @course.to_param },
+        { :student_ids => [@student1.to_param, @student2.to_param], :grouped => '1',
+          :grading_period_id => @gp2.to_param})
+      expect(json.detect { |u| u['user_id'] == @student1.id }['submissions'].size).to eq 1
+      expect(json.detect { |u| u['user_id'] == @student2.id }['submissions'].size).to eq 0
+    end
+
+    it "should not return an error when no grading_period_id is provided" do
+      json = api_call(:get,
+        "/api/v1/courses/#{@course.id}/students/submissions.json",
+        { :controller => 'submissions_api', :action => 'for_students',
+          :format => 'json', :course_id => @course.to_param },
+        { :student_ids => [@student1.to_param, @student2.to_param], :grouped => '1' })
+      expect(response).to be_ok
+    end
   end
 
   describe "for_students non-admin" do
@@ -2577,5 +2662,222 @@ describe 'Submissions API', type: :request do
              {course_id: @course.id.to_s, assignment_id: @assignment.id.to_s, user_id: @student.id.to_s,
                action: 'mark_submission_unread', controller: 'submissions_api', format: 'json'})
     expect(@submission.reload.read?(@teacher)).to be_falsey
+  end
+
+  context 'bulk update' do
+    before :each do
+      @student1 = user(:active_all => true)
+      @student2 = user(:active_all => true)
+      course_with_teacher(:active_all => true)
+      @default_section = @course.default_section
+      @section = @course.course_sections.create!(:name => "section2")
+      @course.enroll_user(@student1, 'StudentEnrollment', :section => @section).accept!
+      @course.enroll_user(@student2, 'StudentEnrollment').accept!
+      @a1 = @course.assignments.create!({:title => 'assignment1', :grading_type => 'percent', :points_possible => 10})
+    end
+
+    it "should queue bulk update through courses" do
+      grade_data = {
+        :grade_data => {
+          @student1.id => { :posted_grade => '75%'},
+          @student2.id => { :posted_grade => '95%'}
+        }
+      }
+
+      json = api_call(:post,
+        "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+        { :controller => 'submissions_api', :action => 'bulk_update',
+          :format => 'json', :course_id => @course.id.to_s,
+          :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.completed?).to be_truthy
+
+      expect(Submission.count).to eq 2
+      s1 = @student1.submissions.first
+      expect(s1.grade).to eq "75%"
+      s2 = @student2.submissions.first
+      expect(s2.grade).to eq "95%"
+    end
+
+    it "should find users through sis api ids" do
+      student3 = user_with_pseudonym(:active_all => true)
+      student3.pseudonym.update_attribute(:sis_user_id, 'my-student-id')
+      @course.enroll_user(student3, 'StudentEnrollment').accept!
+
+      grade_data = {
+          :grade_data => {
+              'sis_user_id:my-student-id' => { :posted_grade => '75%'}
+          }
+      }
+
+      @user = @teacher
+      json = api_call(:post,
+                      "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+                      { :controller => 'submissions_api', :action => 'bulk_update',
+                        :format => 'json', :course_id => @course.id.to_s,
+                        :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.completed?).to be_truthy
+
+      expect(Submission.count).to eq 1
+      s1 = student3.submissions.first
+      expect(s1.grade).to eq "75%"
+    end
+
+    it "should restrict with differentiated assignments" do
+      @a1.only_visible_to_overrides = true
+      @a1.save!
+      create_section_override_for_assignment(@a1, course_section: @section)
+      @course.enable_feature!(:differentiated_assignments)
+
+      student3 = user_with_pseudonym(:active_all => true)
+      student3.pseudonym.update_attribute(:sis_user_id, 'my-student-id')
+      @course.enroll_user(student3, 'StudentEnrollment').accept!
+
+      grade_data = {
+          :grade_data => {
+              @student1.id => { :posted_grade => '75%'},
+              @student2.id => { :posted_grade => '95%'},
+              'sis_user_id:my-student-id' => { :posted_grade => '85%'},
+          }
+      }
+
+      @user = @teacher
+      json = api_call(:post,
+                      "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+                      { :controller => 'submissions_api', :action => 'bulk_update',
+                        :format => 'json', :course_id => @course.id.to_s,
+                        :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.failed?).to be_truthy
+      expect(progress.message).to eq "Couldn't find User(s) with API ids '#{@student2.id}', 'sis_user_id:my-student-id'"
+
+      @course.disable_feature!(:differentiated_assignments)
+      json = api_call(:post,
+                      "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+                      { :controller => 'submissions_api', :action => 'bulk_update',
+                        :format => 'json', :course_id => @course.id.to_s,
+                        :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.completed?).to be_truthy
+
+      expect(Submission.count).to eq 3
+      s1 = @student1.submissions.first
+      expect(s1.grade).to eq "75%"
+      s2 = @student2.submissions.first
+      expect(s2.grade).to eq "95%"
+      s3 = student3.submissions.first
+      expect(s3.grade).to eq "85%"
+    end
+
+    it "should queue bulk update through sections" do
+      grade_data = {
+        :grade_data => {
+          @student1.id => { :posted_grade => '75%'}
+        }
+      }
+
+      json = api_call(:post,
+        "/api/v1/sections/#{@section.id}/assignments/#{@a1.id}/submissions/update_grades",
+        { :controller => 'submissions_api', :action => 'bulk_update',
+          :format => 'json', :section_id => @section.id.to_s,
+          :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.completed?).to be_truthy
+
+      expect(Submission.count).to eq 1
+      s1 = @student1.submissions.first
+      expect(s1.grade).to eq "75%"
+    end
+
+    it "should allow bulk grading with rubric assessments" do
+      rubric = rubric_model(:user => @user, :context => @course, :data => larger_rubric_data)
+      @a1.create_rubric_association(:rubric => rubric, :purpose => 'grading', :use_for_grading => true, :context => @course)
+
+      grade_data = {
+        :grade_data => {
+          @student1.id => { :posted_grade => '75%'},
+          @student2.id => {
+            :rubric_assessment => {
+              :crit1 => { :points => 7 },
+              :crit2 => { :points => 2, :comments => 'Rock on' }
+            }
+          }
+        }
+      }
+
+      json = api_call(:post,
+                      "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+                      { :controller => 'submissions_api', :action => 'bulk_update',
+                        :format => 'json', :course_id => @course.id.to_s,
+                        :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.completed?).to be_truthy
+
+      expect(Submission.count).to eq 2
+      s1 = @student1.submissions.first
+      expect(s1.grade).to eq "75%"
+      s2 = @student2.submissions.first
+      expect(s2.rubric_assessment).not_to be_nil
+      expect(s2.rubric_assessment.data).to eq(
+          [{:description=>"B",
+            :criterion_id=>"crit1",
+            :comments_enabled=>true,
+            :points=>7,
+            :learning_outcome_id=>nil,
+            :id=>"rat2",
+            :comments=>nil},
+           {:description=>"Pass",
+            :criterion_id=>"crit2",
+            :comments_enabled=>true,
+            :points=>2,
+            :learning_outcome_id=>nil,
+            :id=>"rat1",
+            :comments=>"Rock on",
+            :comments_html=>"Rock on"}]
+      )
+    end
+
+    it "should require authorization" do
+      @user = @student1
+      raw_api_call(:post,
+        "/api/v1/courses/#{@course.id}/assignments/#{@a1.id}/submissions/update_grades",
+        { :controller => 'submissions_api', :action => 'bulk_update',
+          :format => 'json', :course_id => @course.id.to_s,
+          :assignment_id => @a1.id.to_s, :grade_data => {foo: "bar"} }, {})
+      assert_status(401)
+    end
+
+    it "should check user ids for sections" do
+      grade_data = {
+        :grade_data => {
+          @student1.id => { :posted_grade => '75%'},
+          @student2.id => { :posted_grade => '95%'}
+        }
+      }
+
+      json = api_call(:post,
+        "/api/v1/sections/#{@section.id}/assignments/#{@a1.id}/submissions/update_grades",
+        { :controller => 'submissions_api', :action => 'bulk_update',
+          :format => 'json', :section_id => @section.id.to_s,
+          :assignment_id => @a1.id.to_s }, grade_data)
+
+      run_jobs
+      progress = Progress.find(json["id"])
+      expect(progress.failed?).to be_truthy
+      expect(progress.message).to eq "Couldn't find User(s) with API ids '#{@student2.id}'"
+    end
   end
 end

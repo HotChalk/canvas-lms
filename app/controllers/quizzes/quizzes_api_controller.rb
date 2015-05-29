@@ -218,6 +218,16 @@
 #         "all_dates": {
 #           "$ref": "AssignmentDate",
 #           "description": "list of due dates for the quiz"
+#         },
+#         "version_number": {
+#           "description": "Current version number of the quiz",
+#           "example": 3,
+#           "type": "integer"
+#         },
+#         "question_types": {
+#           "description": "List of question types in the quiz",
+#           "example": ["mutliple_choice", "essay"],
+#           "type": "array"
 #         }
 #       }
 #     }
@@ -301,7 +311,7 @@ class Quizzes::QuizzesApiController < ApplicationController
           scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
         end
 
-        unless is_authorized_action?(@context, @current_user, :manage_assignments)
+        unless @context.grants_right?(@current_user, session, :manage_assignments)
           scope = scope.available
         end
 

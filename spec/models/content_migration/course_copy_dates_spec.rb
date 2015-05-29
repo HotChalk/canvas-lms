@@ -23,7 +23,8 @@ describe ContentMigration do
         )
         @copy_from.discussion_topics.create!(:title => "some topic",
                                              :message => "<p>some text</p>",
-                                             :delayed_post_at => @old_start + 3.days)
+                                             :delayed_post_at => @old_start + 3.days,
+                                             :lock_at => @old_start + 7.days)
         @copy_from.announcements.create!(:title => "hear ye",
                                          :message => "<p>grades will henceforth be in Cyrillic letters</p>",
                                          :delayed_post_at => @old_start + 10.days)
@@ -66,6 +67,7 @@ describe ContentMigration do
 
         new_disc = @copy_to.discussion_topics.first
         expect(new_disc.delayed_post_at.to_i).to eq (@new_start + 3.day).to_i
+        expect(new_disc.lock_at.to_i).to eq (@new_start + 7.day).to_i
 
         new_ann = @copy_to.announcements.first
         expect(new_ann.delayed_post_at.to_i).to eq (@new_start + 10.day).to_i
@@ -120,9 +122,7 @@ describe ContentMigration do
         expect(new_mod.end_at).to be_nil
       end
 
-      it "should not create broken assignments from unpublished quizzes in draft state" do
-        @copy_to.enable_feature!(:draft_state)
-
+      it "should not create broken assignments from unpublished quizzes" do
         options = {
             :everything => true,
             :remove_dates => true,

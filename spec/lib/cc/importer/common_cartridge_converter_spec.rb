@@ -1,6 +1,8 @@
 # coding: utf-8
 require File.expand_path(File.dirname(__FILE__) + '/../cc_spec_helper')
 
+require 'nokogiri'
+
 describe "Standard Common Cartridge importing" do
   before(:all) do
     archive_file_path = File.join(File.dirname(__FILE__) + "/../../../fixtures/migration/cc_full_test.zip")
@@ -233,7 +235,7 @@ describe "Standard Common Cartridge importing" do
       expect(mod1.name).to eq "Your Mom, Research, & You"
       tag = mod1.content_tags[0]
       expect(tag.content_type).to eq 'Attachment'
-      expect(tag.content_id).to eq @course.attachments.where(migration_id: "I_00001_R").first.id
+      expect(tag.content_id).to eq @course.attachments.not_deleted.where(migration_id: "I_00001_R").first.id
     end
   end
 

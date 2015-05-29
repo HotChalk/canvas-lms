@@ -162,10 +162,33 @@ module Lti
           expect(params['custom_canvas.module_item.id']).to eq tag.id
         end
 
+        it 'sets the launch to window' do
+          tag = message_handler.context_module_tags.create!(context: account, tag_type: 'context_module', new_tab: true)
+          tag.context_module =  ContextModule.create!(context: Course.create!)
+          tag.save!
+          get 'basic_lti_launch_request', account_id: account.id, message_handler_id: message_handler.id, module_item_id: tag.id, params: {tool_launch_context: 'my_custom_context' }
+          expect(response.code).to eq "200"
+          expect(assigns[:lti_launch].launch_type).to eq 'window'
+        end
+
         it 'returns the locale' do
           get 'basic_lti_launch_request', account_id: account.id, message_handler_id: message_handler.id, params: {tool_launch_context: 'my_custom_context'}
           params = assigns[:lti_launch].params.with_indifferent_access
           expect(params['launch_presentation_locale']).to eq :en
+        end
+
+        it 'returns tool settings in the launch' do
+          ToolSetting.create(tool_proxy: tool_proxy, context_id: nil, context_type: nil, resource_link_id: nil, custom:{'default' => 42})
+          get 'basic_lti_launch_request', account_id: account.id, message_handler_id: message_handler.id, params: {tool_launch_context: 'my_custom_context'}
+          params = assigns[:lti_launch].params.with_indifferent_access
+          expect(params['custom_default']).to eq 42
+        end
+
+        it 'does not do variable substitutions for tool settings' do
+          ToolSetting.create(tool_proxy: tool_proxy, context_id: nil, context_type: nil, resource_link_id: nil, custom:{'default' => 'Canvas.api.baseUrl'})
+          get 'basic_lti_launch_request', account_id: account.id, message_handler_id: message_handler.id, params: {tool_launch_context: 'my_custom_context'}
+          params = assigns[:lti_launch].params.with_indifferent_access
+          expect(params['custom_default']).to eq 'Canvas.api.baseUrl'
         end
 
       end
@@ -191,6 +214,16 @@ module Lti
         end
 
 
+      end
+
+      context 'tool settings' do
+        it 'creates the tool proxy setting object' do
+          message_handler.parameters = [{ "name" => "tool_settings", "variable" => "ToolProxy.custom.url" }]
+          message_handler.save!
+          expect(ToolSetting.where(tool_proxy_id: tool_proxy.id, context_id: nil, resource_link_id: nil).size).to eq 0
+          get 'basic_lti_launch_request', account_id: account.id, message_handler_id: message_handler.id, params: {tool_launch_context: 'my_custom_context'}
+          expect(ToolSetting.where(tool_proxy_id: tool_proxy.id, context_id: nil, resource_link_id: nil).size).to eq 1
+        end
       end
 
     end

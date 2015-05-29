@@ -1,5 +1,5 @@
 // This stylesheet contains styles for any NEW markup created for the k-12 header
-// K-12 styles for existing markup can be found under the k-12 flag in _#header.sass
+// K-12 styles for existing markup can be found under the k-12 flag in _#header.scss
 
 @if $is-k12 {
 
@@ -38,7 +38,6 @@
         @include border-box;
         transition: all 0.5s $k12-transition;
         line-height: 1;
-        height: $k12-header-secondary-height;
         flex: 1;
         display: flex;
         justify-content: center;

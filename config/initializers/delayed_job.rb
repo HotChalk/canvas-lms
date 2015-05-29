@@ -54,15 +54,22 @@ Delayed::Worker.lifecycle.around(:perform) do |worker, job, &block|
     :session_id => worker.name,
   }
 
+  LiveEvents.set_context({
+    :root_account_id => job.respond_to?(:global_account_id) ? job.global_account_id : nil,
+    :job_id => job.global_id,
+    :job_tag => job.tag
+  })
+
   starting_mem = Canvas.sample_memory()
   starting_cpu = Process.times()
   lag = ((Time.now - job.run_at) * 1000).round
   tag = CanvasStatsd::Statsd.escape(job.tag)
-  stats = ["delayedjob.queue", "delayedjob.queue.tag.#{tag}", "delayedjob.queue.shard.#{job.current_shard.id}"]
+  shard_id = job.current_shard.try(:id).to_i
+  stats = ["delayedjob.queue", "delayedjob.queue.tag.#{tag}", "delayedjob.queue.shard.#{shard_id}"]
   stats << "delayedjob.queue.jobshard.#{job.shard.id}" if job.respond_to?(:shard)
   CanvasStatsd::Statsd.timing(stats, lag)
   begin
-    stats = ["delayedjob.perform", "delayedjob.perform.tag.#{tag}", "delayedjob.perform.shard.#{job.current_shard.id}"]
+    stats = ["delayedjob.perform", "delayedjob.perform.tag.#{tag}", "delayedjob.perform.shard.#{shard_id}"]
     stats << "delayedjob.perform.jobshard.#{job.shard.id}" if job.respond_to?(:shard)
     CanvasStatsd::Statsd.time(stats) do
       block.call(worker, job)
@@ -73,6 +80,8 @@ Delayed::Worker.lifecycle.around(:perform) do |worker, job, &block|
     user_cpu = ending_cpu.utime - starting_cpu.utime
     system_cpu = ending_cpu.stime - starting_cpu.stime
     Thread.current[:context] = nil
+
+    LiveEvents.clear_context!
 
     Rails.logger.info "[STAT] #{starting_mem} #{ending_mem} #{ending_mem - starting_mem} #{user_cpu} #{system_cpu}"
   end
@@ -92,5 +101,11 @@ Delayed::Worker.lifecycle.before(:perform) do |job|
 end
 
 Delayed::Worker.lifecycle.before(:exceptional_exit) do |worker, exception|
-  ErrorReport.log_exception(:delayed_jobs, exception) rescue nil
+  info = Canvas::Errors::JobInfo.new(nil, worker)
+  Canvas::Errors.capture(exception, info.to_h)
+end
+
+Delayed::Worker.lifecycle.before(:error) do |worker, job, exception|
+  info = Canvas::Errors::JobInfo.new(job, worker)
+  Canvas::Errors.capture(exception, info.to_h)
 end

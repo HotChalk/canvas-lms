@@ -16,6 +16,9 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'dynamic_form'
+require 'securerandom'
+
 # @API Files
 # An API for managing files and folders
 # See the File Upload Documentation for details on the file upload workflow.
@@ -152,14 +155,14 @@ class FilesController < ApplicationController
         # permission checks
         session['file_access_user_id'] = user.id
         session['file_access_expiration'] = 1.hour.from_now.to_i
-        session[:permissions_key] = CanvasUUID.generate
+        session[:permissions_key] = SecureRandom.uuid
       end
     end
     # These sessions won't get deleted when the user logs out since this
     # is on a separate domain, so we've added our own (stricter) timeout.
     if session && session['file_access_user_id'] && session['file_access_expiration'].to_i > Time.now.to_i
       session['file_access_expiration'] = 1.hour.from_now.to_i
-      session[:permissions_key] = CanvasUUID.generate
+      session[:permissions_key] = SecureRandom.uuid
     end
     true
   end
@@ -203,7 +206,7 @@ class FilesController < ApplicationController
       end
     else
       # to turn :better_file_browsing on for user files, turn it on for the account they are a part of.
-      return react_files if (@context.is_a?(User) ? @context.account : @context).feature_enabled?(:better_file_browsing)
+      return react_files if (@context.is_a?(User) ? @domain_root_account : @context).feature_enabled?(:better_file_browsing)
       full_index
     end
   end
@@ -260,7 +263,7 @@ class FilesController < ApplicationController
           scope = @context.attachments.not_deleted
         else
           scope = @context.attachments.visible.not_hidden.not_locked.where(
-              :folder_id => @context.active_folders.not_hidden.not_locked)
+              :folder_id => Folder.all_visible_folder_ids(@context))
         end
       else
         if can_manage_files
@@ -299,7 +302,7 @@ class FilesController < ApplicationController
 
       url = context_index ? context_files_url : api_v1_list_files_url(folder)
       @files = Api.paginate(scope, self, url)
-      render :json => attachments_json(@files, @current_user, {}, :can_manage_files => can_manage_files, :include => params[:include])
+      render :json => attachments_json(@files, @current_user, {}, :can_manage_files => can_manage_files, :include => params[:include], :omit_verifier_in_app => !value_to_boolean(params[:use_verifiers]))
     end
   end
 
@@ -320,7 +323,7 @@ class FilesController < ApplicationController
   end
 
   def react_files
-    raise ActiveRecord::RecordNotFound unless (@context.is_a?(User) ? @context.account : @context).feature_enabled?(:better_file_browsing)
+    raise ActiveRecord::RecordNotFound unless (@context.is_a?(User) ? @domain_root_account : @context).feature_enabled?(:better_file_browsing)
     if tab_enabled?(@context.class::TAB_FILES)
       @contexts = [@context]
       get_all_pertinent_contexts(include_groups: true) if @context == @current_user
@@ -373,10 +376,13 @@ class FilesController < ApplicationController
     end
 
     return unless tab_enabled?(@context.class::TAB_FILES)
-    log_asset_access("files:#{@context.asset_string}", "files", 'other') if @context
+    log_asset_access([ "files", @context ], "files", 'other') if @context
     respond_to do |format|
       if @contexts.empty?
-        format.html { redirect_to !@context || @context == @current_user ? dashboard_url : named_context_url(@context, :context_url) }
+        format.html do
+          url = !@context || @context == @current_user ? dashboard_url : named_context_url(@context, :context_url)
+          redirect_to url
+        end
       else
         js_env(:contexts =>
            @contexts.to_json(:permissions =>
@@ -389,7 +395,7 @@ class FilesController < ApplicationController
                                  },
                              :methods => :asset_string,
                              :include_root => false))
-        format.html { render :action => 'full_index' }
+        format.html { render :full_index }
       end
       format.json { render :json => @file_structures }
     end
@@ -457,13 +463,17 @@ class FilesController < ApplicationController
   #   curl 'https://<canvas>/api/v1/files/<file_id>' \
   #         -H 'Authorization: Bearer <token>'
   #
+  #   curl 'https://<canvas>/api/v1/courses/<course_id>/files/<file_id>' \
+  #         -H 'Authorization: Bearer <token>'
+  #
   # @returns File
   def api_show
-    @attachment = Attachment.find(params[:id])
+    get_context
+    @attachment = @context ? @context.attachments.find(params[:id]) : Attachment.find(params[:id])
     raise ActiveRecord::RecordNotFound if @attachment.deleted?
     params[:include] = Array(params[:include])
     if authorized_action(@attachment,@current_user,:read)
-      render :json => attachment_json(@attachment, @current_user, {}, { include: params[:include] })
+      render :json => attachment_json(@attachment, @current_user, {}, { include: params[:include], omit_verifier_in_app: !value_to_boolean(params[:use_verifiers]) })
     end
   end
 
@@ -477,9 +487,10 @@ class FilesController < ApplicationController
     # attachment.
     # this implicit context magic happens in ApplicationController#get_context
     if @context && !@context.is_a?(User)
-      @attachment = @context.attachments.where(:id => params[:id]).first
+      # note that Attachment#find has special logic to find overwriting files; see FindInContextAssociation
+      @attachment = @context.attachments.find(params[:id])
     else
-      @attachment = Attachment.where(:id => params[:id]).first
+      @attachment = Attachment.find(params[:id])
       @skip_crumb = true unless @context
     end
 
@@ -501,11 +512,17 @@ class FilesController < ApplicationController
       end
       return
     end
-    if (params[:download] && params[:verifier] && params[:verifier] == @attachment.uuid) ||
+
+    verifier_checker = Attachments::Verification.new(@attachment)
+    if (params[:verifier] && verifier_checker.valid_verifier_for_permission?(params[:verifier], :read, session)) ||
         @attachment.attachment_associations.where(:context_type => 'Submission').any? { |aa| aa.context.grants_right?(@current_user, session, :read) } ||
         authorized_action(@attachment, @current_user, :read)
+
+      @attachment.ensure_media_object
+
       if params[:download]
-        if (params[:verifier] && params[:verifier] == @attachment.uuid) || (@attachment.grants_right?(@current_user, session, :download))
+        if (params[:verifier] && verifier_checker.valid_verifier_for_permission?(params[:verifier], :download, session)) ||
+            (@attachment.grants_right?(@current_user, session, :download))
           disable_page_views if params[:preview]
           begin
             send_attachment(@attachment)
@@ -513,7 +530,7 @@ class FilesController < ApplicationController
             @headers = false if params[:ts] && params[:verifier]
             @not_found_message = t 'errors.not_found', "It looks like something went wrong when this file was uploaded, and we can't find the actual file.  You may want to notify the owner of the file and have them re-upload it."
             logger.error "Error downloading a file: #{e} - #{e.backtrace}"
-            render :template => 'shared/errors/404_message', :status => :bad_request
+            render 'shared/errors/404_message', status: :bad_request
           end
           return
         elsif authorized_action(@attachment, @current_user, :read)
@@ -525,7 +542,6 @@ class FilesController < ApplicationController
       elsif params[:inline]
         @attachment.context_module_action(@current_user, :read) if @current_user
         log_asset_access(@attachment, 'files', 'files')
-        @attachment.record_inline_view
         render :json => {:ok => true}
       else
         render_attachment(@attachment)
@@ -542,12 +558,21 @@ class FilesController < ApplicationController
           @headers = false
           @show_left_side = false
         end
-        format.html { render :action => 'show' }
+        format.html { render :show }
       end
-      if request.format == :json
-        options = {:permissions => {:user => @current_user}}
-        can_download = attachment.grants_right?(@current_user, session, :download)
-        if can_download
+      format.json do
+        json = {
+          :attachment => {
+            :workflow_state => attachment.workflow_state,
+            :content_type => attachment.content_type
+          }
+        }
+
+        json[:attachment][:media_entry_id] = attachment.media_entry_id if attachment.media_entry_id
+
+        verifier_checker = Attachments::Verification.new(@attachment)
+        if (params[:verifier] && verifier_checker.valid_verifier_for_permission?(params[:verifier], :download, session)) ||
+            attachment.grants_right?(@current_user, session, :download)
           # Right now we assume if they ask for json data on the attachment
           # then that means they have viewed or are about to view the file in
           # some form.
@@ -555,20 +580,25 @@ class FilesController < ApplicationController
              (attachment.canvadocable? ||
               (service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url))
             attachment.context_module_action(@current_user, :read)
-            attachment.record_inline_view
           end
-          options[:methods] = []
-          options[:methods] << :authenticated_s3_url if service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url
+          if url = service_enabled?(:google_docs_previews) && attachment.authenticated_s3_url
+            json[:attachment][:authenticated_s3_url] = url
+          end
+
+          json_include = if @attachment.context.is_a?(User) || @attachment.context.is_a?(Course)
+                           { include: %w(enhanced_preview_url) }
+                         else
+                           {}
+                         end
+
+          [json[:attachment],
+           doc_preview_json(attachment, @current_user),
+           attachment_json(attachment, @current_user, {}, json_include)].reduce &:merge!
+
           log_asset_access(attachment, "files", "files")
         end
+        render :json => json
       end
-      format.json {
-        render :json => attachment.as_json(options).tap { |json|
-          if can_download
-            json['attachment'].merge! doc_preview_json(attachment, @current_user)
-          end
-        }
-      }
     end
   end
   protected :render_attachment
@@ -588,7 +618,7 @@ class FilesController < ApplicationController
     @attachment ||= Folder.find_attachment_in_context_with_path(@context, path)
 
     unless @attachment
-      return render :template => 'shared/errors/file_not_found', :status => :bad_request
+      return render 'shared/errors/file_not_found', status: :bad_request
     end
 
     params[:id] = @attachment.id
@@ -661,7 +691,7 @@ class FilesController < ApplicationController
       @headers = false if @files_domain
       send_file(attachment.full_filename, :type => attachment.content_type_with_encoding, :disposition => (inline ? 'inline' : 'attachment'))
     elsif redirect_to_s3
-      redirect_to(inline ? attachment.cacheable_s3_inline_url : attachment.cacheable_s3_download_url)
+      redirect_to(inline ? attachment.inline_url : attachment.download_url)
     else
       send_file_headers!( :length=> attachment.s3object.content_length, :filename=>attachment.filename, :disposition => 'inline', :type => attachment.content_type_with_encoding)
       render :status => 200, :text => attachment.s3object.read
@@ -701,9 +731,8 @@ class FilesController < ApplicationController
   def create_pending
     @context = Context.find_by_asset_string(params[:attachment][:context_code])
     @asset = Context.find_asset_by_asset_string(params[:attachment][:asset_string], @context) if params[:attachment][:asset_string]
-    @attachment = @context.attachments.build
     @check_quota = true
-    permission_object = @attachment
+    permission_object = nil
     permission = :create
     intent = params[:attachment][:intent]
 
@@ -742,7 +771,8 @@ class FilesController < ApplicationController
       @check_quota = false
     end
 
-    @attachment.context = @context
+    @attachment = @context.attachments.build
+    permission_object ||= @attachment
     @attachment.user = @current_user
     if authorized_action(permission_object, @current_user, permission)
       if @context.respond_to?(:is_a_context?) && @check_quota
@@ -760,7 +790,7 @@ class FilesController < ApplicationController
         @attachment.folder_id = @folder.id
       end
       @attachment.content_type = Attachment.mimetype(@attachment.filename)
-      @attachment.locked = true if @attachment.usage_rights_id.nil? && context.respond_to?(:feature_enabled?) && context.feature_enabled?(:usage_rights_required)
+      @attachment.set_publish_state_for_usage_rights
       @attachment.save!
 
       res = @attachment.ajax_upload_params(@current_pseudonym,
@@ -830,7 +860,14 @@ class FilesController < ApplicationController
       @attachment.context.file_upload_success_callback(@attachment)
     end
 
-    json = attachment_json(@attachment,@current_user)
+    json_params = { omit_verifier_in_app: true }
+
+    if @attachment.context.is_a?(User) || @attachment.context.is_a?(Course)
+      json_params.merge!({ include: %w(enhanced_preview_url) })
+    end
+
+    json = attachment_json(@attachment, @current_user, {}, json_params)
+
     # render as_text for IE, otherwise it'll prompt
     # to download the JSON response
     render :json => json, :as_text => in_app?
@@ -910,7 +947,7 @@ class FilesController < ApplicationController
             render_attachment_json(@attachment, deleted_attachments, @folder)
           end
         else
-          format.html { render :action => "new" }
+          format.html { render :new }
           format.json { render :json => @attachment.errors }
           format.text { render :json => @attachment.errors }
         end
@@ -941,14 +978,14 @@ class FilesController < ApplicationController
         end
         @attachment.folder = @folder
         @folder_id_changed = @attachment.folder_id_changed?
-        @attachment.locked = true if !@attachment.locked? && @attachment.locked_changed? && @attachment.usage_rights_id.nil? && @context.respond_to?(:feature_enabled?) && @context.feature_enabled?(:usage_rights_required)
+        @attachment.set_publish_state_for_usage_rights
         if @attachment.save
           @attachment.move_to_bottom if @folder_id_changed
           flash[:notice] = t 'notices.updated', "File was successfully updated."
           format.html { redirect_to named_context_url(@context, :context_files_url) }
           format.json { render :json => @attachment.as_json(:methods => [:readable_size, :mime_class, :currently_locked], :permissions => {:user => @current_user, :session => session}), :status => :ok }
         else
-          format.html { render :action => "edit" }
+          format.html { render :edit }
           format.json { render :json => @attachment.errors, :status => :bad_request }
         end
       end
@@ -965,6 +1002,14 @@ class FilesController < ApplicationController
   #   The id of the folder to move this file into.
   #   The new folder must be in the same context as the original parent folder.
   #   If the file is in a context without folders this does not apply.
+  #
+  # @argument on_duplicate [Optional, String, "overwrite"|"rename"]
+  #   If the file is moved to a folder containing a file with the same name,
+  #   or renamed to a name matching an existing file, the API call will fail
+  #   unless this parameter is supplied.
+  #
+  #   "overwrite":: Replace the existing file with the same name
+  #   "rename":: Add a qualifier to make the new filename unique
   #
   # @argument lock_at [DateTime]
   #   The datetime to lock the file at
@@ -1000,11 +1045,16 @@ class FilesController < ApplicationController
       end
 
       @attachment.attributes = process_attachment_params(params)
-      if !@attachment.locked? && @attachment.locked_changed? && @attachment.usage_rights_id.nil? && @context.respond_to?(:feature_enabled?) && @context.feature_enabled?(:usage_rights_required)
+      if !@attachment.locked? && @attachment.locked_changed? && @attachment.usage_rights_id.nil? && @context.respond_to?(:feature_enabled?) && context.feature_enabled?(:better_file_browsing) && @context.feature_enabled?(:usage_rights_required)
         return render :json => { :message => I18n.t('This file must have usage_rights set before it can be published.') }, :status => :bad_request
       end
+      if (@attachment.folder_id_changed? || @attachment.display_name_changed?) && @attachment.folder.active_file_attachments.where(display_name: @attachment.display_name).where("id<>?", @attachment.id).exists?
+        return render json: {message: "file already exists; use on_duplicate='overwrite' or 'rename'"}, status: :conflict unless %w(overwrite rename).include?(params[:on_duplicate])
+        on_duplicate = params[:on_duplicate].to_sym
+      end
       if @attachment.save
-        render :json => attachment_json(@attachment, @current_user)
+        @attachment.handle_duplicates(on_duplicate) if on_duplicate
+        render :json => attachment_json(@attachment, @current_user, {}, { omit_verifier_in_app: true })
       else
         render :json => @attachment.errors, :status => :bad_request
       end
@@ -1038,7 +1088,7 @@ class FilesController < ApplicationController
           redirect_to named_context_url(@context, :context_files_url)
         }
         if api_request?
-          format.json { render :json => attachment_json(@attachment, @current_user) }
+          format.json { render :json => attachment_json(@attachment, @current_user, {}, { omit_verifier_in_app: true }) }
         else
           format.json { render :json => @attachment }
         end
@@ -1080,7 +1130,7 @@ class FilesController < ApplicationController
         methods: [:uuid,:readable_size,:mime_class,:currently_locked,:thumbnail_url],
         permissions: {user: @current_user, session: session},
         include_root: false
-      ),
+      ).merge(doc_preview_json(attachment, @current_user)),
       :deleted_attachment_ids => deleted_attachments.map(&:id)
     }
     if folder.name == 'profile pictures'
