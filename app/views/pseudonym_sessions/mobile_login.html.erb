@@ -13,7 +13,7 @@
     <div class="error"><%= flash[:error] %></div>
   <% end %>
   <button type="submit" class="btn btn-primary btn-large"><%= t('login', 'Login') %></button>
-  <% url = "http://support.hotchalklearn.com/support.html" %>
+  <% url = "http://support.hotchalkember.com/support.html" %>
   <%= link_to t('dont_know_password', "I don't know my password"), url, :class => 'btn btn-large forgot-password', :target => "_blank" %>
 <% end %>
 <%= form_for :pseudonym_session, :url => forgot_password_path, :html => {:id => "forgot_password_form", :class => 'back face'} do |f| %>

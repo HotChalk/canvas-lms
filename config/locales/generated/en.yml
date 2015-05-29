@@ -10990,7 +10990,6 @@ en:
       required: Required
       sequence: "Can't incude a run of more than %{max} characters (e.g. abcdef)"
       taken: "Email already in use"
-      sis_id_in_use: "SIS ID is already in use"
       too_long: "Can't exceed %{max} characters"
       too_short: "Must be at least %{min} characters"
   pseudonym_sessions: 

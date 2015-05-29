@@ -698,7 +698,7 @@ class AssignmentsApiController < ApplicationController
                   include_visibility: include_visibility,
                   needs_grading_count_by_section: needs_grading_count_by_section,
                   include_all_dates: include_all_dates,
-                  submission_include: Array(params[:submission_include]))
+                  submission_include: Array(params[:submission_include]),
                   overrides: active_overrides)
     end
   end

@@ -1303,7 +1303,7 @@ class CoursesController < ApplicationController
     if session[:accepted_enrollment_uuid].present? &&
       enrollment = @context.enrollments.where(uuid: session[:accepted_enrollment_uuid]).first
       check_enrollment_root_account(enrollment)
-      
+
       success = false
       if enrollment.invited?
         success = enrollment.accept!
