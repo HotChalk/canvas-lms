@@ -12,7 +12,11 @@ Importers::AssessmentQuestionImporter.class_eval do
     end
     fields_to_convert.each do |field|
       hash[:missing_links][field] = []
-      hash[field] = ImportedHtmlConverter.convert(hash[field], context, migration, {:missing_links => hash[:missing_links][field], :remove_outer_nodes_if_one_child => true}) if hash[field].present?
+      if hash[field].present?
+        hash[field] = ImportedHtmlConverter.convert(hash[field], context, migration, {:remove_outer_nodes_if_one_child => true}) do |warn, link|
+          hash[:missing_links][field] << link if warn == :missing_link
+        end
+      end
     end
     [:correct_comments, :incorrect_comments, :neutral_comments, :more_comments].each do |field|
       html_field = "#{field}_html".to_sym
@@ -22,8 +26,13 @@ Importers::AssessmentQuestionImporter.class_eval do
     end
     hash[:answers].each_with_index do |answer, i|
       [:html, :comments_html, :left_html].each do |field|
-        hash[:missing_links]["answer #{i} #{field}"] = []
-        answer[field] = ImportedHtmlConverter.convert(answer[field], context, migration, {:missing_links => hash[:missing_links]["answer #{i} #{field}"], :remove_outer_nodes_if_one_child => true}) if answer[field].present?
+        key = "answer #{i} #{field}"
+        hash[:missing_links][key] = []
+        if answer[field].present?
+          answer[field] = ImportedHtmlConverter.convert(answer[field], context, migration, {:remove_outer_nodes_if_one_child => true}) do |warn, link|
+            hash[:missing_links][key] << link if warn == :missing_link
+          end
+        end
       end
       if answer[:comments].present? && answer[:comments] == answer[:comments_html]
         answer.delete(:comments_html)

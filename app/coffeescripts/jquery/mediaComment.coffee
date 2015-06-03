@@ -6,7 +6,44 @@ define [
   'vendor/mediaelement-and-player'
   'jquery'
   'compiled/util/kalturaAnalytics'
-], (I18n, _, pubsub, mejs, $, kalturaAnalytics) ->
+  'str/htmlEscape'
+], (I18n, _, pubsub, mejs, $, kalturaAnalytics, htmlEscape) ->
+
+  ##
+  # a module for some of the transformation functions pulled out of the middle
+  # of this jQuery plugin to keep their dependencies light
+  #
+  # @exports
+  MediaCommentUtils = {
+    ##
+    # given the type and source/track tags, build
+    # an html5 media element to replace our media comment when interacted
+    # with
+    #
+    # @private
+    #
+    # @param {string} tagType should be "audio" or "video" generally, this is
+    #   used for the name of the tag but also to decide whether to include
+    #   width and height
+    #
+    # @param {HTML string} st_tags the html for the source and track tags that we
+    #   might want to include inside the media element
+    #
+    # @param {int} width the desired width of the element, only applicable for
+    #   video tags
+    #
+    # @param {int} height the desired height of the element, only applicable for
+    #   video tags
+    #
+    # @returns {jQuery Object} a new dom element (not yet attached anywhere)
+    #   that is the media element
+    getElement: (tagType, st_tags, width, height) ->
+      dimensions = ""
+      if tagType is 'video'
+        dimensions = " width='#{width}' height='#{height}'"
+      html = "<#{tagType} #{dimensions} preload='none' controls>#{st_tags}</#{tagType}>"
+      $(html)
+  }
 
   VIDEO_WIDTH = 550
   VIDEO_HEIGHT = 448
@@ -47,11 +84,11 @@ define [
       # this 'when ...' is because right now in canvas, none of the mp3 urls actually work.
       # see: CNVS-12998
       sources = for source in data.media_sources when source.content_type isnt 'audio/mp3'
-        "<source type='#{source.content_type}' src='#{source.url}' title='#{source.width}x#{source.height} #{Math.floor(source.bitrate / 1024)} kbps' />"
+        "<source type='#{htmlEscape source.content_type}' src='#{htmlEscape source.url}' title='#{htmlEscape source.width}x#{htmlEscape source.height} #{htmlEscape(Math.floor(source.bitrate / 1024))} kbps' />"
 
       tracks = _.map data.media_tracks, (track) ->
         languageName = mejs.language.codes[track.locale] || track.locale
-        "<track kind='#{track.kind}' label='#{languageName}' src='#{track.url}' srclang='#{track.locale}' />"
+        "<track kind='#{htmlEscape track.kind}' label='#{htmlEscape languageName}' src='#{htmlEscape track.url}' srclang='#{htmlEscape track.locale}' />"
 
       types = _.map data.media_sources, (source) -> source.content_type
       dfd.resolve {sources, tracks, types, can_add_captions: data.can_add_captions}
@@ -60,13 +97,10 @@ define [
   createMediaTag = ({sourcesAndTracks, mediaType, height, width, mediaPlayerOptions}) ->
     tagType = if mediaType is 'video' then 'video' else 'audio'
     st_tags = sourcesAndTracks.sources.concat(sourcesAndTracks.tracks).join('')
-
-    getElement = (tagType) ->
-      $("<#{tagType} #{if mediaType is 'video' then "width='#{width}' height='#{height}'" else ''} controls>#{st_tags}</#{tagType}>")
-
     willPlayAudioInFlash = ->
       opts = $.extend({mode: 'auto'}, mejs.MediaElementDefaults, mejs.MepDefaults,mediaPlayerOptions)
-      playback = mejs.HtmlMediaElementShim.determinePlayback(getElement('audio')[0], opts, mejs.MediaFeatures.supportsMediaTag, !!'isMediaTag', null)
+      element = MediaCommentUtils.getElement('audio', st_tags)
+      playback = mejs.HtmlMediaElementShim.determinePlayback(element[0], opts, mejs.MediaFeatures.supportsMediaTag, !!'isMediaTag', null)
       return playback.method != 'native'
 
     # We only need to do this if we try to play audio in a flash player.
@@ -79,7 +113,7 @@ define [
       mediaPlayerOptions.isVideo = false
       mediaPlayerOptions.videoHeight = height = 30
 
-    getElement(tagType)
+    MediaCommentUtils.getElement(tagType, st_tags, width, height)
 
   mediaCommentActions =
     create: (mediaType, callback, onClose, defaultTitle) ->
@@ -119,7 +153,7 @@ define [
       if id is 'maybe'
         detailsUrl = downloadUrl.replace /\/download.*/, ""
         onError = ->
-          $holder.text I18n.t 'messages.file_failed_to_load', "This media file failed to load"
+          $holder.text I18n.t "Media has been queued for conversion, please try again in a little bit."
         onSuccess = (data) ->
           if data.attachment?.media_entry_id isnt 'maybe'
             $holder.text ''
@@ -153,7 +187,7 @@ define [
         # Populate dialog box with a video
         $dialog.disableWhileLoading getSourcesAndTracks(id).done (sourcesAndTracks) ->
           if sourcesAndTracks.sources.length
-            mediaPlayerOptions = 
+            mediaPlayerOptions =
               can_add_captions: sourcesAndTracks.can_add_captions
               mediaCommentId: id
               googleAnalyticsTitle: id
@@ -171,3 +205,5 @@ define [
     return console.log('Kaltura has not been enabled for this account') unless INST.kalturaSettings
     mediaCommentActions[command].apply(this, restArgs)
     this
+
+  MediaCommentUtils

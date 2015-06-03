@@ -15,11 +15,14 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+
+require 'oauth'
+
 module LtiOutbound
   class ToolLaunch
     attr_reader :url, :tool, :user, :context, :link_code, :return_url, :account,
                 :resource_type, :consumer_instance, :hash, :assignment,
-                :outgoing_email_address, :selected_html, :variable_substitutor
+                :outgoing_email_address, :selected_html, :variable_expander
 
     def initialize(options)
       @url = options[:url] || raise('URL required for generating LTI content')
@@ -34,13 +37,9 @@ module LtiOutbound
       @selected_html = options[:selected_html]
       @consumer_instance = context.consumer_instance || raise('Consumer instance required for generating LTI content')
 
-      @variable_substitutor = options[:variable_substitutor]
+      @variable_expander = options[:variable_expander] || raise('VariableExpander is required for generating LTI content')
 
       @hash = {}
-    end
-
-    def variable_substitutor
-      @variable_substitutor ||= VariableSubstitutor.new
     end
 
     def for_assignment!(assignment, outcome_service_url, legacy_outcome_service_url)
@@ -49,6 +48,7 @@ module LtiOutbound
       hash['lis_outcome_service_url'] = outcome_service_url
       hash['ext_ims_lis_basic_outcome_url'] = legacy_outcome_service_url
       hash['ext_outcome_data_values_accepted'] = assignment.return_types.join(',')
+      hash['ext_outcome_result_total_score_accepted'] = true
 
       add_assignment_substitutions!(assignment)
     end
@@ -123,7 +123,7 @@ module LtiOutbound
       set_resource_type_keys()
       hash['oauth_callback'] = 'about:blank'
 
-      variable_substitutor.substitute!(hash)
+      @variable_expander.expand_variables!(hash)
 
       self.class.generate_params(hash, url, tool.consumer_key, tool.shared_secret)
     end
@@ -137,9 +137,6 @@ module LtiOutbound
 
       hash['custom_canvas_assignment_title'] = '$Canvas.assignment.title'
       hash['custom_canvas_assignment_points_possible'] = '$Canvas.assignment.pointsPossible'
-      @variable_substitutor.add_substitution('$Canvas.assignment.id', assignment.id)
-      @variable_substitutor.add_substitution('$Canvas.assignment.title', assignment.title)
-      @variable_substitutor.add_substitution('$Canvas.assignment.pointsPossible', assignment.points_possible)
     end
 
     def set_resource_type_keys
@@ -161,11 +158,6 @@ module LtiOutbound
         hash['ext_content_return_types'] = 'file'
         hash['ext_content_file_extensions'] = 'zip,imscc'
         hash['ext_content_return_url'] = return_url
-      elsif resource_type == 'course_home_sub_navigation'
-        hash['ext_content_intended_use'] = 'content_package'
-        hash['ext_content_return_types'] = 'file'
-        hash['ext_content_file_extensions'] = 'zip,imscc'
-        hash['ext_content_return_url'] = return_url
       end
     end
 
@@ -179,9 +171,9 @@ module LtiOutbound
       end
 
       consumer = OAuth::Consumer.new(key, secret, {
-          :site => "#{uri.scheme}://#{host}",
-          :signature_method => 'HMAC-SHA1'
-      })
+                                            :site => "#{uri.scheme}://#{host}",
+                                            :signature_method => 'HMAC-SHA1'
+                                        })
 
       path = uri.path
       path = '/' if path.empty?

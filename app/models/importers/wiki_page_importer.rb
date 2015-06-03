@@ -19,11 +19,12 @@ module Importers
     def self.process_migration(data, migration)
       wikis = data['wikis'] ? data['wikis']: []
       wikis.each do |wiki|
-        if !wiki
-          ErrorReport.log_error(:content_migration, :message => "There was a nil wiki page imported for ContentMigration:#{migration.id}")
+        unless wiki
+          message = "There was a nil wiki page imported for ContentMigration:#{migration.id}"
+          Canvas::Errors.capture(:content_migration, message: message)
           next
         end
-        next unless migration.import_object?("wiki_pages", wiki['migration_id']) || migration.import_object?("wikis", wiki['migration_id'])
+        next unless wiki_page_migration?(migration, wiki)
         begin
           self.import_from_migration(wiki, migration.context, migration) if wiki
         rescue
@@ -31,6 +32,12 @@ module Importers
         end
       end
     end
+
+    def self.wiki_page_migration?(migration, wiki)
+      migration.import_object?("wiki_pages", wiki['migration_id']) ||
+        migration.import_object?("wikis", wiki['migration_id'])
+    end
+    private_class_method :wiki_page_migration?
 
     def self.import_from_migration(hash, context, migration=nil, item=nil)
       hash = hash.with_indifferent_access
@@ -43,13 +50,14 @@ module Importers
         item.url = hash[:url_name].to_url
         item.only_when_blank = true
       end
-      if hash[:root_folder] && ['folder', 'FOLDER_TYPE'].member?(hash[:type])
+      if hash[:root_folder].present? && ['folder', 'FOLDER_TYPE'].member?(hash[:type])
         front_page = context.wiki.front_page
-        if front_page.id
+        if front_page && front_page.id
           hash[:root_folder] = false
         else
-          # If there is no id there isn't a front page yet
-          item = front_page
+          item.url ||= Wiki::DEFAULT_FRONT_PAGE_URL
+          item.title ||= item.url.titleize
+          item.set_as_front_page!
         end
       end
       hide_from_students = hash[:hide_from_students] if !hash[:hide_from_students].nil?
@@ -104,7 +112,7 @@ module Importers
           sub_item = sub_item.with_indifferent_access
           if ['folder', 'FOLDER_TYPE'].member? sub_item[:type]
             obj = context.wiki.wiki_pages.where(migration_id: sub_item[:migration_id]).first
-            contents += "  <li><a href='/courses/#{context.id}/wiki/#{obj.url}'>#{obj.title}</a></li>\n" if obj
+            contents += "  <li><a href='/courses/#{context.id}/pages/#{obj.url}'>#{obj.title}</a></li>\n" if obj
           elsif sub_item[:type] == 'embedded_content'
             if contents && contents.length > 0
               description += "<ul>\n#{contents}\n</ul>"
@@ -129,7 +137,7 @@ module Importers
                 contents += "  <li><a href='/courses/#{context.id}/quizzes/#{obj.id}'>#{obj.title}</a></li>\n" if obj
               when /PAGE_TYPE|WIKI_TYPE/
                 obj = context.wiki.wiki_pages.where(migration_id: sub_item[:linked_resource_id]).first
-                contents += "  <li><a href='/courses/#{context.id}/wiki/#{obj.url}'>#{obj.title}</a></li>\n" if obj
+                contents += "  <li><a href='/courses/#{context.id}/pages/#{obj.url}'>#{obj.title}</a></li>\n" if obj
               when 'FILE_TYPE'
                 file = context.attachments.where(migration_id: sub_item[:linked_resource_id]).first
                 if file
@@ -203,13 +211,16 @@ module Importers
         allow_save = false
       end
       if allow_save && hash[:migration_id]
+        if item.changed?
+          item.user = nil
+        end
         item.save_without_broadcasting!
         migration.add_imported_item(item) if migration
         if migration
           missing_links.each do |field, missing_links|
             migration.add_missing_content_links(:class => item.class.to_s,
               :id => item.id, :field => field, :missing_links => missing_links,
-              :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/wiki/#{item.url}")
+              :url => "/#{context.class.to_s.underscore.pluralize}/#{context.id}/pages/#{item.url}")
           end
         end
         return item

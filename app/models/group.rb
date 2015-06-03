@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'atom'
+
 class Group < ActiveRecord::Base
   include Context
   include Workflow
@@ -79,7 +81,9 @@ class Group < ActiveRecord::Base
 
   before_validation :ensure_defaults
   before_save :maintain_category_attribute
-  after_save :update_max_membership_from_group_category
+  before_save :update_max_membership_from_group_category
+
+  after_create :refresh_group_discussion_topics
 
   delegate :time_zone, :to => :context
 
@@ -97,6 +101,17 @@ class Group < ActiveRecord::Base
   validates_each :max_membership do |record, attr, value|
     next if value.nil?
     record.errors.add attr, t(:greater_than_1, "Must be greater than 1") unless value.to_i > 1
+  end
+
+  def refresh_group_discussion_topics
+    if self.group_category
+      self.group_category.discussion_topics.active.each(&:update_subtopics)
+    end
+  end
+
+  def includes_user?(user, membership_scope=group_memberships)
+    return false if user.nil? || user.new_record?
+    membership_scope.where(user_id: user).exists?
   end
 
   alias_method :participating_users_association, :participating_users
@@ -149,9 +164,8 @@ class Group < ActiveRecord::Base
   end
 
   def update_max_membership_from_group_category
-    if group_category && group_category.group_limit && (!max_membership || max_membership == 0)
+    if (!max_membership || max_membership == 0) && group_category && group_category.group_limit
       self.max_membership = group_category.group_limit
-      self.save
     end
   end
 
@@ -170,6 +184,16 @@ class Group < ActiveRecord::Base
 
   def context_code
     raise "DONT USE THIS, use .short_name instead" unless Rails.env.production?
+  end
+
+  def context_available?
+    return false unless self.context
+    case self.context
+    when Course
+      self.context.available?
+    else
+      true
+    end
   end
 
   def appointment_context_codes
@@ -313,17 +337,20 @@ class Group < ActiveRecord::Base
     new_group_memberships = all_group_memberships - old_group_memberships
     new_group_memberships.sort_by!(&:user_id)
     users.sort_by!(&:id)
-    notification_name = options[:notification_name] || "New Context Group Membership"
-    notification = BroadcastPolicy.notification_finder.by_name(notification_name)
     users.each {|user| clear_permissions_cache(user) }
 
-    users.each_with_index do |user, index|
-      BroadcastPolicy.notifier.send_later_enqueue_args(:send_notification,
-                                                         {:priority => Delayed::LOW_PRIORITY},
-                                                         new_group_memberships[index],
-                                                         notification_name.parameterize.underscore.to_sym,
-                                                         notification,
-                                                         [user])
+    if self.context_available?
+      notification_name = options[:notification_name] || "New Context Group Membership"
+      notification = BroadcastPolicy.notification_finder.by_name(notification_name)
+
+      users.each_with_index do |user, index|
+        BroadcastPolicy.notifier.send_later_enqueue_args(:send_notification,
+                                                           {:priority => Delayed::LOW_PRIORITY},
+                                                           new_group_memberships[index],
+                                                           notification_name.parameterize.underscore.to_sym,
+                                                           notification,
+                                                           [user])
+      end
     end
     new_group_memberships
   end
@@ -422,13 +449,13 @@ class Group < ActiveRecord::Base
   set_policy do
     given { |user| user && self.has_member?(user) }
     can :create_collaborations and
-    can :create_conferences and
     can :manage_calendar and
     can :manage_content and
     can :manage_files and
     can :manage_wiki and
     can :post_to_forum and
     can :read and
+    can :read_forum and
     can :read_roster and
     can :send_messages and
     can :send_messages_all and
@@ -453,13 +480,15 @@ class Group < ActiveRecord::Base
     given { |user| self.group_category.try(:communities?) }
     can :create
 
-    given { |user, session| self.context && self.context.grants_right?(user, session, :participate_as_student) && self.context.allow_student_organized_groups }
+    given { |user, session| self.context && self.context.grants_right?(user, session, :participate_as_student) }
+    can :participate_as_student
+
+    given { |user, session| self.grants_right?(user, session, :participate_as_student) && self.context.allow_student_organized_groups }
     can :create
 
     given { |user, session| self.context && self.context.grants_right?(user, session, :manage_groups) }
     can :create and
     can :create_collaborations and
-    can :create_conferences and
     can :delete and
     can :manage and
     can :manage_admin_users and
@@ -470,12 +499,15 @@ class Group < ActiveRecord::Base
     can :moderate_forum and
     can :post_to_forum and
     can :read and
+    can :read_forum and
     can :read_roster and
+    can :send_messages and
+    can :send_messages_all and
     can :update and
     can :view_unpublished_items
 
     given { |user, session| self.context && self.context.grants_right?(user, session, :view_group_pages) }
-    can :read and can :read_roster
+    can :read and can :read_forum and can :read_roster
 
     # Participate means the user is connected to the group somehow and can be
     given { |user| user && can_participate?(user) }
@@ -487,6 +519,9 @@ class Group < ActiveRecord::Base
 
     given { |user| user && (self.group_category.try(:allows_multiple_memberships?) || allow_self_signup?(user)) }
     can :leave
+
+    given {|user, session| self.grants_right?(user, session, :manage_content) && self.context && self.context.grants_right?(user, session, :create_conferences)}
+    can :create_conferences
   end
 
   def users_visible_to(user)
@@ -507,10 +542,9 @@ class Group < ActiveRecord::Base
   end
   private :can_participate?
 
-  # courses lock this down a bit, but in a group, the fact that you are a
-  # member is good enough
   def user_can_manage_own_discussion_posts?(user)
-    true
+    return true unless self.context.is_a?(Course)
+    context.user_can_manage_own_discussion_posts?(user)
   end
 
   def is_a_context?
@@ -555,7 +589,7 @@ class Group < ActiveRecord::Base
     available_tabs = [
       { :id => TAB_HOME,          :label => t("#group.tabs.home", "Home"), :css_class => 'home', :href => :group_path },
       { :id => TAB_ANNOUNCEMENTS, :label => t('#tabs.announcements', "Announcements"), :css_class => 'announcements', :href => :group_announcements_path },
-      { :id => TAB_PAGES,         :label => t("#group.tabs.pages", "Pages"), :css_class => 'pages', :href => :group_wiki_pages_path },
+      { :id => TAB_PAGES,         :label => t("#group.tabs.pages", "Pages"), :css_class => 'pages', :href => :group_wiki_path },
       { :id => TAB_PEOPLE,        :label => t("#group.tabs.people", "People"), :css_class => 'people', :href => :group_users_path },
       { :id => TAB_DISCUSSIONS,   :label => t("#group.tabs.discussions", "Discussions"), :css_class => 'discussions', :href => :group_discussion_topics_path },
       { :id => TAB_FILES,         :label => t("#group.tabs.files", "Files"), :css_class => 'files', :href => :group_files_path },
@@ -637,7 +671,8 @@ class Group < ActiveRecord::Base
 
   def serialize_permissions(permissions_hash, user, session)
     permissions_hash.merge(
-      create_discussion_topic: DiscussionTopic.context_allows_user_to_create?(self, user, session)
+      create_discussion_topic: DiscussionTopic.context_allows_user_to_create?(self, user, session),
+      create_announcement: Announcement.context_allows_user_to_create?(self, user, session)
     )
   end
 

@@ -1,4 +1,5 @@
 @import "sass-functions/_ensure-contrast.scss";
+@import "variant_variables";
 @import "vendor/bootstrap/variables";
 @import "vendor/bootstrap/mixins";
 @import "vendor/bootstrap/grid";
@@ -89,4 +90,9 @@ ic-tab {
 
 .hide-outcomes ic-tab-list {
   display: none;
+}
+
+.grading_value {
+  text-align: center;
+  width: 50px;
 }

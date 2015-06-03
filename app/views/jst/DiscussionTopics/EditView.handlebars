@@ -1,9 +1,10 @@
-{{#if draftStateEnabled}}
-  {{#if title}}
-    <h1 class="screenreader-only" style="display: inline">{{title}}</h1>
-  {{else}}
-    <h1 class="screenreader-only" style="display: inline">{{#t "page_header_title"}}New Discussion{{/t}}</h1>
-  {{/if}}
+{{#if title}}
+  <h1 class="screenreader-only" style="display: inline">{{title}}</h1>
+{{else}}
+  <h1 class="screenreader-only" style="display: inline">{{#t "page_header_title"}}New Discussion{{/t}}</h1>
+{{/if}}
+
+{{#unless isAnnouncement}}
   <div class="discussion-edit-header row-fluid">
     <div class="span4 offset8 text-right">
       {{#if published}}
@@ -19,8 +20,7 @@
       {{/if}}
     </div>
   </div>
-{{/if}}
-
+{{/unless}}
 
 <fieldset>
   <div class="control-group">
@@ -120,12 +120,14 @@
           {{#t "enable_podcast_feed"}}Enable podcast feed{{/t}}
         </label>
 
-        <label id="podcast_has_student_posts_container"
-               style="{{hiddenUnless podcast_url}}"
-               class="checkbox" for="podcast_has_student_posts">
-          {{checkbox "podcast_has_student_posts"}}
-          {{#t "include_replies_in_podcast_feed"}}Include Replies in podcast feed{{/t}}
-        </label>
+        {{#if contextIsCourse}}
+          <label id="podcast_has_student_posts_container"
+                 style="{{hiddenUnless podcast_url}}"
+                 class="checkbox" for="podcast_has_student_posts">
+            {{checkbox "podcast_has_student_posts"}}
+            {{#t "include_replies_in_podcast_feed"}}Include student replies in podcast feed{{/t}}
+          </label>
+        {{/if}}
       {{/if}}
       {{#if showAssignment}}
         <label class="checkbox" for="use_for_grading">
@@ -137,6 +139,31 @@
           {{#t "use_for_grading"}}Graded{{/t}}
         </label>
       {{/if}}
+
+      <label class="checkbox" for="allow_rating">
+        {{checkbox "allow_rating"
+          id="allow_rating"
+          class="element_toggler"
+          checked=allow_rating
+          aria-controls="rating_settings_container"}}
+        {{#t "allow_liking"}}Allow liking{{/t}}
+      </label>
+      <div id="rating_settings_container" style="{{hiddenUnless allow_rating}}; margin-left: 20px;">
+        <label class="checkbox" for="only_graders_can_rate">
+          {{checkbox "only_graders_can_rate"
+            id="only_graders_can_rate"
+            class="element_toggler"
+            checked=only_graders_can_rate}}
+          {{#t "only_graders_can_like"}}Only graders can like{{/t}}
+        </label>
+        <label class="checkbox" for="sort_by_rating">
+          {{checkbox "sort_by_rating"
+            id="sort_by_rating"
+            class="element_toggler"
+            checked=sort_by_rating}}
+          {{#t "sort_by_likes"}}Sort by likes{{/t}}
+        </label>
+      </div>
     </div>
   </div>
   {{/ifAny}}
@@ -145,7 +172,9 @@
 
 {{#if isTopic}}
   {{#unless isLargeRoster}}
-    <div id="group_category_options" class="control-group"></div>
+    {{#if contextIsCourse}}
+      <div id="group_category_options" class="control-group"></div>
+    {{/if}}
   {{/unless}}
 
   {{#if contextIsCourse}}
@@ -158,6 +187,7 @@
                    class="datetime_field input-medium"
                    name="delayed_post_at"
                    id="delayed_post_at"
+                   aria-label="{{#t}}Available From Date{{/t}}"
                    {{! TODO: what would be the best way to get this formatted right? }}
                    value="{{datetimeFormatted delayed_post_at false}}">
           </div>
@@ -173,6 +203,7 @@
                      class="datetime_field input-medium"
                      name="lock_at"
                      id="lock_at"
+                     aria-label="{{#t}}Available Until Date{{/t}}"
                      {{! TODO: what would be the best way to get this formatted right? }}
                      value="{{datetimeFormatted lock_at false}}">
             </div>
@@ -195,6 +226,9 @@
                  class="input-small"
                  value="{{assignment.pointsPossible}}" />
         </div>
+          <div id=discussion_point_change_warning class="alert form-column-right">
+              {{#t}}If you change an assignment's points possible you must regrade the assignment.{{/t}}
+          </div>
       </div>
 
       <div id="grading_type_options" class="control-group"></div>
@@ -270,6 +304,11 @@
 
 <div class="form-actions flush">
   <button type="button" class="btn cancel_button">{{#t "#buttons.cancel"}}Cancel{{/t}}</button>
+  {{#if canPublish}}
+    <button type="button"
+            data-text-while-loading="{{#t "saving"}}Saving...{{/t}}"
+            class="btn btn-default save_and_publish">{{#t "buttons.save_and_publish"}}Save & Publish{{/t}}</button>
+  {{/if}}
   <button type="submit"
           data-text-while-loading="{{#t "saving"}}Saving...{{/t}}"
           class="btn btn-primary">{{#t "save"}}Save{{/t}}</button>

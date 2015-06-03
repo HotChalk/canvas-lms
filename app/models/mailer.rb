@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011 - 2015 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -15,6 +15,8 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+
+require 'mail'
 
 class Mailer < ActionMailer::Base
 
@@ -33,8 +35,6 @@ class Mailer < ActionMailer::Base
 
     reply_to = reply_to_mailbox(m)
     params[:reply_to] = reply_to if reply_to
-    params[:cc] = m.cc if m.cc
-    params[:bcc] = m.bcc if m.bcc
 
     mail(params) do |format|
       format.text{ render text: m.body }

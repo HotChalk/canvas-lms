@@ -188,23 +188,23 @@ describe Account do
       @a = Account.new
     end
     it "should be able to specify a list of enabled services" do
-      @a.allowed_services = 'facebook,twitter'
-      expect(@a.service_enabled?(:facebook)).to be_truthy
+      @a.allowed_services = 'linked_in,twitter'
+      expect(@a.service_enabled?(:linked_in)).to be_truthy
       expect(@a.service_enabled?(:twitter)).to be_truthy
       expect(@a.service_enabled?(:diigo)).to be_falsey
       expect(@a.service_enabled?(:avatars)).to be_falsey
     end
 
     it "should not enable services off by default" do
-      expect(@a.service_enabled?(:facebook)).to be_truthy
+      expect(@a.service_enabled?(:linked_in)).to be_truthy
       expect(@a.service_enabled?(:avatars)).to be_falsey
     end
 
     it "should add and remove services from the defaults" do
-      @a.allowed_services = '+avatars,-facebook'
+      @a.allowed_services = '+avatars,-linked_in'
       expect(@a.service_enabled?(:avatars)).to be_truthy
       expect(@a.service_enabled?(:twitter)).to be_truthy
-      expect(@a.service_enabled?(:facebook)).to be_falsey
+      expect(@a.service_enabled?(:linked_in)).to be_falsey
     end
 
     it "should allow settings services" do
@@ -235,15 +235,15 @@ describe Account do
     end
 
     it "should be able to set service availibity for previously hard-coded values" do
-      @a.allowed_services = 'avatars,facebook'
+      @a.allowed_services = 'avatars,linked_in'
 
       @a.enable_service(:twitter)
       expect(@a.service_enabled?(:twitter)).to be_truthy
       expect(@a.allowed_services).to match(/twitter/)
       expect(@a.allowed_services).not_to match(/[+-]/)
 
-      @a.disable_service(:facebook)
-      expect(@a.allowed_services).not_to match(/facebook/)
+      @a.disable_service(:linked_in)
+      expect(@a.allowed_services).not_to match(/linked_in/)
       expect(@a.allowed_services).not_to match(/[+-]/)
 
       @a.disable_service(:avatars)
@@ -426,7 +426,7 @@ describe Account do
     end
 
     limited_access = [ :read, :manage, :update, :delete, :read_outcomes ]
-    account_enabled_access = [ :view_notifications ]
+    account_enabled_access = [ :view_notifications, :manage_catalog ]
     full_access = RoleOverride.permissions.keys + limited_access - account_enabled_access + [:create_courses]
     siteadmin_access = [:app_profiling]
     full_root_access = full_access - RoleOverride.permissions.select { |k, v| v[:account_only] == :site_admin }.map(&:first)
@@ -739,6 +739,11 @@ describe Account do
       expect(@account.tabs_available(nil)).to include(mock_tab)
     end
 
+    it 'uses :manage_assignments to determine question bank tab visibility' do
+      account_admin_user_with_role_changes(acccount: @account, role_changes: { manage_assignments: true, manage_grades: false})
+      tabs = @account.tabs_available(@admin)
+      expect(tabs.map{|t| t[:id] }).to be_include(Account::TAB_QUESTION_BANKS)
+    end
   end
 
   describe "fast_all_users" do
@@ -1154,6 +1159,102 @@ describe Account do
 
     it 'should be false when a referer is not trusted' do
       expect(account.trusted_referer?('https://example.com:5000')).to be_falsey
+    end
+
+    it 'should be false when the account has no trusted referer setting' do
+      account.settings.delete(:trusted_referers)
+      expect(account.trusted_referer?('https://example.com')).to be_falsey
+    end
+
+    it 'should be false when the account has nil trusted referer setting' do
+      account.settings[:trusted_referers] = nil
+      expect(account.trusted_referer?('https://example.com')).to be_falsey
+    end
+
+    it 'should be false when the account has empty trusted referer setting' do
+      account.settings[:trusted_referers] = ''
+      expect(account.trusted_referer?('https://example.com')).to be_falsey
+    end
+  end
+
+  context "quota cache" do
+    it "should only clear the quota cache if something changes" do
+      account = account_model
+
+      Account.expects(:invalidate_quota_caches).once
+
+      account.default_storage_quota = 10.megabytes
+      account.save! # clear here
+
+      account.reload
+      account.save!
+
+      account.default_storage_quota = 10.megabytes
+      account.save!
+    end
+
+    it "should inherit from a parent account's default_storage_quota" do
+      enable_cache do
+        account = account_model
+        subaccount = account.sub_accounts.create!
+
+        account.default_storage_quota = 10.megabytes
+        account.save!
+
+        expect(subaccount.default_storage_quota).to eq 10.megabytes
+
+        # should reload
+        account.default_group_storage_quota = 20.megabytes
+        account.save!
+
+        expect(subaccount.default_storage_quota).to eq 10.megabytes
+      end
+    end
+  end
+
+  context "inheritable settings" do
+    before :each do
+      account_model
+      @sub1 = @account.sub_accounts.create!
+      @sub2 = @sub1.sub_accounts.create!
+    end
+
+    it "should use the default value if nothing is set anywhere" do
+      expected = {:locked => false, :value => false}
+      [@account, @sub1, @sub2].each do |a|
+        expect(a.restrict_student_future_view).to eq expected
+      end
+    end
+
+    it "should be able to lock values for sub-accounts" do
+      @sub1.settings[:restrict_student_future_view] = {:locked => true, :value => true}
+      @sub1.save!
+      # should ignore the subaccount's wishes
+      @sub2.settings[:restrict_student_future_view] = {:locked => true, :value => false}
+      @sub2.save!
+
+      expect(@account.restrict_student_future_view).to eq({:locked => false, :value => false})
+      expect(@sub1.restrict_student_future_view).to eq({:locked => true, :value => true})
+      expect(@sub2.restrict_student_future_view).to eq({:locked => true, :value => true, :inherited => true})
+    end
+
+    it "should grandfather old pre-hash values in" do
+      @account.settings[:restrict_student_future_view] = true
+      @account.save!
+      @sub2.settings[:restrict_student_future_view] = false
+      @sub2.save!
+
+      expect(@account.restrict_student_future_view).to eq({:locked => false, :value => true})
+      expect(@sub1.restrict_student_future_view).to eq({:locked => false, :value => true, :inherited => true})
+      expect(@sub2.restrict_student_future_view).to eq({:locked => false, :value => false})
+    end
+
+    it "should translate string values in mass-assignment" do
+      settings = @account.settings
+      settings[:restrict_student_future_view] = {"value" => "1", "locked" => "0"}
+      @account.settings = settings
+      @account.save!
+      expect(@account.restrict_student_future_view).to eq({:locked => false, :value => true})
     end
   end
 end

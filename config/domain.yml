@@ -2,11 +2,11 @@ test:
   domain: localhost
 
 development:
-  domain: "localhost:3000"
+  domain: "dev.hotchalkember.com:3000"
 
 production:
-  domain: "canvas.localdomain"
+  domain: "dev.hotchalkember.com"
   # whether this instance of canvas is served over ssl (https) or not
   # defaults to true for production, false for test/development
   ssl: true
-  files_domain: "canvasfiles.localdomain"
+  files_domain: "devfiles.hotchalkember.com"

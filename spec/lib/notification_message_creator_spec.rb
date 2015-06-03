@@ -33,20 +33,6 @@ def notification_set(opts = {})
   @notification.reload
 end
 
-# The opts pertain to user only
-def create_user_with_cc(opts = {})
-  user_model(opts)
-
-  if @notification
-    communication_channel_model
-    @communication_channel.notification_policies.create!(notification: @notification, frequency: Notification::FREQ_DAILY)
-  else
-    communication_channel_model
-  end
-
-  @user.reload
-end
-
 describe NotificationMessageCreator do
   context 'create_message' do
     before(:each) do
@@ -54,15 +40,20 @@ describe NotificationMessageCreator do
     end
 
     it "should only send dashboard messages for users with non-validated channels" do
+      assignment_model
       notification_model
-      u1 = create_user_with_cc(:name => "user 1", :workflow_state => "registered")
-      u1.communication_channels.create(:path => "user1@example.com")
-      u2 = create_user_with_cc(:name => "user 2")
-      u2.communication_channels.create(:path => "user2@example.com")
-      @a = Assignment.create
-      messages = NotificationMessageCreator.new(@notification, @a, :to_list => [u1, u2]).create_message
-      expect(messages.length).to eql(2)
-      expect(messages.map(&:to)).to be_include('dashboard')
+      u1 = user_model(:workflow_state => "registered")
+      c1 = communication_channel_model(:path => "user@example.com", :workflow_state => 'active')
+      u2 = user_model(:workflow_state => "registered")
+      c2 = communication_channel_model
+      [c1, c2].each do |cc|
+        notification_policy_model(:communication_channel => cc,
+                                  :notification => @notification,
+                                  :frequency => "immediately")
+      end
+      messages = NotificationMessageCreator.new(@notification, @assignment, :to_list => [u1, u2]).create_message
+      expect(messages.length).to eql(3)
+      expect(messages.map(&:to).sort).to eq ['dashboard', 'dashboard', 'user@example.com']
     end
 
     it "should only send messages to active communication channels" do
@@ -329,6 +320,14 @@ describe NotificationMessageCreator do
       expect(messages.map(&:to).sort).to eq ['dashboard', 'value for path']
     end
 
+    it "should not use notification policies for unconfirmed communication channels even if that's all the user has" do
+      notification_set
+      @communication_channel.update_attribute(:workflow_state, 'unconfirmed')
+      messages = NotificationMessageCreator.new(@notification, @assignment, :to_list => @user).create_message
+      expect(messages.size).to eq 1
+      expect(messages.map(&:to).sort).to eq ['dashboard']
+    end
+
     it "should force certain categories to send immediately" do
       notification_set(:notification_opts => { :name => "Thing 1", :category => 'Not Migration' })
       @notification_policy.frequency = 'daily'
@@ -366,6 +365,7 @@ describe NotificationMessageCreator do
 
     it "should respect browser locales" do
       I18n.backend.stub(piglatin: {messages: {test_name: {email: {subject: "Isthay isay ivefay!"}}}}) do
+        I18n.config.available_locales_set.merge([:piglatin, 'piglatin'])
         @user.browser_locale = 'piglatin'
         @user.save(validate: false) # the validation was declared before :piglatin was added, so we skip it
         messages = NotificationMessageCreator.new(@notification, @assignment, :to_list => @user).create_message
@@ -376,6 +376,7 @@ describe NotificationMessageCreator do
 
     it "should respect user locales" do
       I18n.backend.stub(shouty: {messages: {test_name: {email: {subject: "THIS IS *5*!!!!?!11eleventy1"}}}}) do
+        I18n.config.available_locales_set.merge([:shouty, 'shouty'])
         @user.locale = 'shouty'
         @user.save(validate: false)
         messages = NotificationMessageCreator.new(@notification, @assignment, :to_list => @user).create_message
@@ -387,6 +388,7 @@ describe NotificationMessageCreator do
     it "should respect course locales" do
       course
       I18n.backend.stub(es: {messages: {test_name: {email: {subject: 'El Tigre Chino'}}}}) do
+        I18n.config.available_locales_set.merge([:es, 'es'])
         @course.enroll_teacher(@user).accept!
         @course.update_attribute(:locale, 'es')
         messages = NotificationMessageCreator.new(@notification, @course, :to_list => @user).create_message
@@ -398,6 +400,7 @@ describe NotificationMessageCreator do
     it "should respect account locales" do
       course
       I18n.backend.stub(es: {messages: {test_name: {email: {subject: 'El Tigre Chino'}}}}) do
+        I18n.config.available_locales_set.merge([:es, 'es'])
         @course.account.update_attribute(:default_locale, 'es')
         @course.enroll_teacher(@user).accept!
         messages = NotificationMessageCreator.new(@notification, @course, :to_list => @user).create_message

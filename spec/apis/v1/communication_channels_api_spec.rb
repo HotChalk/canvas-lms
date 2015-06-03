@@ -161,7 +161,7 @@ describe 'CommunicationChannels API', type: :request do
       end
 
       context 'push' do
-        before { @post_params.merge!(communication_channel: {address: 'myphone', type: 'push'}) }
+        before { @post_params.merge!(communication_channel: {token: 'registration_token', type: 'push'}) }
 
         it 'should complain about sns not being configured' do
           raw_api_call(:post, @path, @path_options, @post_params)
@@ -178,13 +178,12 @@ describe 'CommunicationChannels API', type: :request do
           dk.sns_arn = 'apparn'
           dk.save!
           $spec_api_tokens[@user] = @user.access_tokens.create!(developer_key: dk).full_token
-          response = mock()
-          response.expects(:data).returns(endpoint_arn: 'endpointarn')
-          client.expects(:create_platform_endpoint).once.returns(response)
+          client.expects(:create_platform_endpoint).once.returns(endpoint_arn: 'endpointarn')
 
           json = api_call(:post, @path, @path_options, @post_params)
           expect(json['type']).to eq 'push'
           expect(json['workflow_state']).to eq 'active'
+          expect(@user.notification_endpoints.first.arn).to eq 'endpointarn'
         end
       end
     end

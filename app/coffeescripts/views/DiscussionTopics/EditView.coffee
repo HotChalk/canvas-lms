@@ -42,11 +42,15 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       '#reply_assignment_options': '$replyAssignmentOptions'
       '#use_for_grading': '$useForGrading'
       '#use_for_grading_replies': '$useForGradingReplies'
+      '#discussion_topic_assignment_points_possible' : '$assignmentPointsPossible'
+      '#discussion_point_change_warning' : '$discussionPointPossibleWarning'
 
     events: _.extend(@::events,
       'click .removeAttachment' : 'removeAttachment'
+      'click .save_and_publish': 'saveAndPublish'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
       'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
+      'change #discussion_topic_assignment_points_possible' : 'handlePointsChange'
       'click .cancel_button': 'cancel'
     )
 
@@ -60,6 +64,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     initialize: (options) ->
       @assignment = @model.get("assignment")
       @replyAssignment = @model.get("reply_assignment")
+      @initialPointsPossible = @assignment.pointsPossible()
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', =>
         @unwatchUnload()
@@ -70,6 +75,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     isAnnouncement: => @model.constructor is Announcement
 
+    canPublish: =>
+      !@isAnnouncement() && !@model.get('published') && @permissions.CAN_MODERATE
+
     toJSON: ->
       data = super
       json = _.extend data, @options,
@@ -78,24 +86,29 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         useForGrading: @model.get('assignment')?
         isTopic: @isTopic()
         isAnnouncement: @isAnnouncement()
+        canPublish: @canPublish()
         contextIsCourse: @options.contextType is 'courses'
         canAttach: @permissions.CAN_ATTACH
         canModerate: @permissions.CAN_MODERATE
         isLargeRoster: ENV?.IS_LARGE_ROSTER || false
         threaded: data.discussion_type is "threaded"
-        draftStateEnabled: ENV.DRAFT_STATE && ENV.DISCUSSION_TOPIC.PERMISSIONS.CAN_MODERATE
         differentiatedAssignmentsEnabled: @model.differentiatedAssignmentsEnabled()
       json.assignment = json.assignment.toView()
       json.reply_assignment = json.reply_assignment.toView()
       json
 
+
+    handlePointsChange:(ev) =>
+      ev.preventDefault()
+      if @assignment.hasSubmittedSubmissions()
+        @$discussionPointPossibleWarning.toggleAccessibly(@$assignmentPointsPossible.val() != "#{@initialPointsPossible}")
+
     render: =>
       super
-
-      unless wikiSidebar.inited
-        wikiSidebar.init()
-        $.scrollSidebar()
       $textarea = @$('textarea[name=message]').attr('id', _.uniqueId('discussion-topic-message'))
+
+      @_initializeWikiSidebar ($textarea)
+
       _.defer ->
         $textarea.editorBox()
         $('.rte_switch_views_link').click (event) ->
@@ -105,10 +118,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           # hide the clicked link, and show the other toggle link.
           # todo: replace .andSelf with .addBack when JQuery is upgraded.
           $(event.currentTarget).siblings('.rte_switch_views_link').andSelf().toggle()
-      wikiSidebar.attachToEditor $textarea
-
-      wikiSidebar.show()
-
       if @assignmentGroupCollection
         _this = this
         (@assignmentGroupFetchDfd ||= @assignmentGroupCollection.fetch()).done =>
@@ -131,6 +140,13 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     attachKeyboardShortcuts: =>
         $('.rte_switch_views_link').first().before((new KeyboardShortcuts()).render().$el)
+
+    _initializeWikiSidebar:(textarea) =>
+      unless wikiSidebar.inited
+        wikiSidebar.init()
+        $.scrollSidebar()
+      wikiSidebar.attachToEditor textarea
+      wikiSidebar.show()
 
     renderAssignmentGroupOptions: (el, basePrefix, parentModel) =>
       @assignmentGroupSelector = new AssignmentGroupSelector
@@ -192,6 +208,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
+      data.only_graders_can_rate = false unless data.allow_rating is '1'
+      data.sort_by_rating = false unless data.allow_rating is '1'
       unless ENV?.IS_LARGE_ROSTER
         data = @groupCategorySelector.filterFormData data
 
@@ -223,6 +241,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
+
+      data.published = true if @shouldPublish
 
       data
 
@@ -275,6 +295,16 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       GroupCategorySelector::fieldSelectors
     )
 
+    saveAndPublish: (event) ->
+      @shouldPublish = true
+      @disableWhileLoadingOpts = {buttons: ['.save_and_publish']}
+      @submit(event)
+
+    onSaveFail: (xhr) =>
+      @shouldPublish = false
+      @disableWhileLoadingOpts = {}
+      super(xhr)
+
     validateBeforeSave: (data, errors) =>
       if data.title == ''
         errors["title"] = [
@@ -296,14 +326,19 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)
-        unless ENV?.IS_LARGE_ROSTER
-          errors = @groupCategorySelector.validateBeforeSave(data, errors)
         data2 =
           assignment_overrides: @dueDateOverrideView.getAllDates(data.assignment.toJSON())
         errors = @dueDateOverrideView.validateBeforeSave(data2, errors)
         errors = @_validatePointsPossible(data, errors)
       else
         @model.set 'assignment', @model.createAssignment(set_assignment: false)
+
+      if !ENV?.IS_LARGE_ROSTER && @isTopic()
+        errors = @groupCategorySelector.validateBeforeSave(data, errors)
+
+      if @isAnnouncement()
+        unless data.message?.length > 0
+          errors['message'] = [{type: 'message_required_error', message: I18n.t("A message is required")}]
       errors
 
     _validatePointsPossible: (data, errors) =>

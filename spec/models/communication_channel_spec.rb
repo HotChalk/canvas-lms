@@ -182,6 +182,15 @@ describe CommunicationChannel do
     @user.communication_channels.create!(:path => 'user1@example.com', :path_type => 'sms')
   end
 
+  context "destroy!" do
+    it "does not violate foreign key constraints" do
+      communication_channel_model
+      notification_policy_model(:frequency => "daily", :communication_channel => @communication_channel)
+      delayed_message_model(:notification_policy_id => @notification_policy.id)
+      @communication_channel.destroy!
+    end
+  end
+
   context "notifications" do
     it "should forward the root account to the message" do
       notification = Notification.create!(:name => 'Confirm Email Communication Channel', :category => 'Registration')
@@ -190,6 +199,7 @@ describe CommunicationChannel do
       @cc = @user.communication_channels.create!(:path => 'user1@example.com')
       account = Account.create!
       HostUrl.stubs(:context_host).with(account).returns('someserver.com')
+      HostUrl.stubs(:context_host).with(@cc).returns('someserver.com')
       HostUrl.stubs(:context_host).with(nil).returns('default')
       @cc.send_confirmation!(account)
       message = Message.where(:communication_channel_id => @cc, :notification_id => notification).first

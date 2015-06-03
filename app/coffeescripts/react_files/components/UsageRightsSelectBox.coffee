@@ -6,9 +6,8 @@ define [
   '../modules/customPropTypes'
   '../modules/filesEnv'
   '../utils/omitEmptyValues'
-  ], ($, _, I18n, React, customPropTypes, filesEnv, omitEmptyValues) ->
-
-  {select, option, div, input, label, span, i} = React.DOM
+  'compiled/react/shared/utils/withReactElement'
+  ], ($, _, I18n, React, customPropTypes, filesEnv, omitEmptyValues, withReactElement) ->
 
   contentOptions = [{
       display:  I18n.t("Choose usage rights..."),
@@ -41,10 +40,11 @@ define [
       contextId: React.PropTypes.oneOfType([React.PropTypes.string, React.PropTypes.number])
 
     getInitialState: ->
-      showTextBox: @props.use_justification
+      showTextBox: @props.use_justification != 'choose'
       showCreativeCommonsOptions: @props.use_justification == 'creative_commons' && @props.copyright?
       licenseOptions: []
       showMessage: @props.showMessage
+      usageRightSelectionValue: @props.use_justification if @props.use_justification
 
     componentDidMount: ->
       @getUsageRightsOptions()
@@ -70,14 +70,26 @@ define [
 
     handleChange: (event) ->
       @setState({
+        usageRightSelectionValue: event.target.value
         showTextBox: event.target.value != 'choose'
         showCreativeCommonsOptions: event.target.value == 'creative_commons'
         showMessage: (@props.showMessage && event.target.value == 'choose')
       })
 
+    # This method only really applies to firefox which doesn't handle onChange
+    # events on select boxes like every other browser.
+    handleChooseKeyPress: (event) ->
+      if (event.key == "ArrowUp") || (event.key == "ArrowDown")
+        @setState({
+          usageRightSelectionValue: event.target.value
+        }, @handleChange(event))
+
+
     renderContentOptions: ->
       contentOptions.map (contentOption) ->
-        option {value: contentOption.value},
+        option {
+          value: contentOption.value
+        },
           contentOption.display
 
     renderCreativeCommonsOptions: ->
@@ -88,7 +100,7 @@ define [
         option {value: license.id},
           license.name
 
-    render: ->
+    render: withReactElement ->
       div {className: 'UsageRightsSelectBox__container'},
         div {className: 'control-group'},
           label {
@@ -101,8 +113,9 @@ define [
               id: 'usageRightSelector'
               className: 'UsageRightsSelectBox__select',
               onChange: @handleChange,
+              onKeyUp : @handleChooseKeyPress
               ref: 'usageRightSelection'
-              defaultValue: @props.use_justification if @props.use_justification
+              value: @state.usageRightSelectionValue
             },
               @renderContentOptions()
         if @state.showCreativeCommonsOptions
@@ -117,26 +130,25 @@ define [
                 id: 'creativeCommonsSelection',
                 className: 'UsageRightsSelectBox__creativeCommons',
                 ref: 'creativeCommons',
-                defaultValue: @props.copyright
+                defaultValue: @props.cc_value
               },
                 @renderCreativeCommonsOptions()
+        div {className: 'control-group'},
+          label {
+            className: 'control-label',
+            htmlFor: 'copyrightHolder'
+          },
+            I18n.t('Copyright Holder:')
+          div {className: 'controls'},
+            input {
+              id: 'copyrightHolder',
+              type: 'text',
+              ref: 'copyright',
+              defaultValue: @props.copyright if @props.copyright?
+              placeholder: I18n.t('(c) 2001 Acme Inc.')
+            }
         if @state.showMessage
           div {className: 'alert'},
             span {},
               i {className: 'icon-warning'}, null
               span {style: {paddingLeft: "10px"}}, I18n.t("If you do not select usage rights now, this file will be unpublished after it's uploaded.")
-        if @state.showTextBox and not @state.showMessage
-          div {className: 'control-group'},
-            label {
-              className: 'control-label',
-              htmlFor: 'copyrightHolder'
-            },
-              I18n.t('Copyright Holder:')
-            div {className: 'controls'},
-              input {
-                id: 'copyrightHolder',
-                type: 'text',
-                ref: 'copyright',
-                defaultValue: @props.copyright if @props.copyright?
-                placeholder: I18n.t('(c) 2001 Acme Inc.')
-              }

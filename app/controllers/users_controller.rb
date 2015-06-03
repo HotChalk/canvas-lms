@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'atom'
+
 # @API Users
 # API for accessing information on the current and other users.
 #
@@ -98,8 +100,13 @@
 #           "format": "date-time"
 #         },
 #         "time_zone": {
-#           "description": "Optional: This field is only returned in ceratin API calls, and will return the IANA time zone name of the user's preferred timezone.",
+#           "description": "Optional: This field is only returned in certain API calls, and will return the IANA time zone name of the user's preferred timezone.",
 #           "example": "America/Denver",
+#           "type": "string"
+#         },
+#         "bio": {
+#           "description": "Optional: The user's bio.",
+#           "example": "I like the Muppets.",
 #           "type": "string"
 #         }
 #       }
@@ -154,6 +161,13 @@ class UsersController < ApplicationController
         :original_host_with_port => request.host_with_port
       )
       redirect_to request_token.authorize_url
+    elsif params[:service] == "google_drive"
+      redirect_uri = oauth_success_url(:service => 'google_drive')
+      session[:oauth_gdrive_nonce] = SecureRandom.hex
+      state = Canvas::Security.create_jwt(redirect_uri: redirect_uri, return_to_url: return_to_url, nonce: session[:oauth_gdrive_nonce])
+      doc_service = @current_user.user_services.where(service: "google_docs").first
+      user_name = doc_service.service_user_name if doc_service
+      redirect_to GoogleDrive::Client.auth_uri(google_drive_client, state, user_name)
     elsif params[:service] == "twitter"
       success_url = oauth_success_url(:service => 'twitter')
       request_token = Twitter::Connection.request_token(success_url)
@@ -183,16 +197,6 @@ class UsersController < ApplicationController
       )
 
       redirect_to request_token.authorize_url
-    elsif params[:service] == "facebook"
-      oauth_request = OauthRequest.create(
-        :service => 'facebook',
-        :secret => CanvasSlug.generate("fb", 10),
-        :return_url => return_to_url,
-        :user => @current_user,
-        :original_host_with_port => request.host_with_port
-      )
-      state = Canvas::Security.encrypt_password(oauth_request.global_id.to_s, 'facebook_oauth_request').join('.')
-      redirect_to Facebook::Connection.authorize_url(state)
     end
   end
 
@@ -200,11 +204,47 @@ class UsersController < ApplicationController
     oauth_request = nil
     if params[:oauth_token]
       oauth_request = OauthRequest.where(token: params[:oauth_token], service: params[:service]).first
-    elsif params[:state] && params[:service] == 'facebook'
-      key,salt = params[:state].split('.', 2)
-      request_id = Canvas::Security.decrypt_password(key, salt, 'facebook_oauth_request')
+    elsif params[:code] &&  params[:state] && params[:service] == 'google_drive'
 
-      oauth_request = OauthRequest.where(id: request_id).first
+      begin
+
+        client = google_drive_client
+        client.authorization.code = params[:code]
+        client.authorization.fetch_access_token!
+        drive = client.discovered_api('drive', 'v2')
+        result = client.execute!(:api_method => drive.about.get)
+
+        if result.status == 200
+          user_info = result.data
+        else
+          raise "Error getting user info from Google"
+        end
+
+        json = Canvas::Security.decode_jwt(params[:state])
+        render_unauthorized_action and return unless json['nonce'] && json['nonce'] == session[:oauth_gdrive_nonce]
+        session.delete(:oauth_gdrive_nonce)
+
+        if logged_in_user
+          UserService.register(
+            :service => "google_drive",
+            :service_domain => "drive.google.com",
+            :token => client.authorization.refresh_token,
+            :secret => client.authorization.access_token,
+            :user => logged_in_user,
+            :service_user_id => user_info['permissionId'],
+            :service_user_name => user_info['user']['emailAddress']
+          )
+        else
+          session[:oauth_gdrive_access_token] = client.authorization.access_token
+          session[:oauth_gdrive_refresh_token] = client.authorization.refresh_token
+        end
+
+        flash[:notice] = t('google_drive_added', "Google Drive account successfully added!")
+        return redirect_to(json['return_to_url'])
+      rescue => e
+        Canvas::Errors.capture_exception(:oauth, e)
+        flash[:error] = t('google_drive_fail', "Google Drive authorization failed. Please try again")
+      end
     end
 
     if !oauth_request || (request.host_with_port == oauth_request.original_host_with_port && oauth_request.user != @current_user)
@@ -214,23 +254,7 @@ class UsersController < ApplicationController
       url = url_for request.parameters.merge(:host => oauth_request.original_host_with_port, :only_path => false)
       redirect_to url
     else
-      if params[:service] == "facebook"
-        service = UserService.where(user_id: @current_user, service: 'facebook').first_or_initialize
-        service.token = params[:access_token]
-        data = Facebook::Connection.get_service_user_info(service.token)
-
-        if data
-          service.service_user_id = data['id']
-          service.service_user_name = data['name']
-          service.service_user_url = data['link']
-          service.save
-          service
-
-          flash[:notice] = t('facebook_added', "Facebook account successfully added!")
-        else
-          flash[:error] = t('facebook_fail', "Facebook authorization failed.")
-        end
-      elsif params[:service] == "google_docs"
+      if params[:service] == "google_docs"
         begin
           access_token = GoogleDocs::Connection.get_access_token(oauth_request.token, oauth_request.secret, params[:oauth_verifier])
           google_docs = GoogleDocs::Connection.new(oauth_request.token, oauth_request.secret)
@@ -252,7 +276,7 @@ class UsersController < ApplicationController
 
           flash[:notice] = t('google_docs_added', "Google Docs access authorized!")
         rescue => e
-          ErrorReport.log_exception(:oauth, e)
+          Canvas::Errors.capture_exception(:oauth, e)
           flash[:error] = t('google_docs_fail', "Google Docs authorization failed. Please try again")
         end
       elsif params[:service] == "linked_in"
@@ -280,7 +304,7 @@ class UsersController < ApplicationController
 
           flash[:notice] = t('linkedin_added', "LinkedIn account successfully added!")
         rescue => e
-          ErrorReport.log_exception(:oauth, e)
+          Canvas::Errors.capture_exception(:oauth, e)
           flash[:error] = t('linkedin_fail', "LinkedIn authorization failed. Please try again")
         end
       else
@@ -305,7 +329,7 @@ class UsersController < ApplicationController
 
           flash[:notice] = t('twitter_added', "Twitter access authorized!")
         rescue => e
-          ErrorReport.log_exception(:oauth, e)
+          Canvas::Errors.capture_exception(:oauth, e)
           flash[:error] = t('twitter_fail_whale', "Twitter authorization failed. Please try again")
         end
       end
@@ -621,6 +645,7 @@ class UsersController < ApplicationController
     @courses = @query.present? ?
       @context.manageable_courses_name_like(@query, include_concluded) :
       @context.manageable_courses(include_concluded).limit(500)
+    @courses = @courses.select("courses.*,#{Course.best_unicode_collation_key('name')} AS sort_key").order('sort_key')
 
     cancel_cache_buster
     expires_in 30.minutes
@@ -922,6 +947,33 @@ class UsersController < ApplicationController
     end
   end
 
+  # @API Show user details
+  #
+  # Shows details for user.
+  #
+  # Also includes an attribute "permissions", a non-comprehensive list of permissions for the user.
+  # Example:
+  #   !!!javascript
+  #   "permissions": {
+  #    "can_update_name": true, // Whether the user can update their name.
+  #    "can_update_avatar": false // Whether the user can update their avatar.
+  #   }
+  #
+  # @example_request
+  #   curl https://<canvas>/api/v1/users/self \
+  #       -X GET \
+  #       -H 'Authorization: Bearer <token>'
+  #
+  # @returns User
+  def api_show
+    @user = params[:id] && params[:id] != 'self' ? User.find(params[:id]) : @current_user
+    if @user.grants_any_right?(@current_user, session, :manage, :manage_user_details)
+      render :json => user_json(@user, @current_user, session, %w{locale avatar_url permissions}, @current_user.pseudonym.account)
+    else
+      render_unauthorized_action
+    end
+  end
+
   def external_tool
     @tool = ContextExternalTool.find_for(params[:id], @domain_root_account, :user_navigation)
     @opaque_id = @tool.opaque_identifier_for(@current_user)
@@ -936,10 +988,13 @@ class UsersController < ApplicationController
     @lti_launch = Lti::Launch.new
     opts = {
         resource_type: @resource_type,
-        link_code: @opaque_id,
-        custom_substitutions: common_variable_substitutions
+        link_code: @opaque_id
     }
-    adapter = Lti::LtiOutboundAdapter.new(@tool, @current_user, @domain_root_account).prepare_tool_launch(@return_url, opts)
+    variable_expander = Lti::VariableExpander.new(@domain_root_account, @context, self,{
+                                                                        current_user: @current_user,
+                                                                        current_pseudonym: @current_pseudonym,
+                                                                        tool: @tool})
+    adapter = Lti::LtiOutboundAdapter.new(@tool, @current_user, @domain_root_account).prepare_tool_launch(@return_url, variable_expander,  opts)
     @lti_launch.params = adapter.generate_post_payload
 
     @lti_launch.resource_url = @tool.user_navigation(:url)
@@ -953,6 +1008,7 @@ class UsersController < ApplicationController
 
   def new
     return redirect_to(root_url) if @current_user
+    run_login_hooks
     js_env :ACCOUNT => account_json(@domain_root_account, nil, session, ['registration_settings']),
            :PASSWORD_POLICY => @domain_root_account.password_policy
     render :layout => 'bare'
@@ -1011,6 +1067,14 @@ class UsersController < ApplicationController
   #   Send user notification of account creation if true.
   #   Automatically set to true during self-registration.
   #
+  # @argument pseudonym[force_self_registration] [Boolean]
+  #   Send user a self-registration style email if true.
+  #   Setting it means the users will get a notification asking them
+  #   to "complete the registration process" by clicking it, setting
+  #   a password, and letting them in.  Will only be executed on
+  #   if the user does not need admin approval.
+  #   Defaults to false unless explicitly provided.
+  #
   # @argument communication_channel[type] [String]
   #   The communication channel type, e.g. 'email' or 'sms'.
   #
@@ -1027,21 +1091,31 @@ class UsersController < ApplicationController
   #   Otherwise, the user must respond to a confirmation message to confirm the
   #   channel.
   #
+  # @argument force_validations [Boolean]
+  #   If true, validations are performed on the newly created user (and their associated pseudonym)
+  #   even if the request is made by a privileged user like an admin. When set to false,
+  #   or not included in the request parameters, any newly created users are subject to
+  #   validations unless the request is made by a user with a 'manage_user_logins' right.
+  #   In which case, certain validations such as 'require_acceptance_of_terms' and
+  #   'require_presence_of_name' are not enforced. Use this parameter to return helpful json
+  #   errors while building users with an admin request.
+  #
   # @returns User
   def create
+    run_login_hooks
     # Look for an incomplete registration with this pseudonym
     @pseudonym = @context.pseudonyms.active.by_unique_id(params[:pseudonym][:unique_id]).first
     # Setting it to nil will cause us to try and create a new one, and give user the login already exists error
     @pseudonym = nil if @pseudonym && !['creation_pending', 'pending_approval'].include?(@pseudonym.user.workflow_state)
 
+    force_validations = value_to_boolean(params[:force_validations])
     manage_user_logins = @context.grants_right?(@current_user, session, :manage_user_logins)
     self_enrollment = params[:self_enrollment].present?
-    allow_non_email_pseudonyms = manage_user_logins || self_enrollment && params[:pseudonym_type] == 'username'
+    allow_non_email_pseudonyms = !force_validations && manage_user_logins || self_enrollment && params[:pseudonym_type] == 'username'
     require_password = self_enrollment && allow_non_email_pseudonyms
     allow_password = require_password || manage_user_logins
 
-    notify = value_to_boolean(params[:pseudonym].delete(:send_confirmation))
-    notify = :self_registration unless manage_user_logins
+    notify_policy = Users::CreationNotifyPolicy.new(manage_user_logins, params[:pseudonym])
 
     includes = %w{locale}
 
@@ -1091,13 +1165,13 @@ class UsersController < ApplicationController
         # no email confirmation required (self_enrollment_code and password
         # validations will ensure everything is legit)
         'registered'
-      elsif notify == :self_registration && @user.registration_approval_required?
+      elsif notify_policy.is_self_registration? && @user.registration_approval_required?
         'pending_approval'
       else
         'pre_registered'
       end
     end
-    if !manage_user_logins # i.e. a new user signing up
+    if force_validations || !manage_user_logins
       @user.require_acceptance_of_terms = @domain_root_account.terms_required?
       @user.require_presence_of_name = true
       @user.require_self_enrollment_code = self_enrollment
@@ -1156,19 +1230,11 @@ class UsersController < ApplicationController
         @user.user_observees << @user.user_observees.create!{ |uo| uo.user_id = @observee.id }
       end
 
-      message_sent = false
-      if notify == :self_registration
-        unless @user.pending_approval? || @user.registered?
-          message_sent = true
-          @pseudonym.send_confirmation!
-        end
-        @user.new_registration((params[:user] || {}).merge({:remote_ip  => request.remote_ip, :cookies => cookies}))
-      elsif notify && !@user.registered?
-        message_sent = true
-        @pseudonym.send_registration_notification!
-      else
-        @cc.send_merge_notification! if @cc.has_merge_candidates?
+      if notify_policy.is_self_registration?
+        registration_params = params.fetch(:user, {}).merge(remote_ip: request.remote_ip, cookies: cookies)
+        @user.new_registration(registration_params)
       end
+      message_sent = notify_policy.dispatch!(@user, @pseudonym, @cc)
 
       data = { :user => @user, :pseudonym => @pseudonym, :channel => @cc, :message_sent => message_sent, :course => @user.self_enrollment_course }
       if api_request?
@@ -1386,7 +1452,7 @@ class UsersController < ApplicationController
             render :json => user_json(@user, @current_user, session, %w{locale avatar_url},
               @current_user.pseudonym.account) }
         else
-          format.html { render :action => "edit" }
+          format.html { render :edit }
           format.json { render :json => @user.errors, :status => :bad_request }
         end
       end
@@ -1397,10 +1463,14 @@ class UsersController < ApplicationController
 
   def media_download
     fetcher = MediaSourceFetcher.new(CanvasKaltura::ClientV3.new)
+    extension = params[:type]
+    media_type = params[:media_type]
+    extension ||= params[:format] if media_type.nil?
+
     url = fetcher.fetch_preferred_source_url(
        media_id: params[:entryId],
-       file_extension: params[:type],
-       media_type: params[:media_type]
+       file_extension: extension,
+       media_type: media_type
     )
     if url
       if params[:redirect] == '1'
@@ -1462,7 +1532,7 @@ class UsersController < ApplicationController
         end
       end
 
-      render action: 'admin_merge'
+      render :admin_merge
     end
   end
 
@@ -1639,7 +1709,7 @@ class UsersController < ApplicationController
     # the encrypted version. We can't do it right away because there are
     # a bunch of places that will have cached fragments using the old
     # style.
-    return redirect_to(params[:fallback] || '/images/no_pic.gif') unless service_enabled?(:avatars)
+    return redirect_to(User.default_avatar_fallback) unless service_enabled?(:avatars)
     user_id = params[:user_id].to_i
     if params[:user_id].present? && params[:user_id].match(/-/)
       user_id = User.user_id_from_avatar_key(params[:user_id])
@@ -1657,9 +1727,9 @@ class UsersController < ApplicationController
         end
       end
     end
-    fallback = User.avatar_fallback_url(params[:fallback], request)
+    fallback = User.avatar_fallback_url(nil, request)
     redirect_to (url.blank? || url == "%{fallback}") ?
-      fallback :
+      User.default_avatar_fallback :
       url.sub(CGI.escape("%{fallback}"), CGI.escape(fallback))
   end
 
@@ -1716,12 +1786,9 @@ class UsersController < ApplicationController
     student_enrollments.each { |e| data[e.user.id] = { :enrollment => e, :ungraded => [] } }
 
     # find last interactions
-    last_comment_dates = SubmissionComment.for_context(course).
-        group(:recipient_id).
-        where("author_id = ? AND recipient_id IN (?)", teacher, ids).
-        maximum(:created_at)
-    last_comment_dates.each do |user_id, date|
-      next unless student = data[user_id]
+    last_comment_dates = SubmissionCommentInteraction.in_course_between(course, teacher.id, ids)
+    last_comment_dates.each do |(user_id, author_id), date|
+      next unless student = data[user_id.to_i]
       student[:last_interaction] = [student[:last_interaction], date].compact.max
     end
     scope = ConversationMessage.
@@ -1738,7 +1805,10 @@ class UsersController < ApplicationController
     ungraded_submissions = course.submissions.
         includes(:assignment).
         where("user_id IN (?) AND #{Submission.needs_grading_conditions}", ids).
+        except(:order).
+        order(:submitted_at).
         all
+
     ungraded_submissions.each do |submission|
       next unless student = data[submission.user_id]
       student[:ungraded] << submission
@@ -1756,6 +1826,7 @@ class UsersController < ApplicationController
         student[:last_user_note] = date
       end
     end
+
 
     Canvas::ICU.collate_by(data.values) { |e| e[:enrollment].user.sortable_name }
   end

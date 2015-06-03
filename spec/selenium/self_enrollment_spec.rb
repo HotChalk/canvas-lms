@@ -27,6 +27,7 @@ describe "self enrollment" do
       get "/enroll/#{@course.self_enrollment_code}"
       f("#student_email").send_keys('new@example.com')
       f('#initial_action input[value=create]').click
+      wait_for_ajaximations
       f("#student_name").send_keys('new guy')
       f('#enroll_form input[name="user[terms_of_use]"]').click
       expect_new_page_load {
@@ -39,9 +40,14 @@ describe "self enrollment" do
 
     it "should authenticate and register an existing user" do
       user_with_pseudonym(:active_all => true, :username => "existing@example.com", :password => "asdfasdf")
+      custom_label = "silly id"
+      Account.any_instance.stubs(:login_handle_name).returns(custom_label)
+
       get "/enroll/#{@course.self_enrollment_code}"
+      expect(f("label[for='student_email']").text).to include(custom_label)
       f("#student_email").send_keys("existing@example.com")
       f('#initial_action input[value=log_in]').click
+      wait_for_ajaximations
       f("#student_password").send_keys("asdfasdf")
       expect_new_page_load {
         submit_form("#enroll_form")
@@ -59,6 +65,24 @@ describe "self enrollment" do
       expect_new_page_load {
         submit_form("#enroll_form")
       }
+      expect(f('.btn-primary').text).to eq primary_action
+      get "/"
+      assert_valid_dashboard
+    end
+
+    it "should not error with a user that is already enrolled" do
+      user_with_pseudonym(:active_all => true, :username => "existing@example.com", :password => "asdfasdf")
+      student_in_course(:course => @course, :user => @user, :active_enrollment => true)
+
+      get "/enroll/#{@course.self_enrollment_code}"
+      f("#student_email").send_keys("existing@example.com")
+      f('#initial_action input[value=log_in]').click
+      wait_for_ajaximations
+      f("#student_password").send_keys("asdfasdf")
+      expect_new_page_load {
+        submit_form("#enroll_form")
+      }
+      expect(f('.form-horizontal p').text).to include("You are already enrolled")
       expect(f('.btn-primary').text).to eq primary_action
       get "/"
       assert_valid_dashboard
@@ -81,7 +105,12 @@ describe "self enrollment" do
 
     it "should authenticate and register an existing user" do
       user_with_pseudonym(:active_all => true, :username => "existing@example.com", :password => "asdfasdf")
+      custom_label = "silly id"
+      Account.any_instance.stubs(:login_handle_name).returns(custom_label)
+
       get "/enroll/#{@course.self_enrollment_code}"
+      expect(f("label[for='student_email']").text).to include(custom_label)
+
       f("#student_email").send_keys("existing@example.com")
       f("#student_password").send_keys("asdfasdf")
       expect_new_page_load {
@@ -100,6 +129,22 @@ describe "self enrollment" do
       expect_new_page_load {
         submit_form("#enroll_form")
       }
+      expect(f('.btn-primary').text).to eq primary_action
+      get "/"
+      assert_valid_dashboard
+    end
+
+    it "should not error with a user that is already enrolled" do
+      user_with_pseudonym(:active_all => true, :username => "existing@example.com", :password => "asdfasdf")
+      student_in_course(:course => @course, :user => @user, :active_enrollment => true)
+
+      get "/enroll/#{@course.self_enrollment_code}"
+      f("#student_email").send_keys("existing@example.com")
+      f("#student_password").send_keys("asdfasdf")
+      expect_new_page_load {
+        submit_form("#enroll_form")
+      }
+      expect(f('.form-horizontal p').text).to include("You are already enrolled")
       expect(f('.btn-primary').text).to eq primary_action
       get "/"
       assert_valid_dashboard

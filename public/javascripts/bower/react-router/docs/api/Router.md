@@ -12,19 +12,19 @@ var Router = window.ReactRouter
 
 // contains these exports
 
+// methods
+Router.run
+Router.create
+
 // components
 Router.DefaultRoute
 Router.Link
 Router.NotFoundRoute
 Router.Redirect
 Router.Route
-Router.Routes
 
 // mixins
-Router.ActiveState
-Router.AsyncState
-Router.PathState
-Router.RouteLookup
-Router.Transitions
+Router.State
+Router.Navigation
 ```
 

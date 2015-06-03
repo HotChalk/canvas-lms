@@ -2,9 +2,11 @@ define [
   'jquery'
   'react'
   'react-router'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   '../modules/customPropTypes'
-], ($, React, {Link}, withReactDOM, customPropTypes) ->
+], ($, React, ReactRouter, withReactElement, customPropTypes) ->
+
+  Link = React.createFactory ReactRouter.Link
 
   BreadcrumbCollapsedContainer = React.createClass
     displayName: 'BreadcrumbCollapsedContainer'
@@ -25,7 +27,7 @@ define [
         @setState open: false
       , 100
 
-    render: withReactDOM ->
+    render: withReactElement ->
       li {
           href: '#'
           onMouseEnter: @open

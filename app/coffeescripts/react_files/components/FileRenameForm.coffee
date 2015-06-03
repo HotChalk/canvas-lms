@@ -1,11 +1,15 @@
 define [
   'i18n!file_rename_form'
   'react'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   './DialogAdapter'
   './DialogContent'
   './DialogButtons'
-], (I18n, React, withReactDOM, DialogAdapter, DialogContent, DialogButtons) ->
+], (I18n, React, withReactElement, DialogAdapterComponent, DialogContentComponent, DialogButtonsComponent) ->
+
+  DialogAdapter = React.createFactory DialogAdapterComponent
+  DialogContent = React.createFactory DialogContentComponent
+  DialogButtons = React.createFactory DialogButtonsComponent
 
   FileRenameForm = React.createClass
     displayName: 'FileRenameForm'
@@ -23,6 +27,10 @@ define [
     componentWillReceiveProps: (newProps) ->
       @setState(fileOptions: newProps.fileOptions, isEditing: false)
 
+    clearNameField: ->
+      $nameTextField = $(@refs.newName.getDOMNode())
+      $nameTextField.val('').focus()
+
     handleRenameClick: ->
       @setState isEditing: true
 
@@ -32,6 +40,7 @@ define [
     # pass back expandZip to preserve options that was possibly already made
     # in a previous modal
     handleReplaceClick: ->
+      @refs.dialogAdapter.close() if @props.closeOnResolve
       @props.onNameConflictResolved({
         file: @state.fileOptions.file
         dup: 'overwrite'
@@ -41,6 +50,7 @@ define [
     # pass back expandZip to preserve options that was possibly already made
     # in a previous modal
     handleChangeClick: ->
+      @refs.dialogAdapter.close() if @props.closeOnResolve
       @props.onNameConflictResolved({
         file: @state.fileOptions.file
         dup: 'rename'
@@ -52,7 +62,7 @@ define [
       e.preventDefault()
       @handleChangeClick()
 
-    buildContent: withReactDOM ->
+    buildContent: withReactElement ->
       nameToUse = @state.fileOptions?.name || @state.fileOptions?.file.name
       if !@state.isEditing
         div {},
@@ -60,12 +70,20 @@ define [
       else
         div {},
           p {}, I18n.t('prompt', 'Change "%{name}" to', {name: nameToUse})
-          form onSubmit: @handleFormSubmit,
+          form className: 'ef-edit-name-form', onSubmit: @handleFormSubmit,
             label className: 'file-rename-form__form-label',
               I18n.t('name', 'Name')
-            input type: 'text', defaultValue: nameToUse, ref: 'newName'
+            input(classNae: 'input-block-level', type: 'text', defaultValue: nameToUse, ref: 'newName'),
+            button {
+              type: 'button'
+              className: 'btn btn-link ef-edit-name-cancel form-control-feedback'
+              ref: 'clearNameFieldButton'
+              'aria-label': I18n.t('Clear file name text field')
+              onClick: @clearNameField
+            },
+              i className: 'icon-x'
 
-    buildButtons: withReactDOM ->
+    buildButtons: withReactElement ->
       if !@state.isEditing
         div {},
           button
@@ -91,10 +109,8 @@ define [
             onClick: @handleChangeClick,
               I18n.t('change', 'Change')
 
-
-
-    render: withReactDOM ->
-      DialogAdapter open: @props.fileOptions?, title: I18n.t('rename_title', 'Copy'), onClose: @props.onClose,
+    render: withReactElement ->
+      DialogAdapter ref: 'dialogAdapter', open: @props.fileOptions?, title: I18n.t('rename_title', 'Copy'), onClose: @props.onClose,
         DialogContent {},
           @buildContent()
         DialogButtons {},

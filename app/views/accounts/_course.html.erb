@@ -1,6 +1,6 @@
 <% if !course || !course.deleted? %>
-<% teacher_names = course && (course.read_attribute(:teacher_names) || course.teachers.uniq.map(&:name)) %>
-<% student_count = course && (course.read_attribute(:student_count) || course.students.count) %>
+<% teacher_names = course && (course.teacher_names || course.teachers.uniq.map(&:name)) %>
+<% student_count = course && (course.student_count || course.students.where("enrollments.type <> ?", "StudentViewEnrollment").count) %>
 <% is_unpublished = course && course.read_attribute(:workflow_state) && (course.created? || course.claimed?) %>
 <% is_concluded = course && course.read_attribute(:workflow_state) && course.completed? %>
 <li class="course" id="course_<%= course ? course.id : "blank" %>" style="<%= hidden unless course %>">
@@ -63,9 +63,9 @@
       </div>
     </div>
   </div>
-  <% if course && course.course_sections && !course.course_sections.empty? %>
+  <% if course && course.active_course_sections && !course.active_course_sections.empty? %>
     <div class="sections">
-      <% course.course_sections.each do |section| %>
+      <% course.active_course_sections.each do |section| %>
         <div class="row">
           <div class="span">
             <strong><%= before_label(t(:section, "Section")) %></strong><span> <%= section.name %></span>

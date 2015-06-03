@@ -19,6 +19,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+require 'nokogiri'
+
 describe ApplicationHelper do
   include ApplicationHelper
   include ERB::Util
@@ -101,7 +103,7 @@ describe ApplicationHelper do
     describe '#context_sensitive_datetime_title' do
       it "produces a string showing the local time and the course time" do
         context = stub(time_zone: ActiveSupport::TimeZone["America/Denver"])
-        expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip title=\"Local: Mar 13 at  1:12am<br>Course: Mar 13 at  3:12am\""
+        expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip data-html-tooltip-title=\"Local: Mar 13 at  1:12am<br>Course: Mar 13 at  3:12am\""
       end
 
       it "only prints the text if just_text option passed" do
@@ -112,7 +114,7 @@ describe ApplicationHelper do
       it "uses the simple title if theres no timezone difference" do
         context = stub(time_zone: ActiveSupport::TimeZone["America/Anchorage"])
         expect(context_sensitive_datetime_title(Time.now, context, just_text: true)).to eq "Mar 13 at  1:12am"
-        expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip title=\"Mar 13 at  1:12am\""
+        expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip data-html-tooltip-title=\"Mar 13 at  1:12am\""
       end
 
       it 'uses the simple title for nil context' do
@@ -120,9 +122,10 @@ describe ApplicationHelper do
       end
 
       it 'crosses date boundaries appropriately' do
-        Timecop.freeze(Time.utc(2013,3,13,7,12))
-        context = stub(time_zone: ActiveSupport::TimeZone["America/Denver"])
-        expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip title=\"Local: Mar 12 at 11:12pm<br>Course: Mar 13 at  1:12am\""
+        Timecop.freeze(Time.utc(2013,3,13,7,12)) do
+          context = stub(time_zone: ActiveSupport::TimeZone["America/Denver"])
+          expect(context_sensitive_datetime_title(Time.now, context)).to eq "data-tooltip data-html-tooltip-title=\"Local: Mar 12 at 11:12pm<br>Course: Mar 13 at  1:12am\""
+        end
       end
     end
 
@@ -131,12 +134,13 @@ describe ApplicationHelper do
 
       it 'spits out a friendly time tag' do
         tag = friendly_datetime(Time.now)
-        expect(tag).to eq "<time data-tooltip=\"top\" title=\"Mar 13 at  1:12am\">Mar 13 at  1:12am</time>"
+        expect(tag).to eq "<time data-html-tooltip-title=\"Mar 13 at  1:12am\" data-tooltip=\"top\">Mar 13 at  1:12am</time>"
       end
 
       it 'builds a whole time tag with a useful title showing the timezone offset if theres a context' do
         tag = friendly_datetime(Time.now, context: context)
         expect(tag).to match /^<time.*<\/time>$/
+        expect(tag).to match /data-html-tooltip-title=/
         expect(tag).to match /Local: Mar 13 at  1:12am/
         expect(tag).to match /Course: Mar 13 at  3:12am/
       end
@@ -144,6 +148,7 @@ describe ApplicationHelper do
       it 'can produce an alternate tag type' do
         tag = friendly_datetime(Time.now, context: context, tag_type: :span)
         expect(tag).to match /^<span.*<\/span>$/
+        expect(tag).to match /data-html-tooltip-title=/
         expect(tag).to match /Local: Mar 13 at  1:12am/
         expect(tag).to match /Course: Mar 13 at  3:12am/
       end
@@ -152,6 +157,17 @@ describe ApplicationHelper do
         tag = friendly_datetime(nil, context: context)
         expect(tag).to eq "<time></time>"
       end
+    end
+  end
+
+  describe "accessible date formats" do
+    it "generates a date format for use throughout the app" do
+      expect(accessible_date_format).to match(/YYYY/)
+      expect(accessible_date_format).to match(/hh:mm/)
+    end
+
+    it "wraps a prompt around the format for Screenreader users" do
+      expect(datepicker_screenreader_prompt).to include(accessible_date_format)
     end
   end
 
@@ -517,6 +533,46 @@ describe ApplicationHelper do
     it "should html_safe-ify them" do
       @meta_tags = [{ :name => "hi", :content => "there" }]
       expect(include_custom_meta_tags).to be_html_safe
+    end
+  end
+
+  describe "editor_buttons" do
+    it "should return hash of tools if in group" do
+      @course = course_model
+      @group = @course.groups.create!(:name => "some group")
+      tool = @course.context_external_tools.new(:name => "bob", :consumer_key => "test", :shared_secret => "secret", :url => "http://example.com")
+      tool.editor_button = {:url => "http://example.com", :icon_url => "http://example.com"}
+      tool.save!
+      @context = @group
+
+      expect(editor_buttons).to eq([{:name=>"bob", :id=>tool.id, :url=>"http://example.com", :icon_url=>"http://example.com", :width=>800, :height=>400}])
+    end
+
+    it "should return hash of tools if in course" do
+      @course = course_model
+      tool = @course.context_external_tools.new(:name => "bob", :consumer_key => "test", :shared_secret => "secret", :url => "http://example.com")
+      tool.editor_button = {:url => "http://example.com", :icon_url => "http://example.com"}
+      tool.save!
+      controller.stubs(:group_external_tool_path).returns('http://dummy')
+      @context = @course
+
+      expect(editor_buttons).to eq([{:name=>"bob", :id=>tool.id, :url=>"http://example.com", :icon_url=>"http://example.com", :width=>800, :height=>400}])
+    end
+
+    it "should not include tools from the domain_root_account for users" do
+      @domain_root_account = Account.default
+      account_admin_user
+      tool = @domain_root_account.context_external_tools.new(
+        :name => "bob",
+        :consumer_key => "test",
+        :shared_secret => "secret",
+        :url => "http://example.com"
+      )
+      tool.editor_button = {:url => "http://example.com", :icon_url => "http://example.com"}
+      tool.save!
+      @context = @admin
+
+      expect(editor_buttons).to be_empty
     end
   end
 end

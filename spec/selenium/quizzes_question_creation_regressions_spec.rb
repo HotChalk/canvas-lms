@@ -1,9 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 
 describe "quizzes question creation edge cases" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include_examples "quizzes selenium tests"
 
@@ -15,7 +12,6 @@ describe "quizzes question creation edge cases" do
   it "should create a quiz with a variety of quiz questions" do
     quiz = @last_quiz
 
-    click_questions_tab
     create_multiple_choice_question
     click_new_question_button
     create_true_false_question

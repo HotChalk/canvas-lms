@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 
+require 'nokogiri'
+
 describe ExternalToolsController, type: :request do
 
   describe "in a course" do
@@ -480,6 +482,7 @@ describe ExternalToolsController, type: :request do
      "consumer_key"=>"oi",
      "domain"=>nil,
      "url"=>"http://www.example.com/ims/lti",
+     "tool_configuration"=>nil,
      "id"=>et ? et.id : nil,
      "not_selectable"=> et ? et.not_selectable : nil,
      "workflow_state"=>"public",

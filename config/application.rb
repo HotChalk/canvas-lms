@@ -78,7 +78,7 @@ module CanvasRails
     end
 
     # Activate observers that should always be running
-    config.active_record.observers = [:cacher, :stream_item_cache]
+    config.active_record.observers = [:cacher, :stream_item_cache, :live_events_observer ]
 
     config.autoload_paths += %W(#{Rails.root}/app/middleware
                             #{Rails.root}/app/observers
@@ -98,7 +98,6 @@ module CanvasRails
       app.config.middleware.insert_before(config.session_store, 'LoadAccount')
       app.config.middleware.insert_before(config.session_store, 'SessionsTimeout')
       app.config.middleware.swap('ActionDispatch::RequestId', "RequestContextGenerator")
-      app.config.middleware.insert_before('ActionDispatch::ParamsParser', 'StatsTiming')
       app.config.middleware.insert_before('ActionDispatch::ParamsParser', 'Canvas::RequestThrottle')
       app.config.middleware.insert_before('Rack::MethodOverride', 'PreventNonMultipartParse')
     end
@@ -174,7 +173,7 @@ module CanvasRails
     Dir.glob("#{Rails.root}/lib/ext/**/*.rb").each { |file| require file }
 
     # tell Rails to use the native XML parser instead of REXML
-    ActiveSupport::XmlMini.backend = 'LibXML'
+    ActiveSupport::XmlMini.backend = 'Nokogiri'
 
     class NotImplemented < StandardError; end
 

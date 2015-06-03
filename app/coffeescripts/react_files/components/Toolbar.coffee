@@ -3,22 +3,30 @@ define [
   'i18n!react_files'
   'react'
   'react-router'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   './UploadButton'
+  './UsageRightsDialog'
   '../utils/openMoveDialog'
-  '../utils/openUsageRightsDialog'
   '../utils/downloadStuffAsAZip'
   '../utils/deleteStuff'
   '../modules/customPropTypes'
   './RestrictedDialogForm'
+  'compiled/fn/preventDefault'
+  '../modules/FocusStore'
   'jquery'
   'compiled/jquery.rails_flash_notifications'
-], (_, I18n, React, Router, withReactDOM, UploadButton, openMoveDialog, openUsageRightsDialog, downloadStuffAsAZip, deleteStuff, customPropTypes, RestrictedDialogForm, $) ->
+], (_, I18n, React, Router, withReactElement, UploadButtonComponent, UsageRightsDialogComponent, openMoveDialog, downloadStuffAsAZip, deleteStuff, customPropTypes, RestrictedDialogFormComponent, preventDefault, FocusStore, $) ->
+
+  UploadButton = React.createFactory UploadButtonComponent
+  UsageRightsDialog = React.createFactory UsageRightsDialogComponent
+  RestrictedDialogForm = React.createFactory RestrictedDialogFormComponent
+  Link = React.createFactory Router.Link
+
 
   Toolbar = React.createClass
     displayName: 'Toolbar'
 
-    mixins: [Router.Navigation]
+    mixins: [Router.Navigation, Router.State]
 
     propTypes:
       currentFolder: customPropTypes.folder # not required as we don't have it on the first render
@@ -70,13 +78,27 @@ define [
           React.unmountComponentAtNode this
           $(this).remove()
 
-      React.renderComponent(RestrictedDialogForm({
+      React.render(RestrictedDialogForm({
         models: @props.selectedItems
         usageRightsRequiredForContext: @props.usageRightsRequiredForContext
         closeDialog: -> $dialog.dialog('close')
       }), $dialog[0])
 
-    render: withReactDOM ->
+    openUsageRightsDialog: (event)->
+      event.preventDefault()
+
+      contents = UsageRightsDialog(
+        closeModal: @props.modalOptions.closeModal
+        itemsToManage: @props.selectedItems
+      )
+
+      @props.modalOptions.openModal(contents, => @refs.usageRightsBtn.getDOMNode().focus())
+
+    openPreview: ->
+      FocusStore.setItemToFocus(@refs.previewLink.getDOMNode())
+      @transitionTo(@props.getPreviewRoute(), {splat: @props.currentFolder?.urlPath()}, @props.getPreviewQuery())
+
+    render: withReactElement ->
       showingButtons = @props.selectedItems.length
       downloadTitle = if @props.selectedItems.length is 1
         I18n.t('download', 'Download')
@@ -100,20 +122,21 @@ define [
             'aria-label': I18n.t('search_for_files', 'Search for files')
             type: 'search'
             ref: 'searchTerm'
-            defaultValue: @props.query.search_term
+            defaultValue: @getQuery().search_term
 
         div className: "ui-buttonset col-xs #{'screenreader-only' unless showingButtons}",
 
-
-          Router.Link {
-              to: @props.getPreviewRoute()
-              query: @props.getPreviewQuery()
-              params: {splat: @props.currentFolder?.urlPath()}
+          a {
+              ref: 'previewLink'
+              href: '#'
+              onClick: preventDefault(@openPreview)
               className: 'ui-button btn-view'
               title: I18n.t('view', 'View')
               role: 'button'
               'aria-label': I18n.t('view', 'View')
               'data-tooltip': ''
+              'aria-disabled': !showingButtons
+              disabled: !showingButtons
               tabIndex: -1 unless showingButtons # This is to make it okay for keyboard-nav when hidden.
             },
             i className: 'icon-eye'
@@ -172,15 +195,11 @@ define [
 
           if @props.userCanManageFilesForContext and @props.usageRightsRequiredForContext
             button {
+              ref: 'usageRightsBtn'
               type: 'button'
               disabled: !showingButtons
-              className: 'ui-button btn-rights'
-              onClick: (event) =>
-                openUsageRightsDialog(@props.selectedItems, {
-                  contextType: @props.contextType
-                  contextId: @props.contextId
-                  returnFocusTo: event.target
-                })
+              className: 'Toolbar__ManageUsageRights ui-button btn-rights'
+              onClick: @openUsageRightsDialog
               title: I18n.t('Manage Usage Rights')
               'aria-label': I18n.t('Manage Usage Rights')
               'data-tooltip': ''

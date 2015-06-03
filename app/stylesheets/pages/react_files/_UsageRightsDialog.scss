@@ -1,9 +1,14 @@
+
+$usage-rights-alert-background: $ic-color-alert;
+$usage-rights-alert-text: $ic-color-light;
+
 .UsageRightsDialog__fileName {
   font-weight: bold;
 }
 
 .UsageRightsDialog__warning {
-  color: $canvas-alert;
+  color: $usage-rights-alert-text;
+  margin-right: 10px;
 }
 
 .UsageRightsDialog__andMore {
@@ -13,6 +18,10 @@
 
 .UsageRightsDialog__paddingFix {
   padding: 10px;
+}
+
+.UsageRightsDialog__tooltip {
+  text-align: left !important; /* Important so it overides the default stuff */
 }
 
 .UsageRightsDialog__folderBulletList {
@@ -29,4 +38,9 @@
     background-size:contain;
     background-repeat:no-repeat;
   }
+}
+
+.UsageRightsDialog__differentRightsMessage {
+  background-color: $usage-rights-alert-background;
+  color: $usage-rights-alert-text;
 }

@@ -1,7 +1,11 @@
 /*
-@styleguide Buttons: Button Set
+@styleguide Button Set
+
+<br/>
 
 We use jQuery UI button set
+
+<br/>
 
 ```html
 <div id="radio1" class="ui-buttonset">
@@ -22,35 +26,21 @@ We use jQuery UI button set
 
 */
 
-.ui-button-icon-only .ui-button-text, .ui-button-icons-only .ui-button-text { @extend .ui-helper-hidden-accessible; }
-
-// DONT USE .ui-button, USE .btn INSTEAD!
-// it remains only because our jqueryUI widgets
-// (like 'dialog', and 'buttonset') generate .ui-buttons
-// in their markup.
-
-// make .ui-button mimic .btn styles
-.ui-button {
-  position: relative;
-  @extend .Button;
-  &.ui-state-hover { @extend .Button:hover }
-  &.ui-state-focus { @extend .Button:focus }
-  &.ui-state-active { 
-    @extend .Button--active;
-    &:hover { @extend .Button--active; }
-  }
-  &.ui-state-disabled { @extend .Button--active; }
-}
-
 .ui-buttonset {
   margin-right: 7px;
   .ui-button {
     margin-left: 0;
     margin-right: -5px;
-
-    // get rid of rounded borders except on left-most and right-most edges
-    &:not(:first-of-type){ @include border-left-radius(0) }
-    &:not(:last-of-type){ @include border-right-radius(0) }
+    border-radius: 0;
+    &.ui-corner-right { 
+      border-top-right-radius: $baseBorderRadius;
+      border-bottom-right-radius: $baseBorderRadius;
+    }
+    &.ui-corner-left { 
+      border-top-left-radius: $baseBorderRadius;
+      border-bottom-left-radius: $baseBorderRadius;
+    }
   }
+  input[type=checkbox] + label.ui-button, input[type=radio] + label.ui-button { vertical-align: middle; }
 }
 

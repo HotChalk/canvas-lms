@@ -17,16 +17,22 @@
  */
 
 define([
+  'underscore',
+  'compiled/models/ModuleFile',
+  'compiled/react_files/components/PublishCloud',
+  'react',
   'compiled/models/PublishableModuleItem',
   'compiled/views/PublishIconView',
   'INST' /* INST */,
   'i18n!context_modules',
   'jquery' /* $ */,
   'compiled/views/context_modules/context_modules' /* handles the publish/unpublish state */,
+  'compiled/views/modules/RelockModulesDialog',
   'compiled/util/vddTooltip',
   'jst/_vddTooltip',
   'compiled/models/Publishable',
   'compiled/views/PublishButtonView',
+  'str/htmlEscape',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.instructure_date_and_time' /* dateString, datetimeString, time_field, datetime_field */,
   'jquery.instructure_forms' /* formSubmit, fillFormData, formErrors, errorBox */,
@@ -40,7 +46,7 @@ define([
   'vendor/date' /* Date.parse */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/sortable' /* /\.sortable/ */
-], function(PublishableModuleItem, PublishIconView, INST, I18n, $, ContextModulesView, vddTooltip, vddTooltipView, Publishable, PublishButtonView) {
+], function(_, ModuleFile, PublishCloud, React, PublishableModuleItem, PublishIconView, INST, I18n, $, ContextModulesView, RelockModulesDialog, vddTooltip, vddTooltipView, Publishable, PublishButtonView, htmlEscape) {
 
   // TODO: AMD don't export global, use as module
   window.modules = (function() {
@@ -105,36 +111,8 @@ define([
         );
       },
 
-      refreshProgressions: function(show_links) {
-        if (ENV.NO_MODULE_PROGRESSIONS) return;
-
-        $("#context_modules .context_module:visible").each(function() {
-          var $module = $(this);
-          var id = $module.find(".header").getTemplateData({textValues: ['id']});
-          if (typeof id === 'object') id = id.id; // Fixes syntax error when id is an object
-          var data = {progression_complete_count: 0, progression_started_count: 0};
-          $("#progression_list .progression_" + id).each(function() {
-            var state = $(this).getTemplateData({textValues: ['workflow_state']}).workflow_state;
-            if(state == 'completed') {
-              data.progression_complete_count++;
-            } else if(state == 'unlocked' || state == 'started') {
-              data.progression_started_count++;
-            }
-          });
-          $module.find(".progression_details_link").showIf(data.progression_complete_count || data.progression_started_count);
-          $module.find(".footer").fillTemplateData({data: data})
-            .find(".progression_details_link").showIf(data.progression_complete_count || data.progression_started_count).end()
-            .find(".progression_complete").showIf(data.progression_complete_count > 0).end()
-            .find(".progression_started").showIf(data.progression_started_count > 0);
-        });
-
-        $(".context_module .progression_complete").showIf($(".context_module .prerequisites_footer:visible,.context_module_item .criterion img.not_blank").length > 0);
-        if(show_links) {
-          $(".loading_module_progressions_link").remove();
-          $(".module_progressions_link").showIf($(".editable_context_module").length > 0 || $(".context_module .progression_complete:visible").length > 0 || $(".context_module_item.completed_item").length > 0);
-        }
-      },
       updateProgressions: function(user_id, callback) {
+        if (!ENV.IS_STUDENT) return;
         var url = $(".progression_list_url").attr('href');
         if(user_id) {
           url = url + "?user_id=" + user_id;
@@ -144,16 +122,8 @@ define([
         }
         $.ajaxJSON(url, 'GET', {}, function(data) {
           $(".loading_module_progressions_link").remove();
-          if(!user_id) {
-            $("#progression_list .student .progressions").empty();
-          } else {
-            $("#progression_list .student_" + user_id + " .progressions").empty();
-          }
           var current_user_id = $("#identity .user_id").text();
-          var $list_blank = $("#progression_list_blank");
           var $user_progression_list = $("#current_user_progression_list");
-          var $student_progression_list = $("#progression_list");
-          var lists_per_user = {};
           var progressions = [];
           for(var idx in data) {
             progressions.push(data[idx]);
@@ -164,7 +134,6 @@ define([
                 modules.updateProgressionState($(this));
               });
             }
-            modules.refreshProgressions(!user_id);
             if(callback) { callback(); }
           }
           var progressionCnt = 0;
@@ -186,24 +155,6 @@ define([
               if($user_progression.length > 0) {
                 progression.requirements_met = $.map(progression.requirements_met || [], function(r) { return r.id }).join(",");
                 $user_progression.fillTemplateData({data: progression});
-              }
-            }
-            var $progression = $list_blank.clone(true).removeAttr('id');
-            $progression.fillTemplateData({data: progression});
-            $progression.addClass('progression_' + progression.context_module_id);
-            $progression.data('progression', progression);
-            var $list_for_user = lists_per_user[progression.user_id];
-            if(!$list_for_user) {
-              $list_for_user = $student_progression_list.find(".student_" + progression.user_id + " .progressions");
-              lists_per_user[progression.user_id] = $list_for_user;
-            }
-            $list_for_user.append($progression);
-            if(progression.workflow_state == 'unlocked' || progression.workflow_state == 'started') {
-              if(!lists_per_user[progression.user_id].found) {
-                lists_per_user[progression.user_id].found = true
-                $list_for_user.parents(".student").fillTemplateData({
-                  data: {current_module: $("#context_module_" + progression.context_module_id + " .header .name").text() }
-                });
               }
             }
             progressionCnt++;
@@ -253,7 +204,7 @@ define([
           $this.attr('title', content_tag.title);
         });
       },
-      showMoveModuleItem: function ($item) {
+      showMoveModuleItem: function ($item, returnFocusTo) {
         var $currentModule = $item.closest(".context_module");
         var $form = $('#move_module_item_form');
         $form.data('current_module', $currentModule);
@@ -267,10 +218,10 @@ define([
         $("#context_modules .context_module").each(function() {
           var id = $(this).attr('id').substring('context_module_'.length);
           var name = $(this).children('.header').children('.collapse_module_link').children('.name').text();
-          moduleSelectOptions.push('<option value="' + id + '">' + name + '</option>');
+          moduleSelectOptions.push('<option value="' + id + '">' + htmlEscape(name) + '</option>');
         });
         $('#move_module_item_module_select').empty();
-        $('#move_module_item_module_select').append(moduleSelectOptions.join(''));
+        $('#move_module_item_module_select').append($.raw(moduleSelectOptions.join('')));
 
         // Trigger the change to make sure the list is initally populated.
         $('#move_module_item_module_select').trigger('change');
@@ -283,9 +234,10 @@ define([
           autoOpen: false,
           modal: true,
           width: 600,
-          height: 300,
+          height: 400,
           close: function () {
             modules.hideMoveModule(true);
+            returnFocusTo.focus()
           }
         }).dialog('open');
 
@@ -306,12 +258,12 @@ define([
           }
           var id = $(this).attr('id').substring('context_module_'.length);
           var name = $(this).children('.header').children('.collapse_module_link').children('.name').text();
-          selectOptions.push('<option value="' + id + '">' + name + '</option>');
+          selectOptions.push('<option value="' + id + '">' + htmlEscape(name) + '</option>');
         });
 
         var data = $module.getTemplateData({textValues: ['name', 'unlock_at', 'require_sequential_progress', 'publish_final_grade']});
         $('#move_context_module_select').empty();
-        $('#move_context_module_select').append(selectOptions.join(''));
+        $('#move_context_module_select').append($.raw(selectOptions.join('')));
         //$form.fillFormData(data, {object_name: 'context_module'});
         $form.dialog({
           autoOpen: false,
@@ -334,37 +286,37 @@ define([
       },
       submitMoveModuleItem: function () {
         var beforeOrAfterVal = $('[name="item_move_location"]:checked').val();
-        var currentItem = $('#move_module_item_form').data('current_item');
+        var $currentItem = $('#move_module_item_form').data('current_item');
         var relativeToId = $('#move_module_item_select').val();
         var selectedModuleId = $('#move_module_item_module_select').val();
 
 
         if (beforeOrAfterVal === 'before') {
-          $('#context_module_item_' + relativeToId).before(currentItem);
+          $('#context_module_item_' + relativeToId).before($currentItem);
         }
         if (beforeOrAfterVal === 'after') {
-          $('#context_module_item_' + relativeToId).after(currentItem);
+          $('#context_module_item_' + relativeToId).after($currentItem);
         }
         if ($('#move_module_item_select').children().length === 0) {
           // In this case, we are moving it into a currently empty module.
-          $('#context_module_content_' + selectedModuleId + ' .context_module_items').append(currentItem);
+          $('#context_module_content_' + selectedModuleId + ' .context_module_items').append($currentItem);
         }
 
         modules.hideMoveModuleItem();
-        modules.updateModuleItemPositions(null, {item: currentItem});
+        modules.updateModuleItemPositions(null, {item: $currentItem});
 
 
       },
       submitMoveModule: function () {
         var beforeOrAfterVal = $('[name="move_location"]:checked').val();
-        var currentModule = $('#move_context_module_form').data('current_module');
+        var $currentModule = $('#move_context_module_form').data('current_module');
         var relativeToId = $('#move_context_module_select').val();
 
         if (beforeOrAfterVal === 'before') {
-          $('#context_module_' + relativeToId).before(currentModule);
+          $('#context_module_' + relativeToId).before($currentModule);
         }
         if (beforeOrAfterVal === 'after') {
-          $('#context_module_' + relativeToId).after(currentModule);
+          $('#context_module_' + relativeToId).after($currentModule);
         }
         modules.hideMoveModule();
         modules.updateModulePositions();
@@ -456,11 +408,11 @@ define([
         data.graded = data.graded ? '1' : '0';
         var $item, $olditem = (data.id != 'new') ? $("#context_module_item_" + data.id) : [];
         if($olditem.length) {
-          var admin = $olditem.find('.ig-admin');
-          if (admin.length) { admin.detach(); }
+          var $admin = $olditem.find('.ig-admin');
+          if ($admin.length) { $admin.detach(); }
           $item = $olditem.clone(true);
-          if (admin.length) {
-            $item.find('.ig-row').append(admin)
+          if ($admin.length) {
+            $item.find('.ig-row').append($admin)
           };
         } else {
           $item = $("#context_module_item_blank").clone(true).removeAttr('id');
@@ -472,7 +424,7 @@ define([
         $item.fillTemplateData({
           data: data,
           id: 'context_module_item_' + data.id,
-          hrefValues: ['id', 'context_module_id']
+          hrefValues: ['id', 'context_module_id', 'content_id']
         });
         for(var idx = 0; idx < 10; idx++) {
           $item.removeClass('indent_' + idx);
@@ -613,6 +565,7 @@ define([
       el: $("#content"),
       modules: modules
     });
+    var relock_modules_dialog = new RelockModulesDialog();
 
     var $context_module_unlocked_at = $("#context_module_unlock_at");
     var valCache = '';
@@ -634,6 +587,7 @@ define([
     // -------- BINDING THE UPDATE EVENT -----------------
     $(".context_module").bind('update', function(event, data) {
       data.context_module.displayed_unlock_at = $.datetimeString(data.context_module.unlock_at);
+      data.context_module.unlock_at = $.datetimeString(data.context_module.unlock_at, { localized: false });
       var $module = $("#context_module_" + data.context_module.id);
       $module.attr('aria-label', data.context_module.name);
       $module.find(".header").fillTemplateData({
@@ -700,6 +654,8 @@ define([
           data["context_module[completion_requirements][" + id + "][type]"] = $(this).find(".type").val();
           data["context_module[completion_requirements][" + id + "][min_score]"] = $(this).find(".min_score").val();
         });
+        var date = $.datetime.parse(data['context_module[unlock_at]']);
+        data['context_module[unlock_at]'] = date ? $.unfudgeDateForProfileTimezone(date).toISOString() : "";
         return data;
       },
       beforeSubmit: function(data) {
@@ -719,7 +675,7 @@ define([
 
         // Set this module up with correct data attributes
         $module.data('moduleId', data.context_module.id);
-        $module.data('module-url', "/courses/" + data.context_module.context_id + "/modules/" + data.context_module.id);
+        $module.data('module-url', "/courses/" + data.context_module.context_id + "/modules/" + data.context_module.id + "items?include[]=content_details");
         $module.data('workflow-state', data.context_module.workflow_state);
         if(data.context_module.workflow_state == "unpublished"){
           $module.find('.workflow-state-action').text("Publish");
@@ -731,7 +687,7 @@ define([
         $("#no_context_modules_message").slideUp();
         var $publishIcon = $module.find('.publish-icon');
         // new module, setup publish icon and other stuff
-        if (ENV.ENABLE_DRAFT && !$publishIcon.data('id')) {
+        if (!$publishIcon.data('id')) {
           var fixLink = function(locator, attribute) {
               el = $module.find(locator);
               el.attr(attribute, el.attr(attribute).replace('{{ id }}', data.context_module.id));
@@ -747,8 +703,10 @@ define([
             published: data.context_module.workflow_state == 'published',
             publishable: true
           };
-          initPublishButton($publishIcon, publishData);
+          var view = initPublishButton($publishIcon, publishData);
+          overrideModel(view.model, view);
         }
+        relock_modules_dialog.renderIfNeeded(data.context_module);
         $module.triggerHandler('update', data);
       },
       error: function(data, $module) {
@@ -809,16 +767,16 @@ define([
         } else if (data.type == 'wiki_page') {
           displayType = I18n.t('optgroup.wiki_pages', "Wiki Pages");
         }
-        var group = $optgroups[displayType]
-        if (!group) {
-          group = $optgroups[displayType] = $(document.createElement('optgroup'))
-          group.attr('label', displayType)
-          $select.append(group)
+        var $group = $optgroups[displayType]
+        if (!$group) {
+          $group = $optgroups[displayType] = $(document.createElement('optgroup'))
+          $group.attr('label', displayType)
+          $select.append($group)
         }
         var titleDesc = data.title;
         var $option = $(document.createElement('option'));
         $option.val(data.id).text(titleDesc);
-        group.append($option);
+        $group.append($option);
       });
       $pre.find(".option").empty().append($option);
       $option.slideDown();
@@ -881,6 +839,7 @@ define([
     });
     $(".outdent_item_link,.indent_item_link").live('click', function(event) {
       event.preventDefault();
+      var $cogLink = $(this).closest('.cog-menu-container').children('.al-trigger');
       var do_indent = $(this).hasClass('indent_item_link');
       var $item = $(this).parents(".context_module_item");
       var indent = modules.currentIndent($item);
@@ -892,11 +851,13 @@ define([
         modules.addItemToModule($module, data.content_tag);
         $module.find(".context_module_items.ui-sortable").sortable('refresh');
         modules.updateAssignmentData();
+        $cogLink.focus();
       }, function(data) {
       });
     });
     $(".edit_item_link").live('click', function(event) {
       event.preventDefault();
+      var $cogLink = $(this).closest('.cog-menu-container').children('.al-trigger');
       var $item = $(this).parents(".context_module_item");
       var data = $item.getTemplateData({textValues: ['title', 'url', 'indent', 'new_tab']});
       data.indent = modules.currentIndent($item);
@@ -907,6 +868,9 @@ define([
         title: I18n.t('titles.edit_item', "Edit Item Details"),
         open: function(){
           $(this).find('input[type=text],textarea,select').first().focus();
+        },
+        close: function () {
+          $cogLink.focus();
         },
         minWidth: 320
       }).fixDialogButtons();
@@ -936,6 +900,18 @@ define([
     });
     $(".delete_item_link").live('click', function(event) {
       event.preventDefault();
+      var $currentCogLink = $(this).closest('.cog-menu-container').children('.al-trigger');
+      // Get the previous cog item to focus after delete
+      var $allInCurrentModule = $(this).parents('.context_module_items').children()
+      var curIndex = $allInCurrentModule.index($(this).parents('.context_module_item'));
+      var newIndex = curIndex - 1;
+      var $previousCogLink;
+      if (newIndex < 0) {
+        // Focus on the module cog since there are not more module item cogs
+        $previousCogLink = $(this).closest('.editable_context_module').find('button.al-trigger')
+      } else {
+        $previousCogLink = $($allInCurrentModule[newIndex]).find('.cog-menu-container .al-trigger');
+      }
       $(this).parents(".context_module_item").confirmDelete({
         url: $(this).attr('href'),
         message: I18n.t('confirm.delete_item', 'Are you sure you want to remove this item from the module?'),
@@ -943,7 +919,11 @@ define([
           $(this).slideUp(function() {
             $(this).remove();
             modules.updateTaggedItems();
+            $previousCogLink.focus();
           });
+        },
+        cancelled: function () {
+          $currentCogLink.focus();
         }
       });
     });
@@ -962,9 +942,9 @@ define([
         }
         var id = $(item).attr('id').substring('context_module_item_'.length);
         var name = $(item).children().find('span.title').text();
-        selectItemOptions.push('<option value="' + id + '">' + name + '</option>');
+        selectItemOptions.push('<option value="' + id + '">' + htmlEscape(name) + '</option>');
       });
-      $('#move_module_item_select').append(selectItemOptions.join(''));
+      $('#move_module_item_select').append($.raw(selectItemOptions.join('')));
 
       // The case where the module has no items.
       if ($('#move_module_item_select').children().length === 0) {
@@ -975,7 +955,8 @@ define([
 
     $('.move_module_item_link').on('click keyclick', function (event) {
       event.preventDefault();
-      modules.showMoveModuleItem($(this).parents(".context_module_item"));
+      var $cogLink = $(this).closest('.cog-menu-container').children('.al-trigger');
+      modules.showMoveModuleItem($(this).parents(".context_module_item"), $cogLink);
     });
 
     $('#move_module_item_form').on('submit', function (event) {
@@ -1051,6 +1032,7 @@ define([
           $trigger.focus();
         };
         options.submit = function(item_data) {
+          item_data.content_details = ['items']
           var $module = $("#context_module_" + module.id);
           var $item = modules.addItemToModule($module, item_data);
           $module.find(".context_module_items.ui-sortable").sortable('refresh').sortable('disable');
@@ -1061,7 +1043,7 @@ define([
               data.content_tag.type = item_data['item[type]'];
               $item = modules.addItemToModule($module, data.content_tag);
               $module.find(".context_module_items.ui-sortable").sortable('enable').sortable('refresh');
-              if (ENV.ENABLE_DRAFT) { initNewItemPublishButton($item, data.content_tag); }
+              initNewItemPublishButton($item, data.content_tag);
               modules.updateAssignmentData();
             })
           );
@@ -1167,44 +1149,167 @@ define([
       modules.refreshModuleList();
       modules.refreshed = true;
     }, 1000);
-  }
 
-  function initNewItemPublishButton($item, data) {
-    var publishData = {
-      moduleType: data.type,
-      id: data.publishable_id,
-      moduleId: data.context_module_id,
-      courseId: data.context_id,
-      published: data.published,
-      publishable: data.publishable,
-      unpublishable: data.unpublishable
+    function initNewItemPublishButton($item, data) {
+      var publishData = {
+        moduleType: data.type,
+        id: data.publishable_id,
+        moduleId: data.context_module_id,
+        courseId: data.context_id,
+        published: data.published,
+        publishable: data.publishable,
+        unpublishable: data.unpublishable,
+        content_details: data.content_details,
+        isNew: true
+      };
+
+      initPublishButton($item.find('.publish-icon'), publishData);
+    }
+
+    var initPublishButton = function($el, data) {
+      data = data || $el.data();
+
+      if(data.moduleType == 'attachment'){
+        // Module isNew if it was created with an ajax request vs being loaded when the page loads
+        var moduleItem = {};
+
+        if (data.isNew){
+          // Data will have content_details on the object
+          moduleItem = data || {};
+
+          // make sure styles are applied to new module items
+          $el.attr('data-module-type', "attachment");
+        }else{
+          // retrieve preloaded content details for the file item
+          moduleItem = ENV.MODULE_FILE_DETAILS[parseInt(data.moduleItemId, 10)];
+        }
+
+        // Make sure content_details isn't empty. You don't want to break something.
+        moduleItem.content_details = moduleItem.content_details || {};
+
+        var file = new ModuleFile({
+            id: moduleItem.content_id || moduleItem.id,
+            locked: moduleItem.content_details.locked,
+            hidden: moduleItem.content_details.hidden,
+            unlock_at: moduleItem.content_details.unlock_at,
+            lock_at: moduleItem.content_details.lock_at,
+            display_name: moduleItem.content_details.display_name,
+            thumbnail_url: moduleItem.content_details.thumbnail_url,
+            usage_rights: moduleItem.content_details.usage_rights
+          });
+
+        file.url = function(){
+          return "/api/v1/files/" + this.id;
+        }
+
+        var props = {
+          model: file,
+          togglePublishClassOn: $el.parents('.ig-row')[0],
+          userCanManageFilesForContext: ENV.MODULE_FILE_PERMISSIONS.manage_files,
+          usageRightsRequiredForContext: ENV.MODULE_FILE_PERMISSIONS.usage_rights_required
+        }
+
+        React.render(PublishCloud(props), $el[0]);
+        return {model: file} // Pretending this is a backbone view
+      }
+
+      var model = new PublishableModuleItem({
+        module_type: data.moduleType,
+        content_id: data.contentId,
+        id: data.id,
+        module_id: data.moduleId,
+        module_item_id: data.moduleItemId,
+        course_id: data.courseId,
+        published: data.published,
+        publishable: data.publishable,
+        unpublishable: data.unpublishable
+      });
+
+      var view = new PublishIconView({model: model, el: $el[0]});
+      var row = $el.closest('.ig-row');
+
+      if (data.published) { row.addClass('ig-published'); }
+      // TODO: need to go find this item in other modules and update their state
+      model.on('change:published', function() {
+        view.$el.closest('.ig-row').toggleClass('ig-published', model.get('published'));
+        view.render();
+      });
+      view.render();
+      return view;
+    }
+
+    var moduleItems = {};
+    var updateModuleItem = function(attrs, model) {
+      var i, items, item, parsedAttrs;
+      items = moduleItems[itemContentKey(attrs) || itemContentKey(model)];
+      if (items) {
+        for (i = 0; i < items.length; i++) {
+          item = items[i];
+          parsedAttrs = item.model.parse(attrs);
+          item.model.set({published: parsedAttrs.published});
+        }
+      }
     };
-    initPublishButton($item.find('.publish-icon'), publishData);
-  }
 
-  function initPublishButton($el, data) {
-    data = data || $el.data();
-    var model = new PublishableModuleItem({
-      module_type: data.moduleType,
-      content_id: data.contentId,
-      id: data.id,
-      module_id: data.moduleId,
-      module_item_id: data.moduleItemId,
-      course_id: data.courseId,
-      published: data.published,
-      publishable: data.publishable,
-      unpublishable: data.unpublishable
+    var overrideModuleModel = function(model) {
+      var publish = model.publish, unpublish = model.unpublish;
+      model.publish = function() {
+        return publish.apply(model, arguments).done(function(data) {
+          relock_modules_dialog.renderIfNeeded(data);
+          model
+            .fetch({data: {include: 'items'}})
+            .done(function(attrs) {
+              for (var i = 0; i < attrs.items.length; i++)
+                updateModuleItem(attrs.items[i], model);
+            });
+        });
+      };
+      model.unpublish = function() {
+        return unpublish.apply(model, arguments).done(function() {
+          model
+            .fetch({data: {include: 'items'}})
+            .done(function(attrs) {
+              for (var i = 0; i < attrs.items.length; i++)
+                updateModuleItem(attrs.items[i], model);
+            });
+        });
+      };
+    };
+    var overrideItemModel = function(model) {
+      var publish = model.publish, unpublish = model.unpublish;
+      model.publish = function() {
+        return publish.apply(model, arguments).done(function(attrs) {
+          updateModuleItem($.extend({published:true}, attrs), model);
+        });
+      };
+      model.unpublish = function() {
+        return unpublish.apply(model, arguments).done(function(attrs) {
+          updateModuleItem($.extend({published:false}, attrs), model);
+        });
+      };
+    };
+    var overrideModel = function(model, view) {
+      var contentKey = itemContentKey(model);
+      if (contentKey === null)
+        overrideModuleModel(model);
+      else
+        overrideItemModel(model);
+
+      moduleItems[contentKey] || (moduleItems[contentKey] = []);
+      moduleItems[contentKey].push({model: model, view: view});
+    };
+
+    $('.publish-icon:visible').each(function(index, el) {
+      var view = initPublishButton($(el));
+      overrideModel(view.model, view);
     });
-    var view = new PublishIconView({model: model, el: $el[0]});
-    var row = $el.closest('.ig-row');
-    if (data.published) { row.addClass('ig-published'); }
-    // TODO: need to go find this item in other modules and update their state
-    model.on('change:published', function() {
-      view.$el.closest('.ig-row').toggleClass('ig-published', model.get('published'));
+
+    $('.module-publish-link').each(function(i, element){
+      var $el = $(element);
+      var model = new Publishable({ published: $el.hasClass('published'), id: $el.attr('data-id') }, { url: $el.attr('data-url'), root: 'module' });
+      var view = new PublishButtonView({model: model, el: $el});
       view.render();
     });
-    view.render();
-    return view;
   }
 
   var content_type_map = {
@@ -1237,72 +1342,10 @@ define([
     }
   }
 
-  var moduleItems = {};
-  var updateModuleItem = function(attrs, model) {
-    var i, items, item, parsedAttrs;
-    items = moduleItems[itemContentKey(attrs) || itemContentKey(model)];
-    if (items) {
-      for (i = 0; i < items.length; i++) {
-        item = items[i];
-        parsedAttrs = item.model.parse(attrs);
-        item.model.set({published: parsedAttrs.published});
-      }
-    }
-  };
-
-  var overrideModuleModel = function(model) {
-    var publish = model.publish, unpublish = model.unpublish;
-    model.publish = function() {
-      return publish.apply(model, arguments).done(function() {
-        model
-          .fetch({data: {include: 'items'}})
-          .done(function(attrs) {
-            for (var i = 0; i < attrs.items.length; i++)
-              updateModuleItem(attrs.items[i], model);
-          });
-      });
-    };
-    model.unpublish = function() {
-      return unpublish.apply(model, arguments).done(function() {
-        model
-          .fetch({data: {include: 'items'}})
-          .done(function(attrs) {
-            for (var i = 0; i < attrs.items.length; i++)
-              updateModuleItem(attrs.items[i], model);
-          });
-      });
-    };
-  };
-  var overrideItemModel = function(model) {
-    var publish = model.publish, unpublish = model.unpublish;
-    model.publish = function() {
-      return publish.apply(model, arguments).done(function(attrs) {
-        updateModuleItem($.extend({published:true}, attrs), model);
-      });
-    };
-    model.unpublish = function() {
-      return unpublish.apply(model, arguments).done(function(attrs) {
-        updateModuleItem($.extend({published:false}, attrs), model);
-      });
-    };
-  };
-  var overrideModel = function(model, view) {
-    var contentKey = itemContentKey(model);
-    if (contentKey === null)
-      overrideModuleModel(model);
-    else
-      overrideItemModel(model);
-
-    moduleItems[contentKey] || (moduleItems[contentKey] = []);
-    moduleItems[contentKey].push({model: model, view: view});
-  };
-
   $(document).ready(function() {
-    if (ENV.ENABLE_DRAFT) {
-      $('.publish-icon:visible').each(function(index, el) {
-        var view = initPublishButton($(el));
-        overrideModel(view.model, view);
-      });
+   if (ENV.IS_STUDENT) {
+      $('.context_module').addClass('student-view');
+      $('.context_module_item .ig-row').addClass('student-view');
     }
 
     $('.external_url_link').click(function() {
@@ -1400,7 +1443,6 @@ define([
     }
 
     modules.updateProgressions();
-    modules.refreshProgressions();
     modules.updateAssignmentData();
 
     $(".context_module").find(".expand_module_link,.collapse_module_link").bind('click keyclick', function(event, goSlow) {
@@ -1484,146 +1526,6 @@ define([
       }
 
     });
-    $(".refresh_progressions_link").click(function(event) {
-      event.preventDefault();
-      $(this).addClass('refreshing');
-      var $link = $(this);
-      var id = $("#student_progression_dialog").find(".student.selected_side_tab:first").getTemplateData({textValues: ['id']}).id;
-      if(id) {
-        modules.updateProgressions(id, function() {
-          $link.removeClass('refreshing');
-          $link.blur();
-          $("#student_progression_dialog").find(".student.selected_side_tab:first").click();
-        });
-      }
-    });
-    $("#student_progression_dialog").delegate('.student', 'click', function(event) {
-      $("#student_progression_dialog").find(".selected_side_tab").removeClass('selected_side_tab');
-      $(this).addClass('selected_side_tab');
-      event.preventDefault();
-      var id = $(this).getTemplateData({textValues: ['id']}).id;
-      var $studentWithProgressions = $("#progression_list .student_" + id + ":first");
-      $("#context_modules .context_module:visible").each(function() {
-        var $module = $(this);
-        var moduleData = $module.find(".header").getTemplateData({textValues: ['id', 'name']});
-        var $row = $("#student_progression_dialog .module_" + moduleData.id);
-
-        moduleData.progress = $studentWithProgressions.find(".progression_" + moduleData.id + ":first").getTemplateData({textValues: ['workflow_state']}).workflow_state;
-        moduleData.progress = moduleData.progress || "no information";
-        var type = "nothing";
-        if(moduleData.progress == "unlocked") {
-          type = "in_progress";
-          moduleData.progress = "in progress";
-        } else if(moduleData.progress == "started") {
-          type = "in_progress";
-          moduleData.progress = "in progress";
-        } else if(moduleData.progress == "completed") {
-          type = "completed";
-        } else if(moduleData.progress == "locked") {
-          type = "locked";
-        }
-        $row.find(".still_need_completing").empty();
-        if(moduleData.progress == "in progress") {
-          var $requirements = $("#context_module_" + moduleData.id + " .context_module_item.progression_requirement");
-          var progression = $studentWithProgressions.find(".progression_" + moduleData.id).data('progression');
-          var unfulfilled = [];
-          $requirements.each(function() {
-            var $req = $(this);
-            var req = {id: $req.attr('id').substring(20)};
-            if($req.hasClass('must_view_requirement')) {
-              req.type = 'must_view';
-            } else if($req.hasClass('min_score_requirement')) {
-              req.type = 'min_score';
-            } else if($req.hasClass('max_score_requirement')) {
-              req.type = 'max_score';
-            } else if($req.hasClass('must_contribute_requirement')) {
-              req.type = 'must_contribute';
-            } else if($req.hasClass('must_submit_requirement')) {
-              req.type = 'must_submit';
-            }
-            var met = false;
-            if(progression && progression.requirements_met) {
-              for(var jdx = 0; jdx < progression.requirements_met.length; jdx++) {
-                var compare = progression.requirements_met[jdx];
-                if(compare.id == req.id && compare.type == req.type) {
-                  met = true;
-                }
-              }
-            }
-            if(!met) {
-              unfulfilled.push($req.find(".title:first").text());
-            }
-          });
-          $row.find(".still_need_completing")
-            .append("<b>"+I18n.t('still_needs_completing', 'Still Needs to Complete')+"</b><br/>")
-            .append(unfulfilled.join("<br/>"));
-        }
-        $row.removeClass('locked').removeClass('in_progress').removeClass('completed')
-          .addClass(type);
-        moduleData.progressString = moduleData.progress;
-        $row.fillTemplateData({data: moduleData});
-      });
-    });
-    $(".module_progressions_link").click(function(event) {
-      event.preventDefault();
-      var $dialog = $("#student_progression_dialog");
-      var $student_list = $dialog.find(".student_list");
-      $student_list.find(".student:not(.blank)").remove();
-      $dialog.find(".side_tabs_content tbody .module:not(.blank)").remove();
-      var $visible_modules = $("#context_modules .context_module:visible");
-      var module_ids = [];
-      $visible_modules.each(function() {
-        var $mod = $(this);
-        var id = $mod.attr('id').substring(15);
-        module_ids.push(id);
-      });
-      $("#progression_list .student").each(function() {
-        var $student = $dialog.find(".student.blank:first").clone(true).removeClass('blank');
-        var $studentWithProgressions = $(this);
-        var data = $studentWithProgressions.getTemplateData({textValues: ['name', 'id', 'current_module']});
-        data.current_module = data.current_module || I18n.t('none_in_progress', "none in progress");
-        $student.find("a").attr('href', '#' + data.id);
-        $student.fillTemplateData({data: data});
-        $student_list.append($student.show())
-      });
-      $visible_modules.each(function() {
-        var $module = $(this);
-        var moduleData = $module.find(".header").getTemplateData({textValues: ['id', 'name']});
-        var $template = $dialog.find(".module.blank:first").clone(true).removeClass('blank');
-
-        $template.addClass('module_' + moduleData.id);
-        $template.fillTemplateData({data: moduleData});
-        $dialog.find(".side_tabs_content tbody").append($template.show());
-      });
-
-      $("#student_progression_dialog").dialog({
-        width: 800,
-        open: function() {
-          $(this).find(".student:not(.blank):first .name").click();
-        }
-      });
-    });
-    $(".context_module .progression_details_link").click(function(event) {
-      event.preventDefault();
-      var data = $(this).parents(".context_module").find(".header").getTemplateData({textValues: ['id', 'name']});
-      data.module_name = data.name;
-      var $dialog = $("#module_progression_dialog");
-      $dialog.fillTemplateData({data: data});
-      $dialog.find("ul").empty();
-      $dialog.find(".progression_list").hide();
-      $("#progression_list .student").each(function() { //.progressions .progression_" + data.id).each(function() {
-        var $progression = $(this).find(".progressions .progression_" + data.id);
-        var progressionData = $progression.getTemplateData({textValues: ['context_module_id', 'workflow_state']});
-        progressionData.workflow_state = progressionData.workflow_state || "locked";
-        progressionData.name = $(this).getTemplateData({textValues: ['name']}).name;
-        $dialog.find("." + progressionData.workflow_state + "_list").show()
-          .find("ul").show().append($("<li />").text(progressionData.name));
-      });
-      $("#module_progression_dialog").dialog({
-        title: I18n.t('titles.student_progress', "Student Progress for Module"),
-        width: 500
-      });
-    });
     $(document).fragmentChange(function(event, hash) {
       if (hash == '#student_progressions') {
         $(".module_progressions_link").trigger('click');
@@ -1663,12 +1565,6 @@ define([
       }
     });
 
-    $('.module-publish-link').each(function(i, element){
-      var $el = $(element);
-      var model = new Publishable({ published: $el.hasClass('published'), id: $el.attr('data-id') }, { url: $el.attr('data-url'), root: 'module' });
-      var view = new PublishButtonView({model: model, el: $el});
-      view.render();
-    });
 
   });
 

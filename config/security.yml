@@ -1,13 +1,9 @@
----
 production:
-  encryption_key: !binary |-
-    ZmUzYzZlOWUyNGI2OTYzMGNmMjBlMzY2ODg2NjkyYmE5MDIyNDIzZTQ0YTNm
-    MWE5OTg1ZWI5NDQ0MjFjZWM3ZGUwMmZmMzYxNjNlNzY4NjIxMTc3MDljYzBk
-    NTZkOWUzZDY5ODMxNGI5MmVkNDRlYjcxYjRkNDk0YjUwZDhjNWE=
+  # replace this with a random string of at least 20 characters
+  encryption_key: facdd3a131ddd8988b14f6e4e01039c93cfa0160
+
 development:
-  encryption_key: !binary |-
-    Mjc0N2VhZWM3MWE3YmNjNzYyZjMyZjRkZjE4ZGZhZDQ2ODI0N2I2YzcxYjgx
-    YjgxOWVmMWMzMWJlYzJkOWY1NGRkOTEyZTI5YzkxMjg5ZTA0MGUyY2JiYTYx
-    ZDNmYjkyZTExMDAxMGZiNjg3OTdjYzFmMzJhNjVjMTkxMWNjMDE=
+  encryption_key: facdd3a131ddd8988b14f6e4e01039c93cfa0160
+
 test:
-  encryption_key: 12345
+  encryption_key: facdd3a131ddd8988b14f6e4e01039c93cfa0160

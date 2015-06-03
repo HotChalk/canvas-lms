@@ -165,6 +165,15 @@ describe User do
     expect(@user.recent_stream_items.size).to eq 0
   end
 
+  it "should ignore stream item instances from courses the user is no longer participating in" do
+    course_with_student(:active_all => true)
+    google_docs_collaboration_model(:user_id => @user.id)
+    expect(@user.recent_stream_items.size).to eq 1
+    @enrollment.end_at = @enrollment.start_at = Time.now - 1.day
+    @enrollment.save!
+    expect(@user.recent_stream_items.size).to eq 0
+  end
+
   describe "#recent_stream_items" do
     it "should skip submission stream items" do
       course_with_teacher(:active_all => true)
@@ -569,6 +578,18 @@ describe User do
         expect(alice.courses_with_primary_enrollment.size).to eq 0
       end
 
+      it 'works with favorite_courses' do
+        @user = User.create!(:name => 'user')
+        @shard1.activate do
+          account = Account.create!
+          @course = account.courses.build
+          @course.workflow_state = 'available'
+          @course.save!
+          StudentEnrollment.create!(:course => @course, :user => @user, :workflow_state => 'active')
+        end
+        @user.favorites.create!(:context => @course)
+        expect(@user.courses_with_primary_enrollment(:favorite_courses)).to eq [@course]
+      end
     end
   end
 
@@ -1642,8 +1663,7 @@ describe User do
         expect(events.first.title).to eql 'test appointment'
       end
 
-      it "should not include unpublished assignments when draft_state is enabled" do
-        @course.enable_feature!(:draft_state)
+      it "should not include unpublished assignments" do
         as = @course.assignments.create!({:title => "Published", :due_at => 2.days.from_now})
         as.publish
         as2 = @course.assignments.create!({:title => "Unpublished", :due_at => 2.days.from_now})
@@ -1674,13 +1694,12 @@ describe User do
         expect do
           events = @user.upcoming_events(:end_at => 1.week.from_now)
         end.to_not raise_error
-
+        
         expect(events.first).to eq assignment2
         expect(events.second).to eq assignment
       end
 
-      it "doesn't show unpublished assignments if draft_state is enabled" do
-        @course.enable_feature!(:draft_state)
+      it "doesn't show unpublished assignments" do
         assignment = @course.assignments.create!(:title => "not published", :due_at => 1.days.from_now)
         assignment.unpublish
         assignment2 = @course.assignments.create!(:title => "published", :due_at => 1.days.from_now)
@@ -1738,7 +1757,6 @@ describe User do
   describe "assignments_visibile_in_course" do
     before do
       @teacher_enrollment = course_with_teacher(:active_course => true)
-      @course.enable_feature!(:draft_state)
       @course_section = @course.course_sections.create
       @student1 = User.create
       @student2 = User.create
@@ -1760,10 +1778,6 @@ describe User do
           expect(@student1.assignments_visibile_in_course(@course).include?(@assignment)).to be_truthy
           expect(@student2.assignments_visibile_in_course(@course).include?(@assignment)).to be_falsey
           expect(@student1.assignments_visibile_in_course(@course).include?(@unpublished_assignment)).to be_falsey
-        end
-
-        it "should not return students outside the class" do
-          expect(@student3.assignments_visibile_in_course(@course).include?(@assignment)).to be_falsey
         end
       end
 
@@ -1895,9 +1909,8 @@ describe User do
       end
     end
 
-    it "should not include unpublished assignments when draft_state is enabled" do
+    it "should not include unpublished assignments" do
       course_with_student_logged_in(:active_all => true)
-      @course.enable_feature!(:draft_state)
       assignment_quiz([], :course => @course, :user => @user)
       @assignment.unpublish
       @quiz.unlock_at = 1.hour.ago
@@ -2799,5 +2812,90 @@ describe User do
       expect(@student.group_memberships_for(@course).size).to eq 0
     end
 
+  end
+
+  describe 'visible_groups' do
+    it "should include groups in published courses" do
+      course_with_student active_all:true
+      @group = Group.create! context: @course, name: "GroupOne"
+      @group.users << @student
+      @group.save!
+      expect(@student.visible_groups.size).to eq 1
+    end
+
+    it "should not include groups that belong to unpublished courses" do
+      course_with_student
+      @group = Group.create! context: @course, name: "GroupOne"
+      @group.users << @student
+      @group.save!
+      expect(@student.visible_groups.size).to eq 0
+    end
+
+    it "should include account groups" do
+      account = account_model(:parent_account => Account.default)
+      student = user active_all: true
+      @group = Group.create! context: account, name: "GroupOne"
+      @group.users << student
+      @group.save!
+      expect(student.visible_groups.size).to eq 1
+    end
+  end
+
+  describe 'roles' do
+    before(:once) do
+      user(active_all: true)
+      course(active_course: true)
+      @account = Account.default
+    end
+
+    it "always includes 'user'" do
+      expect(@user.roles(@account)).to eq %w[user]
+    end
+
+    it "includes 'student' if the user has a student enrollment" do
+      @enrollment = @course.enroll_user(@user, 'StudentEnrollment', enrollment_state: 'active')
+      expect(@user.roles(@account)).to eq %w[user student]
+    end
+
+    it "includes 'student' if the user has a student view student enrollment" do
+      @user = @course.student_view_student
+      expect(@user.roles(@account)).to eq %w[user student]
+    end
+
+    it "includes 'teacher' if the user has a teacher enrollment" do
+      @enrollment = @course.enroll_user(@user, 'TeacherEnrollment', enrollment_state: 'active')
+      expect(@user.roles(@account)).to eq %w[user teacher]
+    end
+
+    it "includes 'teacher' if the user has a ta enrollment" do
+      @enrollment = @course.enroll_user(@user, 'TaEnrollment', enrollment_state: 'active')
+      expect(@user.roles(@account)).to eq %w[user teacher]
+    end
+
+    it "includes 'teacher' if the user has a designer enrollment" do
+      @enrollment = @course.enroll_user(@user, 'DesignerEnrollment', enrollment_state: 'active')
+      expect(@user.roles(@account)).to eq %w[user teacher]
+    end
+
+    it "includes 'admin' if the user has an admin user record" do
+      @account.account_users.create!(:user => @user, :role => admin_role)
+      expect(@user.roles(@account)).to eq %w[user admin]
+    end
+  end
+
+  it "should not grant user_notes rights to restricted users" do
+    course_with_ta(:active_all => true)
+    student_in_course(:course => @course, :active_all => true)
+    @course.account.role_overrides.create!(role: ta_role, enabled: false, permission: :manage_user_notes)
+
+    expect(@student.grants_right?(@ta, :create_user_notes)).to be_falsey
+    expect(@student.grants_right?(@ta, :read_user_notes)).to be_falsey
+  end
+
+  it "should change avatar state on reporting" do
+    user
+    @user.report_avatar_image!
+    @user.reload
+    expect(@user.avatar_state).to eq :reported
   end
 end

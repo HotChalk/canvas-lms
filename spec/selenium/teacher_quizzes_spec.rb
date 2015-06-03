@@ -2,9 +2,6 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignment_overrides.rb')
 
 describe "quizzes" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include AssignmentOverridesSeleniumHelper
   include_examples "quizzes selenium tests"
@@ -120,7 +117,6 @@ describe "quizzes" do
 
     
     it "should republish on save" do
-      Account.default.enable_feature!(:draft_state)
       get "/courses/#{@course.id}/quizzes"
       expect_new_page_load { f(".new-quiz-link").click }
       quiz = Quizzes::Quiz.last
@@ -249,7 +245,6 @@ describe "quizzes" do
       expect(f('.attempts_left').text).to eq '3'
     end
 
-    
     it "should indicate when it was last saved" do
       take_quiz do
         indicator = f('#last_saved_indicator')
@@ -339,14 +334,14 @@ describe "quizzes" do
         }
         wait_for_ajaximations
 
-        driver.find_element(:link, 'Quizzes').click
+        fln('Quizzes').click
         wait_for_ajaximations
 
         driver.switch_to.alert.accept
         wait_for_ajaximations
 
         get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
-        f(:link, "Resume Quiz").click
+        fln("Resume Quiz").click
 
         # there's some initial setTimeout stuff that happens, so things won't
         # be ready right when the page loads
@@ -527,7 +522,7 @@ describe "quizzes" do
 
       click_quiz_statistics_button
 
-      expect(f('#content .question_name')).to include_text("Question 1")
+      expect(f('#content .question-statistics .question-text')).to include_text("Which book(s) are required for this course?")
     end
 
     it "should display a link to quiz statistics for a MOOC" do

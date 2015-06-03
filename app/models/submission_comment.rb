@@ -99,6 +99,14 @@ class SubmissionComment < ActiveRecord::Base
 
     given {|user, session| self.submission.grants_right?(user, session, :grade) }
     can :read and can :delete
+
+    given { |user, session|
+      !self.anonymous? ||
+        self.author == user ||
+        self.submission.assignment.context.grants_right?(user, session, :view_all_grades) ||
+        self.submission.assignment.context.grants_right?(self.author, session, :view_all_grades)
+    }
+    can :read_author
   end
 
   set_broadcast_policy do |p|
@@ -107,6 +115,7 @@ class SubmissionComment < ActiveRecord::Base
     p.whenever {|record|
       record.just_created &&
       record.submission.assignment &&
+      record.submission.assignment.context.available? &&
       !record.submission.assignment.muted? &&
       (!record.submission.assignment.context.instructors.include?(author) || record.submission.assignment.published?)
     }
@@ -171,6 +180,7 @@ class SubmissionComment < ActiveRecord::Base
   end
 
   def infer_details
+    self.anonymous = self.submission.assignment.anonymous_peer_reviews
     self.author_name ||= self.author.short_name rescue t(:unknown_author, "Someone")
     self.cached_attachments = self.attachments.map{|a| OpenObject.build('attachment', a.attributes) }
     self.context = self.read_attribute(:context) || self.submission.assignment.context rescue nil
@@ -180,7 +190,6 @@ class SubmissionComment < ActiveRecord::Base
     self.cached_attachments = self.attachments.map{|a| OpenObject.build('attachment', a.attributes) }
     self.save
   end
-
 
   def attachments
     ids = Set.new((attachment_ids || "").split(",").map { |id| id.to_i})
@@ -214,7 +223,7 @@ class SubmissionComment < ActiveRecord::Base
   def context_code
     "#{self.context_type.downcase}_#{self.context_id}"
   end
-  
+
   def avatar_path
     "/images/users/#{User.avatar_key(self.author_id)}"
   end
@@ -226,7 +235,6 @@ class SubmissionComment < ActiveRecord::Base
   scope :visible, -> { where(:hidden => false) }
 
   scope :after, lambda { |date| where("submission_comments.created_at>?", date) }
-  scope :for_context, lambda { |context| where(:context_id => context, :context_type => context.class.to_s) }
 
   def update_participation
     # id_changed? because new_record? is false in after_save callbacks

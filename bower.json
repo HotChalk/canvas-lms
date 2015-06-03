@@ -17,8 +17,10 @@
     "ic-modal": "0.1.1",
     "ic-droppable": "~0.1.0",
     "ic-sortable": "0.0.2",
-    "react": "0.11.0",
-    "react-router": "0.9.3",
-    "react-modal": "0.0.6"
+    "react": "0.12.2",
+    "react-router": "0.11.6",
+    "react-modal": "0.1.1",
+    "tinymce": "4.1.9",
+    "react-tokeninput": "https://github.com/instructure-react/react-tokeninput.git#696676cec773f2eede6e2563cce8336bc7675940"
   }
 }

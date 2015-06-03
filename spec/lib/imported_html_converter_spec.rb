@@ -22,7 +22,7 @@ describe ImportedHtmlConverter do
   
   context ".convert" do
     before(:each) do
-      course(draft_state: true)
+      course
       @path = "/courses/#{@course.id}/"
     end
     
@@ -46,7 +46,7 @@ describe ImportedHtmlConverter do
       wiki.migration_id = "123456677788"
       wiki.save!
   
-      expect(ImportedHtmlConverter.convert(test_string, @course)).to eq %{<a href="#{@path}wiki/test-wiki-page">Test Wiki Page</a>}
+      expect(ImportedHtmlConverter.convert(test_string, @course)).to eq %{<a href="#{@path}pages/test-wiki-page">Test Wiki Page</a>}
     end
     
     it "should convert a discussion reference by migration id" do
@@ -92,6 +92,14 @@ describe ImportedHtmlConverter do
       expect(ImportedHtmlConverter.convert(test_string, @course)).to eq %{<img src="#{@path}files/#{att.id}/preview" alt="nope">}
       
       test_string = %{<img src="subfolder/with+a+space/test.png" alt="nope" />}
+      expect(ImportedHtmlConverter.convert(test_string, @course)).to eq %{<img src="#{@path}files/#{att.id}/preview" alt="nope">}
+    end
+
+    it "should find an attachment even if the link has an extraneous folder" do
+      att = make_test_att()
+      @course.attachment_path_id_lookup = {"subfolder/test.png" => att.migration_id}
+
+      test_string = %{<img src="anotherfolder/subfolder/test.png" alt="nope" />}
       expect(ImportedHtmlConverter.convert(test_string, @course)).to eq %{<img src="#{@path}files/#{att.id}/preview" alt="nope">}
     end
     

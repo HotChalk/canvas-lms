@@ -348,6 +348,63 @@ describe "Users API", type: :request do
     expect(json.size).to eq 1
   end
 
+  describe "api_show" do
+    before :each do
+      @other_user = User.create!(:name => "user name")
+      email = "email@somewhere.org"
+      @other_user.pseudonyms.create!(:unique_id => email, :account => Account.default) { |p| p.sis_user_id = email }
+      Account.default.tap { |a| a.disable_service(:avatars) }.save
+    end
+
+    it "should retrieve user details as an admin user" do
+      account_admin_user
+      json = api_call(:get, "/api/v1/users/#{@other_user.id}",
+                      { :controller => 'users', :action => 'api_show', :id => @other_user.id.to_param, :format => 'json' })
+
+      expect(json).to eq({
+         'name' => @other_user.name,
+         'sortable_name' => @other_user.sortable_name,
+         'sis_user_id' => @other_user.pseudonym.sis_user_id,
+         'sis_import_id' => nil,
+         'id' => @other_user.id,
+         'short_name' => @other_user.short_name,
+         'sis_user_id' => @other_user.pseudonym.sis_user_id,
+         'integration_id' => nil,
+         'sis_login_id' => @other_user.pseudonym.sis_user_id,
+         'login_id' => @other_user.pseudonym.unique_id,
+         'locale' => nil,
+         'permissions' => {'can_update_name' => true, 'can_update_avatar' => false}
+      })
+    end
+
+    it "should retrieve limited user details as self" do
+      @user = @other_user
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json).to eq({
+         'name' => @other_user.name,
+         'sortable_name' => @other_user.sortable_name,
+         'id' => @other_user.id,
+         'short_name' => @other_user.short_name,
+         'locale' => nil,
+         'permissions' => {'can_update_name' => true, 'can_update_avatar' => false}
+      })
+    end
+
+    it "should retrieve the right permissions" do
+      @user = @other_user
+      Account.default.tap { |a| a.settings[:users_can_edit_name] = false }.save
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json['permissions']).to eq({'can_update_name' => false, 'can_update_avatar' => false})
+
+      Account.default.tap { |a| a.enable_service(:avatars) }.save
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json['permissions']).to eq({'can_update_name' => false, 'can_update_avatar' => true})
+    end
+  end
+
   describe "user account listing" do
     it "should return users for an account" do
       @account = Account.default
@@ -456,6 +513,58 @@ describe "Users API", type: :request do
       before :once do
         @site_admin = user_with_pseudonym
         Account.site_admin.account_users.create!(user: @site_admin)
+      end
+
+      context 'using force_validations param' do
+        it "validates with force_validations set to true" do
+          raw_api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
+            {
+              :user => {
+                :name => ""
+              },
+              :pseudonym => {
+                :unique_id  => "bademail@",
+              },
+              :force_validations => true
+            }
+          )
+
+          assert_status(400)
+          errors = JSON.parse(response.body)['errors']
+          expect(errors['user']['name']).to be_present
+          expect(errors['user']['terms_of_use']).to be_present
+          expect(errors['pseudonym']).to be_present
+          expect(errors['pseudonym']['unique_id']).to be_present
+        end
+
+        it "does not validate when force_validations is not set to true" do
+          # successful request even with oddball user params because we're making the request as an admin
+          json = api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
+            {
+              :user => {
+                :name => ""
+              },
+              :pseudonym => {
+                :unique_id  => "bademail@",
+              }
+            }
+          )
+
+          users = User.where(name: "").to_a
+          expect(users.length).to eql 1
+          user = users.first
+
+          expect(json).to eq({
+            "id"            => user.id,
+            "name"          => "",
+            "sortable_name" => "",
+            "short_name"    => "",
+            "login_id"      => "bademail@",
+            "locale"        => nil
+          })
+        end
       end
 
       it "should allow site admins to create users" do
@@ -761,6 +870,38 @@ describe "Users API", type: :request do
         user = User.find(json['id'])
         expect(user.avatar_image_source).to eql 'external'
         expect(user.avatar_image_url).to eql url_to_set
+      end
+    end
+
+    context "non-account-admin user" do
+      before :once do
+        user_with_pseudonym name: "Earnest Lambert Watkins"
+        course_with_teacher user: @user, active_all: true
+      end
+
+      context "with users_can_edit_name enabled" do
+        before :once do
+          @course.root_account.settings = { users_can_edit_name: true }
+          @course.root_account.save!
+        end
+
+        it "should allow user to rename self" do
+          json = api_call(:put, "/api/v1/users/#{@user.id}", @path_options.merge(id: @user.id),
+                          { user: { name: "Blue Ivy Carter" } })
+          expect(json["name"]).to eq "Blue Ivy Carter"
+        end
+      end
+
+      context "with users_can_edit_name disabled" do
+        before :once do
+          @course.root_account.settings = { users_can_edit_name: false }
+          @course.root_account.save!
+        end
+
+        it "should not allow user to rename self" do
+          api_call(:put, "/api/v1/users/#{@user.id}", @path_options.merge(id: @user.id),
+                   { user: { name: "Ovaltine Jenkins" } }, {}, { expected_status: 401 })
+        end
       end
     end
 

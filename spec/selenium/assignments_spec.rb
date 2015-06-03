@@ -13,7 +13,6 @@ describe "assignments" do
       course_with_teacher_logged_in
       @course.start_at = nil
       @course.save!
-      set_course_draft_state
       @course.require_assignment_group
     end
 
@@ -66,6 +65,9 @@ describe "assignments" do
 
     it "should create an assignment using main add button" do
       assignment_name = 'first assignment'
+      # freeze for a certain time, so we don't get unexpected ui complications
+      time = Timecop.freeze(2015,1,7,2,13)
+      due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
 
       get "/courses/#{@course.id}/assignments"
       wait_for_ajaximations
@@ -73,13 +75,20 @@ describe "assignments" do
       f(".new_assignment").click
       wait_for_ajaximations
       f('#assignment_name').send_keys(assignment_name)
-      f('#assignment_text_entry').click
-      submit_assignment_form
-
-      #make sure assignment was added to correct assignment group
-      keep_trying_until do
-        expect(f('h1.title')).to include_text(assignment_name)
+      f('#assignment_points_possible').send_keys('10')
+      ['#assignment_text_entry', '#assignment_online_url', '#assignment_online_upload'].each do |element|
+        f(element).click
       end
+      driver.find_element(:name, 'due_at').send_keys(due_at)
+      submit_assignment_form
+      #confirm all our settings were saved and are now displayed
+      wait_for_ajaximations
+      expect(f('h1.title')).to include_text(assignment_name)
+      expect(fj('#assignment_show .points_possible')).to include_text('10')
+      expect(f('#assignment_show fieldset')).to include_text('a text entry box, a website url, or a file upload')
+      expect(f('.assignment_dates')).to include_text(due_at)
+      # unfreeze time
+      Timecop.return
     end
 
     it "only allows an assignment editor to edit points and title if assignment " +
@@ -97,11 +106,9 @@ describe "assignments" do
         override.due_at = 1.day.ago
         override.due_at_overridden = true
       end
-
       get "/courses/#{@course.id}/assignments"
       wait_for_ajaximations
       driver.execute_script "$('.edit_assignment').first().hover().click()"
-
       expect(fj('.form-dialog .ui-datepicker-trigger:visible')).to be_nil
       expect(f('.multiple_due_dates input').attribute('disabled')).to be_present
       assignment_title = f("#assign_#{@assignment.id}_assignment_name")
@@ -119,6 +126,10 @@ describe "assignments" do
     it "should create an assignment with more options" do
       enable_cache do
         expected_text = "Assignment 1"
+        # freeze time to avoid ui complications
+        time = Timecop.freeze(2015,1,7,2,13)
+        due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
+        points = '25'
 
         get "/courses/#{@course.id}/assignments"
         group = @course.assignment_groups.first
@@ -126,18 +137,54 @@ describe "assignments" do
         first_stamp = group.reload.updated_at.to_i
         f('.add_assignment').click
         wait_for_ajaximations
+        replace_content(f("#ag_#{group.id}_assignment_name"), expected_text)
+        replace_content(f("#ag_#{group.id}_assignment_due_at"), due_at)
+        replace_content(f("#ag_#{group.id}_assignment_points"), points)
         expect_new_page_load { f('.more_options').click }
-        f("#assignment_name").send_keys(expected_text)
+        expect(f('#assignment_name').attribute(:value)).to include_text(expected_text)
+        expect(f('#assignment_points_possible').attribute(:value)).to include_text(points)
+        expect(driver.find_element(:name, 'due_at').attribute(:value)).to eq due_at
         click_option('#assignment_submission_type', 'No Submission')
-
-        assignment_points_possible = f("#assignment_points_possible")
-        replace_content(assignment_points_possible, "5")
         submit_assignment_form
         expect(@course.assignments.count).to eq 1
         get "/courses/#{@course.id}/assignments"
         expect(f('.assignment')).to include_text(expected_text)
         group.reload
         expect(group.updated_at.to_i).not_to eq first_stamp
+        # unfreeze time
+        Timecop.return
+      end
+    end
+
+
+    it "should keep erased field on more options click" do
+      enable_cache do
+        middle_number = '15'
+        expected_date = (Time.now - 1.month).strftime("%b #{middle_number}")
+        @assignment = @course.assignments.create!(
+            :title => "Test Assignment",
+            :points_possible => 10,
+            :due_at => expected_date
+        )
+        section = @course.course_sections.create!(:name => "new section")
+        @assignment.assignment_overrides.create! do |override|
+          override.set = section
+          override.title = "All"
+        end
+
+        get "/courses/#{@course.id}/assignments"
+        wait_for_ajaximations
+        driver.execute_script "$('.edit_assignment').first().hover().click()"
+        assignment_title = f("#assign_#{@assignment.id}_assignment_name")
+        assignment_points_possible = f("#assign_#{@assignment.id}_assignment_points")
+        replace_content(assignment_title, "")
+        replace_content(assignment_points_possible, "")
+        wait_for_ajaximations
+        expect_new_page_load { fj('.more_options:eq(1)').click }
+        expect(f("#assignment_name").text).to match ""
+        expect(f("#assignment_points_possible").text).to match ""
+        expect(fj('.due-date-row:first div').text).to match ""
+        expect(fj('.due-date-row:last div').text).to match expected_date
       end
     end
 
@@ -169,6 +216,49 @@ describe "assignments" do
       errorBoxes = driver.execute_script("return $('.errorBox').filter('[id!=error_box_template]').toArray();")
       visBoxes, hidBoxes = errorBoxes.partition { |eb| eb.displayed? }
       expect(visBoxes.first.text).to eq "Please select a group set for this assignment"
+    end
+
+    context "group assignments" do
+      before(:each) do
+        ag = @course.assignment_groups.first
+        @assignment1, @assignment2 = [1,2].map do |i|
+          gc = GroupCategory.create(:name => "gc#{i}", :context => @course)
+          group = @course.groups.create!(:group_category => gc)
+          group.users << student_in_course(:course => @course, :active_all => true).user
+          ag.assignments.create! :context => @course, :name => "assignment#{i}", :group_category => gc, :submission_types => 'online_text_entry'
+        end
+        submission = @assignment1.submit_homework(@student)
+        submission.submission_type = "online_text_entry"
+        submission.save!
+      end
+
+      it "should not allow group set to be changed if there are submissions" do
+        get "/courses/#{@course.id}/assignments/#{@assignment1.id}/edit"
+        wait_for_ajaximations
+        expect(f("#assignment_group_category_id").attribute('disabled')).to be_present
+      end
+
+      it "should still show deleted group set only on an attached assignment with " +
+        "submissions" do
+        @assignment1.group_category.destroy
+        @assignment2.group_category.destroy
+
+        # ensure neither deleted group shows up on an assignment with no submissions
+        get "/courses/#{@course.id}/assignments/#{@assignment2.id}/edit"
+        wait_for_ajaximations
+
+        expect(f("#assignment_group_category_id")).not_to include_text @assignment1.group_category.name
+        expect(f("#assignment_group_category_id")).not_to include_text @assignment2.group_category.name
+
+        # ensure an assignment attached to a deleted group shows the group it's attached to,
+        # but no other deleted groups, and that the dropdown is disabled
+        get "/courses/#{@course.id}/assignments/#{@assignment1.id}/edit"
+        wait_for_ajaximations
+
+        expect(get_value("#assignment_group_category_id")).to eq @assignment1.group_category.id.to_s
+        expect(f("#assignment_group_category_id")).not_to include_text @assignment2.group_category.name
+        expect(f("#assignment_group_category_id").attribute('disabled')).to be_present
+      end
     end
 
     context "frozen assignment", :priority => "2" do

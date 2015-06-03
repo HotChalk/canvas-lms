@@ -7,7 +7,7 @@ describe "enhanceable_content" do
     stub_kaltura
     course_with_teacher_logged_in
 
-    page = @course.wiki.front_page
+    page = @course.wiki.wiki_pages.build(:title => 'title')
     page.body = %{
       <div id="dialog_for_link1" class="enhanceable_content dialog">dialog for link 1</div>
       <a href="#dialog_for_link1" id="link1">link 1</a>
@@ -116,8 +116,51 @@ describe "enhanceable_content" do
     expect(headers[1]).to have_class('ui-state-default')
     expect(divs[0]).to be_displayed
     expect(divs[1]).not_to be_displayed
-
+    
     expect(f('#media_comment_0_deadbeef span.media_comment_thumbnail')).not_to be_nil
+  end
+
+  context "media file preview thumbnails" do
+    before :each do
+      stub_kaltura
+      course(:active_all => true)
+
+      @attachment = @course.attachments.create!(:uploaded_data => stub_file_data('video1.mp4', nil, 'video/mp4'))
+      @page = @course.wiki.wiki_pages.build(:title => 'title')
+      @page.body = %{
+        <a id="media_comment_0_deadbeef" class="instructure_file_link instructure_video_link" title="Video.mp4"
+          href="/courses/#{@course.id}/files/#{@attachment.id}/download?wrap=1">Video</a>
+      }
+      @page.save!
+    end
+
+    it "should show for students" do
+      student_in_course(:course => @course, :active_user => true)
+      user_session(@student)
+      get "/courses/#{@course.id}/wiki/#{@page.url}"
+      expect(f('#media_comment_0_deadbeef span.media_comment_thumbnail')).to_not be_nil
+    end
+
+    describe "for locked files" do
+      before :each do
+        @attachment.locked = true
+        @attachment.save!
+      end
+
+      it "should not show for students" do
+        student_in_course(:course => @course, :active_user => true)
+        user_session(@student)
+        get "/courses/#{@course.id}/wiki/#{@page.url}"
+        expect(f('#media_comment_0_deadbeef span.media_comment_thumbnail')).to be_nil
+      end
+
+      it "should show for teachers" do
+        teacher_in_course(:course => @course, :active_user => true)
+        user_session(@teacher)
+        get "/courses/#{@course.id}/wiki/#{@page.url}"
+        expect(f('#media_comment_0_deadbeef span.media_comment_thumbnail')).to_not be_nil
+      end
+    end
   end
 end
 

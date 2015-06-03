@@ -47,9 +47,10 @@ define [
       if @usageRightsRequired
         context = @getContext()
 
-        @usageRightsFields = React.renderComponent(UsageRightsSelectBox(
+        @usageRightsFields = React.render(React.createFactory(UsageRightsSelectBox)(
           use_justification: "choose"
           showMessage: true
           contextType: context.contextType
           contextId: context.contextId
+          afterChooseBlur: -> $('.uploadFileBtn')[0]
         ), $element[0])

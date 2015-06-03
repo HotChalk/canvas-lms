@@ -13,13 +13,11 @@ define([
       }
     },
 
-    openModal(e) {
-      e.preventDefault();
+    openModal() {
       this.setState({modalIsOpen: true});
     },
 
-    closeModal(e) {
-      e.preventDefault();
+    closeModal() {
       this.setState({modalIsOpen: false});
     },
 
@@ -32,7 +30,7 @@ define([
     render() {
       return (
         <div className="ReactModalExample">
-          <a href="#" role="button" aria-label="Trigger Modal" className="btn btn-primary" onClick={this.openModal}>{this.props.label || 'Trigger Modal'}</a>
+          <button type="button" className="btn btn-primary" onClick={this.openModal}>{this.props.label || 'Trigger Modal'}</button>
           <Modal isOpen={this.state.modalIsOpen}
                  onRequestClose={this.closeModal}
                  className={this.props.className}
@@ -45,8 +43,9 @@ define([
                   <h4>Modal Title Goes Here</h4>
                 </div>
                 <div className="ReactModal__Header-Actions">
-                  <button className="Button Button--link Button--small" type="button" onClick={this.closeModal}>
+                  <button className="Button Button--icon-action" type="button" onClick={this.closeModal}>
                     <i className="icon-x"></i>
+                    <span className="screenreader-only">Close</span>
                   </button>
                 </div>
               </div>
@@ -61,7 +60,7 @@ define([
               <div className="ReactModal__InnerSection ReactModal__Footer">
                 <div className="ReactModal__Footer-Actions">
                   <button type="button" className="btn btn-default" onClick={this.closeModal}>Cancel</button>
-                  <button type="button" className="btn btn-primary" onClick={this.handleSubmit}>Submit</button>
+                  <button type="submit" className="btn btn-primary" onClick={this.handleSubmit}>Submit</button>
                 </div>
               </div>
 

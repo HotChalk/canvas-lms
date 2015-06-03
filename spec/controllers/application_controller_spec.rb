@@ -21,7 +21,9 @@ require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper')
 describe ApplicationController do
 
   before :each do
-    controller.stubs(:request).returns(stub(:host_with_port => "www.example.com"))
+    controller.stubs(:request).returns(stub(:host_with_port => "www.example.com",
+                                            :host => "www.example.com",
+                                            :headers => {}))
   end
 
   describe "#twitter_connection" do
@@ -124,6 +126,124 @@ describe ApplicationController do
     end
   end
 
+  describe "#google_drive_connection" do
+    before :each do
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      Canvas::Plugin.stubs(:find).returns(settings_mock)
+
+    end
+
+    it "uses @real_current_user first" do
+      mock_real_current_user = mock()
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, mock_real_current_user)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+      session[:oauth_gdrive_refresh_token] = "session_token"
+      session[:oauth_gdrive_access_token] = "sesion_secret"
+
+      Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_real_current_user].cache_key).returns(["real_current_user_token", "real_current_user_secret"])
+
+      GoogleDocs::DriveConnection.expects(:new).with("real_current_user_token", "real_current_user_secret")
+
+      controller.send(:google_drive_connection)
+    end
+
+    it "uses @current_user second" do
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+      session[:oauth_gdrive_refresh_token] = "session_token"
+      session[:oauth_gdrive_access_token] = "sesion_secret"
+
+      Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_current_user].cache_key).returns(["current_user_token", "current_user_secret"])
+
+      GoogleDocs::DriveConnection.expects(:new).with("current_user_token", "current_user_secret")
+      controller.send(:google_drive_connection)
+    end
+
+    it "queries user services if token isn't in the cache" do
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+      session[:oauth_gdrive_refresh_token] = "session_token"
+      session[:oauth_gdrive_access_token] = "sesion_secret"
+
+      mock_user_services = mock("mock_user_services")
+      mock_current_user.expects(:user_services).returns(mock_user_services)
+      mock_user_services.expects(:where).with(service: "google_drive").returns(stub(first: mock(token: "user_service_token", secret: "user_service_secret")))
+
+      GoogleDocs::DriveConnection.expects(:new).with("user_service_token", "user_service_secret")
+      controller.send(:google_drive_connection)
+    end
+
+    it "uses the session values if no users are set" do
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, nil)
+      session[:oauth_gdrive_refresh_token] = "session_token"
+      session[:oauth_gdrive_access_token] = "sesion_secret"
+
+      GoogleDocs::DriveConnection.expects(:new).with("session_token", "sesion_secret")
+
+      controller.send(:google_drive_connection)
+    end
+  end
+
+  describe "#google_drive_user_client" do
+    before :each do
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      Canvas::Plugin.stubs(:find).returns(settings_mock)
+
+    end
+
+    it "uses @real_current_user first" do
+      mock_real_current_user = mock()
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, mock_real_current_user)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+
+      Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_real_current_user].cache_key).returns(["real_current_user_refresh_token", "real_current_user_access_token"])
+      GoogleDrive::Client.expects(:create).with({},"real_current_user_refresh_token", "real_current_user_access_token")
+      controller.send(:google_drive_user_client)
+    end
+
+    it "uses @current_user second" do
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+      Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_current_user].cache_key).returns(["current_user_refresh_token", "current_user_access_token"])
+      GoogleDrive::Client.expects(:create).with({},"current_user_refresh_token", "current_user_access_token")
+      controller.send(:google_drive_user_client)
+    end
+
+    it "queries user services if token isn't in the cache" do
+      mock_current_user = mock()
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, mock_current_user)
+
+      mock_user_services = mock("mock_user_services")
+      mock_current_user.expects(:user_services).returns(mock_user_services)
+      service_mock = mock('service')
+      service_mock.stubs(first: mock(token: "user_refresh_token", access_token: "user_access_token"))
+      mock_user_services.expects(:where).with(service: "google_drive").returns(service_mock)
+
+      GoogleDrive::Client.expects(:create).with({}, "user_refresh_token", "user_access_token")
+
+      controller.send(:google_drive_user_client)
+    end
+
+    it "uses the session values if no users are set" do
+      controller.instance_variable_set(:@real_current_user, nil)
+      controller.instance_variable_set(:@current_user, nil)
+      session[:oauth_gdrive_access_token] = "access_token"
+      session[:oauth_gdrive_refresh_token] = "refresh_token"
+
+      GoogleDrive::Client.expects(:create).with({}, "refresh_token", "access_token")
+      controller.send(:google_drive_user_client)
+    end
+  end
+
   describe "js_env" do
     before do
       controller.stubs(:api_request?).returns(false)
@@ -162,7 +282,7 @@ describe ApplicationController do
     end
 
     it 'gets appropriate settings from the root account' do
-      root_account = stub(global_id: 1, open_registration?: true)
+      root_account = stub(global_id: 1, feature_enabled?: false, open_registration?: true)
       HostUrl.stubs(file_host: 'files.example.com')
       controller.instance_variable_set(:@domain_root_account, root_account)
       expect(controller.js_env[:SETTINGS][:open_registration]).to be_truthy
@@ -320,6 +440,8 @@ describe ApplicationController do
       acct.save!
       controller.instance_variable_set(:@domain_root_account, acct)
       req = mock()
+
+      req.stubs(:host).returns('www.example.com')
       req.stubs(:headers).returns({})
       controller.stubs(:request).returns(req)
       controller.send(:assign_localizer)
@@ -349,8 +471,10 @@ describe ApplicationController do
       end
 
       it 'should log error reports to the domain_root_accounts shard' do
-        ErrorReport.stubs(:log_exception).returns(ErrorReport.new)
-        ErrorReport.stubs(:useful_http_env_stuff_from_request).returns({})
+        report = ErrorReport.new
+        ErrorReport.stubs(:log_exception).returns(report)
+        ErrorReport.stubs(:find).returns(report)
+        Canvas::Errors::Info.stubs(:useful_http_env_stuff_from_request).returns({})
 
         req = mock()
         req.stubs(:url).returns('url')
@@ -364,7 +488,7 @@ describe ApplicationController do
 
         controller.instance_variable_set(:@domain_root_account, @account)
 
-        @shard2.expects(:activate).twice
+        @shard2.expects(:activate)
 
         controller.send(:rescue_action_in_public, Exception.new)
       end
@@ -384,6 +508,32 @@ describe ApplicationController do
 
   end
 
+  describe 'external_tools_display_hashes' do
+    it 'returns empty array if context is group' do
+      @course = course_model
+      @group = @course.groups.create!(:name => "some group")
+      tool = @course.context_external_tools.new(:name => "bob", :consumer_key => "test", :shared_secret => "secret", :url => "http://example.com")
+      tool.account_navigation = {:url => "http://example.com", :icon_url => "http://example.com", :enabled => true}
+      tool.save!
+
+      controller.stubs(:named_context_url).returns("http://example.com")
+      external_tools = controller.external_tools_display_hashes(:account_navigation, @group)
+
+      expect(external_tools).to eq([])
+    end
+  end
+
+  it 'returns array of tools if context is not group' do
+    @course = course_model
+    tool = @course.context_external_tools.new(:name => "bob", :consumer_key => "test", :shared_secret => "secret", :url => "http://example.com")
+    tool.account_navigation = {:url => "http://example.com", :icon_url => "http://example.com", :enabled => true}
+    tool.save!
+
+    controller.stubs(:named_context_url).returns("http://example.com")
+    external_tools = controller.external_tools_display_hashes(:account_navigation, @course)
+
+    expect(external_tools).to eq([{:title=>"bob", :base_url=>"http://example.com", :icon_url=>"http://example.com"}])
+  end
 end
 
 describe ApplicationController do
@@ -417,7 +567,7 @@ describe WikiPagesController do
       course_with_teacher_logged_in :active_all => true
       controller.instance_variable_set(:@context, @course)
 
-      get 'pages_index', :course_id => @course.id
+      get 'index', :course_id => @course.id
 
       expect(controller.js_env).to include(:WIKI_RIGHTS)
       expect(controller.js_env[:WIKI_RIGHTS]).to eq Hash[@course.wiki.check_policy(@teacher).map { |right| [right, true] }]

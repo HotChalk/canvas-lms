@@ -32,10 +32,14 @@ module Api
         # List pages
         %r{^/courses/(#{ID})/wiki$} => ['[Page]', :api_v1_course_wiki_pages_url, :course_id],
         %r{^/groups/(#{ID})/wiki$} => ['[Page]', :api_v1_group_wiki_pages_url, :group_id],
+        %r{^/courses/(#{ID})/pages$} => ['[Page]', :api_v1_course_wiki_pages_url, :course_id],
+        %r{^/groups/(#{ID})/pages$} => ['[Page]', :api_v1_group_wiki_pages_url, :group_id],
 
         # Show page
-        %r{^/courses/(#{ID})/wiki/([^/]+)$} => ['Page', :api_v1_course_wiki_page_url, :course_id, :url],
-        %r{^/groups/(#{ID})/wiki/([^/]+)$} => ['Page', :api_v1_group_wiki_page_url, :group_id, :url],
+        %r{^/courses/(#{ID})/wiki/([^/?]+)(?:\?[^/]+)?} => ['Page', :api_v1_course_wiki_page_url, :course_id, :url],
+        %r{^/groups/(#{ID})/wiki/([^/?]+)(?:\?[^/]+)?} => ['Page', :api_v1_group_wiki_page_url, :group_id, :url],
+        %r{^/courses/(#{ID})/pages/([^/?]+)(?:\?[^/]+)?} => ['Page', :api_v1_course_wiki_page_url, :course_id, :url],
+        %r{^/groups/(#{ID})/pages/([^/?]+)(?:\?[^/]+)?} => ['Page', :api_v1_group_wiki_page_url, :group_id, :url],
 
         # List assignments
         %r{^/courses/(#{ID})/assignments$} => ['[Assignment]', :api_v1_course_assignments_url, :course_id],
@@ -49,9 +53,9 @@ module Api
         %r{^/users/(#{ID})/files$} => ['Folder', :api_v1_user_folder_url, :user_id, {:id => 'root'}],
 
         # Get file
-        %r{^/courses/#{ID}/files/(#{ID})/} => ['File', :api_v1_attachment_url, :id],
-        %r{^/groups/#{ID}/files/(#{ID})/} => ['File', :api_v1_attachment_url, :id],
-        %r{^/users/#{ID}/files/(#{ID})/} => ['File', :api_v1_attachment_url, :id],
+        %r{^/courses/(#{ID})/files/(#{ID})/} => ['File', :api_v1_course_attachment_url, :course_id, :id],
+        %r{^/groups/(#{ID})/files/(#{ID})/} => ['File', :api_v1_group_attachment_url, :group_id, :id],
+        %r{^/users/(#{ID})/files/(#{ID})/} => ['File', :api_v1_user_attachment_url, :user_id, :id],
         %r{^/files/(#{ID})/} => ['File', :api_v1_attachment_url, :id],
 
         # List quizzes

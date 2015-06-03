@@ -2,13 +2,13 @@ define [
   'i18n!react_files'
   'jquery'
   'react'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   'compiled/fn/preventDefault'
-  'compiled/views/TreeBrowserView'
+  '../modules/BBTreeBrowserView'
   'compiled/views/RootFoldersFinder'
   '../modules/customPropTypes'
   '../utils/moveStuff'
-], (I18n, $, React, withReactDOM, preventDefault, TreeBrowserView, RootFoldersFinder, customPropTypes, moveStuff) ->
+], (I18n, $, React, withReactElement, preventDefault, BBTreeBrowserView, RootFoldersFinder, customPropTypes, moveStuff) ->
 
   MoveDialog = React.createClass
     displayName: 'MoveDialog'
@@ -34,14 +34,22 @@ define [
         rootFoldersToShow: @props.rootFoldersToShow
       })
 
-      new TreeBrowserView({
-        onlyShowFolders: true,
-        rootModelsFinder: rootFoldersFinder
-        rootFoldersToShow: @props.rootFoldersToShow
-        onClick: @onSelectFolder
-        focusStyleClass: 'MoveDialog__folderItem--focused'
-        selectedStyleClass: 'MoveDialog__folderItem--selected'
-      }).render().$el.appendTo(@refs.FolderTreeHolder.getDOMNode()).find(':tabbable:first').focus();
+      @treeBrowserViewId = BBTreeBrowserView.create({
+          onlyShowSubtrees: true,
+          rootModelsFinder: rootFoldersFinder
+          rootFoldersToShow: @props.rootFoldersToShow
+          onClick: @onSelectFolder
+          focusStyleClass: 'MoveDialog__folderItem--focused'
+          selectedStyleClass: 'MoveDialog__folderItem--selected'
+        },
+        {
+          element: @refs.FolderTreeHolder.getDOMNode()
+        }).index
+
+      BBTreeBrowserView.getView(@treeBrowserViewId).render().$el.appendTo(@refs.FolderTreeHolder.getDOMNode()).find(':tabbable:first').focus()
+
+    componentWillUnmount: ->
+      BBTreeBrowserView.remove(@treeBrowserViewId)
 
     onSelectFolder: (event, folder) ->
       event.preventDefault()
@@ -49,14 +57,20 @@ define [
 
     submit: ->
       promise = moveStuff(@props.thingsToMove, @state.destinationFolder)
-      promise.then(@props.closeDialog)
+      promise.then =>
+        @props.closeDialog()
+        BBTreeBrowserView.refresh()
       $(@refs.form.getDOMNode()).disableWhileLoading(promise)
 
 
-    render: withReactDOM ->
+    render: withReactElement ->
       form { ref: 'form', className: 'form-dialog', onSubmit: preventDefault(@submit)},
         div {className: 'form-dialog-content'},
-          div ref: 'FolderTreeHolder'
+          aside {
+            role: 'region'
+            'aria-label' : I18n.t('folder_browsing_tree', 'Folder Browsing Tree')
+          },
+            div ref: 'FolderTreeHolder'
         div {className: 'form-controls'},
           button {
             type: 'button'

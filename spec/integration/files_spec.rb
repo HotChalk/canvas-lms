@@ -1,5 +1,7 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+require 'nokogiri'
+
 describe FilesController do
   context "should support Submission as a context" do
     before(:each) do
@@ -148,6 +150,26 @@ describe FilesController do
     expect(response.content_type).to eq 'image/png'
     # ensure that the user wasn't logged in by the normal means
     expect(controller.instance_variable_get(:@current_user)).to be_nil
+  end
+
+  it "logs user access with safefiles" do
+    course_with_teacher(:active_all => true, :user => user_with_pseudonym)
+    host!("test.host")
+    login_as
+    a1 = attachment_model(:uploaded_data => stub_png_data, :content_type => 'image/png', :context => @course)
+
+    get "http://test.host/courses/#{@course.id}/files/#{a1.id}/download", :inline => '1'
+    expect(response).to be_redirect
+    location = response['Location']
+    reset!
+
+    Setting.set('enable_page_views', 'db')
+    get location
+    # ensure that the user wasn't logged in by the normal means
+    expect(controller.instance_variable_get(:@current_user)).to be_nil
+    access = AssetUserAccess.for_user(@user).first
+    expect(access).to_not be_nil
+    expect(access.asset).to eq a1
   end
 
   it "should be able to use verifier in course context" do

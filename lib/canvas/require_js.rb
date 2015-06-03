@@ -76,6 +76,10 @@ module Canvas
         @map ||= Canvas::RequireJs::ClientAppExtension.map.to_json
       end
 
+      def bundles
+        @bundles ||= Canvas::RequireJs::ClientAppExtension.bundles.to_json
+      end
+
       def packages
         @packages ||= [
           {'name' => 'ic-ajax', 'location' => 'bower/ic-ajax/dist/amd'},
@@ -114,6 +118,9 @@ module Canvas
             'bower/react-modal/dist/react-modal': {
               deps: ['react']
             },
+            'bower/react-tokeninput/dist/react-tokeninput': {
+              deps: ['react'],
+            },
             'bower/ember/ember': {
               deps: ['jquery', 'handlebars'],
               exports: 'Ember'
@@ -141,12 +148,27 @@ module Canvas
               deps: ['jquery'],
               exports: '$'
             },
+            'vendor/jquery.smartbanner': {
+              deps: ['jquery'],
+              exports: '$'
+            },
             'handlebars': {
               deps: ['bower/handlebars/handlebars.runtime.amd'],
               exports: 'Handlebars'
             },
             'vendor/i18n': {
               exports: 'I18n'
+            },
+            'vendor/react-infinite-scroll.min' : {
+              deps: ['react'],
+              exports: 'InfiniteScroll'
+            },
+            'bower/tinymce/tinymce' : {
+              exports: 'tinymce'
+            },
+            'bower/tinymce/themes/modern/theme' : {
+              deps: ['bower/tinymce/tinymce'],
+              exports: 'tinymce'
             }
           }
         JS

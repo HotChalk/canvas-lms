@@ -2,9 +2,6 @@ require File.expand_path(File.dirname(__FILE__) + '/../../api_spec_helper')
 require File.expand_path(File.dirname(__FILE__) + '/../../../models/quizzes/quiz_statistics/item_analysis/common')
 
 describe Quizzes::QuizStatisticsController, type: :request do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   def api_index(options={}, data={})
     url = "/api/v1/courses/#{@course.id}/quizzes/#{@quiz.id}/statistics"
@@ -64,6 +61,11 @@ describe Quizzes::QuizStatisticsController, type: :request do
       expect(json['quiz_statistics'][0].keys).not_to eq []
       expect(json['quiz_statistics'][0]).to have_key('links')
       expect(json['quiz_statistics'][0]).not_to have_key('quiz_id')
+    end
+    it "should return :no_content for large quizzes" do
+      Quizzes::QuizStatistics.stubs(:large_quiz?).returns true
+
+      expect(api_index(raw:true)).to be_equal(204)
     end
 
     context 'JSON-API compliance' do

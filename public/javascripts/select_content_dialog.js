@@ -20,6 +20,8 @@ define([
   'INST' /* INST */,
   'i18n!select_content_dialog',
   'jquery' /* $ */,
+  'react',
+  'jsx/context_modules/FileSelectBox',
   'compiled/legacy/add_assignment' /* attachAddAssignment */,
   'jquery.instructure_date_and_time' /* datetime_field */,
   'jquery.ajaxJSON' /* ajaxJSON */,
@@ -31,7 +33,7 @@ define([
   'jquery.keycodes' /* keycodes */,
   'jquery.loadingImg' /* loadingImage */,
   'jquery.templateData' /* fillTemplateData */
-], function(INST, I18n, $, attachAddAssignment) {
+], function(INST, I18n, $, React, FileSelectBox, attachAddAssignment) {
 
   $(document).ready(function() {
     $(".add_assignment_inline:not(:first)").remove();
@@ -65,6 +67,7 @@ define([
   });
 
 $(document).ready(function() {
+
   var external_services = null;
   var $dialog = $("#select_context_content_dialog");
   attachAddAssignment($("#assignments_select .module_item_select"));
@@ -154,7 +157,7 @@ $(document).ready(function() {
     } else if(item_type == 'context_external_tool') {
 
       var tool = $("#context_external_tools_select .tools .tool.selected").data('tool');
-      var tool_type = tool ? tool.definition_type :$("#add_module_item_select").val()
+      var tool_type = tool ? $.underscore(tool.definition_type) : $("#add_module_item_select").val();
       var tool_id = tool ? tool.definition_id : 0
       var item_data = {
         'item[type]': tool_type,
@@ -201,15 +204,19 @@ $(document).ready(function() {
           var callback = function(data) {
             var obj;
 
-            // discussion_topics will come from real api v1 and so wont be nested behind a `discussion_topic` root object
-            if (item_data['item[type]'] === 'discussion_topic') {
+            // discussion_topics will come from real api v1 and so wont be nested behind a `discussion_topic` or 'wiki_page' root object
+            if (item_data['item[type]'] === 'discussion_topic' || item_data['item[type]'] === 'wiki_page') {
               obj = data;
             } else {
               obj = data[item_data['item[type]']]; // e.g. data['wiki_page'] for wiki pages
             }
 
             $("#select_context_content_dialog").loadingImage('remove');
-            item_data['item[id]'] = obj.id;
+            if (item_data['item[type]'] === 'wiki_page') {
+              item_data['item[id]'] = obj.page_id;
+            } else {
+              item_data['item[id]'] = obj.id;
+            }
             if (item_data['item[type]'] === 'attachment') {
               // some browsers return a fake path in the file input value, so use the name returned by the server
               item_data['item[title]'] = obj.display_name;
@@ -330,6 +337,9 @@ $(document).ready(function() {
   var $tool_template = $("#context_external_tools_select .tools .tool:first").detach();
   $("#add_module_item_select").change(function() {
     $("#select_context_content_dialog .module_item_option").hide();
+    if ($(this).val() === 'attachment') {
+      React.render(React.createFactory(FileSelectBox)({contextString: ENV.context_asset_string}), $('#module_item_select_file')[0]);
+    }
     $("#" + $(this).val() + "s_select").show().find(".module_item_select").change();
     if($(this).val() == 'context_external_tool') {
       var $select = $("#context_external_tools_select");
@@ -357,12 +367,13 @@ $(document).ready(function() {
       }
     }
   })
-  $("#select_context_content_dialog .module_item_select").change(function() {
+
+  $('#select_context_content_dialog').on('change', '.module_item_select', function () {
     if($(this).val() == "new") {
       $(this).parents(".module_item_option").find(".new").show().focus().select();
     } else {
       $(this).parents(".module_item_option").find(".new").hide();
     }
-  })
+  });
 });
 });

@@ -115,6 +115,7 @@ define [
       # inject some hackery to prevent focus/blur issues
       @parentContexts = []
       @currentContext = null
+      @recipientCounts = {}
       $(document).on("mousedown", @_onDocumentMouseDown.bind(this))
 
       @render() # to initialize els
@@ -355,6 +356,11 @@ define [
 
       return if @currentContext.id.match(/course_\d+_(group|section)/)
 
+      unless @currentContext.peopleCount
+        @currentContext.peopleCount = _.reduce(actual_results,
+          (count, result) -> count + (result.attributes.user_count || 0),
+          0)
+
       tag =
         id:       @currentContext.id
         name:     name
@@ -556,6 +562,13 @@ define [
       @_fetchResults(true)
       @$input.focus()
 
+    checkRecipientTotal: ->
+      total = _.reduce(@recipientCounts, ((sum, c) -> sum + c), 0)
+      if total > ENV.CONVERSATIONS.MAX_GROUP_CONVERSATION_SIZE
+        @trigger('recipientTotalChange', true)
+      else
+        @trigger('recipientTotalChange', false)
+
     # Internal: Add the given model to the token list.
     #
     # model - Result model (user or course)
@@ -566,6 +579,10 @@ define [
       model.name = @_formatTokenName(model)
       @tokens.push(model.id)
       @$tokenList.append(tokenTemplate(model))
+
+      @recipientCounts[model.id] = (model.people || 1)
+      @checkRecipientTotal()
+
       unless keepOpen
         @toggleResultList(false)
         @selectedModel = null
@@ -576,7 +593,9 @@ define [
         @$input.prop('disabled', true)
         @$searchBtn.prop('disabled', true)
         @trigger('disabled')
+
       @trigger('changeToken', @tokenParams())
+      @_refreshRecipientList()
 
     # Internal: Prepares a given model's name for display.
     #
@@ -599,13 +618,25 @@ define [
     _removeToken: (id, silent = false) ->
       return if @disabled
       @$tokenList.find("input[value=#{id}]").parent().remove()
-      @tokens.splice(_.indexOf(id), 1)
+      @tokens.splice(_.indexOf(@tokens, id), 1)
       @$clearBtn.hide() unless @tokens.length
       if @options.single and !@tokens.length
         @$input.prop('disabled', false)
         @$searchBtn.prop('disabled', false)
         @trigger('enabled')
+
+      @recipientCounts[id] = 0
+      @checkRecipientTotal()
+
       @trigger('changeToken', @tokenParams()) unless silent
+      @_refreshRecipientList()
+
+    _refreshRecipientList: () ->
+      recipientNames = []
+      _.each @tokenModels(), (model) =>
+        recipientNames.push(model.get('name'))
+      $('#recipient-label').text(recipientNames.join(', '))
+
 
     # Public: Return the current tokens as an array of params.
     #
@@ -633,12 +664,12 @@ define [
       @currentContext     = context
       @hasExternalContext = !!context
       @tokens             = []
+      @recipientCounts = {}
+      @checkRecipientTotal()
       @$tokenList.find('li.ac-token').remove()
 
     disable: (value = true) ->
-      @$input.prop('disabled', value)
-      @$searchBtn.prop('disabled', value)
-      @$inputBox.toggleClass('disabled', value)
+      $("#recipient-row").toggle(!value)
 
     # Public: Put the given tokens in the token list.
     #

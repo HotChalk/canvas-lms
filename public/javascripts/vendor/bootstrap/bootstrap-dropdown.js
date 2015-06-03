@@ -63,7 +63,8 @@ define(['jquery'],function($) {
           $('<div class="dropdown-backdrop"/>').insertBefore($(this)).on('click', clearMenus)
         }
         // INSTRUCTURE added aria-expanded and role='application'
-        $parent.toggleClass('open').attr('aria-expanded', 'true')
+        $parent.toggleClass('open')
+        getProperParent($parent).attr('aria-expanded', 'true')
         $parent.trigger("show.bs.dropdown")
 
         if ($parent.hasClass('open')){
@@ -173,7 +174,6 @@ define(['jquery'],function($) {
     , blurSubmenu: function(e) {
       var self = this;
       setTimeout(function() {
-        console.log("focusout")
         if ($.contains(self, document.activeElement)) {return;}
         $(self).removeAttr('role')
         $(self).removeClass('open').attr('aria-expanded', 'false')
@@ -201,7 +201,9 @@ define(['jquery'],function($) {
     $('.dropdown-backdrop').remove()
     $(toggle).each(function () {
       // INSTRUCTURE added aria-expanded
-      getParent($(this)).removeClass('open').attr('aria-expanded', 'false')
+      var $parent = getParent($(this))
+      $parent.removeClass('open')
+      getProperParent($parent).attr('aria-expanded', 'false')
     })
     // INSTRUCTURE
     $('.dropdown-submenu').each(function() {
@@ -223,6 +225,16 @@ define(['jquery'],function($) {
     if (!$parent || !$parent.length) $parent = $this.parent()
 
     return $parent
+  }
+
+  // INSTRUCTURE - Added this to better suit needs of aria-expanded stuff
+  // It will return a button, rather than a parent div.
+  function getProperParent($parent) {
+    if ($parent.is('button')) {
+      return $parent;
+    } else {
+      return $parent.children('button')
+    }
   }
 
 

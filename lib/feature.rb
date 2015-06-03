@@ -32,6 +32,10 @@ class Feature
     @root_opt_in = true if @applies_to == 'RootAccount'
   end
 
+  def clone_for_cache
+    Feature.new(feature: @feature, state: @state)
+  end
+
   def default?
     true
   end
@@ -235,7 +239,7 @@ END
     },
     'allow_opt_out_of_inbox' =>
     {
-      display_name: -> { I18n.t('features.allow_opt_out_of_inbox', "Allow users to opt out of the inbox") },
+      display_name: -> { I18n.t('features.allow_opt_out_of_inbox', "Allow Users to Opt-out of the Inbox") },
       description:  -> { I18n.t('allow_opt_out_of_inbox', <<-END) },
 Allow users to opt out of the Conversation's Inbox. This will cause all conversation messages and notifications to be sent as ASAP notifications to the user's primary email, hide the Conversation's Inbox unread messages badge on the Inbox, and hide the Conversation's notification preferences.
 END
@@ -267,11 +271,13 @@ END
     {
       display_name: -> { I18n.t('features.multiple_grading_periods', 'Multiple Grading Periods') },
       description: -> { I18n.t('enable_multiple_grading_periods', <<-END) },
-Enable multiple grading periods management in the account admin, and use in the Gradebook.
+      Multiple Grading Periods allows teachers and admins to create grading periods with set
+      cutoff dates. Assignments can be filtered by these grading periods in the gradebook.
 END
-      applies_to: 'RootAccount',
-      state: 'hidden',
-      development: true
+      applies_to: 'Course',
+      state: 'hidden_in_prod',
+      development: true,
+      root_opt_in: true
     },
     'course_catalog' =>
     {
@@ -295,12 +301,29 @@ END
     },
     'usage_rights_required' =>
     {
-      display_name: -> { I18n.t('Require usage rights for uploaded files') },
-      description: -> { I18n.t('If enabled, content designers must provide copyright and license information for files before they are published') },
+      display_name: -> { I18n.t('Require Usage Rights for Uploaded Files') },
+      description: -> { I18n.t('If enabled, content designers must provide copyright and license information for files before they are published. Only applies if Better File Browsing is also enabled.') },
       applies_to: 'Course',
       state: 'hidden',
       root_opt_in: true
-    }
+    },
+    'lti2_ui' =>
+      {
+        display_name: -> { I18n.t('Show LTI 2 Configuration UI') },
+        description: -> { I18n.t('If enabled, users will be able to configure LTI 2 tools.') },
+        applies_to: 'RootAccount',
+        state: 'hidden',
+        beta: true
+      },
+    'quizzes_lti' =>
+      {
+        display_name: -> { I18n.t('Quiz LTI plugin') },
+        description: -> { I18n.t('Use the new quiz LTI tool in place of regular canvas quizzes') },
+        applies_to: 'Course',
+        state: 'hidden',
+        beta: true,
+        root_opt_in: true
+      }
   )
 
   def self.definitions

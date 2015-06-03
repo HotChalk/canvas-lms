@@ -121,6 +121,11 @@ class Conversation < ActiveRecord::Base
     end
   end
 
+  # conversations with more recipients than this should force individual messages
+  def self.max_group_conversation_size
+    Setting.get("max_group_conversation_size", 100).to_i
+  end
+
   def add_participants(current_user, users, options={})
     self.shard.activate do
       user_ids = users.map(&:id).uniq
@@ -298,7 +303,10 @@ class Conversation < ActiveRecord::Base
   end
 
   def preload_users_and_context_codes
-    users = conversation_participants.map { |cp| User.send(:instantiate, 'id' => cp.user_id ) }
+    users = User.select([:id, :updated_at]).where(:id => conversation_participants.map(&:user_id)).map do |u|
+      u = User.send(:instantiate, 'id' => u.id, 'updated_at' => u.updated_at) if u.shard != Shard.current
+      u
+    end
     User.preload_conversation_context_codes(users)
     users = users.index_by(&:id)
   end

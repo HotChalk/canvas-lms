@@ -1,7 +1,7 @@
 define [
   'jquery'
   'react'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   'i18n!restrict_student_access'
   'compiled/models/Folder'
   '../modules/customPropTypes'
@@ -11,7 +11,10 @@ define [
   './UsageRightsSelectBox'
   'jquery.instructure_date_and_time'
   'jquery.instructure_forms'
-], ($, React, withReactDOM, I18n, Folder, customPropTypes, setUsageRights, updateModelsUsageRights, DialogPreview, UsageRightsSelectBox) ->
+], ($, React, withReactElement, I18n, Folder, customPropTypes, setUsageRights, updateModelsUsageRights, DialogPreviewComponent, UsageRightsSelectBoxComponent) ->
+
+  DialogPreview = React.createFactory DialogPreviewComponent
+  UsageRightsSelectBox = React.createFactory UsageRightsSelectBoxComponent
 
   RestrictedDialogForm = React.createClass
 
@@ -46,7 +49,7 @@ define [
 
     componentDidMount: ->
       $([@refs.unlock_at.getDOMNode(), @refs.lock_at.getDOMNode()]).datetime_field()
-      $(@getDOMNode()).find(':tabbable:first').focus()
+      $('.ui-dialog-titlebar-close').focus()
 
     # === Custom Functions === #
 
@@ -63,8 +66,8 @@ define [
 
     extractFormValues: ->
       hidden   : @state.selectedOption is 'link_only'
-      unlock_at: @state.selectedOption is 'date_range' && @refs.unlock_at.getDOMNode().value or ''
-      lock_at  : @state.selectedOption is 'date_range' && @refs.lock_at.getDOMNode().value or ''
+      unlock_at: @state.selectedOption is 'date_range' && $(@refs.unlock_at.getDOMNode()).data('unfudged-date') or ''
+      lock_at  : @state.selectedOption is 'date_range' && $(@refs.lock_at.getDOMNode()).data('unfudged-date') or ''
       locked: @state.selectedOption is 'unpublished'
 
     # Function Summary
@@ -82,10 +85,6 @@ define [
         if (values.use_justification == 'choose')
           $(@refs.usageSelection.refs.usageRightSelection.getDOMNode()).errorBox(I18n.t('You must specify a usage right.'))
           return false
-        # No copyright specified
-        if (!values.copyright and @refs.usageSelection.refs.copyright?)
-          $(@refs.usageSelection.refs.copyright.getDOMNode()).errorBox(I18n.t('You must specify the copyright holder.'))
-          return false
 
         # We need to first set usage rights before handling the setting of
         # restricted access things.
@@ -99,8 +98,6 @@ define [
 
       else
         @setRestrictedAccess()
-
-
 
     setRestrictedAccess: ->
       attributes = @extractFormValues()
@@ -131,11 +128,17 @@ define [
     allFolders: ->
       @props.models.every (model) -> model instanceof Folder
 
+    ###
+    # Returns true if all the models passed in are folders.
+    ###
+    anyFolders: ->
+      @props.models.filter((model) -> model instanceof Folder).length
+
     renderUsageRightsWarning: ->
       div {className: 'RestrictedDialogForm__banner col-xs-12'},
         span {className: 'alert'},
           i {className: 'icon-warning RestrictedDialogForm__warning'}
-          I18n.t('Before publishing you must set usage rights on your files. This is set by your account admin. If you have problems please contact them.')
+          I18n.t('Before publishing, you must set usage rights on your files.')
 
     ###
     # Renders out the restricted access form
@@ -194,7 +197,7 @@ define [
 
           div {
             style:
-              'margin-left': '20px',
+              marginLeft: '20px',
               display: (if  @state.selectedOption in ['link_only', 'date_range'] then 'block' else 'none')
             'aria-hidden': (if  @state.selectedOption in ['link_only', 'date_range'] then 'false' else 'true')
           },
@@ -208,7 +211,13 @@ define [
                   onChange: (event) =>
                       @setState selectedOption: 'link_only'
                 },
-                I18n.t("options.hiddenInput.description", "Only available to students with link. Not visible in student files.")
+                if @allFolders()
+                  I18n.t("Hidden, files inside will be available with links.")
+                else if @props.models.length > 1 and @anyFolders()
+                  I18n.t("Files and folder contents only available to students with link. Not visible in student files.")
+                else
+                  I18n.t("options.hiddenInput.description", "Only available to students with link. Not visible in student files.")
+
             div className: "radio",
               label {},
                  input {
@@ -230,19 +239,19 @@ define [
                 div className: 'controls dateSelectInputContainer',
                   input
                     ref: 'unlock_at'
-                    defaultValue: $.datetimeString(@state.unlock_at) if @state.unlock_at,
+                    defaultValue: $.datetimeString(@state.unlock_at) if @state.unlock_at
                     className: 'form-control dateSelectInput',
                     type: 'text',
-                    'aria-label': I18n.t('Available From')
+                    'aria-label': I18n.t('Available From Date')
               div className: 'control-group',
                 label className: 'control-label dialog-adapter-form-calendar-label', I18n.t('Available Until')
                   div className: 'controls dateSelectInputContainer',
                   input
                     ref: 'lock_at'
-                    defaultValue: $.datetimeString(@state.lock_at) if @state.lock_at,
+                    defaultValue: $.datetimeString(@state.lock_at) if @state.lock_at
                     className: 'form-control dateSelectInput',
                     type: 'text'
-                    'aria-label': I18n.t('Available Until')
+                    'aria-label': I18n.t('Available Until Date')
 
           div className:"form-controls",
             button {
@@ -262,7 +271,7 @@ define [
 
 
 
-    render: withReactDOM ->
+    render: withReactElement ->
       # Doing this here to prevent possible repeat runs of @usageRightsOnAll and @allFolders
       showUsageRights = @props.usageRightsRequiredForContext && !@usageRightsOnAll() && !@allFolders()
       div {className: 'RestrictedDialogForm__container'},

@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+require 'nokogiri'
+
 describe AccountsController do
 
   context "SAML meta data" do
@@ -71,4 +73,17 @@ describe AccountsController do
     end
   end
 
+  it "should show the correct students counts" do
+    account_model
+    account_admin_user(:account => @account)
+    user_session(@user)
+
+    course_with_student(:active_all => true, :account => @account)
+    @course.student_view_student # shouldn't count
+
+    get "/accounts/#{@account.id}"
+
+    doc = Nokogiri::HTML(response.body)
+    expect(doc.at_css(".course .details").text).to include("1 Student")
+  end
 end

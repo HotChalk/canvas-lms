@@ -88,23 +88,36 @@ define [
     view = editView()
     equal view.assignment.toView()['groupCategoryId'], null
 
-  test 'does not allow point valid of 0 or less if grading type is percentage', ->
+  test 'does not allow point value of -1 or less if grading type is letter', ->
     view = editView()
-    data = points_possible: '0', grading_type: 'percent'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+    data = points_possible: '-1', grading_type: 'letter_grade'
+    errors = view._validatePointsRequired(data, [])
+    equal errors['points_possible'][0]['message'], 'Points possible must be 0 or more for selected grading type'
 
-  test 'does not allow point valid of 0 or less if grading type is letter', ->
-    view = editView()
-    data = points_possible: '0', grading_type: 'letter_grade'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+  test 'does show error message on assignment point change with submissions', ->
+    view = editView has_submitted_submissions: true
+    view.$el.appendTo $('#fixtures')
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(1)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(0)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
 
-  test 'does not allow point valid of 0 or less if grading type is gpa scale', ->
+  test 'does show error message on assignment point change without submissions', ->
+    view = editView has_submitted_submissions: false
+    view.$el.appendTo $('#fixtures')
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(1)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+
+  test 'does not allow point value of "" if grading type is letter', ->
     view = editView()
-    data = points_possible: '0', grading_type: 'gpa_scale'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+    data = points_possible: '', grading_type: 'letter_grade'
+    errors = view._validatePointsRequired(data, [])
+    equal errors['points_possible'][0]['message'], 'Points possible must be 0 or more for selected grading type'
 
     #fragile spec on Firefox, Safari
     #adds student group
@@ -115,6 +128,12 @@ define [
     #removes student group
     view.$('#has_group_category').click()
     equal view.getFormData()['groupCategoryId'], null
+
+  test 'does not allow blank external tool url', ->
+    view = editView()
+    data = submission_type: 'external_tool'
+    errors = view._validateExternalTool(data, [])
+    equal errors["external_tool_tag_attributes[url]"][0]['message'], 'External Tool URL cannot be left blank'
 
   test 'renders escaped angle brackets properly', ->
     desc = "<p>&lt;E&gt;</p>"

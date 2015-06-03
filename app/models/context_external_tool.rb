@@ -46,7 +46,8 @@ class ContextExternalTool < ActiveRecord::Base
     :user_navigation, :course_navigation, :account_navigation, :resource_selection,
     :editor_button, :homework_submission, :migration_selection, :course_home_sub_navigation,
     :course_settings_sub_navigation, :global_navigation,
-    :assignment_menu, :file_menu, :discussion_topic_menu, :module_menu, :quiz_menu, :wiki_page_menu
+    :assignment_menu, :file_menu, :discussion_topic_menu, :module_menu, :quiz_menu, :wiki_page_menu,
+    :tool_configuration
   ]
 
   CUSTOM_EXTENSION_KEYS = {:file_menu => [:accept_media_types]}
@@ -105,17 +106,18 @@ class ContextExternalTool < ActiveRecord::Base
     end
   end
 
-  def set_placement!(type, value=true)
-    raise "invalid type" unless EXTENSION_TYPES.include?(type.to_sym)
-    if value
-      self.context_external_tool_placements.new(:placement_type => type.to_s) unless has_placement?(type)
-    else
-      if self.persisted?
-        self.context_external_tool_placements.for_type(type).delete_all
-      end
-      self.context_external_tool_placements.delete_if{|p| p.placement_type == type.to_s}
+  def sync_placements!(placements)
+    old_placements = self.context_external_tool_placements.pluck(:placement_type)
+    (placements - old_placements).each do |new_placement|
+      self.context_external_tool_placements.new(:placement_type => new_placement)
+    end
+    placements_to_delete = EXTENSION_TYPES.map(&:to_s) - placements
+    if placements_to_delete.any?
+      self.context_external_tool_placements.where(placement_type: placements_to_delete).delete_all if self.persisted?
+      self.context_external_tool_placements.delete_if{|p| placements_to_delete.include?(p.placement_type)}
     end
   end
+  private :sync_placements!
 
   def url_or_domain_is_set
     setting_types = EXTENSION_TYPES
@@ -338,9 +340,7 @@ class ContextExternalTool < ActiveRecord::Base
 
     settings.delete(:editor_button) if !editor_button(:icon_url)
 
-    EXTENSION_TYPES.each do |type|
-      set_placement!(type, !!settings[type])
-    end
+    sync_placements!(EXTENSION_TYPES.select{|type| !!settings[type]}.map(&:to_s))
     true
   end
 
@@ -454,7 +454,6 @@ class ContextExternalTool < ActiveRecord::Base
       []
     end
   end
-  private_class_method :contexts_to_search
 
   LOR_TYPES = [:course_home_sub_navigation, :course_settings_sub_navigation, :global_navigation,
                :assignment_menu, :file_menu, :discussion_topic_menu, :module_menu, :quiz_menu,
@@ -481,7 +480,7 @@ class ContextExternalTool < ActiveRecord::Base
     scope = ContextExternalTool.shard(context.shard).polymorphic_where(context: contexts).active
     scope = scope.placements(*placements)
     scope = scope.selectable if Canvas::Plugin.value_to_boolean(options[:selectable])
-    scope.order(ContextExternalTool.best_unicode_collation_key('name'))
+    scope.order("#{ContextExternalTool.best_unicode_collation_key('context_external_tools.name')}, context_external_tools.id")
   end
 
   def self.find_external_tool_by_id(id, context)
@@ -565,14 +564,10 @@ class ContextExternalTool < ActiveRecord::Base
       end
     end
 
+    context = context.context if context.is_a?(Group)
+
     tool = context.context_external_tools.having_setting(type).where(id: id).first
-    if !tool && context.is_a?(Group)
-      context = context.context
-      tool = context.context_external_tools.having_setting(type).where(id: id).first
-    end
-    if !tool
-      tool = ContextExternalTool.having_setting(type).where(context_type: 'Account', context_id: context.account_chain, id: id).first
-    end
+    tool ||= ContextExternalTool.having_setting(type).where(context_type: 'Account', context_id: context.account_chain, id: id).first
     raise ActiveRecord::RecordNotFound if !tool && raise_error
 
     tool
@@ -590,7 +585,8 @@ class ContextExternalTool < ActiveRecord::Base
   def self.serialization_excludes; [:shared_secret,:settings]; end
 
   # sets the custom fields from the main tool settings, and any on individual resource type settings
-  def set_custom_fields(hash, resource_type)
+  def set_custom_fields(resource_type)
+    hash = {}
     fields = [settings[:custom_fields] || {}]
     fields << (settings[resource_type.to_sym][:custom_fields] || {}) if resource_type && settings[resource_type.to_sym]
     fields.each do |field_set|
@@ -603,21 +599,7 @@ class ContextExternalTool < ActiveRecord::Base
         end
       end
     end
-  end
-
-  def substituted_custom_fields(placement, substitutions)
-    custom_fields = {}
-    set_custom_fields(custom_fields, placement)
-
-    custom_fields.each do |k,v|
-      if substitutions.has_key?(v)
-        if substitutions[v].respond_to?(:call)
-          custom_fields[k] = substitutions[v].call
-        else
-          custom_fields[k] = substitutions[v]
-        end
-      end
-    end
+    hash
   end
 
   def resource_selection_settings

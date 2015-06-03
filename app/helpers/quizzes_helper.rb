@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'nokogiri'
+
 module QuizzesHelper
   RE_EXTRACT_BLANK_ID = /['"]question_\w+_(.*?)['"]/
 
@@ -49,7 +51,11 @@ module QuizzesHelper
   end
 
   def quiz_published_state_warning(quiz=@quiz)
-    !quiz.available? ? unpublished_quiz_warning : unsaved_changes_warning
+    if !quiz.available?
+      unpublished_quiz_warning
+    else
+      unsaved_changes_warning
+    end
   end
 
   def display_save_button?(quiz=@quiz)
@@ -83,6 +89,8 @@ module QuizzesHelper
       I18n.t('Highest')
     when "keep_latest"
       I18n.t('Latest')
+    when "keep_average"
+      I18n.t('Average')
     end
   end
 
@@ -406,7 +414,8 @@ module QuizzesHelper
     answer_list.each do |entry|
       entry[:blank_id] = AssessmentQuestion.variable_id(entry[:blank_id])
     end
-    res.gsub! %r{<input.*?name=\\?['"](question_.*?)\\?['"].*?>} do |match|
+    # Requires mutliline option to be robust
+    res.gsub!(%r{<input.*?name=\\?['"](question_.*?)\\?['"].*?>}m) do |match|
       blank = match.match(RE_EXTRACT_BLANK_ID).to_a[1]
       blank.gsub!(/\\/,'')
       answer = answer_list.detect { |entry| entry[:blank_id] == blank } || {}
@@ -414,7 +423,7 @@ module QuizzesHelper
 
       # If given answer list, insert the values into the text inputs for displaying user's answers.
       if answer_list.any?
-        #  Replace the {{question_BLAH}} template text with the user's answer text.
+        #  Replace the {{question_IDNUM_VARIABLEID}} template text with the user's answer text.
         match = match.sub(/\{\{question_.*?\}\}/, answer.to_s).
           # Match on "/>" but only when at the end of the string and insert "readonly" if set to be readonly
           sub(/\/*>\Z/, readonly_markup)
@@ -439,15 +448,23 @@ module QuizzesHelper
     answer_list = hash_get(options, :answer_list)
     res      = user_content hash_get(question, :question_text)
     index  = 0
-    res.to_str.gsub %r{<select.*?name=['"](question_.*?)['"].*?>.*?</select>} do |match|
+    doc = Nokogiri::HTML.fragment(res)
+    selects = doc.css(".question_input")
+    selects.each do |s|
       if answer_list && !answer_list.empty?
         a = answer_list[index]
         index += 1
       else
-        a = hash_get(answers, $1)
+        question_id = s["name"]
+        a = hash_get(answers, question_id)
       end
-      match.sub(%r{(<option.*?value=['"]#{ERB::Util.h(a)}['"])}, '\\1 selected')
-    end.html_safe
+
+      # If existing answer is one of the options, select it
+      if opt_tag = s.children.css("option[value='#{a}']").first
+        opt_tag["selected"] = "selected"
+      end
+    end
+    doc.to_s.html_safe
   end
 
   def duration_in_minutes(duration_seconds)
@@ -542,9 +559,14 @@ module QuizzesHelper
   end
 
   def score_to_keep_message(quiz=@quiz)
-    quiz.scoring_policy == "keep_highest" ?
-      I18n.t("Will keep the highest of all your scores") :
+    case quiz.scoring_policy
+    when "keep_highest"
+      I18n.t("Will keep the highest of all your scores")
+    when "keep_latest"
       I18n.t("Will keep the latest of all your scores")
+    when "keep_average"
+      I18n.t("Will keep the average of all your scores")
+    end
   end
 
   def quiz_edit_text(quiz=@quiz)
@@ -575,7 +597,7 @@ module QuizzesHelper
     titles = []
 
     if selected_answer || correct_answer || show_correct_answers
-      titles << h("#{answer}.")
+      titles << ("#{answer}.")
     end
 
     if selected_answer
@@ -586,6 +608,33 @@ module QuizzesHelper
       titles << I18n.t(:correct_answer, "This was the correct answer.")
     end
 
+    titles = titles.map { |title| h(title) }
+    title = "title=\"#{titles.join(' ')}\"".html_safe if titles.length > 0
+  end
+
+  def matching_answer_title(item_text, did_select_answer, selected_answer_text, is_correct_answer, correct_answer_text, show_correct_answers)
+    titles = []
+
+    if did_select_answer || is_correct_answer || show_correct_answers
+      titles << "#{item_text}."
+    end
+
+
+    if did_select_answer
+      titles << I18n.t(:user_selected_answer, "You selected")
+    end
+
+    titles << "#{selected_answer_text}."
+
+    if is_correct_answer && show_correct_answers
+      titles << I18n.t(:correct_answer, "This was the correct answer.")
+    end
+
+    if !is_correct_answer && show_correct_answers
+      titles << I18n.t(:user_selected_wrong, "The correct answer was %{correct_answer_text}.", correct_answer_text: correct_answer_text)
+    end
+
+    titles = titles.map { |title| h(title) }
     title = "title=\"#{titles.join(' ')}\"".html_safe if titles.length > 0
   end
 

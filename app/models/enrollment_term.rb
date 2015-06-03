@@ -36,6 +36,8 @@ class EnrollmentTerm < ActiveRecord::Base
   EXPORTABLE_ASSOCIATIONS = [:root_account, :enrollment_dates_overrides, :courses, :course_sections]
 
   validates_presence_of :root_account_id, :workflow_state
+  validate :check_if_deletable
+
   before_validation :verify_unique_sis_source_id
   before_save :update_courses_later_if_necessary
 
@@ -45,6 +47,16 @@ class EnrollmentTerm < ActiveRecord::Base
   def end_at_date_cannot_be_before_start_at_date
     if self.end_at && self.start_at && (self.end_at < self.start_at)
       errors.add(:start_at, "To date can't be before the from date")
+    end
+  end
+
+  def check_if_deletable
+    if self.workflow_state_changed? && self.workflow_state == "deleted"
+      if self.default_term?
+        self.errors.add(:workflow_state, t('errors.delete_default_term', "Cannot delete the default term"))
+      elsif self.courses.active.exists?
+        self.errors.add(:workflow_state, t('errors.delete_term_with_courses', "Cannot delete a term with active courses"))
+      end
     end
   end
 
@@ -113,24 +125,28 @@ class EnrollmentTerm < ActiveRecord::Base
   
   def verify_unique_sis_source_id
     return true unless self.sis_source_id
-    existing_term = self.root_account.enrollment_terms.where(sis_source_id: self.sis_source_id).first
-    return true if !existing_term || existing_term.id == self.id 
-    
+    return true if !root_account_id_changed? && !sis_source_id_changed?
+
+    scope = root_account.enrollment_terms.where(sis_source_id: self.sis_source_id)
+    scope = scope.where("id<>?", self) unless self.new_record?
+
+    return true unless scope.exists?
+
     self.errors.add(:sis_source_id, t('errors.not_unique', "SIS ID \"%{sis_source_id}\" is already in use", :sis_source_id => self.sis_source_id))
     false
   end
-
+  
   def users_count
     scope = Enrollment.active.joins(:course).
       where(root_account_id: root_account_id, courses: {enrollment_term_id: self})
     scope.select(:user_id).uniq.count
   end
-
+  
   workflow do
     state :active
     state :deleted
   end
-
+  
   def enrollment_dates_for(enrollment)
     # detect will cause the whole collection to load; that's fine, it's a small collection, and
     # we'll probably call enrollment_dates_for multiple times in a single request, so we want
@@ -154,6 +170,6 @@ class EnrollmentTerm < ActiveRecord::Base
     self.workflow_state = 'deleted'
     save!
   end
-  
+
   scope :active, -> { where("enrollment_terms.workflow_state<>'deleted'") }
 end

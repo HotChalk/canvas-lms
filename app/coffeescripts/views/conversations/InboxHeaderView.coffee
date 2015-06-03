@@ -50,8 +50,8 @@ define [
       unstar: I18n.t('unstar', 'Unstar')
       archive: I18n.t('archive', 'Archive')
       unarchive: I18n.t('unarchive', 'Unarchive')
-      archive_conversation: I18n.t('archive_conversation', 'Archive conversation')
-      unarchive_conversation: I18n.t('unarchive_conversation', 'Unarchive conversation')
+      archive_conversation: I18n.t('Archive Selected')
+      unarchive_conversation: I18n.t('Unarchive Selected')
 
     spinnerOptions:
       color: '#fff'
@@ -70,6 +70,7 @@ define [
       spinner = new Spinner(@spinnerOptions)
       spinner.spin(@$sendingSpinner[0])
       @toggleSending(false)
+      @updateFilterLabels()
 
     onSearch:      (tokens) => @trigger('search', tokens)
 
@@ -158,6 +159,13 @@ define [
         @$conversationActions.show()
         @$submissionCommentActions.hide()
       @trigger('filter', @filterObj({type: @$typeFilter.val(), course: @$courseFilter.val()}))
+      @updateFilterLabels()
+
+    updateFilterLabels: ->
+      @$typeFilterSelectionLabel = $("##{@$typeFilter.attr('aria-labelledby')}").find('.current-selection-label') unless @$typeFilterSelectionLabel?.length
+      @$courseFilterSelectionLabel = $("##{@$courseFilter.attr('aria-labelledby')}").find('.current-selection-label') unless @$courseFilterSelectionLabel?.length
+      @$typeFilterSelectionLabel.text(@$typeFilter.find(':selected').text())
+      @$courseFilterSelectionLabel.text(@$courseFilter.find(':selected').text())
 
     displayState: (state) ->
       @$typeFilter.selectpicker('val', state.type)

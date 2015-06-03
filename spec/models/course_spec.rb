@@ -1,4 +1,4 @@
-# Copyright (C) 2011 - 2012 Instructure, Inc.
+# Copyright (C) 2011 - 2015 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -450,6 +450,7 @@ describe Course do
       @course.discussion_topics.create!
       @course.quizzes.create!
       @course.assignments.create!
+      @course.wiki.set_front_page_url!('front-page')
       @course.wiki.front_page.save!
       @course.self_enrollment = true
       @course.sis_source_id = 'sis_id'
@@ -678,6 +679,59 @@ describe Course do
   end
 end
 
+
+describe Course, "participants" do
+  before :once do
+    @course = Course.create(:name => "some_name")
+    se = @course.enroll_student(user_with_pseudonym,:enrollment_state => 'active')
+    tae = @course.enroll_ta(user_with_pseudonym,:enrollment_state => 'active')
+    te = @course.enroll_teacher(user_with_pseudonym,:enrollment_state => 'active')
+    @student, @ta, @teach = [se, tae, te].map(&:user)
+  end
+
+  context "vanilla usage" do
+    it "should return participating_admins and participating_students" do
+      [@student, @ta, @teach].each { |usr| expect(@course.participants).to be_include(usr) }
+    end
+  end
+
+  context "including obervers" do
+    before :once  do
+      oe = @course.enroll_user(user_with_pseudonym, 'ObserverEnrollment',:enrollment_state => 'active')
+      @course_level_observer = oe.user
+
+      oe = @course.enroll_user(user_with_pseudonym, 'ObserverEnrollment',:enrollment_state => 'active')
+      oe.associated_user_id = @student.id
+      oe.save!
+      @student_following_observer = oe.user
+    end
+
+    it "should return participating_admins, participating_students, and observers" do
+      participants = @course.participants(true)
+      [@student, @ta, @teach, @course_level_observer, @student_following_observer].each do |usr|
+        expect(participants).to be_include(usr)
+      end
+    end
+
+    context "excluding specific students" do
+      it "should reject observers only following one of the excluded students" do
+        partic = @course.participants(true, excluded_user_ids: [@student.id, @student_following_observer.id])
+        [@student, @student_following_observer].each { |usr| expect(partic).to_not be_include(usr) }
+      end
+      it "should include admins and course level observers" do
+        partic = @course.participants(true, excluded_user_ids: [@student.id, @student_following_observer.id])
+        [@ta, @teach, @course_level_observer].each { |usr| expect(partic).to be_include(usr) }
+      end
+    end
+  end
+
+  it "should exclude some student when passed their id" do
+    partic = @course.participants(false, excluded_user_ids: [@student.id])
+    [@ta, @teach].each { |usr| expect(partic).to be_include(usr) }
+    expect(partic).to_not be_include(@student)
+  end
+end
+
 describe Course, "enroll" do
 
   before :once do
@@ -867,6 +921,31 @@ describe Course, "gradebook_to_csv" do
     expect(rows[2][-5]).to  eq "25"     # ag2 final score
   end
 
+  it "handles nil assignment due_dates if the group and position are the same" do
+    course_with_student(:active_all => true)
+
+    assignment_group = @course.assignment_groups.create!(:name => "Some Assignment Group 1")
+
+    now = Time.now
+
+    @course.assignments.create!(:title => "Assignment 01", :due_at => now + 1.days, :position => 1, :assignment_group => assignment_group, :points_possible => 10)
+    @course.assignments.create!(:title => "Assignment 02", :due_at => nil, :position => 1, :assignment_group => assignment_group, :points_possible => 10)
+
+    @course.recompute_student_scores
+    @user.reload
+    @course.reload
+
+    csv = @course.gradebook_to_csv
+    rows = CSV.parse(csv)
+    assignments = rows[0].each_with_object([]) do |column, collection|
+      collection << column.sub(/ \([0-9]+\)/, '') if column =~ /Assignment \d+/
+    end
+
+    expect(csv).not_to be_nil
+    # make sure they retain the correct order
+    expect(assignments).to eq ["Assignment 01", "Assignment 02"]
+  end
+
   it "should alphabetize by sortable name with the test student at the end" do
     course
     ["Ned Ned", "Zed Zed", "Aardvark Aardvark"].each{|name| student_in_course(:name => name)}
@@ -925,12 +1004,15 @@ describe Course, "gradebook_to_csv" do
     expect(rows[0][-1]).to eq "Final Grade"
     expect(rows[1][-1]).to eq "(read only)"
     expect(rows[2][-1]).to eq "A-"
-    expect(rows[0][-2]).to eq "Final Score"
+    expect(rows[0][-2]).to eq "Current Grade"
     expect(rows[1][-2]).to eq "(read only)"
-    expect(rows[2][-2]).to eq "90"
-    expect(rows[0][-3]).to eq "Current Score"
+    expect(rows[2][-2]).to eq "A-"
+    expect(rows[0][-3]).to eq "Final Score"
     expect(rows[1][-3]).to eq "(read only)"
     expect(rows[2][-3]).to eq "90"
+    expect(rows[0][-4]).to eq "Current Score"
+    expect(rows[1][-4]).to eq "(read only)"
+    expect(rows[2][-4]).to eq "90"
   end
 
   it "should include sis ids if enabled" do
@@ -1141,10 +1223,22 @@ describe Course, "gradebook_to_csv" do
     expect(rows[2][1]).to eq @user2.id.to_s
   end
 
+  it "shows gpa_scale grades instead of points" do
+    student_in_course(active_all: true)
+    a = @course.assignments.create! grading_type: "gpa_scale",
+      points_possible: 10,
+      title: "blah"
+    a.publish
+    a.grade_student(@student, grade: "C")
+    rows = CSV.parse(@course.gradebook_to_csv)
+    expect(rows[2][3]).to eql "C"
+  end
+
   context "differentiated assignments" do
     def setup_DA
       @course_section = @course.course_sections.create
-      @student1, @student2, @student3 = create_users(3, return_type: :record)
+      user_attrs = [{name: 'student1'}, {name: 'student2'}, {name: 'student3'}]
+      @student1, @student2, @student3 = create_users(user_attrs, return_type: :record)
       @assignment = @course.assignments.create!(title: "a1", only_visible_to_overrides: true)
       @course.enroll_student(@student3, :enrollment_state => 'active')
       @section = @course.course_sections.create!(name: "section1")
@@ -1166,7 +1260,6 @@ describe Course, "gradebook_to_csv" do
     end
 
     it "should insert N/A for non-visible assignments" do
-      skip('fragile')
       csv = @course.gradebook_to_csv(:user => @teacher)
       expect(csv).not_to be_nil
       rows = CSV.parse(csv)
@@ -1204,6 +1297,13 @@ describe Course, "update_account_associations" do
     c.course_account_associations.scoped.delete_all
     expect(c.associated_accounts).to eq [account1, Account.default]
   end
+
+  it "should be reentrant" do
+    Course.skip_updating_account_associations do
+      Course.skip_updating_account_associations {}
+      expect(Course.skip_updating_account_associations?).to be_truthy
+    end
+  end
 end
 
 describe Course, "tabs_available" do
@@ -1236,6 +1336,29 @@ describe Course, "tabs_available" do
       expect(tab_ids).to eql(Course.default_tabs.map{|t| t[:id] })
       expect(tab_ids.length).to be > 0
       expect(@course.tabs_available(@user).map{|t| t[:label] }.compact.length).to eql(tab_ids.length)
+    end
+
+    it "should handle hidden_unused correctly for discussions" do
+      tabs = @course.uncached_tabs_available(@teacher, {})
+      dtab = tabs.detect{|t| t[:id] == Course::TAB_DISCUSSIONS}
+      expect(dtab[:hidden_unused]).to be_falsey
+
+      @course.allow_student_discussion_topics = false
+      tabs = @course.uncached_tabs_available(@teacher, {})
+      dtab = tabs.detect{|t| t[:id] == Course::TAB_DISCUSSIONS}
+      expect(dtab[:hidden_unused]).to be_truthy
+
+      @course.allow_student_discussion_topics = true
+      discussion_topic_model
+      tabs = @course.uncached_tabs_available(@teacher, {})
+      dtab = tabs.detect{|t| t[:id] == Course::TAB_DISCUSSIONS}
+      expect(dtab[:hidden_unused]).to be_falsey
+    end
+
+    it "should not hide tabs for completed teacher enrollments" do
+      @user.enrollments.where(:course_id => @course).first.complete!
+      tab_ids = @course.tabs_available(@user).map{|t| t[:id] }
+      expect(tab_ids).to eql(Course.default_tabs.map{|t| t[:id] })
     end
   end
 
@@ -1351,6 +1474,16 @@ describe Course, "tabs_available" do
                            :role => observer_role, :enabled => false)
       tab_ids = @course.tabs_available(@user).map{|t| t[:id] }
       expect(tab_ids).not_to be_include(Course::TAB_DISCUSSIONS)
+    end
+
+    it "should recognize active_course_level_observers" do
+      user = user_with_pseudonym
+      observer_enrollment = @course.enroll_user(user, 'ObserverEnrollment',:enrollment_state => 'active')
+      @course_level_observer = observer_enrollment.user
+
+      course_observers = @course.active_course_level_observers
+      expect(course_observers).to be_include(@course_level_observer)
+      expect(course_observers).to_not be_include(@oe.user)
     end
   end
 
@@ -3700,6 +3833,20 @@ describe Course do
       expect(@course.enrollments.count).to eq enrollment_count
     end
 
+    it "should not set an active enrollment back to invited on re-enrollment" do
+      course(:active_all => true)
+      user
+      enrollment = @course.enroll_user(@user)
+      enrollment.accept!
+
+      expect(enrollment).to be_active
+
+      @course.enroll_user(@user)
+
+      enrollment.reload
+      expect(enrollment).to be_active
+    end
+
     it 'should allow deleted enrollments to be resurrected as active' do
       course_with_student({ :active_enrollment => true })
       @enrollment.destroy
@@ -3885,6 +4032,23 @@ describe Course do
     end
   end
 
+  context '#unpublishable?' do
+    it "should not be unpublishable if there are active graded submissions" do
+      course_with_teacher(:active_all => true)
+      @student = student_in_course(:active_user => true).user
+      expect(@course.unpublishable?).to be_truthy
+      @assignment = @course.assignments.new(:title => "some assignment")
+      @assignment.submission_types = "online_text_entry"
+      @assignment.workflow_state = "published"
+      @assignment.save
+      @submission = @assignment.submit_homework(@student, :body => 'some message')
+      expect(@course.unpublishable?).to be_truthy
+      @assignment.grade_student(@student, {:grader => @teacher, :grade => 1})
+      expect(@course.unpublishable?).to be_falsey
+      @assignment.destroy
+      expect(@course.unpublishable?).to be_truthy
+    end
+  end
 end
 
 describe Course, "multiple_sections?" do
@@ -3914,5 +4078,67 @@ describe Course, "default_section" do
     s = c.default_section(no_create: true)
     expect(s).to be_nil
     expect(c.course_sections.pluck(:id)).to be_empty
+  end
+end
+
+describe Course, 'touch_root_folder_if_necessary' do
+  before(:once) do
+    course_with_student(active_all: true)
+    @root_folder = Folder.root_folders(@course).first
+  end
+
+  it "should invalidate cached permissions on the root folder when hiding or showing the files tab" do
+    enable_cache do
+      Timecop.freeze(2.minutes.ago) do
+        @root_folder.touch
+        expect(@root_folder.grants_right?(@student, :read_contents)).to be_truthy
+      end
+
+      Timecop.freeze(1.minute.ago) do
+        @course.tab_configuration = [{"id" => Course::TAB_FILES, "hidden" => true}]
+        @course.save!
+        AdheresToPolicy::Cache.clear # this happens between requests; we're testing the Rails cache
+        expect(@root_folder.reload.grants_right?(@student, :read_contents)).to be_falsy
+      end
+
+      @course.tab_configuration = [{"id" => Course::TAB_FILES}]
+      @course.save!
+      AdheresToPolicy::Cache.clear
+      expect(@root_folder.reload.grants_right?(@student, :read_contents)).to be_truthy
+    end
+  end
+
+  context "inheritable settings" do
+    before :each do
+      account_model
+      course(:account => @account)
+    end
+
+    it "should inherit account values by default" do
+      expect(@course.restrict_student_future_view?).to be_falsey
+
+      @account.settings[:restrict_student_future_view] = {:locked => false, :value => true}
+      @account.save!
+
+      expect(@course.restrict_student_future_view?).to be_truthy
+
+      @course.restrict_student_future_view = false
+      @course.save!
+
+      expect(@course.restrict_student_future_view?).to be_falsey
+    end
+
+    it "should be overridden by locked values from the account" do
+      @account.settings[:restrict_student_future_view] = {:locked => true, :value => true}
+      @account.save!
+
+      expect(@course.restrict_student_future_view?).to be_truthy
+
+      # explicitly setting shouldn't change anything
+      @course.restrict_student_future_view = false
+      @course.save!
+
+      expect(@course.restrict_student_future_view?).to be_truthy
+    end
   end
 end
