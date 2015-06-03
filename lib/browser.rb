@@ -15,5 +15,9 @@ class Browser < Struct.new(:browser, :version)
     @minimum_browsers ||= (configuration['minimums'] || []).
       map{ |browser, version| new(browser, version.to_s) }
   end
+
+  def self.name(user_agent)
+    UserAgent.parse(user_agent).browser
+  end
 end
 

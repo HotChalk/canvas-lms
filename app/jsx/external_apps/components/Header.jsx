@@ -13,7 +13,7 @@ define([
     render() {
 
       var paragraph = I18n.t(
-        '*See some LTI tools* that work great with Canvas. You can also check out the **Canvas Community topics about LTI tools**.',
+        '*See some LTI tools* that work great with HotChalk Ember. You can also check out the **Canvas Community topics about LTI tools**.',
         { wrappers: [
           '<a href="https://www.eduappcenter.com/">$1</a>',
           '<a href="http://help.instructure.com/entries/20878626-lti-tools-and-examples">$1</a>'
@@ -30,7 +30,7 @@ define([
           </h2>
 
           <div className="well well-sm">
-            <p>{I18n.t('Apps are an easy way to add new features to Canvas. They can be added to individual courses, or to all courses in an account. Once configured, you can link to them through course modules and create assignments for assessment tools.')}</p>
+            <p>{I18n.t('Apps are an easy way to add new features to HotChalk Ember. They can be added to individual courses, or to all courses in an account. Once configured, you can link to them through course modules and create assignments for assessment tools.')}</p>
             <p dangerouslySetInnerHTML={{ __html: paragraph }}></p>
           </div>
         </div>

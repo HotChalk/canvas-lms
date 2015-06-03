@@ -239,9 +239,7 @@ class DiscussionTopic < ActiveRecord::Base
       self.reply_assignment.submission_types = "discussion_topic"
       self.reply_assignment.saved_by = :discussion_topic
       self.reply_assignment.workflow_state = 'published' if self.reply_assignment.deleted?
-      if self.draft_state_enabled?
-        self.reply_assignment.workflow_state = published? ? 'published' : 'unpublished'
-      end
+      self.reply_assignment.workflow_state = published? ? 'published' : 'unpublished'
       self.reply_assignment.save
     end
   end

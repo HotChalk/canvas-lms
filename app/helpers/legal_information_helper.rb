@@ -22,7 +22,7 @@ module LegalInformationHelper
   end
 
   def privacy_policy_url
-    Setting.get('privacy_policy_url', 'http://www.canvaslms.com/policies/privacy-policy')
+    Setting.get('privacy_policy_url', 'http://www.hotchalkmediagroup.com/privacy-policy/')
   end
 
 protected

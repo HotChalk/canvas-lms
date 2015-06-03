@@ -88,7 +88,7 @@ class AssignmentsController < ApplicationController
     if authorized_action(@assignment, @current_user, :read)
 
       if @current_user && @assignment && @assignment.course_section_id &&
-          @context.respond_to?(:sections_visible_to)) &&
+          @context.respond_to?(:sections_visible_to) &&
           !@current_user.account_admin?(@context) &&
           !@context.sections_visible_to(@current_user).map(&:id).include?(@assignment.course_section_id)
         respond_to do |format|

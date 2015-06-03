@@ -2,7 +2,7 @@ test:
   domain: localhost
 
 development:
-  domain: "localhost:3000"
+  domain: "dev.hotchalkember.com:3000"
 
 production:
   domain: "dev.hotchalkember.com"

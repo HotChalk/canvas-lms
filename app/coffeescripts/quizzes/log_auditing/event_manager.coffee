@@ -91,6 +91,8 @@ define (require) ->
       if eventSet.isEmpty()
         return jWhen()
 
+      return jWhen() unless options.deliveryUrl
+
       eventSet.markBeingDelivered()
 
       delivery = ajax({

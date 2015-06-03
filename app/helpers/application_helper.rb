@@ -856,8 +856,8 @@ module ApplicationHelper
     t("#user.registration.agree_to_terms_and_privacy_policy",
       "You acknowledge the **privacy policy**.",
       wrapper: {
-        '*' => link_to('\1', @domain_root_account.terms_of_use_url, target: '_blank'),
-        '**' => link_to('\1', "http://www.hotchalkmediagroup.com/privacy-policy/", target: '_blank')
+        '*' => link_to('\1', terms_of_use_url, target: '_blank'),
+        '**' => link_to('\1', privacy_policy_url, target: '_blank')
       }
     )
   end

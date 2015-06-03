@@ -281,7 +281,7 @@ class Quizzes::QuizzesController < ApplicationController
         :ASSIGNMENT_OVERRIDES => assignment_overrides_json(@quiz.overrides_for(@current_user)),
         :DIFFERENTIATED_ASSIGNMENTS_ENABLED => @context.feature_enabled?(:differentiated_assignments),
         :QUIZ => quiz_json(@quiz, @context, @current_user, session),
-        :SECTION_LIST => (@context.sections_visible_to(@current_user).map { |section|
+        :SECTION_LIST => @context.sections_visible_to(@current_user).map { |section|
           {
             :id => section.id,
             :name => section.name,

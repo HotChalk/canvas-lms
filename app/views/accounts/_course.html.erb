@@ -63,9 +63,9 @@
       </div>
     </div>
   </div>
-  <% if course && course.course_sections && !course.course_sections.empty? %>
+  <% if course && course.active_course_sections && !course.active_course_sections.empty? %>
     <div class="sections">
-      <% course.course_sections.each do |section| %>
+      <% course.active_course_sections.each do |section| %>
         <div class="row">
           <div class="span">
             <strong><%= before_label(t(:section, "Section")) %></strong><span> <%= section.name %></span>

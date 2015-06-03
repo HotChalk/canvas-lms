@@ -9,7 +9,7 @@ define([
         key:'content_import',
         complete: ENV.COURSE_WIZARD.checklist_states.import_step,
         title: I18n.t("Import Content"),
-        text: I18n.t("If you've been using another course management system, you probably have stuff in there that you're going to want moved over to Canvas. We can walk you through the process of easily migrating your content into Canvas."),
+        text: I18n.t("If you've been using another course management system, you probably have stuff in there that you're going to want moved over to HotChalk Ember. We can walk you through the process of easily migrating your content into HotChalk Ember."),
         url: ENV.COURSE_WIZARD.urls.content_import,
         iconClass: 'icon-upload'
       },
@@ -33,7 +33,7 @@ define([
         key:'add_files',
         complete: ENV.COURSE_WIZARD.checklist_states.import_step, /* Super odd in the existing wizard this is set to display: none */
         title: I18n.t("Add Files to the Course"),
-        text: I18n.t("The Files tab is the place to share lecture slides, example documents, study helps -- anything your students will want to download.  Uploading and organizing your files is easy with Canvas.  We'll show you how."),
+        text: I18n.t("The Files tab is the place to share lecture slides, example documents, study helps -- anything your students will want to download.  Uploading and organizing your files is easy with HotChalk Ember.  We'll show you how."),
         url: ENV.COURSE_WIZARD.urls.add_files,
         iconClass: 'icon-note-light'
       },
@@ -73,7 +73,7 @@ define([
         complete: ENV.COURSE_WIZARD.checklist_states.publish_step,
         title: I18n.t("Publish the Course"),
         text: I18n.t("All finished?  Time to publish your course!  Click the button below to make it official! Publishing will allow the users to begin participating in the course."),
-        non_registered_text: I18n.t("This course is claimed and ready, but you'll need to finish the registration process before you can publish the course.  You should have received an email from Canvas with a link to finish the process.  Be sure to check your spam box."),
+        non_registered_text: I18n.t("This course is claimed and ready, but you'll need to finish the registration process before you can publish the course.  You should have received an email from HotChalk Ember with a link to finish the process.  Be sure to check your spam box."),
         iconClass: 'icon-publish'
       }
     ]

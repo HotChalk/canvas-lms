@@ -51,7 +51,7 @@ class ApplicationController < ActionController::Base
   before_filter :set_user_id_header
   before_filter :set_time_zone
   before_filter :set_page_view
-  before_filter :require_reacceptance_of_terms
+  # before_filter :require_reacceptance_of_terms
   before_filter :clear_policy_cache
   before_filter :setup_live_events_context
   after_filter :log_page_view
@@ -1735,7 +1735,7 @@ class ApplicationController < ActionController::Base
     key = request.user_agent.to_s.sum # keep cookie size in check. a legitimate collision here would be 1. extremely unlikely and 2. not a big deal
     if key != session[:browser_key]
       session[:browser_key] = key
-      session[:browser_name] = UserAgent.parse(request.user_agent).browser
+      session[:browser_name] = Browser.name(request.user_agent)
       session[:browser_supported] = Browser.supported?(request.user_agent)
     end
     session[:browser_supported]
