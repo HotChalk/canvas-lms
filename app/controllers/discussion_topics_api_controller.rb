@@ -134,7 +134,7 @@ class DiscussionTopicsApiController < ApplicationController
           json.merge!({:sections => participant.cached_current_enrollments.select {|e| e.active? && e.course_id == @context.id}.
               map(&:course_section).compact.uniq.
               map {|s| {:id => s.id, :name => s.name}}.
-              sort {|x| x[:name]}})
+              sort_by {|x| x[:name]}})
         end
         json
       end
