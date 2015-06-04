@@ -165,6 +165,9 @@ define([
       }
     }, options.tinyOptions || {});
 
+    // LMS-742: out-of-the box CK editor uses the deprecated '<s>' element for strike
+    CKEDITOR.config.coreStyles_strike.element = 'del';
+
     CKEDITOR.replace($textarea[0], ckOptions);
 
     this._textarea =  $textarea;
