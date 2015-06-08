@@ -6,8 +6,10 @@ define [
   'jst/DiscussionTopics/discussion'
   'compiled/views/PublishIconView'
   'compiled/views/ToggleableSubscriptionIconView'
+  'compiled/views/DiscussionTopics/DateDueColumnView'
+  'compiled/views/DiscussionTopics/DateAvailableColumnView'
   'compiled/views/MoveDialogView'
-], (I18n, $, _, {View}, template, PublishIconView, ToggleableSubscriptionIconView, MoveDialogView) ->
+], (I18n, $, _, {View}, template, PublishIconView, DateDueColumnView, DateAvailableColumnView, ToggleableSubscriptionIconView, MoveDialogView) ->
 
   class DiscussionView extends View
     # Public: View template (discussion).
@@ -48,14 +50,18 @@ define [
     # Public: Topic is able to be pinned/unpinned.
     @optionProperty 'pinnable'
 
-    @child 'publishIcon', '[data-view=publishIcon]' if ENV.permissions.publish
-
+    @child 'publishIcon',                '[data-view=publishIcon]' if ENV.permissions.publish
+    @child 'dateDueColumnView',          '[data-view=date-due]'
+    @child 'dateAvailableColumnView',    '[data-view=date-available]'
     @child 'toggleableSubscriptionIcon', '[data-view=toggleableSubscriptionIcon]'
 
     initialize: (options) ->
       @attachModel()
       options.publishIcon = new PublishIconView(model: @model) if ENV.permissions.publish
       options.toggleableSubscriptionIcon = new ToggleableSubscriptionIconView(model: @model)
+      #options.dateDueColumnView       = new DateDueColumnView(model: @model)
+      #options.dateAvailableColumnView = new DateAvailableColumnView(model: @model)
+      
       @moveItemView = new MoveDialogView
         model: @model
         nested: true
