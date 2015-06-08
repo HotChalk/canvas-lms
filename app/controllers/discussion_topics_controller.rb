@@ -348,7 +348,6 @@ class DiscussionTopicsController < ApplicationController
           js_env(SETTINGS_URL: named_context_url(@context, :api_v1_context_settings_url))
         end
       end
-      puts "lol"
       format.json do
         student_ids = user_can_moderate ? @context.all_real_students.pluck(:id) : nil
         render json: discussion_topics_api_json(@topics, @context, @current_user, session,
