@@ -9,7 +9,7 @@ define [
   'compiled/views/DiscussionTopics/DateDueColumnView'
   'compiled/views/DiscussionTopics/DateAvailableColumnView'
   'compiled/views/MoveDialogView'
-], (I18n, $, _, {View}, template, PublishIconView, DateDueColumnView, DateAvailableColumnView, ToggleableSubscriptionIconView, MoveDialogView) ->
+], (I18n, $, _, {View}, template, PublishIconView, ToggleableSubscriptionIconView, DateDueColumnView, DateAvailableColumnView, MoveDialogView) ->
 
   class DiscussionView extends View
     # Public: View template (discussion).
@@ -59,8 +59,8 @@ define [
       @attachModel()
       options.publishIcon = new PublishIconView(model: @model) if ENV.permissions.publish
       options.toggleableSubscriptionIcon = new ToggleableSubscriptionIconView(model: @model)
-      #options.dateDueColumnView       = new DateDueColumnView(model: @model)
-      #options.dateAvailableColumnView = new DateAvailableColumnView(model: @model)
+      options.dateDueColumnView       = new DateDueColumnView(model: @model)
+      options.dateAvailableColumnView = new DateAvailableColumnView(model: @model)
       
       @moveItemView = new MoveDialogView
         model: @model
