@@ -30,28 +30,9 @@
       {{/ifEqual}}
     </div>
 
-    <div class="discussion-date-available">
-      {{#with defaultDates}}
-        {{#unless closed}}
-          {{>[assignments/available_date_description]}}
-        {{/unless}}
-      {{/with}}
-    </div>
+    <div class="discussion-date-available ellipses" data-view="date-available"></div>
 
-    <div class="discussion-due-date">
-      {{#if assignment}}
-        {{#if assignment.due_at}}
-          <span class="discussion-date-type">
-            {{#t "due"}}Due{{/t}}
-          </span>
-          <span {{ contextSensitiveDatetimeTitle assignment.due_at }}>
-            {{datetimeFormatted assignment.due_at}}
-          </span>
-        {{else}}
-          {{#t "no_due_date"}}No Due Date{{/t}}
-        {{/if}}
-      {{/if}}
-    </div>
+    <div class="discussion-due-date ellipses" data-view="date-due"></div>
 
     <div class="discussion-status">
       <span id="publish-icon" class="publish-icon" data-view="publishIcon"></span>

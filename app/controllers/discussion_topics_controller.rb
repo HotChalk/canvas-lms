@@ -1,8 +1,6 @@
 #
 # Copyright (C) 2012 Instructure, Inc.
 #
-# This file is part of Canvas.
-#
 # Canvas is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Affero General Public License as published by the Free
 # Software Foundation, version 3 of the License.
@@ -353,7 +351,9 @@ class DiscussionTopicsController < ApplicationController
       format.json do
         student_ids = user_can_moderate ? @context.all_real_students.pluck(:id) : nil
         render json: discussion_topics_api_json(@topics, @context, @current_user, session,
-                                                :student_ids => student_ids, :can_moderate => user_can_moderate)
+                                              :student_ids => student_ids, 
+                                              :can_moderate => user_can_moderate, 
+                                              :include_all_dates => true)
       end
     end
   end
