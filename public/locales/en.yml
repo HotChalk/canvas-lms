@@ -144,6 +144,7 @@ en:
         timestamp_range: "Timestamp Range"
       shared_secret_description: "Shared Secret used for calculating Message Authentication Code."
       timestamp_range_description: "Allowable difference in Timestamp (in milliseconds)."
+      external_url_description: "External URL to be used for login"
       save_button: "Save HMAC Settings"
     index: 
       add_auth_desc: "Add an identity provider to this account:"
@@ -1490,7 +1491,10 @@ en:
       please_log_in: "For security purposes, please enter your password to continue"
       titles: 
         suspended: "Institution Suspended"
-      unsupported_browser: "Your browser does not meet the minimum requirements for HotChalk Ember. Please visit the *HotChalk Ember Guides* for a complete list of supported browsers."
+      unsupported_browser: "You are using %{browser_name}! We strongly recommend an alternate browser like %{chrome_url} or %{firefox_url} to ensure a better Ember experience."
+      chrome: "Chrome"
+      firefox: "Firefox"
+      suggested_browsers: "Read more about our suggested browsers."
     wiki_front_page_default_content_course: "Welcome to your new course wiki!"
     wiki_front_page_default_content_group: "Welcome to your new group wiki!"
   appointment_group: 
@@ -7721,7 +7725,7 @@ en:
     dashboard: "My Dashboard"
     errors: 
       4xx_feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened."
-      feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened"
+      feedback: "Click here to access our Knowledge Base and submit a ticket to let us know what happened."
     help: Help
     show_me_where: "Show Me Where"
   links_14b70841: Links
@@ -8814,7 +8818,7 @@ en:
             change_password_at: "change this login's password at"
           login_at_account: "%{login_email} at %{account_name}"
           login_managed_by_account: "this login's credentials are managed by %{account_name}"
-          password_from_account: "The password for this login should have been given to you by the system administrators at %{account_name}, and Instructure doesn't have access to your password. If your password is not working, please contact the system administrators about changing or verifying your password."
+          password_from_account: "The password for this login should have been given to you by the system administrators at %{account_name}, and HotChalk Ember doesn't have access to your password. If your password is not working, please contact the system administrators about changing or verifying your password."
           requested_password_reset: "You requested a confirmation of your password for logging into HotChalk Ember."
           subject: "Forgot Password: HotChalk Ember"
         labels: 
@@ -8823,7 +8827,7 @@ en:
           click_to_reset: "To set a new password, please click the following link"
         login_at_account: "%{login_email} at %{account_name}"
         login_managed_by_account: "this login's credentials are managed by %{account_name}"
-        password_from_account: "The password for this login should have been given to you by the system administrators at %{account_name}, and Instructure doesn't have access to your password.  If your password is not working, please contact the system administrators about changing or verifying your password."
+        password_from_account: "The password for this login should have been given to you by the system administrators at %{account_name}, and HotChalk Ember doesn't have access to your password.  If your password is not working, please contact the system administrators about changing or verifying your password."
         requested_password_reset: "You requested a confirmation of your password for logging into HotChalk Ember."
         subject: "Forgot Password: HotChalk Ember"
     grade_weight_changed: 
@@ -10342,8 +10346,8 @@ en:
         api_key: "API Key"
         base_url: "Base URL"
     canvas_webhooks: 
-      description: "Webhooks plugin for Canvas"
-      name: "Canvas Webhooks"
+      description: "Webhooks plugin for HotChalk Ember"
+      name: "HotChalk Ember Webhooks"
     crocodoc: 
       description: "Enable Crocodoc as a document preview option"
       name: Crocodoc
@@ -10524,7 +10528,10 @@ en:
         upload_ui_conf: "Uploader UI Conf ID"
         user_secret_key: "User Secret"
       ui_conf_ids: "For Kaltura-hosted customers, you can ask Kaltura to provide you with these ids. Self-hosted instances can find these values in the ui_confs table."
-    linked_in: 
+    learnosity:
+      description: "Learnosity question delivery"
+      name: "Learnosity"
+    linked_in:
       description: "LinkedIn integration"
       name: LinkedIn
     linked_in_settings: 
@@ -11535,6 +11542,7 @@ en:
       email: Email
       log_in: "Log In"
       logged_out_of_canvas: "*You have been logged out of HotChalk Ember.* To continue please log in."
+      product_name: "HotChalk Ember"
       password: Password
       titles: 
         log_in: "Please Log In"
@@ -12087,6 +12095,10 @@ en:
         response_count: 
           one: "1 student was given this question"
           other: "%{count} students were given this question"
+        points_possible: "%{total} point(s) possible"
+        points_on_average: "%{avg} of %{total} point(s) awarded on average"
+        average_points_awarded: "Avg. points awarded"
+        points_possible2: "Points possible"
       question_teaser: 
         titles: 
           click_to_show_details: "Click to show full question details"
@@ -13170,7 +13182,7 @@ en:
       student_mute_notification: "Instructor is working on grades"
       submitted_and_graded_count: "%{submitted_count} Submitted, %{graded_count} Graded"
       submitted_count: "%{submitted_count} Submitted"
-      complete_incomplete: "Complete/Incomplete
+      complete_incomplete: "Complete/Incomplete"
       tiles: 
         sort_or_move: "Sort Assignments or Move to Another Group"
     assignment_group: 
@@ -13399,6 +13411,7 @@ en:
       buttons: 
         request_password: "Request Password"
       coenrollment_banner: "*Parent of a HotChalk Ember User?* **Click Here For an Account**"
+      product_name: "HotChalk Ember"
       default_login_message: "Log in at your institution"
       dont_know_password: "Don't know your password?"
       need_help: "Need help logging in?"
@@ -13663,6 +13676,7 @@ en:
         wiki_page_name: "Page Name"
         wiki_page_namem: "Assignment Name"
       loading: Loading...
+      module_item_notice: "Select the module item you want to link to."
       new_assignment_option: "[ New Assignment ]"
       new_page_option: "[ New Page ]"
       new_quiz_option: "[ New Quiz ]"

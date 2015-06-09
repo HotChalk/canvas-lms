@@ -98,7 +98,7 @@ class PseudonymSessionsController < ApplicationController
             unknown_user_url = @domain_root_account.account_authorization_config.unknown_user_url.presence || cas_login_url(:no_auto=>'true')
             logger.warn "Received CAS login for unknown user: #{st.user}, redirecting to: #{unknown_user_url}."
             reset_session
-            flash[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => st.user
+            flash[:delegated_message] = t 'errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => st.user
             redirect_to unknown_user_url
             return
           end
@@ -438,7 +438,7 @@ class PseudonymSessionsController < ApplicationController
             message = "Received SAML login request for unknown user: #{unique_id} redirecting to: #{unknown_user_url}."
             logger.warn message
             aac.debug_set(:canvas_login_fail_message, message) if debugging
-            flash[:delegated_message] = t 'errors.no_matching_user', "Canvas doesn't have an account for user: %{user}", :user => unique_id
+            flash[:delegated_message] = t 'errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => unique_id
             redirect_to unknown_user_url
           end
         elsif response.auth_failure?

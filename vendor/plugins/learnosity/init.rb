@@ -4,12 +4,12 @@ require File.join(File.dirname(__FILE__), 'app/models/quizzes/quiz_question/ques
 
 Rails.configuration.to_prepare do
   Canvas::Plugin.register :learnosity, nil, {
-    :name => proc { I18n.t(:name, 'Learnosity') },
+    :name => proc { I18n.t('plugins.learnosity.name', 'Learnosity') },
     :website => 'http://www.hotchalk.com',
     :author => 'Hotchalk',
     :author_website => 'http://www.hotchalk.com',
     :version => '1.0.0',
-    :description => proc { t(:description, 'Learnosity question delivery') },
+    :description => proc { t('plugins.learnosity.description', 'Learnosity question delivery') },
     :settings_partial => 'plugins/learnosity_settings',
     :settings => {
         :consumer_key => nil,

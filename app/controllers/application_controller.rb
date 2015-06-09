@@ -1724,7 +1724,12 @@ class ApplicationController < ActionController::Base
   helper_method :flash_notices
 
   def unsupported_browser
-    t("#application.warnings.unsupported_browser", "You are using #{session[:browser_name]}! We strongly recommend an alternate browser like <a href=\"http://www.google.com/chrome/\" target=\"new\">Chrome</a> or <a href=\"http://www.firefox.com\" target=\"new\">Firefox</a> to ensure a better Ember experience.<br><a href=\"https://support.hotchalkember.com/hc/en-us/articles/205139665-Check-Ember-browser-requirements\" target=\"new\">Read more about our suggested browsers.")
+    line1 = t("#application.warnings.unsupported_browser", "You are using %{browser_name}! We strongly recommend an alternate browser like %{chrome_url} or %{firefox_url} to ensure a better Ember experience.",
+              :browser_name => session[:browser_name],
+              :chrome_url => view_context.link_to(t("#application.warnings.chrome", "Chrome"), "http://www.google.com/chrome/", :target => "new").html_safe,
+              :firefox_url => view_context.link_to(t("#application.warnings.firefox", "Firefox"), "http://www.firefox.com", :target => "new").html_safe)
+    line2 = view_context.link_to(t("#application.warnings.suggested_browsers", "Read more about our suggested browsers."), "https://support.hotchalkember.com/hc/en-us/articles/205139665-Check-Ember-browser-requirements", :target => "new")
+    "#{line1}<br>#{line2}"
   end
 
   def browser_supported?
