@@ -70,7 +70,7 @@ class ApplicationController < ActionController::Base
   add_crumb(proc {
     title = I18n.t('links.dashboard', 'My Dashboard')
     crumb = <<-END
-      <i class="icon-home standalone-icon"
+      <i class="icon-home"
          title="#{title}">
         <span class="screenreader-only">#{title}</span>
       </i>
@@ -224,6 +224,19 @@ class ApplicationController < ActionController::Base
 
   protected
 
+  # we track the cost of each request in Canvas::RequestThrottle in order
+  # to rate limit clients that are abusing the API.  Some actions consume
+  # time or resources that are not well represented by simple time/cpu
+  # benchmarks, so you can use this method to increase the perceived cost
+  # of a request by an arbitrary amount.  For an anchor, rate limiting
+  # kicks in when a user has exceeded 600 arbitrary units of cost (it's 
+  # a leaky bucket, go see Canvas::RequestThrottle), so using an 'amount'
+  # param of 600, for example, would max out the bucket immediately
+  def increment_request_cost(amount)
+    current_cost = request.env['extra-request-cost'] || 0
+    request.env['extra-request-cost'] = current_cost + amount
+  end
+
   def assign_localizer
     I18n.localizer = lambda {
       infer_locale :context => @context,
@@ -298,7 +311,7 @@ class ApplicationController < ActionController::Base
   end
 
   def check_pending_otp
-    if session[:pending_otp] && !(params[:action] == 'otp_login' && request.post?)
+    if session[:pending_otp] && params[:controller] != 'login/otp'
       reset_session
       redirect_to login_url
     end
@@ -376,9 +389,6 @@ class ApplicationController < ActionController::Base
 
   def render_unauthorized_action
     respond_to do |format|
-      @needs_login = (!@current_user && !@files_domain)
-      run_login_hooks if @needs_login
-
       @show_left_side = false
       clear_crumbs
       params = request.path_parameters
@@ -387,7 +397,8 @@ class ApplicationController < ActionController::Base
       @files_domain = @account_domain && @account_domain.host_type == 'files'
       format.html {
         store_location
-        return if !@current_user && initiate_delegated_login(request.host_with_port)
+        return redirect_to login_url if !@files_domain && !@current_user
+
         if @context.is_a?(Course) && @context_enrollment
           start_date = @context_enrollment.enrollment_dates.map(&:first).compact.min if @context_enrollment.state_based_on_date == :inactive
           if @context.claimed?
@@ -399,7 +410,6 @@ class ApplicationController < ActionController::Base
           end
         end
 
-        @is_delegated = delegated_authentication_url?
         render "shared/unauthorized", status: :unauthorized
       }
       format.zip { redirect_to(url_for(params)) }
@@ -411,8 +421,7 @@ class ApplicationController < ActionController::Base
 
   def delegated_authentication_url?
     @domain_root_account.delegated_authentication? &&
-    !@domain_root_account.ldap_authentication? &&
-    !params[:canvas_login]
+    !@domain_root_account.ldap_authentication?
   end
 
   # To be used as a before_filter, requires controller or controller actions
@@ -1208,22 +1217,31 @@ class ApplicationController < ActionController::Base
       url_params[:resource_link_fragment] = "ContentTag:#{tag.id}"
       redirect_to named_context_url(context, :context_basic_lti_launch_request_url, tag.content_id, url_params)
     elsif tag.content_type == 'ExternalUrl'
-      require 'uri'
       @tag = tag
       @module = tag.context_module
       log_asset_access(@tag, "external_urls", "external_urls")
-      tag.context_module_action(@current_user, :read) unless tag.locked_for? @current_user
-      uri = URI::parse(@tag.url)
-      if Canvas::Plugin.find(:hotchalk).enabled? &&
+      if tag.locked_for? @current_user
+        render 'context_modules/lock_explanation'
+      else
+        tag.context_module_action(@current_user, :read)
+        require 'uri'
+        uri = URI::parse(@tag.url)
+        if Canvas::Plugin.find(:hotchalk).enabled? &&
           context.respond_to?(:root_account_id) &&
           uri.host == (PluginSetting.settings_for_plugin(:hotchalk)[:account_external_urls][context.root_account_id.to_s]['cl_proxy_url'] rescue nil)
-        @tag.url = named_context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
-        render 'context_modules/embedded_url_show'
-      else
-        render 'context_modules/url_show'
+          @tag.url = named_context_url(context, :context_context_modules_item_embedded_url, tag.id, url_params)
+          render 'context_modules/embedded_url_show'
+        else
+          render 'context_modules/url_show'
+        end
       end
     elsif tag.content_type == 'ContextExternalTool'
       @tag = tag
+
+      if tag.locked_for? @current_user
+        return render 'context_modules/lock_explanation'
+      end
+
       if @tag.context.is_a?(Assignment)
         @assignment = @tag.context
         @resource_title = @assignment.title
@@ -1242,7 +1260,7 @@ class ApplicationController < ActionController::Base
         log_asset_access(@tool, "external_tools", "external_tools")
         @opaque_id = @tool.opaque_identifier_for(@tag)
 
-        @lti_launch = Lti::Launch.new
+        @lti_launch = @tool.settings['post_only'] ? Lti::Launch.new(post_only: true) : Lti::Launch.new
 
         success_url = case tag_type
         when :assignments
@@ -1256,7 +1274,11 @@ class ApplicationController < ActionController::Base
           @lti_launch.launch_type = 'window'
           @return_url = success_url
         else
-          @return_url = external_content_success_url('external_tool_redirect')
+          if @context
+            @return_url = named_context_url(@context, :context_external_content_success_url, 'external_tool_redirect')
+          else
+            @return_url = external_content_success_url('external_tool_redirect')
+          end
           @redirect_return = true
           js_env(:redirect_return_success_url => success_url,
                  :redirect_return_cancel_url => success_url)
@@ -1293,7 +1315,7 @@ class ApplicationController < ActionController::Base
         @lti_launch.analytics_id = @tool.tool_id
 
         @append_template = 'context_modules/tool_sequence_footer'
-        render ExternalToolsController::TOOL_DISPLAY_TEMPLATES['default']
+        render ExternalToolsController.display_template('default')
       end
     else
       flash[:error] = t "#application.errors.invalid_tag_type", "Didn't recognize the item type for this tag"
@@ -1305,23 +1327,12 @@ class ApplicationController < ActionController::Base
   # person's calendar with only those things checked.
   def calendar_url_for(contexts_to_link_to = nil, options={})
     options[:query] ||= {}
-    options[:anchor] ||= {}
     contexts_to_link_to = Array(contexts_to_link_to)
     if event = options.delete(:event)
       options[:query][:event_id] = event.id
     end
-    if !contexts_to_link_to.empty? && options[:anchor].is_a?(Hash)
-      options[:anchor][:show] = contexts_to_link_to.collect{ |c|
-        "group_#{c.class.to_s.downcase}_#{c.id}"
-      }.join(',')
-      options[:anchor] = options[:anchor].to_json
-    end
     options[:query][:include_contexts] = contexts_to_link_to.map{|c| c.asset_string}.join(",") unless contexts_to_link_to.empty?
-    calendar_url(
-      options[:query].merge(options[:anchor].empty? ? {} : {
-        :anchor => options[:anchor].unpack('H*').first # calendar anchor is hex encoded
-      })
-    )
+    calendar_url(options[:query])
   end
 
   # pass it a context or an array of contexts and it will give you a link to the
@@ -1460,7 +1471,7 @@ class ApplicationController < ActionController::Base
 
   def temporary_user_code(generate=true)
     if generate
-      session[:temporary_user_code] ||= "tmp_#{Digest::MD5.hexdigest("#{Time.now.to_i.to_s}_#{rand.to_s}")}"
+      session[:temporary_user_code] ||= "tmp_#{Digest::MD5.hexdigest("#{Time.now.to_i}_#{rand}")}"
     else
       session[:temporary_user_code]
     end
