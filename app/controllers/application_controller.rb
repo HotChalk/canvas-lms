@@ -51,7 +51,7 @@ class ApplicationController < ActionController::Base
   before_filter :set_user_id_header
   before_filter :set_time_zone
   before_filter :set_page_view
-  # before_filter :require_reacceptance_of_terms
+  before_filter :require_reacceptance_of_terms
   before_filter :clear_policy_cache
   before_filter :setup_live_events_context
   after_filter :log_page_view
