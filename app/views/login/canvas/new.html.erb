@@ -16,7 +16,7 @@
           <a href="/search/all_courses" class="pull-right"><%= t('browse_courses', 'Browse courses') %></a>
       <% end %>
     </div>
-    <%= form_for :pseudonym_session, :url => url_for({ action: :create }.merge(params.slice(:id))), :html => {:id => "login_form"} do |f| %>
+    <%= form_for :pseudonym_session, :url => url_for({ action: :create }.merge(params.slice(:id))), :html => {:id => "login_form", :style => @is_prelogin ? "display:none" : ""} do |f| %>
       <% if @domain_root_account && @domain_root_account.self_registration? && !hide_self_reg_banner %>
         <% if @domain_root_account.self_registration_type == 'observer' %>
           <% js_env :ACCOUNT => account_json(@domain_root_account, nil, session, ['registration_settings']),
@@ -42,14 +42,31 @@
           <% end %>
 
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          <% url = (params[:canvas_login] != '1' && @domain_root_account.try(:forgot_password_external_url)) || "#" %><br />
-          <%= link_to t('dont_know_password', "Don't know your password?"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password" %>
+          <% url = "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support" %><br />
+          <%= link_to t('dont_know_password', "I don't know my password"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_password", :target => "_blank" %>
         </div>
 
         <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
         <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
 
         <button type="submit" class="btn btn-primary"><%= t('log_in', 'Log In') %></button>
+      </div>
+    <% end %>
+
+    <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => @is_prelogin ? "" : "display:none"} do |f| %>
+      <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
+      <div>
+        <span class=" field-with-fancyplaceholder"><%= f.label :unique_id, :en => 'Primary Email Address' %><%= f.text_field :unique_id, :class => "text", :value => params[:prelogin].try(:[], :unique_id) %></span>
+        <span id="external_login" class=" field-with-fancyplaceholder"><%= t('Click below to login:') %><br /><a id="external_login_link" href="#"></a></span>
+        <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
+        <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
+        <button id="submit_button" type="submit" class="btn btn-primary" style="margin-top: 7px;" disabled><%= t('Submit') %></button>
+      </div>
+      <div>
+        <div class="login-options">
+          <% url = "https://embersupport.zendesk.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
+          <%= link_to t('need_help', "Need help logging in?"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_email", :target => "_blank" %>
+        </div>
       </div>
     <% end %>
 

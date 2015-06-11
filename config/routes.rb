@@ -603,17 +603,15 @@ CanvasRails::Application.routes.draw do
   get 'all_menu_courses' => 'users#all_menu_courses'
   get 'grades' => 'users#grades'
 
-  get 'login' => 'login#pre_login'
-  get 'login2' => 'login#new'
+  get 'login' => 'login#new'
   delete 'logout' => 'login#destroy'
   get 'logout' => 'login#logout_confirm'
-
-  get 'login/resolve' => 'login#resolve_login'
 
   get 'login/canvas' => 'login/canvas#new', as: :canvas_login
   post 'login/canvas' => 'login/canvas#create'
   # deprecated alias
   post 'login' => 'login/canvas#create'
+  get 'login/canvas/resolve' => 'login/canvas#resolve', as: :resolve_login
 
   get 'login/ldap' => 'login/ldap#new'
   post 'login/ldap' => 'login/ldap#create'
