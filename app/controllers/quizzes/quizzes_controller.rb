@@ -507,7 +507,8 @@ class Quizzes::QuizzesController < ApplicationController
             ]
           end
 
-          js_env quiz_reports: Quizzes::QuizStatistics::REPORTS.map { |report_type|
+          is_learnosity_quiz = @quiz.quiz_questions.any? { |q| q.question_data[:question_type] == 'learnosity_question' }
+          js_env quiz_reports: is_learnosity_quiz ? {} : Quizzes::QuizStatistics::REPORTS.map { |report_type|
             report = @quiz.current_statistics_for(report_type, {
               includes_all_versions: all_versions
             })

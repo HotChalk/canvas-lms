@@ -1,3 +1,4 @@
+module Qti
 class LearnosityInteraction < Qti::AssessmentItemConverter
 
   def initialize(opts)
@@ -16,4 +17,4 @@ class LearnosityInteraction < Qti::AssessmentItemConverter
   end
 
 end
-
+end

@@ -341,4 +341,18 @@ Canvas::Plugin.register('hotchalk', :export_system, {
         :valid_contexts => %w{Course}
     }
 })
+Canvas::Plugin.register('learnosity', nil, {
+  :name => lambda{ t :name, 'Learnosity' },
+  :website => 'http://www.hotchalk.com',
+  :author => 'Hotchalk',
+  :author_website => 'http://www.hotchalk.com',
+  :version => '1.0.0',
+  :description => lambda{ t :description, 'Learnosity question delivery' },
+  :settings_partial => 'plugins/learnosity_settings',
+  :settings => {
+    :consumer_key => nil,
+    :consumer_secret => nil,
+    :domain => nil
+  }
+})
 

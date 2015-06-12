@@ -383,6 +383,9 @@ class AssessmentItemConverter
           opts[:interaction_type] = 'fill_in_multiple_blanks_question'
         elsif type == 'multiple_dropdowns_question'
           opts[:interaction_type] = 'multiple_dropdowns_question'
+        elsif type.downcase == 'learnosity_question'
+          opts[:interaction_type] = 'learnosity_question'
+          opts[:custom_type] = 'learnosity_question'
         else
           opts[:custom_type] = type
         end
@@ -419,6 +422,8 @@ class AssessmentItemConverter
         q = FillInTheBlank.new(opts)
       when /textentryinteraction/i
         q = FillInTheBlank.new(opts)
+      when /learnosity_question/i
+        q = LearnosityInteraction.new(opts)
       when nil
         q = AssessmentItemConverter.new(opts)
       else

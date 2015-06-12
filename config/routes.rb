@@ -1474,6 +1474,10 @@ CanvasRails::Application.routes.draw do
       get 'courses/:course_id/quizzes/:quiz_id/statistics', action: :index, as: 'course_quiz_statistics'
     end
 
+    scope(controller: 'quizzes/quiz_questions_display') do
+      get "courses/:course_id/quizzes/:quiz_id/questions/:id/display", action: :show
+    end
+
     scope(controller: 'polling/polls') do
       get "polls", action: :index, as: 'polls'
       post "polls", action: :create, as: 'poll_create'
