@@ -62,7 +62,7 @@ class AccountAuthorizationConfigsPresenter
   end
 
   def sso_options
-    options = [[:CAS, 'cas'], [:LDAP, 'ldap']]
+    options = [[:CAS, 'cas'], [:LDAP, 'ldap'], [:HMAC, 'hmac']]
     options << [:SAML, 'saml'] if saml_enabled?
     options
   end

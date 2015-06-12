@@ -88,6 +88,16 @@ module Login::Shared
     end
   end
 
+  def load_root_account(account_id)
+    if account_id
+      account = Account.find_by_id(account_id)
+      if account
+        @domain_root_account = account
+        @cas_client = nil
+      end
+    end
+  end
+
   include PseudonymSessionsController
   def remember_me_cookie_domain
     otp_remember_me_cookie_domain

@@ -60,9 +60,6 @@ class AccountAuthorizationConfig < ActiveRecord::Base
   VALID_AUTH_TYPES = %w[cas ldap saml hmac].freeze
   validates_inclusion_of :auth_type, in: VALID_AUTH_TYPES, message: "invalid auth_type, must be one of #{VALID_AUTH_TYPES.join(',')}"
   validates_presence_of :account_id
-  validates_presence_of :hmac_shared_secret, :if => Proc.new { |aac| aac.hmac_authentication? }
-  validates_presence_of :hmac_timestamp_range, :if => Proc.new { |aac| aac.hmac_authentication? }
-  validates_presence_of :log_in_url, :if => Proc.new { |aac| aac.hmac_authentication? }
 
   after_destroy :enable_canvas_authentication
 

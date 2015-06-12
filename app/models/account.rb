@@ -979,7 +979,7 @@ class Account < ActiveRecord::Base
   end
 
   def hmac_authentication?
-    !!(self.account_authorization_config && self.account_authorization_config.hmac_authentication?)
+    !!(self.account_authorization_config && self.account_authorization_config.is_a?(AccountAuthorizationConfig::HMAC))
   end
 
   def multi_auth?
