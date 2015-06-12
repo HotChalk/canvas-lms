@@ -89,12 +89,8 @@ module Login::Shared
   end
 
   def load_root_account(account_id)
-    if account_id
-      account = Account.find_by_id(account_id)
-      if account
-        @domain_root_account = account
-        @cas_client = nil
-      end
+    if account_id && (account = Account.find(account_id))
+      @domain_root_account = account
     end
   end
 

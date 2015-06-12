@@ -35,6 +35,7 @@ class Login::CanvasController < ApplicationController
   def create
     # reset the session id cookie to prevent session fixation.
     reset_session_for_login
+    load_root_account(params[:account_id])
 
     # Check referer and authenticity token.  If the token is invalid but the referer is trusted
     # and one is not provided then continue.  If the referer is trusted and they provide a token
@@ -122,7 +123,7 @@ class Login::CanvasController < ApplicationController
 
     # find the user associated to the supplied email address
     possible_users = []
-    Account.root_accounts.each do |root_account|
+    Account.root_accounts.select {|a| a.account_authorization_configs.empty? }.each do |root_account|
       user_list = UserList.new(params[:prelogin][:unique_id], :root_account => root_account, :search_method => :closed).users
       possible_users.concat(user_list)
       break unless user_list.empty?
@@ -141,9 +142,9 @@ class Login::CanvasController < ApplicationController
     end
 
     # check authentication type for the pseudonym's root account
-    response = {}
     root_account = Account.find(pseudonym.root_account_id)
     aac = root_account.account_authorization_config
+    response = {:account_id => pseudonym.root_account_id}
     if aac.nil?
       response[:auth_type] = 'canvas'
     else
