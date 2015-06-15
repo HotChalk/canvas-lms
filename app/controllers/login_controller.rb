@@ -41,6 +41,8 @@ class LoginController < ApplicationController
       return render 'shared/unauthorized', :layout => 'application', :status => :unauthorized
     end
 
+    load_root_account(params[:account_id])
+
     session[:expected_user_id] = params[:expected_user_id].to_i if params[:expected_user_id]
     session[:confirm] = params[:confirm] if params[:confirm]
     session[:enrollment] = params[:enrollment] if params[:enrollment]
@@ -73,7 +75,7 @@ class LoginController < ApplicationController
     end
 
     unless flash[:delegated_message]
-      return redirect_to url_for({ controller: "login/#{auth_type}", action: :new }.merge(params.slice(:id)))
+      return redirect_to url_for({ controller: "login/#{auth_type}", action: :new }.merge(params.slice(:id, :account_id)))
     end
 
     # we had an error from an SSO - we need to show it

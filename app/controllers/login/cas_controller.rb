@@ -27,6 +27,7 @@ class Login::CasController < ApplicationController
   delegate :client, to: :aac
 
   def new
+    load_root_account(params[:account_id])
     # CAS sends a GET with a ticket when it's doing a login
     return create if params[:ticket]
 
@@ -35,6 +36,7 @@ class Login::CasController < ApplicationController
   end
 
   def create
+    load_root_account(params[:account_id])
     reset_session_for_login
 
     logger.info "Attempting CAS login with ticket #{params[:ticket]} in @domain_root_ #{@domain_root_account.id}"
@@ -103,6 +105,6 @@ class Login::CasController < ApplicationController
   end
 
   def cas_login_url
-    url_for({ controller: 'login/cas', action: :new }.merge(params.slice(:id)))
+    url_for({ controller: 'login/cas', action: :new }.merge(params.slice(:id, :account_id)))
   end
 end

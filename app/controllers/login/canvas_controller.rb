@@ -123,7 +123,7 @@ class Login::CanvasController < ApplicationController
 
     # find the user associated to the supplied email address
     possible_users = []
-    Account.root_accounts.select {|a| a.account_authorization_configs.empty? }.each do |root_account|
+    Account.root_accounts.each do |root_account|
       user_list = UserList.new(params[:prelogin][:unique_id], :root_account => root_account, :search_method => :closed).users
       possible_users.concat(user_list)
       break unless user_list.empty?
