@@ -445,7 +445,13 @@ class GroupCategoriesController < ApplicationController
     # option disabled for student organized groups or section-restricted
     # self-signup groups. (but self-signup is ignored for non-Course groups)
     return render(:json => {}, :status => :bad_request) if @group_category.student_organized?
-    return render(:json => {}, :status => :bad_request) if @context.is_a?(Course) && @group_category.restricted_self_signup?
+    if @context.is_a?(Course) 
+      if @group_category.restricted_self_signup? 
+        return render(:json => {}, :status => :bad_request)
+      else
+        render :json => progress_json(@group_category.current_progress, @current_user, session)
+      end
+    end
 
     if value_to_boolean(params[:sync])
       # do the distribution and note the changes
@@ -465,6 +471,7 @@ class GroupCategoriesController < ApplicationController
   def populate_group_category_from_params
     args = api_request? ? params : params[:category]
     @group_category = GroupCategories::ParamsPolicy.new(@group_category, @context).populate_with(args)
+    @group_category.current_user = @current_user
     unless @group_category.save
       render :json => @group_category.errors, :status => :bad_request
       return false
