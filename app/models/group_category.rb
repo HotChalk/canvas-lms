@@ -364,7 +364,6 @@ class GroupCategory < ActiveRecord::Base
         DueDateCacher.recompute_course(context_id, Assignment.where(context_type: context_type, context_id: context_id, group_category_id: self).pluck(:id))
       end
     end
-    complete_progress
     new_memberships
   end
 
@@ -415,6 +414,7 @@ class GroupCategory < ActiveRecord::Base
       end
       assign_unassigned_members_course(students, section_groups) if @assign_unassigned_members && @create_group_count
     end
+    complete_progress
   end
 
   def assign_unassigned_members_course(section_members, section_groups)
@@ -430,6 +430,7 @@ class GroupCategory < ActiveRecord::Base
   def assign_unassigned_members
     Delayed::Batch.serial_batch do
       distribute_members_among_groups(unassigned_users, groups.active)
+      complete_progress
     end
   end
 

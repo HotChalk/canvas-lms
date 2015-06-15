@@ -449,22 +449,23 @@ class GroupCategoriesController < ApplicationController
       if @group_category.restricted_self_signup? 
         return render(:json => {}, :status => :bad_request)
       else
+        progress = @group_category.current_progress || @group_category.progresses.order(:completion).limit(1).first
+        render :json => progress_json(progress, @current_user, session)
+      end
+    else
+      if value_to_boolean(params[:sync])
+        # do the distribution and note the changes
+        memberships = @group_category.assign_unassigned_members
+
+        # render the changes
+        json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
+          { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
+        end
+        render :json => json
+      else
+        @group_category.assign_unassigned_members_in_background
         render :json => progress_json(@group_category.current_progress, @current_user, session)
       end
-    end
-
-    if value_to_boolean(params[:sync])
-      # do the distribution and note the changes
-      memberships = @group_category.assign_unassigned_members
-
-      # render the changes
-      json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
-        { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
-      end
-      render :json => json
-    else
-      @group_category.assign_unassigned_members_in_background
-      render :json => progress_json(@group_category.current_progress, @current_user, session)
     end
   end
 
