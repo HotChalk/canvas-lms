@@ -25,6 +25,7 @@ class Login::SamlController < ApplicationController
   before_filter :run_login_hooks, :check_sa_delegated_cookie, only: [:new, :create]
 
   def new
+    load_root_account(params[:account_id])
     increment_saml_stat("login_attempt")
     reset_session_for_login
     settings = aac.saml_settings(request.host_with_port)
@@ -48,6 +49,8 @@ class Login::SamlController < ApplicationController
       flash[:delegated_message] = login_error_message
       return redirect_to login_url
     end
+
+    load_root_account(params[:account_id])
 
     # Break up the SAMLResponse into chunks for logging (a truncated version was probably already
     # logged with the request when using syslog)
@@ -180,6 +183,8 @@ class Login::SamlController < ApplicationController
       return render status: :bad_request, text: "SAMLRequest or SAMLResponse required"
     end
 
+    load_root_account(params[:account_id])
+
     if params[:SAMLResponse]
       increment_saml_stat("logout_response_received")
       saml_response = Onelogin::Saml::LogoutResponse.parse(params[:SAMLResponse])
@@ -198,7 +203,7 @@ class Login::SamlController < ApplicationController
         aac.debug_set(:debugging, t('debug.logout_response_redirect_from_idp', "Received LogoutResponse from IdP"))
       end
 
-      redirect_to saml_login_url(id: aac.id)
+      redirect_to saml_login_url(id: aac.id, account_id: params[:account_id])
     else
       increment_saml_stat("logout_request_received")
       saml_request = Onelogin::Saml::LogoutRequest.parse(params[:SAMLRequest])
