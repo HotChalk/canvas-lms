@@ -89,7 +89,7 @@ module Login::Shared
   end
 
   def load_root_account(account_id)
-    if account_id && (account = Account.find(account_id))
+    if account_id.present? && (account = Account.find(account_id))
       @domain_root_account = account
     end
   end
