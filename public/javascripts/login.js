@@ -81,6 +81,7 @@ require([
         success: function(response) {
           if (response.auth_type == 'canvas') {
             $("#pseudonym_session_unique_id").val($("#prelogin_unique_id").val());
+            $("#account_id").val(response.account_id);
             $("#resolve_login_form").hide();
             $("#login_form").show();
           } else if (response.auth_type == 'cas' || response.auth_type == 'hmac' || response.auth_type == 'saml') {

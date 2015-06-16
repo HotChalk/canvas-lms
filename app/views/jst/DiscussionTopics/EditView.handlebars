@@ -242,19 +242,14 @@
       {{/unless}}
     </fieldset>
 
-    <hr>
-
-    {{#if differentiatedAssignmentsEnabled}}
-      <div class="text-center pad-box-mini" style="margin-bottom:10px">
-        <span>
-          <em>
-          {{#t "only_visible_to_overrides_note"}}Note: This discussion is <strong>only</strong> visible to the section(s) specified below:{{/t}}
-          </em>
-        </span>
+    <div id="overrides-wrapper">
+      <div class="form-column-left">
+        {{#t}}Assign{{/t}}
       </div>
-    {{/if}}
+      <div class="overrides-column-right js-assignment-overrides overrideFormFlex">
+      </div>
+    </div>
 
-    <!--<div class='js-assignment-overrides'></div>-->
   </div>
 
   <div id="reply_grading_options" style="{{hiddenUnless set_reply_assignment}}">
@@ -297,8 +292,12 @@
     {{/if}}
   </div>
 
-  <div id="assignment_overrides" style="{{hiddenUnless set_assignment}}">
-    <div class='js-assignment-overrides'></div>
+  <div id="overrides-wrapper">
+    <div class="form-column-left">
+        {{#t}}Assign{{/t}}
+    </div>
+    <div class="overrides-column-right js-assignment-overrides overrideFormFlex">
+    </div>
   </div>
 {{/if}}
 

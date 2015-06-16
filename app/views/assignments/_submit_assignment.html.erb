@@ -269,7 +269,7 @@
         <% end %>
       <% elsif @google_drive_upgrade %>
         <div id="submit_google_doc_form">
-          <%= t 'messages.google_drives_auth_required', "Before you can submit assignments directly from Google Drive you need to authorize Canvas to access your Google Drive account:" %>
+          <%= t 'messages.google_drives_auth_required', "Before you can submit assignments directly from Google Drive you need to authorize HotChalk Ember to access your Google Drive account:" %>
           <div style="font-size: 1.1em; text-align: center; margin: 10px;">
             <a class="btn" href="<%= oauth_url(:service => :google_drive, :return_to => (request.url + "#submit_google_doc_form")) %>"><%= t 'links.authorize_google_drive', "Authorize Google Drive Access" %></a>
           </div>

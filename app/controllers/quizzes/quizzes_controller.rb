@@ -52,7 +52,7 @@ class Quizzes::QuizzesController < ApplicationController
 
   QUIZ_TYPE_ASSIGNMENT = 'assignment'
   QUIZ_TYPE_PRACTICE = 'practice_quiz'
-  QUIZ_TYPE_SURVEYS = ['survey', 'graded_survey']
+  QUIZ_TYPE_SURVEYS = ['survey', 'graded_survey'].freeze
 
   def index
     return unless authorized_action(@context, @current_user, :read)
@@ -287,7 +287,7 @@ class Quizzes::QuizzesController < ApplicationController
             :name => section.name,
             :start_at => section.start_at,
             :end_at => section.end_at,
-            :override_course_dates => section.restrict_enrollments_to_section_dates
+            :override_course_and_term_dates => section.restrict_enrollments_to_section_dates
           }
         },
         :QUIZZES_URL => course_quizzes_url(@context),
@@ -507,7 +507,8 @@ class Quizzes::QuizzesController < ApplicationController
             ]
           end
 
-          js_env quiz_reports: Quizzes::QuizStatistics::REPORTS.map { |report_type|
+          is_learnosity_quiz = @quiz.quiz_questions.any? { |q| q.question_data[:question_type] == 'learnosity_question' }
+          js_env quiz_reports: is_learnosity_quiz ? {} : Quizzes::QuizStatistics::REPORTS.map { |report_type|
             report = @quiz.current_statistics_for(report_type, {
               includes_all_versions: all_versions
             })

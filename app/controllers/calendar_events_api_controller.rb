@@ -572,7 +572,7 @@ class CalendarEventsApiController < ApplicationController
     end
     respond_to do |format|
       format.ics do
-        name = t('ics_title', "%{course_or_group_name} Calendar (Canvas)", :course_or_group_name => @context.name)
+        name = t('ics_title', "%{course_or_group_name} Calendar (HotChalk Ember)", :course_or_group_name => @context.name)
         description = case
                         when @context.is_a?(Course)
                           t('ics_description_course', "Calendar events for the course, %{course_name}", :course_name => @context.name)

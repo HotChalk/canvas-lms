@@ -175,7 +175,9 @@ module ApplicationHelper
       :contents => capture(&block)
     )
   end
+
   def js_blocks; @js_blocks ||= []; end
+
   def render_js_blocks
     output = js_blocks.inject('') do |str, e|
       # print file and line number for debugging in development mode.
@@ -195,7 +197,9 @@ module ApplicationHelper
     end
     hidden_dialogs[id] = capture(&block)
   end
+
   def hidden_dialogs; @hidden_dialogs ||= {}; end
+
   def render_hidden_dialogs
     output = hidden_dialogs.keys.sort.inject('') do |str, id|
       str << "<div id='#{id}' style='display: none;''>" << hidden_dialogs[id] << "</div>"
@@ -696,8 +700,9 @@ module ApplicationHelper
   def get_global_includes
     return @global_includes if defined?(@global_includes)
     @global_includes = [Account.site_admin.global_includes_hash]
-    @global_includes << @domain_root_account.global_includes_hash if @domain_root_account.present?
-    if @domain_root_account.try(:sub_account_includes?)
+    current_root_account = @real_current_user ? @current_pseudonym.account.root_account : @domain_root_account
+    @global_includes << current_root_account.global_includes_hash if current_root_account.present?
+    if current_root_account.try(:sub_account_includes?)
       # get the deepest account to start looking for branding
       if acct = account_context(@context)
         key = [acct.id, 'account_context_global_includes'].cache_key
@@ -706,9 +711,9 @@ module ApplicationHelper
         end
         @global_includes.concat(includes)
       elsif @current_user.present?
-        key = [@domain_root_account.id, 'common_account_global_includes', @current_user.id].cache_key
+        key = [current_root_account.id, 'common_account_global_includes', @current_user.id].cache_key
         includes = Rails.cache.fetch(key, :expires_in => 15.minutes) do
-          @current_user.common_account_chain(@domain_root_account).map(&:global_includes_hash)
+          @current_user.common_account_chain(current_root_account).map(&:global_includes_hash)
         end
         @global_includes.concat(includes)
       end
@@ -853,8 +858,7 @@ module ApplicationHelper
   def agree_to_terms
     # may be overridden by a plugin
     @agree_to_terms ||
-    t("#user.registration.agree_to_terms_and_privacy_policy",
-      "You acknowledge the **privacy policy**.",
+    t("I agree to the **privacy policy**.",
       wrapper: {
         '*' => link_to('\1', terms_of_use_url, target: '_blank'),
         '**' => link_to('\1', privacy_policy_url, target: '_blank')

@@ -6,7 +6,6 @@ require [
   'compiled/views/assignments/EditView'
   'compiled/collections/SectionCollection'
   'compiled/models/DueDateList'
-  'compiled/views/assignments/DueDateList'
   'compiled/views/assignments/DueDateOverride'
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GradingTypeSelector'
@@ -16,7 +15,7 @@ require [
   'grading_standards'
   'manage_groups'
 ], (Section,Assignment, EditHeaderView, EditView, SectionCollection,
-  DueDateList, DueDateListView, OverrideView, AssignmentGroupSelector,
+  DueDateList, OverrideView, AssignmentGroupSelector,
   GradingTypeSelector, GroupCategorySelector, PeerReviewsSelector, SectionSelector) ->
 
   ENV.ASSIGNMENT.assignment_overrides = ENV.ASSIGNMENT_OVERRIDES
@@ -57,8 +56,7 @@ require [
     views:
       'js-assignment-overrides': new OverrideView
         model: dueDateList
-        views:
-          'due-date-overrides': new DueDateListView(model: dueDateList)
+        views: {}
 
   editHeaderView.render()
   editView.render()

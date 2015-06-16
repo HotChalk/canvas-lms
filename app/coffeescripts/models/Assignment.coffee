@@ -267,6 +267,14 @@ define [
       dateGroups = @get("all_dates")
       dateGroups && dateGroups.length > 1
 
+    nonBaseDates: =>
+      dateGroups = @get("all_dates")
+      return false unless dateGroups
+      withouBase = _.filter(dateGroups.models, (dateGroup) =>
+        dateGroup && !dateGroup.get("base")
+      )
+      withouBase.length > 0
+
     allDates: =>
       groups = @get("all_dates")
       models = (groups and groups.models) or []
@@ -299,7 +307,7 @@ define [
         'frozenAttributes', 'freezeOnCopy', 'canFreeze', 'isSimple',
         'gradingStandardId', 'isLetterGraded', 'isGpaScaled', 'assignmentGroupId', 'iconType',
         'published', 'htmlUrl', 'htmlEditUrl', 'labelId', 'position', 'postToSIS',
-        'multipleDueDates', 'allDates', 'isQuiz', 'singleSectionDueDate', 'courseSectionId'
+        'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate', 'courseSectionId'
       ]
       if ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         fields.push 'isOnlyVisibleToOverrides'
