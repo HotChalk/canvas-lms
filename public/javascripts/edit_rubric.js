@@ -395,6 +395,7 @@ define([
       }
     },
     updateRubric: function($rubric, rubric) {
+      $("#edit_criterion").hide().appendTo('body');
       $rubric.find(".criterion:not(.blank)").remove();
       var $rating_template = $rubric.find(".rating:first").clone(true).removeAttr('id');
       $rubric.fillTemplateData({
