@@ -93,7 +93,7 @@ HEREDOC
       <div class="collaboration <%= collaboration.style_class %> collaboration_<%= collaboration.id %>" data-id="<%= collaboration.id %>">
         <h3><%= collaboration.title %></h3>
         <div style="margin-bottom: 5px;" class="description">
-          <a href="<%= oauth_url(:service => :google_drive, :return_to => (request.url)) %>"><%= t 'google.drive.upgrade.description', "To access this collaboration you must authorize Canvas to access your Google Drive account" %></a>
+          <a href="<%= oauth_url(:service => :google_drive, :return_to => (request.url)) %>"><%= t 'google.drive.upgrade.description', "To access this collaboration you must authorize HotChalk Ember to access your Google Drive account" %></a>
         </div>
         <small <%= context_sensitive_datetime_title(collaboration.created_at, @context) %>>
           <%= t :started_by, "Started by *%{user}*, %{at}",

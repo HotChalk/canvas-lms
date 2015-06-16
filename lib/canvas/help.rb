@@ -17,7 +17,7 @@ module Canvas
         {
           :available_to => ['user', 'student', 'teacher', 'admin'],
           :text => I18n.t('#help_dialog.report_problem', 'Report a Problem'),
-          :subtext => I18n.t('#help_dialog.report_problem_sub', 'If Canvas misbehaves, tell us about it'),
+          :subtext => I18n.t('#help_dialog.report_problem_sub', 'If HotChalk Ember misbehaves, tell us about it'),
           :url => '#create_ticket'
         }
       ]

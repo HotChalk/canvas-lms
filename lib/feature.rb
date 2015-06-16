@@ -120,8 +120,8 @@ END
     {
       display_name: -> { I18n.t('features.new_styles', 'Use New Styles') },
       description: -> { I18n.t('new_styles_description', <<-END) },
-We are working on a UI facelift to Canvas. Turn this on to opt-in to seeing the
-updated, simplified look and feel of the Canvas interface. This is a very "Work in progress"
+We are working on a UI facelift to HotChalk Ember. Turn this on to opt-in to seeing the
+updated, simplified look and feel of the HotChalk Ember interface. This is a very "Work in progress"
 feature and should not be turned on in production for actual users yet.
 END
       applies_to: 'RootAccount',
@@ -133,7 +133,7 @@ END
     {
       display_name: -> { I18n.t('features.html5_first_videos', 'Prefer HTML5 for video playback') },
       description: -> { I18n.t('html5_first_videos_description', <<-END) },
-By default, Canvas will try to use Flash first to play videos. Turn this on to try using HTML5 first,
+By default, HotChalk Ember will try to use Flash first to play videos. Turn this on to try using HTML5 first,
 then fall back to Flash.
 END
       applies_to: 'RootAccount',
@@ -144,7 +144,7 @@ END
     {
       display_name: -> { I18n.t('features.high_contrast', 'Use High Contrast Styles') },
       description: -> { I18n.t('high_contrast_description', <<-END) },
-If you would prefer a higher-contrast version of the Canvas user interface, enable this.
+If you would prefer a higher-contrast version of the HotChalk Ember user interface, enable this.
 This might be useful for people with impaired vision or difficulty reading.
 END
       applies_to: 'User',
@@ -315,7 +315,7 @@ END
     'quizzes_lti' =>
       {
         display_name: -> { I18n.t('Quiz LTI plugin') },
-        description: -> { I18n.t('Use the new quiz LTI tool in place of regular canvas quizzes') },
+        description: -> { I18n.t('Use the new quiz LTI tool in place of regular HotChalk Ember quizzes') },
         applies_to: 'Course',
         state: 'hidden',
         beta: true,

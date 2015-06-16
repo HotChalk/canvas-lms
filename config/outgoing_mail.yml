@@ -39,7 +39,7 @@ multiple_inboxes:
   authentication: "plain" # plain, login, or cram_md5
   domain: "example.com"
   outgoing_address: "canvas@example.com"
-  default_name: "Instructure Canvas"
+  default_name: "HotChalk Ember"
   reply_to_addresses:
   - "canvas1@example.com"
   - "canvas2@example.com"

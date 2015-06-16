@@ -26,7 +26,7 @@ module Canvas::Plugins::TicketingSystem
        Message.create!(
         to: conf[:email_address],
         from: error_report.email,
-        subject: I18n.t("Canvas Error Report"),
+        subject: I18n.t("HotChalk Ember Error Report"),
         body: error_report.to_document,
         delay_for: 0,
         context: error_report.raw_report
