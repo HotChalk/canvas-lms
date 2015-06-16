@@ -188,7 +188,11 @@ class ContextController < ApplicationController
         sections = @context.course_sections.active.select([:id, :course_id, :name, :end_at, :restrict_enrollments_to_section_dates]).preload(:course)
         concluded_sections = sections.select{|s| s.concluded?}.map{|s| "section_#{s.id}"}
       else
-        sections = @context.course_sections.active.select([:id, :name])
+        if @current_user.account_admin?(@context)
+          sections = @context.course_sections.active.select([:id, :name])
+        else
+          sections = @context.sections_visible_to(@current_user)
+        end
         concluded_sections = []
       end
 

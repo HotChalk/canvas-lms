@@ -445,26 +445,34 @@ class GroupCategoriesController < ApplicationController
     # option disabled for student organized groups or section-restricted
     # self-signup groups. (but self-signup is ignored for non-Course groups)
     return render(:json => {}, :status => :bad_request) if @group_category.student_organized?
-    return render(:json => {}, :status => :bad_request) if @context.is_a?(Course) && @group_category.restricted_self_signup?
-
-    if value_to_boolean(params[:sync])
-      # do the distribution and note the changes
-      memberships = @group_category.assign_unassigned_members
-
-      # render the changes
-      json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
-        { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
+    if @context.is_a?(Course) 
+      if @group_category.restricted_self_signup? 
+        return render(:json => {}, :status => :bad_request)
+      else
+        progress = @group_category.current_progress || @group_category.progresses.order(:completion).limit(1).first
+        render :json => progress_json(progress, @current_user, session)
       end
-      render :json => json
     else
-      @group_category.assign_unassigned_members_in_background
-      render :json => progress_json(@group_category.current_progress, @current_user, session)
+      if value_to_boolean(params[:sync])
+        # do the distribution and note the changes
+        memberships = @group_category.assign_unassigned_members
+
+        # render the changes
+        json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
+          { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
+        end
+        render :json => json
+      else
+        @group_category.assign_unassigned_members_in_background
+        render :json => progress_json(@group_category.current_progress, @current_user, session)
+      end
     end
   end
 
   def populate_group_category_from_params
     args = api_request? ? params : params[:category]
     @group_category = GroupCategories::ParamsPolicy.new(@group_category, @context).populate_with(args)
+    @group_category.current_user = @current_user
     unless @group_category.save
       render :json => @group_category.errors, :status => :bad_request
       return false
