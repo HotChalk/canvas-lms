@@ -16,6 +16,7 @@ group :test do
   gem 'rspec', '3.2.0'
   gem 'rspec-rails', '3.2.0'
   gem 'rspec-legacy_formatters', '1.0.0'
+    gem 'rspec-core', '3.2.0'
   gem 'rspec-collection_matchers', '1.1.2'
 
   gem 'rubocop', require: false
