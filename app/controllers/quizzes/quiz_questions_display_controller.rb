@@ -1,7 +1,6 @@
 class Quizzes::QuizQuestionsDisplayController < ApplicationController
   include Api::V1::QuizQuestion
   include Filters::Quizzes
-  include QuizzesHelperLearnosity
 
   before_filter :require_context, :require_quiz
   before_filter :require_question, :only => [:show]
