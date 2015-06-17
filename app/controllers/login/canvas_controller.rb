@@ -156,6 +156,8 @@ class Login::CanvasController < ApplicationController
         response.merge!({:auth_url => aac.log_in_url})
       elsif aac.auth_type == 'saml'
         response.merge!({:auth_url => "/login?account_id=#{root_account.id}"})
+      elsif aac.auth_type == 'ldap'
+        response[:auth_type] = 'canvas'
       end
     end
     render :json => response
