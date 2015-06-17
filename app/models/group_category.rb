@@ -408,7 +408,7 @@ class GroupCategory < ActiveRecord::Base
       section_groups = []
 
       num.times do |idx|
-        group = Group.create(name: "#{group_name} #{idx + 1 + section_index * num}", :context => context)
+        group = Group.create(name: "#{group_name} #{idx + 1 + section_index * num}", :context => context, :course_section => section)
         section_groups <<  group
         groups << group
       end

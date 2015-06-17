@@ -153,7 +153,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                   </a>
                   <ul class="al-options">
                     <% @context.group_category.groups.active.by_name.each do |group| %>
-                      <li><%= link_to group.short_name, group_path(group) %></li>
+                      <% if @current_user.account_admin?(@context.context) || @context.context.sections_visible_to(@current_user).include?(group.course_section) %>
+                        <li><%= link_to group.short_name, group_path(group) %></li>
+                      <% end %>
                     <% end %>
                   </ul>
                 <% end %>

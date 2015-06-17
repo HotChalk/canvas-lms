@@ -300,7 +300,13 @@ class GroupCategoriesController < ApplicationController
   # @returns [Group]
   def groups
     if authorized_action(@context, @current_user, :manage_groups)
-      @groups = @group_category.groups.active.by_name
+      if  @current_user.account_admin?(@context) 
+        @groups = @group_category.groups.active.by_name
+      else 
+        sections = @context.sections_visible_to(@current_user)
+        @groups = @group_category.groups.where(course_section_id: sections)
+      end
+
       @groups = Api.paginate(@groups, self, api_v1_group_category_groups_url)
       render :json => @groups.map { |g| group_json(g, @current_user, session) }
     end

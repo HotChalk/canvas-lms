@@ -24,7 +24,6 @@ define [
       'click .add-group': 'addGroup'
 
     els:
-      '.randomly-assign-members': '$randomlyAssignMembersLink'
       '.al-trigger': '$groupCategoryActions'
       '.edit-category': '$editGroupCategoryLink'
       '.message-all-unassigned': '$messageAllUnassignedLink'
