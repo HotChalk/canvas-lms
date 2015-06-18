@@ -261,7 +261,7 @@ class GroupsController < ApplicationController
 
         if @context.grants_right?(@current_user, session, :manage_groups)
           if @domain_root_account.enable_manage_groups2?
-            categories_json = @categories.map{ |cat| group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
+            categories_json = @categories.map{ |cat| get_section_filtered_group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
             uncategorized = @context.groups.uncategorized.all
             if uncategorized.present?
               json = group_category_json(GroupCategory.uncategorized, @current_user, session)
@@ -298,6 +298,16 @@ class GroupsController < ApplicationController
         render :json => @paginated_groups.map { |g| group_json(g, @current_user, session, :include => Array(params[:include])) }
       end
     end
+  end
+
+  def get_section_filtered_group_category_json(group_category, user, session, options = {})
+    json = group_category_json(group_category, user, session, options)
+    #if the user is not admin we need to adjust the group count per category to account for visible sections
+    if !@current_user.account_admin?(@context)
+        sections = @context.sections_visible_to(user)
+        json['groups_count'] = group_category.groups.where(course_section_id: sections).length
+    end
+    json
   end
 
   # @API Get a single group
