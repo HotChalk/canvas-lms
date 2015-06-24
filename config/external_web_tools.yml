@@ -1,12 +1,15 @@
 #Configuration file to enable/disable web tools such as google analytics, inspectlet and other website stats/monitoring services
 development:
   enable_google_analytics: false
+  enable_google_tag_manager: false
   enable_inspectlet: false
 
 test:
   enable_google_analytics: false
+  enable_google_tag_manager: false
   enable_inspectlet: false
 
 production:
   enable_google_analytics: true
+  enable_google_tag_manager: true
   enable_inspectlet: true
