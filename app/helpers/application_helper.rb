@@ -895,8 +895,8 @@ module ApplicationHelper
 
   def include_google_analytics
     snippet = ""
-    @google_analytics_config ||= ConfigFile.load('external_web_tools')
-    if @google_analytics_config['enable_google_analytics']
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_google_analytics']
       snippet = %[<script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
@@ -912,8 +912,8 @@ module ApplicationHelper
 
   def include_inspectlet
     snippet = ""
-    @inspectlet_config ||= ConfigFile.load('external_web_tools')
-    if @inspectlet_config['enable_inspectlet']
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_inspectlet']
       snippet = %[ <script type="text/javascript" id="inspectletjs">
         window.__insp = window.__insp || [];
         __insp.push(['wid', 1695757460]);
@@ -933,19 +933,24 @@ module ApplicationHelper
 
   def include_google_tag_manager
     snippet = ""
-    @inspectlet_config ||= ConfigFile.load('external_web_tools')
-    if @inspectlet_config['enable_google_tag_manager']
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_google_tag_manager']
       snippet = %[
-<noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-MC7WJC"
-height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
-<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','GTM-MC7WJC');</script>
+        <noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-MC7WJC"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        '//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-MC7WJC');</script>
     ]
     end
     snippet.html_safe
+  end
+
+  def include_qa_header
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    @external_web_tools_config['enable_qa_header']
   end
 
 end

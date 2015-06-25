@@ -269,3 +269,17 @@ div.content_notice {
     padding-right: 8px;
   }
 }
+
+#qa-message {
+  background-color: #D93C19;
+  color: white;
+  font-family: Arial, Helvetica, Sans-serif;
+  font-size: 14px;
+  padding: 5px;
+  text-align: center;
+  a {
+    color: white;
+    border-bottom: 1px dotted #fff;
+    text-decoration: none;
+  }
+}

@@ -3,13 +3,16 @@ development:
   enable_google_analytics: false
   enable_google_tag_manager: false
   enable_inspectlet: false
+  enable_qa_header: false
 
 test:
   enable_google_analytics: false
   enable_google_tag_manager: false
   enable_inspectlet: false
+  enable_qa_header: false
 
 production:
-  enable_google_analytics: true
-  enable_google_tag_manager: true
-  enable_inspectlet: true
+  enable_google_analytics: false
+  enable_google_tag_manager: false
+  enable_inspectlet: false
+  enable_qa_header: false
