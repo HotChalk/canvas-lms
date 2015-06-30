@@ -68,10 +68,11 @@ module CanvasRails
         config.logger = SyslogWrapper.new(ident, facilities, opts)
         config.logger.level = log_level
       else
-        log_path = config.paths['log'].first
+        log_dir = log_config["log_dir"] || (Rails.root + 'log')
+        log_path = "#{log_dir}/#{Rails.env}.log"
 
         if ENV['RUNNING_AS_DAEMON'] == 'true'
-          log_path = Rails.root+'log/delayed_job.log'
+          log_path = "#{log_dir}/delayed_job.log"
         end
 
         config.logger = CanvasLogger.new(log_path, log_level, opts)
