@@ -13,7 +13,8 @@ html, body {
 html {
   margin: 0;
   padding: 0;
-  background-color: black;
+  background-color: white;
+  /*
   background: url('/images/Money_Noise_tm.png?1348625397'),
               -webkit-gradient(radial, 50% 0px, 0, 50% 0px, 0, color-stop(0%, rgba(255, 255, 255, 0.4)), color-stop(100%, transparent)),
               -webkit-gradient(linear, 50% 0%, 50% 100%, color-stop(0%, #2B2B2B), color-stop(100%, black));
@@ -23,15 +24,18 @@ html {
   background: url('/images/Money_Noise_tm.png?1348625397'),
               radial-gradient(50% -100px, circle cover, rgba(255, 255, 255, 0.6) 0%, transparent 100%),
               linear-gradient(to bottom, #2B2B2B, black);
+  */
   min-height: 420px;  /* this is a workaround to be high enough on an iphone */
   font-size: 114%;
   font-family: Helvetica;
 }
+/*
 .face {
   background: #1a1b1a;
   border-radius: 1em;
   color: white;
 }
+*/
 #f1_container {
   position: relative;
   margin: 0 auto;
@@ -39,10 +43,10 @@ html {
   width: 300px;
   height: 198px;
   z-index: 1;
-  background-image: url("/images/canvas_logo_for_mobile_login.png?1");
+  background-image: url("/images/ember-lms.png?1");
   background-position: center 30px;
   background-repeat: no-repeat;
-  background-size: 270px 48px;
+  //background-size: 270px 48px;
 }
 
 #f1_card {

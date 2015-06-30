@@ -3,7 +3,7 @@
   <div id="prelogin_error" class="error" style="display:none;"></div>
   <button type="submit" class="btn btn-primary btn-large"><%= t('submit', 'Submit') %></button>
   <div id="external_login" style="display: none;"><a id="external_login_link" class="btn btn-large" href="#"><%= t('click_here_to_login', "Click here to login at")%><br /></a></div>
-  <% url = "https://embersupport.zendesk.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
+  <% url = "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
   <%= link_to t('need_help', "Need help logging in?"), url, :class => 'btn btn-large forgot-password', :target => "_blank" %>
 <% end %>
 <%= form_for :pseudonym_session, :url => login_path, :html => {:id => "login_form", :class => "front face", :novalidate => 'novalidate', :style => (@is_prelogin ? "display:none" : "")} do |f| %>
@@ -13,7 +13,7 @@
     <div class="error"><%= flash[:error] %></div>
   <% end %>
   <button type="submit" class="btn btn-primary btn-large"><%= t('login', 'Login') %></button>
-  <% url = "http://support.hotchalkember.com/support.html" %>
+  <% url = "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
   <%= link_to t('dont_know_password', "I don't know my password"), url, :class => 'btn btn-large forgot-password', :target => "_blank" %>
 <% end %>
 <%= form_for :pseudonym_session, :url => forgot_password_path, :html => {:id => "forgot_password_form", :class => 'back face'} do |f| %>
