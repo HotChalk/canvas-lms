@@ -1,5 +1,5 @@
 <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :class => "front face", :novalidate => 'novalidate', :style => (@is_prelogin ? "" : "display:none")} do |f| %>
-  <input class="input-block-level" <%= 'type=email' if @login_handle_is_email %> name="prelogin[unique_id]" value="<%= params[:pseudonym_session].try(:[], :unique_id) %>" placeholder="Primary Email Address">
+  <input class="input-block-level" <%= 'type=email' if @login_handle_is_email %> name="prelogin[unique_id]" value="<%= params[:pseudonym_session].try(:[], :unique_id) %>" placeholder="Username or Email Address">
   <div id="prelogin_error" class="error" style="display:none;"></div>
   <button type="submit" class="btn btn-primary btn-large"><%= t('submit', 'Submit') %></button>
   <div id="external_login" style="display: none;"><a id="external_login_link" class="btn btn-large" href="#"><%= t('click_here_to_login', "Click here to login at")%><br /></a></div>
