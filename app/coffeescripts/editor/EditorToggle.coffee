@@ -4,8 +4,7 @@ define [
   'jquery'
   'Backbone'
   'compiled/fn/preventDefault'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'tinymce.editor_box'
 ], (_, I18n, $, Backbone, preventDefault) ->
 
   ###

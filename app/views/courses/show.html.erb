@@ -143,6 +143,8 @@
 <%
   jammit_css :dashboard
   case @course_home_view
+  when 'wiki'
+    jammit_css :tinymce
   when 'modules'
     js_bundle :context_modules
     jammit_css :context_modules2
@@ -150,6 +152,7 @@
     js_bundle :assignments
   when 'syllabus'
     js_bundle :syllabus
+    jammit_css :tinymce
   else
     js_bundle :dashboard
   end

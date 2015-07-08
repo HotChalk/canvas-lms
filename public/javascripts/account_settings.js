@@ -8,8 +8,8 @@ define([
   'jquery.instructure_misc_helpers', // replaceTags
   'jquery.instructure_misc_plugins', // confirmDelete, showIf, /\.log/
   'jquery.loadingImg', // loadingImg, loadingImage
-  'ckeditor.editor_box', // editorBox
-  'ckeditor-all',
+  'compiled/tinymce',
+  'tinymce.editor_box', // editorBox
   'vendor/date', // Date.parse
   'vendor/jquery.scrollTo', // /\.scrollTo/
   'jqueryui/tabs' // /\.tabs/
@@ -41,9 +41,7 @@ define([
       }
     });
     $(".datetime_field").datetime_field();
-    if ($("#add_notification_form textarea").length > 0) {
-      $("#add_notification_form textarea").editorBox().width('100%');
-    }
+    $("#add_notification_form textarea").editorBox().width('100%');
     $("#add_notification_form .datetime_field").bind('blur change', function() {
       var date = Date.parse($(this).val());
       if(date) {

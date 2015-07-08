@@ -55,8 +55,6 @@ define([
           if (options.data[item] && options.dataValues && $.inArray(item, options.dataValues) != -1) {
             this.data(item, options.data[item].toString());
           }
-          // HOTCHALK: ".scribdable?" is not a valid CSS class selector
-          if (/[\?\[\]]/.test(item)) continue;
           var $found_all = this.find("." + item);
           var avoid = options.avoid || "";
           $found_all.each(function() {

@@ -30,7 +30,7 @@ define([
   'jquery.instructure_misc_helpers' /* /\$\.uniq/ */,
   'jquery.instructure_misc_plugins' /* /\.log\(/ */,
   'compiled/jquery.rails_flash_notifications',
-  'ckeditor.editor_box' /* editorBox */,
+  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */
 ], function(INST, I18n, $, _, FakeXHR, authenticity_token, htmlEscape) {
 
