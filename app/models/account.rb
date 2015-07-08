@@ -443,8 +443,25 @@ class Account < ActiveRecord::Base
   end
 
   def fast_course_base(opts)
+    columns = "courses.id, courses.name, courses.workflow_state, courses.course_code, courses.sis_source_id, courses.enrollment_term_id"
+    associated_courses = self.associated_courses.active
+    associated_courses = associated_courses.with_enrollments if opts[:hide_enrollmentless_courses]
+    associated_courses = associated_courses.for_term(opts[:term]) if opts[:term].present?
+    associated_courses = yield associated_courses if block_given?
+    associated_courses.limit(opts[:limit]).active_first.select(columns).all
+  end
+
+  def fast_course_filters(opts)
     columns = "courses.id, courses.name, courses.workflow_state, courses.course_code, courses.sis_source_id, courses.enrollment_term_id, courses.settings"
     associated_courses = self.associated_courses.for_workflow_states(opts[:states]) if opts[:states].present?
+    #Check dates
+    if opts[:from_date].present? && opts[:to_date].present? && opts[:date_type].present?
+      if opts[:date_type] == 'start_date'
+        associated_courses = associated_courses.between_start_dates(opts[:from_date], opts[:to_date])
+      elsif opts[:date_type] == 'end_date'
+        associated_courses = associated_courses.between_concluded_dates(opts[:from_date], opts[:to_date])
+      end
+    end
     associated_courses = associated_courses.with_enrollments if opts[:hide_enrollmentless_courses]
     associated_courses = associated_courses.for_term(opts[:term]) if opts[:term].present?
     associated_courses = associated_courses.for_account_id(opts[:department_id]) if opts[:department_id].present?
@@ -463,7 +480,7 @@ class Account < ActiveRecord::Base
 
   def fast_all_courses(opts={})
     @cached_fast_all_courses ||= {}
-    @cached_fast_all_courses[opts] ||= self.fast_course_base(opts)
+    @cached_fast_all_courses[opts] ||= self.fast_course_filters(opts)
   end
 
   def all_users(limit=250)
@@ -487,6 +504,7 @@ class Account < ActiveRecord::Base
 
   def courses_name_like(query="", opts={})
     opts[:limit] ||= 200
+    opts[:course_format] = nil
     @cached_courses_name_like ||= {}
     @cached_courses_name_like[[query, opts]] ||= self.fast_course_base(opts) {|q| q.name_like(query)}
   end

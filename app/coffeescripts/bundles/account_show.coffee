@@ -2,8 +2,13 @@ require [
   'jquery'
   'jst/courses/autocomplete_item'
   'compiled/behaviors/autocomplete'
+  'jquery.instructure_date_and_time' # date_field
 ], ($, autocompleteItemTemplate) ->
   $(document).ready ->
+    $courseDateFilters = $('.datetime_field')
+    if $courseDateFilters.length
+      $courseDateFilters.datetime_field()
+
     $courseSearchField = $('#course_name')
     if $courseSearchField.length
       autocompleteSource = $courseSearchField.data('autocomplete-source')

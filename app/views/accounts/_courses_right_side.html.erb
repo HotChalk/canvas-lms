@@ -9,14 +9,20 @@
         <input value="claimed" id="claimed" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'claimed' %>><label for="claimed">Unpublished</label><br />
         <input value="available" id="available" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'available' %>><label for="available">Available</label><br />
         <input value="completed" id="completed" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'completed' %>><label for="completed">Completed</label><br />
-        <input value="deleted" id="deleted" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'deleted' %>><label for="deleted">Deleted</label>
-        <br />
         <br />
 
         <label for="date_type"><%= t(:hide_enrollmentless_courses, "Dates Active:") %></label><br />
-        <input type="radio" name="date_type" value="start_date" id="start_date" checked/><label for="start_date"><%= t(:start_date, "Started") %></label>
-        <input type="radio" name="date_type" value="end_date" id="end_date"/><label for="end_date"><%= t(:end_date, "Ended") %></label>
+        <input type="radio" name="date_type" value="start_date" id="start_date" <%= 'checked' if @date_type == 'start_date' %>/><label for="start_date"><%= t(:start_date, "Started") %></label>
+        <input type="radio" name="date_type" value="end_date" id="end_date" <%= 'checked' if @date_type == 'end_date' %>/><label for="end_date"><%= t(:end_date, "Ended") %></label>
         <br/>
+        <div class="control-group">
+          <label class="control-label" for="from_date">From</label>
+          <input class="datetime_field" value="<%= @from_date%>" id="from_date" name="from_date" size="30" style="width: 150px;" type="text" aria-label="From:"/>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="to_date">To</label>
+          <input class="datetime_field" value="<%= @to_date%>" id="to_date" name="to_date" size="30" style="width: 150px;" type="text" aria-label="To:"/>
+        </div>
         <br/>
 
         <% if term_count > 1 %>

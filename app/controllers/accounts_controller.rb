@@ -171,7 +171,7 @@ class AccountsController < ApplicationController
         load_course_right_side
         @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, 
                                              :hide_enrollmentless_courses => @hide_enrollmentless_courses,
-                                             :states => @states, :date_type => @date_type,
+                                             :states => @states, :date_type => @date_type, :from_date => @from_date, :to_date => @to_date,
                                              :department_id => @department_id, :program_id => @program_id, 
                                              :course_format => @course_format)
         ActiveRecord::Associations::Preloader.new(@courses, :enrollment_term).run
@@ -710,6 +710,7 @@ class AccountsController < ApplicationController
     @maximum_courses_im_gonna_show = 50
     @term = nil
     @states = ['available', 'claimed']
+    @date_type = 'start_date'
     if params[:enrollment_term_id].present?
       @term = @root_account.enrollment_terms.active.find(params[:enrollment_term_id]) rescue nil
       @term ||= @root_account.enrollment_terms.active[-1]
@@ -723,6 +724,8 @@ class AccountsController < ApplicationController
     @course_format = params[:course_format] if params[:course_format].present?
     @states = params[:states] if params[:states].present?
     @date_type = params[:date_type] if params[:date_type].present?
+    @from_date = params[:from_date] if params[:from_date].present?
+    @to_date = params[:to_date] if params[:to_date].present?
 
 
     @departments = []
