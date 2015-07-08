@@ -15,7 +15,7 @@
           $dialog = $('<div id="external_tool_button_dialog" style="padding: 0; overflow-y: hidden;"/>')
             .hide()
             .html("<div class='teaser' style='width: 800px; margin-bottom: 10px; display: none;'></div>" +
-                  "<iframe id='external_tool_button_frame' style='width: 800px; height: " + frameHeight +"px; border: 0;' src='/images/ajax-loader-medium-444.gif' borderstyle='0'/>")
+                  "<iframe id='external_tool_button_frame' style='width: 800px; height: " + frameHeight +"px; border: 0;' src='/images/ajax-loader-medium-444.gif' borderstyle='0' tabindex='0'/>")
             .appendTo('body')
             .dialog({
               autoOpen: false,
@@ -43,60 +43,49 @@
                   .appendTo("body");
               });
             })
-            .bind('selection', function(event, data) {
-              if(data.return_type == 'lti_launch_url') {
-                if($("#external_tool_retrieve_url").attr('href')) {
-                  var external_url = $.replaceTags($("#external_tool_retrieve_url").attr('href'), 'url', data.url);
-                  $("#" + api.element.getId()).editorBox('create_link', {
-                    url: external_url,
-                    title: data.title,
-                    text: data.text
-                  });
-                } else {
-                  console.log("cannot embed basic lti links in this context");
-                }
-              } else if(data.return_type == 'image_url') {
-                var html = $("<div/>").append($("<img/>", {
-                  src: data.url,
-                  alt: data.alt
-                }).css({
-                  width: data.width,
-                  height: data.height
-                })).html();
-                $("#" + api.element.getId()).editorBox('insert_code', html);
-              } else if(data.return_type == 'url') {
-                $("#" + api.element.getId()).editorBox('create_link', {
-                  url: data.url,
-                  title: data.title,
-                  text: data.text,
-                  target: data.target == '_blank' ? '_blank' : null
-                });
-              } else if(data.return_type == 'file') {
-                $("#" + api.element.getId()).editorBox('create_link', {
-                  url: data.url,
-                  title: data.filename,
-                  text: data.filename
-                });
-              } else if(data.return_type == 'iframe') {
-                var html = $("<div/>").append($("<iframe/>", {
-                  src: data.url,
-                  title: data.title
-                }).css({
-                  width: data.width,
-                  height: data.height
-                })).html();
-                $("#" + api.element.getId()).editorBox('insert_code', html);
-              } else if(data.return_type == 'rich_content') {
-                $("#" + api.element.getId()).editorBox('insert_code', data.html);
-              } else if(data.return_type == 'error' && data.message) {
-                alert(data.message);
-              } else {
-                console.log("unrecognized embed type: " + data.return_type);
-              }
-              $("#external_tool_button_dialog iframe").attr('src', 'about:blank');
-              $("#external_tool_button_dialog").dialog('close');
-            });
         }
+        $(window).unbind("externalContentReady");
+        $(window).bind("externalContentReady", function (event, data) {
+          var item = data.contentItems[0];
+          var placementAdvice = item.placementAdvice;
+          var presentationDocTarget = placementAdvice.presentationDocumentTarget;
+          var url = item.mediaType === 'application/vnd.ims.lti.v1.launch+json' ? item.canvasURL : item.url
+          if (presentationDocTarget === 'iframe') {
+            var html = $("<div/>").append($("<iframe/>", {
+              src: url,
+              title: item.title,
+              allowfullscreen: 'true',
+              webkitallowfullscreen: 'true',
+              mozallowfullscreen: 'true'
+            }).css({
+              width: placementAdvice.displayWidth,
+              height: placementAdvice.displayHeight
+            })).html();
+            $("#" + api.element.getId()).editorBox('insert_code', html);
+          } else if (presentationDocTarget === 'embed') {
+            if (item.mediaType && item.mediaType.indexOf('image') == 0) {
+              var html = $("<div/>").append($("<img/>", {
+                src: url,
+                alt: item.text
+              }).css({
+                width: placementAdvice.displayWidth,
+                height: placementAdvice.displayHeight
+              })).html();
+              $("#" + api.element.getId()).editorBox('insert_code', html);
+            } else {
+              $("#" + api.element.getId()).editorBox('insert_code', item.text);
+            }
+          } else { //create a link to the content
+            $("#" + api.element.getId()).editorBox('create_link', {
+              url: url,
+              title: item.title,
+              text: item.text,
+              target: placementAdvice.presentationDocumentTarget == 'window' ? '_blank' : null
+            });
+          }
+          $dialog.find('iframe').attr('src', 'about:blank');
+          $dialog.dialog('close')
+        });
         $dialog.dialog('option', 'title', 'Embed content from ' + button.name);
         $dialog.dialog('close')
           .dialog('option', 'width', button.width || 800)
