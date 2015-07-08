@@ -9,6 +9,7 @@
   RewriteRule ^(.*)$ https://hotchalkember.com/$1 [L,R=301]
   RewriteCond %{QUERY_STRING} !account_id=
   RewriteRule ^login/hmac     login/hmac?account_id=1 [QSA]
+  RewriteRule ^login2     login/canvas?direct=1 [QSA]
 </IfModule>
 
 #<IfModule mod_rewrite.c>

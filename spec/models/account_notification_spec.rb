@@ -119,30 +119,55 @@ describe AccountNotification do
       end
     end
 
-    it "should exclude students on surveys if the account restricts a student" do
-      flag = AccountNotification::ACCOUNT_SERVICE_NOTIFICATION_FLAGS.first
-      @survey = account_notification(:required_account_service => flag, :account => Account.site_admin)
-      @a1 = account_model
-      @a1.enable_service(flag)
-      @a1.settings[:include_students_in_global_survey] = false
-      @a1.save!
+    describe "dexclude students for surveys?" do
+      before(:each) do
+        flag = AccountNotification::ACCOUNT_SERVICE_NOTIFICATION_FLAGS.first
+        @survey = account_notification(:required_account_service => flag, :account => Account.site_admin)
+        @a1 = account_model
+        @a1.enable_service(flag)
+        @a1.save!
 
-      @unenrolled = @user
-      course_with_teacher(account: @a1)
-      @student_teacher = @user
-      course_with_student(course: @course, user: @student_teacher)
-      course_with_teacher(course: @course, :account => @a1)
-      @teacher = @user
-      account_admin_user(:account => @a1)
-      @admin = @user
-      course_with_student(:course => @course)
-      @student = @user
+        @unenrolled = @user
+        course_with_teacher(account: @a1)
+        @student_teacher = @user
+        course_with_student(course: @course, user: @student_teacher)
+        course_with_teacher(course: @course, :account => @a1)
+        @teacher = @user
+        account_admin_user(:account => @a1)
+        @admin = @user
+        course_with_student(:course => @course)
+        @student = @user
+      end
 
-      expect(AccountNotification.for_user_and_account(@teacher, @a1).map(&:id).sort).to eq [@survey.id]
-      expect(AccountNotification.for_user_and_account(@admin, @a1).map(&:id).sort).to eq [@survey.id]
-      expect(AccountNotification.for_user_and_account(@student, @a1).map(&:id).sort).to eq []
-      expect(AccountNotification.for_user_and_account(@student_teacher, @a1).map(&:id).sort).to eq [@survey.id]
-      expect(AccountNotification.for_user_and_account(@unenrolled, @a1).map(&:id).sort).to eq [@survey.id]
+      it "should exclude students on surveys if the account restricts a student" do
+        @a1.settings[:include_students_in_global_survey] = false
+        @a1.save!
+
+        expect(AccountNotification.for_user_and_account(@teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@admin, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@student, @a1).map(&:id).sort).to eq []
+        expect(AccountNotification.for_user_and_account(@student_teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@unenrolled, @a1).map(&:id).sort).to eq [@survey.id]
+      end
+
+      it "should exclude students on surveys by default" do
+        expect(AccountNotification.for_user_and_account(@teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@admin, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@student, @a1).map(&:id).sort).to eq []
+        expect(AccountNotification.for_user_and_account(@student_teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@unenrolled, @a1).map(&:id).sort).to eq [@survey.id]
+      end
+
+      it "should include students on surveys when checked" do
+        @a1.settings[:include_students_in_global_survey] = true
+        @a1.save!
+
+        expect(AccountNotification.for_user_and_account(@teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@admin, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@student, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@student_teacher, @a1).map(&:id).sort).to eq [@survey.id]
+        expect(AccountNotification.for_user_and_account(@unenrolled, @a1).map(&:id).sort).to eq [@survey.id]
+      end
     end
   end
 
@@ -170,6 +195,33 @@ describe AccountNotification do
       expect(@user.preferences[:closed_notifications]).to eq [@announcement.id]
       @shard1.activate do
         expect(AccountNotification.for_user_and_account(@user, Account.default)).to eq []
+      end
+    end
+
+    it "should properly adjust for built in roles across shards" do
+      @announcement.destroy
+
+      @shard2.activate do
+        @my_frd_account = Account.create!
+      end
+
+      Account.site_admin.shard.activate do
+        @site_admin_announcement = account_notification(account: Account.site_admin, role_ids: [Role.get_built_in_role("TeacherEnrollment").id])
+      end
+
+      @my_frd_account.shard.activate do
+        @local_announcement = account_notification(account: @my_frd_account, role_ids: [Role.get_built_in_role("TeacherEnrollment").id])
+        course_with_teacher(account: @my_frd_account)
+      end
+
+      # announcements should show to teachers, regardless of combination of
+      # current shard, association shard, and notification shard
+      [Account.site_admin.shard, @my_frd_account.shard, @shard1].each do |shard|
+        shard.activate do
+          expect(AccountNotification.for_user_and_account(@teacher, Account.site_admin)).to include(@site_admin_announcement)
+          expect(AccountNotification.for_user_and_account(@teacher, @my_frd_account)).to include(@site_admin_announcement)
+          expect(AccountNotification.for_user_and_account(@teacher, @my_frd_account)).to include(@local_announcement)
+        end
       end
     end
   end

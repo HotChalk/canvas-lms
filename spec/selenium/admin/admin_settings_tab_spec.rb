@@ -38,7 +38,7 @@ describe "admin settings tab" do
       features.each do |feature|
         check_state = Account.default.service_enabled?(feature)
         state_checker checker, !check_state
-        default_selectors.push("#account_services_#{feature.to_s}")
+        default_selectors.push("#account_services_#{feature}")
       end
       css_selectors = default_selectors
     end
@@ -57,7 +57,7 @@ describe "admin settings tab" do
         features.each do |feature|
           check_state = Account.default.service_enabled?(feature)
           state_checker checker, check_state
-          default_selectors.push("#account_services_#{feature.to_s}")
+          default_selectors.push("#account_services_#{feature}")
         end
         if (checker)
           default_selectors += css_selectors
@@ -96,7 +96,7 @@ describe "admin settings tab" do
           f("#account_settings_self_enrollment option[value=#{value}]").click
         end
         click_submit
-        expect(Account.default[:settings][:self_enrollment]).to eq value
+        expect(Account.default[:settings][:self_enrollment]).to eq value.presence
         expect(f("#account_settings_self_enrollment")).to have_value value
       end
 
@@ -119,10 +119,6 @@ describe "admin settings tab" do
 
     it "should uncheck 'students can opt-in to receiving scores in email notifications' " do
       check_box_verifier("#account_settings_allow_sending_scores_in_emails", :allow_sending_scores_in_emails, false)
-    end
-
-    it "should click on 'restrict students from viewing courses before start date'" do
-      check_box_verifier("#account_settings_restrict_student_future_view", :restrict_student_future_view)
     end
 
     it "should set trusted referers for account" do
@@ -272,8 +268,8 @@ describe "admin settings tab" do
         replace_content(f("#account_settings_equella_endpoint"), "")
         replace_content(f("#account_settings_equella_teaser"), "")
         click_submit
-        expect(Account.default.settings[:equella_endpoint]).to eq ""
-        expect(Account.default.settings[:equella_teaser]).to eq ""
+        expect(Account.default.settings[:equella_endpoint]).to be_nil
+        expect(Account.default.settings[:equella_teaser]).to be_nil
         expect(fj("#account_settings_equella_endpoint:visible")).to be_nil
         expect(fj("#account_settings_equella_teaser:visible")).to be_nil
       end
@@ -316,14 +312,14 @@ describe "admin settings tab" do
     end
 
     it "should enable and disable a plugin service (setting)" do
-      Account.register_service(:myplugin, {:name => "My Plugin", :description => "", :expose_to_ui => :setting, :default => false})
+      AccountServices.register_service(:myplugin, {:name => "My Plugin", :description => "", :expose_to_ui => :setting, :default => false})
       get "/accounts/#{Account.default.id}/settings"
       check_box_verifier("#account_services_myplugin", {:allowed_services => :myplugin})
       check_box_verifier("#account_services_myplugin", {:allowed_services => :myplugin}, false)
     end
 
     it "should enable and disable a plugin service (service)" do
-      Account.register_service(:myplugin, {:name => "My Plugin", :description => "", :expose_to_ui => :service, :default => false})
+      AccountServices.register_service(:myplugin, {:name => "My Plugin", :description => "", :expose_to_ui => :service, :default => false})
       get "/accounts/#{Account.default.id}/settings"
       check_box_verifier("#account_services_myplugin", {:allowed_services => :myplugin})
       check_box_verifier("#account_services_myplugin", {:allowed_services => :myplugin}, false)
@@ -469,6 +465,17 @@ describe "admin settings tab" do
       click_submit
 
       expect(f("#account_external_integration_keys_external_key0").attribute('value')).to eq ''
+    end
+  end
+
+  it "should show all the feature flags" do
+    course_with_admin_logged_in(:account => Account.site_admin)
+    get "/accounts/#{Account.site_admin.id}/settings"
+    f("#tab-features-link").click
+    wait_for_ajaximations
+    
+    Feature.applicable_features(Account.site_admin).each do |feature|
+      expect(f(".feature.#{feature.feature}")).to be_displayed
     end
   end
 end

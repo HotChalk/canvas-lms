@@ -1,10 +1,6 @@
 require 'spec_helper'
 
 describe Quizzes::QuizSerializer do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
-
 
   def quiz_serializer(options={})
     options.reverse_merge!({
@@ -47,7 +43,8 @@ describe Quizzes::QuizSerializer do
     :allowed_attempts, :one_question_at_a_time, :question_count,
     :points_possible, :cant_go_back, :access_code, :ip_filter, :due_at,
     :lock_at, :unlock_at, :published, :show_correct_answers_at,
-    :hide_correct_answers_at, :show_correct_answers_last_attempt
+    :hide_correct_answers_at, :show_correct_answers_last_attempt, :question_types,
+    :has_access_code
   ].each do |attribute|
 
       it "serializes #{attribute}" do
@@ -451,6 +448,7 @@ describe Quizzes::QuizSerializer do
         create: true,
         update: true,
         read_statistics: true,
+        view_answer_audits: true,
         manage: true,
         delete: true,
         grade: true

@@ -22,14 +22,11 @@ module Api::V1::Avatar
 
   def avatars_json_for_user(user, includes={})
     avatars = []
-    if feature_enabled?(:facebook) && facebook = user.facebook
-      # TODO: add facebook picture if enabled
-    end
     avatars << avatar_json(user, user.gravatar_url(50, "/images/dotted_pic.png", request), {
       :type => 'gravatar',
       :alt => 'gravatar pic'
     })
-    user.profile_pics_folder.active_file_attachments({:include => :thumbnail}).select{|a| a.content_type.match(/\Aimage\//) && a.thumbnail}.sort_by(&:id).reverse.each do |image|
+    user.profile_pics_folder.active_file_attachments({:include => :thumbnail}).select{|a| a.content_type.match(/\Aimage\//) && a.thumbnail}.sort_by(&:id).reverse_each do |image|
       avatars << avatar_json(user, image, {
         :type => 'attachment',
         :alt => image.display_name,

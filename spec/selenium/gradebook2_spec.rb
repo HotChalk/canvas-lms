@@ -3,13 +3,90 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/gradebook2_common')
 describe "gradebook2" do
   include_examples "in-process server selenium tests"
 
-  context "as a teacher" do
-    before(:each) do
-      gradebook_data_setup
+  describe "multiple grading periods" do
+    let!(:enable_mgp_and_navigate_to_gradebook) do
+      course_with_admin_logged_in
+      student_in_course
+      @course.root_account.enable_feature!(:multiple_grading_periods)
+      group = @course.root_account.grading_period_groups.create
+      group.grading_periods.create  start_date: 4.months.ago,
+                                    end_date:   2.months.ago,
+                                    title: "Period in the Past"
+      group.grading_periods.create  start_date: 1.month.ago,
+                                    end_date:   2.months.from_now,
+                                    title: "Current Period"
     end
 
+    let(:select_period_in_the_past) do
+      f(".grading-period-select-button").click
+      f("#ui-id-4").click # The id of the Period in the Past
+    end
+
+    let(:sign_in_as_a_teacher) do
+      teacher_in_course
+      user_session(@teacher)
+    end
+
+    let(:uneditable_cells) { f('.cannot_edit') }
+    let(:gradebook_header) { f('#gradebook_grid .container_1 .slick-header') }
+
+    it "should load gradebook when no grading periods have been created" do
+      get "/courses/#{@course.id}/gradebook2"
+      expect(f('#gradebook-grid-wrapper')).to be_displayed
+    end
+
+    context "assignments in past grading periods" do
+      let!(:assignment_in_the_past) do
+        @course.assignments.create! due_at: 3.months.ago,
+                                    title: "past-due assignment"
+      end
+
+      it "admins should be able to edit" do
+        get "/courses/#{@course.id}/gradebook2"
+
+        select_period_in_the_past
+        expect(gradebook_header).to include_text("past-due assignment")
+        expect(uneditable_cells).to_not be_present
+      end
+
+      it "teachers should not be able to edit" do
+        sign_in_as_a_teacher
+
+        get "/courses/#{@course.id}/gradebook2"
+
+        select_period_in_the_past
+        expect(gradebook_header).to include_text("past-due assignment")
+        expect(uneditable_cells).to be_present
+      end
+    end
+
+    context "assignments with no due_at" do
+      let!(:assignment_without_due_at) do
+        @course.assignments.create! title: "No Due Date"
+      end
+
+      it "admins should be able to edit" do
+        get "/courses/#{@course.id}/gradebook2"
+
+        expect(gradebook_header).to include_text("No Due Date")
+        expect(uneditable_cells).to_not be_present
+      end
+
+      it "teachers should be able to edit" do
+        sign_in_as_a_teacher
+
+        get "/courses/#{@course.id}/gradebook2"
+
+        expect(gradebook_header).to include_text("No Due Date")
+        expect(uneditable_cells).to_not be_present
+      end
+    end
+  end
+
+  context "as a teacher" do
+    let!(:setup) { gradebook_data_setup }
+
     it "hides unpublished/shows published assignments" do
-      @course.root_account.enable_feature!(:draft_state)
       assignment = @course.assignments.create! title: 'unpublished'
       assignment.unpublish
       get "/courses/#{@course.id}/gradebook2"
@@ -153,7 +230,6 @@ describe "gradebook2" do
 
     it "should handle muting/unmuting correctly" do
       get "/courses/#{@course.id}/gradebook2"
-
       toggle_muting(@second_assignment)
       expect(fj(".container_1 .slick-header-column[id*='assignment_#{@second_assignment.id}'] .muted")).to be_displayed
       expect(@second_assignment.reload).to be_muted
@@ -169,6 +245,20 @@ describe "gradebook2" do
       expect(@second_assignment.reload).not_to be_muted
     end
 
+    context "unpublished course" do
+      before do
+        @course.claim!
+        get "/courses/#{@course.id}/gradebook2"
+      end
+
+      it "should allow editing grades" do
+        cell = f('#gradebook_grid .container_1 .slick-row:nth-child(1) .l2')
+        expect(f('.gradebook-cell', cell).text).to eq '10'
+        cell.click
+        expect(ff('.grade', cell)).to_not be_blank
+      end
+    end
+
     context "concluded course" do
       before do
         @course.complete!
@@ -177,7 +267,7 @@ describe "gradebook2" do
 
       it "should not allow editing grades" do
         cell = f('#gradebook_grid .container_1 .slick-row:nth-child(1) .l2')
-        expect(cell.text).to eq '10'
+        expect(f('.gradebook-cell', cell).text).to eq '10'
         cell.click
         expect(ff('.grade', cell)).to be_blank
       end
@@ -784,27 +874,6 @@ describe "gradebook2" do
       f("#only_consider_graded_assignments").click
       wait_for_ajax_requests
       expect(f(".final_grade .grade")).to include_text("12.5")
-    end
-  end
-
-  describe "outcome gradebook" do
-    before(:each) do
-      gradebook_data_setup
-    end
-
-    it "should not be visible by default" do
-      get "/courses/#{@course.id}/gradebook2"
-      expect(ff('.gradebook-navigation').length).to eq 0
-    end
-
-    it "should be visible when enabled" do
-      Account.default.set_feature_flag!('outcome_gradebook', 'on')
-      get "/courses/#{@course.id}/gradebook2"
-      expect(ff('.gradebook-navigation').length).to eq 1
-
-      f('a[data-id=outcome]').click
-      wait_for_ajaximations
-      expect(f('.outcome-gradebook-container')).not_to be_nil
     end
   end
 

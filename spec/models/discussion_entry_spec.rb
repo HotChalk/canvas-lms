@@ -241,6 +241,15 @@ describe DiscussionEntry do
       @topic.reload
       expect(@topic.last_reply_at).to eq @original_last_reply_at
     end
+
+    it "should still work with no last_reply_at" do
+      @topic.saved_by = :migration
+      @topic.last_reply_at = nil
+      @topic.save!
+
+      @entry.reload
+      @entry.update_topic
+    end
   end
 
   context "deleting entry" do
@@ -392,6 +401,40 @@ describe DiscussionEntry do
     end
   end
 
+  context "rating" do
+    before(:once) do
+      course_with_teacher(active_all: true)
+      student_in_course(active_all: true)
+      @topic = @course.discussion_topics.create!(title: "title", message: "message", user: @teacher)
+      @entry = @topic.discussion_entries.create!(message: "entry", user: @s1)
+    end
+
+    it "should allow being rated" do
+      expect(@entry.rating(@teacher)).to be_nil
+      @entry.change_rating(1, @teacher)
+      expect(@entry.rating(@teacher)).to eq 1
+    end
+
+    it "should update rating_count and rating_sum" do
+      @entry.change_rating(1, @teacher)
+      @entry.reload
+      expect(@entry.rating_count).to eq 1
+      expect(@entry.rating_sum).to eq 1
+
+      student_in_course(active_all: true)
+      @s2 = @student
+
+      @entry.change_rating(1, @s2)
+      @entry.reload
+      expect(@entry.rating_count).to eq 2
+      expect(@entry.rating_sum).to eq 2
+      @entry.change_rating(0, @teacher)
+      @entry.reload
+      expect(@entry.rating_count).to eq 2
+      expect(@entry.rating_sum).to eq 1
+    end
+  end
+
   context "threaded discussions" do
     before :once do
       course_with_teacher
@@ -515,6 +558,15 @@ describe DiscussionEntry do
     it "should not allow students to reply to locked topics" do
       @entry = @topic.reply_from(:user => @teacher, :text => "topic")
       @topic.lock!
+      @entry.reply_from(:user => @teacher, :text => "reply") # should not raise error
+      student_in_course(:course => @course)
+      expect { @entry.reply_from(:user => @student, :text => "reply") }.to raise_error(IncomingMail::Errors::ReplyToLockedTopic)
+    end
+
+    it "should not allow replies from students to topics locked based on date" do
+      @entry = @topic.reply_from(:user => @teacher, :text => "topic")
+      @topic.unlock_at = 1.day.from_now
+      @topic.save!
       @entry.reply_from(:user => @teacher, :text => "reply") # should not raise error
       student_in_course(:course => @course)
       expect { @entry.reply_from(:user => @student, :text => "reply") }.to raise_error(IncomingMail::Errors::ReplyToLockedTopic)

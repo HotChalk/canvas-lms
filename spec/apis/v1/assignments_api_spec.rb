@@ -256,6 +256,164 @@ describe AssignmentsApiController, type: :request do
       expect(json.size).to eq 0
     end
 
+    describe "assignment bucketing" do
+      before :once do
+        course_with_student_logged_in(:active_all => true)
+        @student1 = @user
+        @section = @course.course_sections.create!(name: "test section")
+        student_in_section(@section, user: @student1)
+
+        @student2 = create_users(1, return_type: :record).first
+        @course.enroll_student(@student2, :enrollment_state => 'active')
+        @section2 = @course.course_sections.create!(name: "second test section")
+        student_in_section(@section2, user: @student2)
+
+        # names based on student 1's due dates
+        @past_assignment = @course.assignments.create!(title: "past", only_visible_to_overrides: true, due_at: (Time.now - 10.days))
+        create_section_override_for_assignment(@past_assignment, {course_section: @section, due_at: (Time.now - 10.days)})
+
+        @overdue_assignment = @course.assignments.create!(title: "overdue", only_visible_to_overrides: true, submission_types: "online")
+        create_section_override_for_assignment(@overdue_assignment, {course_section: @section, due_at: (Time.now - 10.days)})
+
+        @far_future_assignment = @course.assignments.create!(title: "far future", only_visible_to_overrides: true)
+        create_section_override_for_assignment(@far_future_assignment, {course_section: @section, due_at: (Time.now + 30.days)})
+
+        @upcoming_assignment = @course.assignments.create!(title: "upcoming", only_visible_to_overrides: true)
+        create_section_override_for_assignment(@upcoming_assignment, {course_section: @section, due_at: (Time.now + 1.days)})
+
+        @undated_assignment = @course.assignments.create!(title: "undated", only_visible_to_overrides: true)
+        override = create_section_override_for_assignment(@undated_assignment, {course_section: @section, due_at: nil})
+        override.due_at = nil
+        override.save
+
+        # student2 overrides
+        create_section_override_for_assignment(@past_assignment, {course_section: @section2, due_at: (Time.now - 10.days)})
+        create_section_override_for_assignment(@far_future_assignment, {course_section: @section2, due_at: (Time.now - 10.days)})
+      end
+
+      it "returns an error with an invalid bucket" do
+        raw_api_call(:get, "/api/v1/courses/#{@course.id}/assignments.json",
+          { :controller => 'assignments_api',
+            :action => 'index',
+            :format => 'json',
+            :course_id => @course.id.to_s,
+            :bucket => "invalid bucket name"
+          }
+        )
+
+        expect(response).not_to be_success
+        json = JSON.parse response.body
+        expect(json["errors"]["bucket"].first["message"]).to eq "bucket name must be one of the following: past, overdue, undated, ungraded, upcoming, future"
+      end
+
+      def assignment_index_bucketed_api_call(bucket)
+        api_call(:get, "/api/v1/courses/#{@course.id}/assignments.json",
+          { :controller => 'assignments_api',
+            :action => 'index',
+            :format => 'json',
+            :course_id => @course.id.to_s,
+            :bucket => bucket
+          }
+        )
+      end
+
+      def assert_call_gets_assignments(bucket, assignments)
+        assignments_json = assignment_index_bucketed_api_call(bucket)
+        expect(assignments_json.map{|a| a["id"]}.sort).to eq assignments.map(&:id).sort
+        if assignments_json.any?
+          expect(assignments_json.first["bucket"]).to eq bucket
+        end
+      end
+
+      def assert_calls_get_assignments(expectations)
+        expectations.each do |bucket, assignments|
+          assert_call_gets_assignments(bucket.to_s, assignments)
+        end
+      end
+
+      context "as a student" do
+        it "should bucket assignments properly" do
+          assert_calls_get_assignments(
+            future: [@upcoming_assignment, @far_future_assignment, @undated_assignment],
+            upcoming: [@upcoming_assignment],
+            past: [@past_assignment, @overdue_assignment],
+            undated: [@undated_assignment],
+            overdue: [@overdue_assignment]
+          )
+        end
+
+        it "should apply overrides properly to different students" do
+          # as student1
+          assert_call_gets_assignments("past", [@past_assignment, @overdue_assignment])
+
+          user_session(@student2)
+          @user = @student2
+
+          assert_call_gets_assignments("past", [@past_assignment, @far_future_assignment])
+        end
+      end
+
+      context "as a teacher" do
+        it "should use default assignment dates" do
+          teacher = @course.teachers.first
+          user_session(teacher)
+          @user = teacher
+
+          assert_calls_get_assignments(
+            past: [@past_assignment],
+            undated: [@upcoming_assignment, @undated_assignment, @overdue_assignment, @far_future_assignment]
+          )
+        end
+      end
+
+      context "as an observer" do
+        before :once do
+          @observer = User.create
+          user_session(@observer)
+          @user = @observer
+        end
+        it "should get the same results as a student when only observing one student" do
+          @observer_enrollment = @course.enroll_user(@observer, 'ObserverEnrollment', :section => @section2, :enrollment_state => 'active')
+          @observer_enrollment.update_attribute(:associated_user_id, @student1.id)
+
+          assert_calls_get_assignments(
+            future: [@upcoming_assignment, @far_future_assignment, @undated_assignment],
+            upcoming: [@upcoming_assignment],
+            past: [@past_assignment, @overdue_assignment],
+            undated: [@undated_assignment],
+            overdue: [@overdue_assignment]
+          )
+        end
+
+        it "should treat multi-student observers like course observers" do
+          @observer_enrollment = @course.enroll_user(@observer, 'ObserverEnrollment', :section => @section, :enrollment_state => 'active', :allow_multiple_enrollments => true)
+          @observer_enrollment.update_attribute(:associated_user_id, @student1.id)
+          @observer_enrollment = @course.enroll_user(@observer, 'ObserverEnrollment', :section => @section, :enrollment_state => 'active', :allow_multiple_enrollments => true)
+          @observer_enrollment.update_attribute(:associated_user_id, @student2.id)
+
+          assert_calls_get_assignments(
+            future: [@upcoming_assignment, @far_future_assignment, @undated_assignment],
+            upcoming: [@upcoming_assignment],
+            past: [@past_assignment, @overdue_assignment],
+            undated: [@undated_assignment],
+            overdue: []
+          )
+        end
+
+        it "should use sections dates when observing a whole course" do
+          @observer_enrollment = @course.enroll_user(@observer, 'ObserverEnrollment', :section => @section, :enrollment_state => 'active')
+
+          assert_calls_get_assignments(
+            future: [@upcoming_assignment, @far_future_assignment, @undated_assignment],
+            upcoming: [@upcoming_assignment],
+            past: [@past_assignment, @overdue_assignment],
+            undated: [@undated_assignment],
+            overdue: []
+          )
+        end
+      end
+    end
+
     describe "enable draft" do
       before :once do
         course_with_teacher(:active_all => true)
@@ -265,8 +423,6 @@ describe AssignmentsApiController, type: :request do
       end
 
       it "should include published flag for accounts that do have enabled_draft" do
-        @course.account.enable_feature!(:draft_state)
-
         @json = api_get_assignment_in_course(@assignment, @course)
 
         expect(@json.has_key?('published')).to be_truthy
@@ -293,6 +449,22 @@ describe AssignmentsApiController, type: :request do
       before :once do
         course_with_teacher_logged_in(:active_all => true)
         @assignment = @course.assignments.create :name => 'differentiated assignment'
+        section = @course.course_sections.create!(name: "second test section")
+        create_section_override_for_assignment(@assignment, {course_section: section})
+      end
+
+      it "should include overrides if overrides flag is included in the params" do
+        @course.account.enable_feature!(:differentiated_assignments)
+        assignments_json = api_call(:get, "/api/v1/courses/#{@course.id}/assignments",
+          {
+            controller: 'assignments_api',
+            action: 'index',
+            format: 'json',
+            course_id: @course.id.to_s,
+          },
+            :include => ['overrides']
+          )
+        expect(assignments_json[0].keys).to include("overrides")
       end
 
       it "should exclude the only_visible_to_overrides flag if differentiated assignments is off" do
@@ -482,7 +654,6 @@ describe AssignmentsApiController, type: :request do
 
       before :once do
         course_with_student(:active_all => true)
-        @course.account.enable_feature!(:draft_state)
         @published = @course.assignments.create!({:name => "published assignment"})
         @published.workflow_state = 'published'
         @published.save!
@@ -728,25 +899,36 @@ describe AssignmentsApiController, type: :request do
       @section_due_at = 7.days.from_now
 
       @user = @teacher
-      @json = api_call(:post, "/api/v1/courses/#{@course.id}/assignments.json",
-        { :controller => 'assignments_api',
-          :action => 'create',
-          :format => 'json',
-          :course_id => @course.id.to_s },
-        { :assignment => {
-            'name' => 'some assignment',
-            'assignment_overrides' => {
-              '0' => {
-                'student_ids' => [@student.id],
-                'title' => 'adhoc override',
-                'due_at' => @adhoc_due_at.iso8601 },
-              '1' => {
-                  'course_section_id' => @course.default_section.id,
-                  'due_at' => @section_due_at.iso8601
-                }
-            }
+
+      assignment_params = {
+        :assignment => {
+          'name' => 'some assignment',
+          'assignment_overrides' => {
+            '0' => {
+              'student_ids' => [@student.id],
+              'due_at' => @adhoc_due_at.iso8601 },
+            '1' => {
+                'course_section_id' => @course.default_section.id,
+                'due_at' => @section_due_at.iso8601
+              }
           }
-        })
+        }
+      }
+
+      controller_params = {
+        :controller => 'assignments_api',
+        :action => 'create',
+        :format => 'json',
+        :course_id => @course.id.to_s
+      }
+
+      @json = api_call(
+        :post,
+        "/api/v1/courses/#{@course.id}/assignments.json",
+        controller_params,
+        assignment_params
+      )
+
       @assignment = Assignment.find @json['id']
       expect(@assignment.assignment_overrides.count).to eq 2
 
@@ -755,6 +937,7 @@ describe AssignmentsApiController, type: :request do
       expect(@adhoc_override.set).to eq [@student]
       expect(@adhoc_override.due_at_overridden).to be_truthy
       expect(@adhoc_override.due_at.to_i).to eq @adhoc_due_at.to_i
+      expect(@adhoc_override.title).to eq @student.name
 
       @section_override = @assignment.assignment_overrides.where(set_type: 'CourseSection').first
       expect(@section_override).not_to be_nil
@@ -799,9 +982,145 @@ describe AssignmentsApiController, type: :request do
           action: 'show',
           format:'json',
           course_id: @course.id.to_s,
-          id: assignment_id.to_s 
+          id: assignment_id.to_s
         }, {needs_grading_count_by_section: 'true'})
       expect(show_json.keys).to include("needs_grading_count_by_section")
+    end
+
+    it "allows creating an assignment with overrides via the API" do
+     student_in_course(:course => @course, :active_enrollment => true)
+
+     adhoc_due_at = 5.days.from_now
+     section_due_at = 7.days.from_now
+
+     @user = @teacher
+     @json = api_call(:post, "/api/v1/courses/#{@course.id}/assignments.json",
+       { :controller => 'assignments_api',
+         :action => 'create',
+         :format => 'json',
+         :course_id => @course.id.to_s },
+         { :assignment => {
+           'name' => 'some assignment',
+           'assignment_overrides' => {
+             '0' => {
+               'student_ids' => [@student.id],
+               'title' => 'adhoc override',
+               'due_at' => adhoc_due_at.iso8601 },
+               '1' => {
+                 'course_section_id' => @course.default_section.id,
+                 'due_at' => section_due_at.iso8601
+               }
+             }
+           }
+           })
+     @assignment = Assignment.find @json['id']
+     expect(@assignment.assignment_overrides.count).to eq 2
+
+     @adhoc_override = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+     expect(@adhoc_override).not_to be_nil
+     expect(@adhoc_override.set).to eq [@student]
+     expect(@adhoc_override.due_at_overridden).to be_truthy
+     expect(@adhoc_override.due_at.to_i).to eq adhoc_due_at.to_i
+
+     @section_override = @assignment.assignment_overrides.where(set_type: 'CourseSection').first
+     expect(@section_override).not_to be_nil
+     expect(@section_override.set).to eq @course.default_section
+     expect(@section_override.due_at_overridden).to be_truthy
+     expect(@section_override.due_at.to_i).to eq section_due_at.to_i
+   end
+
+    context "adhoc overrides" do
+      def adhoc_override_api_call(rest_method, endpoint, action, opts={})
+        overrides = [{
+                      'student_ids' => opts[:student_ids] || [],
+                      'title' => opts[:title] || 'adhoc override',
+                      'due_at' => opts[:adhoc_due_at] || (5.days.from_now).iso8601
+                    }]
+
+        overrides.concat(opts[:additional_overrides]) if opts[:additional_overrides]
+        overrides_hash = Hash[(0...overrides.size).zip overrides]
+
+        api_params = {
+            :controller => 'assignments_api',
+            :action => action,
+            :format => 'json',
+            :course_id => @course.id.to_s
+          }
+        api_params.merge!(opts[:additional_api_params]) if opts[:additional_api_params]
+
+        api_call(rest_method, "/api/v1/courses/#{@course.id}/#{endpoint}",
+          api_params,
+          {
+            :assignment => {
+              'name' => 'some assignment',
+              'assignment_overrides' => overrides_hash,
+            }
+          }
+        )
+      end
+
+      def api_call_to_create_adhoc_override(opts={})
+        adhoc_override_api_call(:post, 'assignments.json', 'create', opts)
+      end
+
+      def api_call_to_update_adhoc_override(opts={})
+        opts[:additional_api_params] = {id: @assignment.id.to_s}
+        adhoc_override_api_call(:put, "assignments/#{@assignment.id}", 'update', opts)
+      end
+
+      it 'allows the update of an adhoc override with one more student' do
+        student_in_course(:course => @course, :active_enrollment => true)
+        @first_student = @student
+        student_in_course(:course => @course, :active_enrollment => true)
+
+        @user = @teacher
+        json = api_call_to_create_adhoc_override(student_ids: [@student.id])
+
+        @assignment = Assignment.find json['id']
+        adhoc_override = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+
+        expect(@assignment.assignment_overrides.count).to eq 1
+
+        api_call_to_update_adhoc_override(student_ids: [@student.id, @first_student.id])
+
+        ao = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        expect(ao.set).to  match_array([@student, @first_student])
+      end
+
+      it 'allows the update of an adhoc override with one less student' do
+        student_in_course(:course => @course, :active_enrollment => true)
+        @first_student = @student
+        student_in_course(:course => @course, :active_enrollment => true)
+
+        @user = @teacher
+        json = api_call_to_create_adhoc_override(student_ids: [@student.id, @first_student.id])
+        @assignment = Assignment.find json['id']
+
+        api_call_to_update_adhoc_override(student_ids: [@student.id])
+
+        ao = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        expect(AssignmentOverrideStudent.count ==1)
+      end
+
+      it 'allows the update of an adhoc override with different student' do
+        student_in_course(:course => @course, :active_enrollment => true)
+        @first_student = @student
+        student_in_course(:course => @course, :active_enrollment => true)
+
+        @user = @teacher
+        json = api_call_to_create_adhoc_override(student_ids: [@student.id])
+        @assignment = Assignment.find json['id']
+
+        expect(@assignment.assignment_overrides.count).to eq 1
+
+        adhoc_override = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        expect(adhoc_override.set).to eq [@student]
+
+        api_call_to_update_adhoc_override(student_ids: [@first_student.id])
+
+        ao = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        expect(ao.set).to eq [@first_student]
+      end
     end
 
     it "takes overrides into account in the assignment-created notification " +
@@ -925,7 +1244,6 @@ describe AssignmentsApiController, type: :request do
     end
 
     it "should update published/unpublished" do
-      @course.account.enable_feature!(:draft_state)
       @assignment = @course.assignments.create({
         :name => "some assignment",
         :points_possible => 15
@@ -1733,6 +2051,9 @@ describe AssignmentsApiController, type: :request do
           'discussion_type' => 'side_comment',
           'group_category_id' => nil,
           'can_group' => true,
+          'allow_rating' => nil,
+          'only_graders_can_rate' => nil,
+          'sort_by_rating' => nil,
         })
       end
 
@@ -1803,6 +2124,17 @@ describe AssignmentsApiController, type: :request do
         expect(json['due_at']).to eq @assignment.due_at.iso8601.to_s
         expect(json['unlock_at']).to eq @assignment.unlock_at.iso8601.to_s
         expect(json['lock_at']).to eq @assignment.lock_at.iso8601.to_s
+      end
+
+      it "returns has_overrides correctly" do
+        @assignment = @course.assignments.create!(:title => "Test Assignment",:description => "foo")
+        json = api_get_assignment_in_course(@assignment, @course)
+        expect(json['has_overrides']).to eq false
+
+        @section = @course.course_sections.create! :name => "afternoon delight"
+        create_override_for_assignment
+        json = api_get_assignment_in_course(@assignment, @course)
+        expect(json['has_overrides']).to eq true
       end
 
       it "returns all_dates when requested" do
@@ -1987,7 +2319,6 @@ describe AssignmentsApiController, type: :request do
     context "draft state" do
 
       before :once do
-        @course.account.enable_feature!(:draft_state)
         @assignment = @course.assignments.create!({
           :name => "unpublished assignment",
           :points_possible => 15
@@ -2060,6 +2391,21 @@ describe AssignmentsApiController, type: :request do
           :include => ['assignment_visibility']
         )
       end
+
+      it "should include overrides if overrides flag is included in the params" do
+        assignments_json = api_call(:get, "/api/v1/courses/#{@course.id}/assignments/#{@assignment1.id}.json",
+          {
+            controller: 'assignments_api',
+            action: 'show',
+            format: 'json',
+            course_id: @course.id.to_s,
+            id: @assignment1.id.to_s
+          },
+          :include => ['overrides']
+        )
+        expect(assignments_json.keys).to include("overrides")
+      end
+
 
       it "returns any assignment" do
         json1 = api_get_assignment_in_course @assignment1, @course

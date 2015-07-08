@@ -23,6 +23,7 @@ describe "Pages API", type: :request do
   def avatar_url_for_user(user, *a)
     User.avatar_fallback_url
   end
+
   def blank_fallback
     nil
   end
@@ -32,6 +33,7 @@ describe "Pages API", type: :request do
 
     let(:locked_item) do
       wiki = @course.wiki
+      wiki.set_front_page_url!('front-page')
       front_page = wiki.front_page
       front_page.workflow_state = 'active'
       front_page.save!
@@ -53,6 +55,7 @@ describe "Pages API", type: :request do
     course
     @course.offer!
     @wiki = @course.wiki
+    @wiki.set_front_page_url!('front-page')
     @front_page = @wiki.front_page
     @front_page.workflow_state = 'active'
     @front_page.save!
@@ -227,7 +230,6 @@ describe "Pages API", type: :request do
       end
       
       it "should retrieve page content and attributes" do
-        set_course_draft_state
         @hidden_page.publish
         json = api_call(:get, "/api/v1/courses/#{@course.id}/pages/#{@hidden_page.url}",
                         :controller=>"wiki_pages_api", :action=>"show", :format=>"json", :course_id=>"#{@course.id}", :url=>@hidden_page.url)
@@ -405,7 +407,7 @@ describe "Pages API", type: :request do
                  :controller=>"wiki_pages_api", :action=>"revert", :format=>"json", :course_id=>@course.to_param,
                  :url=>@vpage.url, :revision_id=>'3')
         @vpage.reload
-        expect(@vpage.hide_from_students).to be_truthy
+
         expect(@vpage.editing_roles).to eq 'teachers,students,public'
         expect(@vpage.title).to eq 'version test page'  # <- reverted
         expect(@vpage.body).to eq 'revised by ta'       # <- reverted
@@ -455,6 +457,19 @@ describe "Pages API", type: :request do
         expect(page.body).to eq 'processed content'
       end
 
+      it 'should not point group file links to the course' do
+        group_model(:context => @course)
+        body = "<a href='/groups/#{@group.id}/files'>linky</a>"
+
+        json = api_call(:post, "/api/v1/courses/#{@course.id}/pages",
+                        { :controller => 'wiki_pages_api', :action => 'create', :format => 'json', :course_id => @course.to_param },
+                        { :wiki_page => { :title => 'New Wiki Page', :body => body } })
+        page = @course.wiki.wiki_pages.where(url: json['url']).first!
+        expect(page.title).to eq 'New Wiki Page'
+        expect(page.url).to eq 'new-wiki-page'
+        expect(page.body).to include("/groups/#{@group.id}/files")
+      end
+
       it "should set as front page" do
         json = api_call(:post, "/api/v1/courses/#{@course.id}/pages",
                         { :controller => 'wiki_pages_api', :action => 'create', :format => 'json', :course_id => @course.to_param },
@@ -470,18 +485,6 @@ describe "Pages API", type: :request do
         expect(json['front_page']).to eq true
       end
 
-      it "should not set hidden page as front page" do
-        json = api_call(:post, "/api/v1/courses/#{@course.id}/pages",
-                { :controller => 'wiki_pages_api', :action => 'create', :format => 'json', :course_id => @course.to_param },
-                { :wiki_page => { :title => 'hidden page', :hide_from_students => true,
-                                   :body => 'Information wants to be free', :front_page => true }}, {},
-                {:expected_status => 400})
-
-        wiki = @course.wiki
-        wiki.reload
-        expect(wiki.get_front_page_url).to eq Wiki::DEFAULT_FRONT_PAGE_URL
-      end
-
       it "should create a new page in published state" do
         json = api_call(:post, "/api/v1/courses/#{@course.id}/pages",
                         { :controller => 'wiki_pages_api', :action => 'create', :format => 'json', :course_id => @course.to_param },
@@ -492,9 +495,6 @@ describe "Pages API", type: :request do
       end
       
       it "should create a new page in unpublished state (draft state)" do
-        @course.account.allow_feature!(:draft_state)
-        @course.enable_feature!(:draft_state)
-
         json = api_call(:post, "/api/v1/courses/#{@course.id}/pages",
                         { :controller => 'wiki_pages_api', :action => 'create', :format => 'json', :course_id => @course.to_param },
                         { :wiki_page => { :published => false, :title => 'New Wiki Page!', :body => 'hello new page' }})
@@ -504,9 +504,6 @@ describe "Pages API", type: :request do
       end
       
       it "should create a published front page, even when published is blank (draft state)" do
-        @course.account.allow_feature!(:draft_state)
-        @course.enable_feature!(:draft_state)
-
         front_page_url = 'my-front-page'
         json = api_call(:put, "/api/v1/courses/#{@course.id}/front_page",
                         { :controller => 'wiki_pages_api', :action => 'update_front_page', :format => 'json', :course_id => @course.to_param },
@@ -540,7 +537,6 @@ describe "Pages API", type: :request do
 
     describe "update" do
       it "should update page content and attributes" do
-        set_course_draft_state
         api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@hidden_page.url}",
                  { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
                    :url => @hidden_page.url },
@@ -549,11 +545,10 @@ describe "Pages API", type: :request do
         @hidden_page.reload
         expect(@hidden_page.title).to eq 'No Longer Hidden Page'
         expect(@hidden_page.body).to eq 'Information wants to be free'
-        expect(@hidden_page.user_id).to eq @teacher.id        
+        expect(@hidden_page.user_id).to eq @teacher.id
       end
 
       it "should update front_page" do
-        set_course_draft_state true
         page = @course.wiki.wiki_pages.create!(:title => "hrup", :body => "blooop")
         page.publish
         page.set_as_front_page!
@@ -569,14 +564,14 @@ describe "Pages API", type: :request do
       end
 
       it "should set as front page" do
-        set_course_draft_state true
         wiki = @course.wiki
         expect(wiki.unset_front_page!).to eq true
+
 
         json = api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@hidden_page.url}",
                  { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
                    :url => @hidden_page.url },
-                 { :wiki_page => { :title => 'No Longer Hidden Page', :hide_from_students => false,
+                 { :wiki_page => { :title => 'No Longer Hidden Page',
                                    :body => 'Information wants to be free', :front_page => true, :published => true}})
         no_longer_hidden_page = @hidden_page
         no_longer_hidden_page.reload
@@ -589,7 +584,6 @@ describe "Pages API", type: :request do
       end
 
       it "should un-set as front page" do
-        set_course_draft_state true
         wiki = @course.wiki
         wiki.reload
         expect(wiki.has_front_page?).to be_truthy
@@ -599,8 +593,7 @@ describe "Pages API", type: :request do
         json = api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{front_page.url}",
                  { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
                    :url => front_page.url },
-                 { :wiki_page => { :title => 'No Longer Front Page', :hide_from_students => false,
-                                   :body => 'Information wants to be free', :front_page => false }})
+                 { :wiki_page => { :title => 'No Longer Front Page', :body => 'Information wants to be free', :front_page => false }})
 
         front_page.reload
         expect(front_page.is_front_page?).to be_falsey
@@ -612,8 +605,6 @@ describe "Pages API", type: :request do
       end
 
       it "should not change the front page unless set differently" do
-        set_course_draft_state true
-
         # make sure we don't catch the default 'front-page'
         @front_page.title = 'Different Front Page'
         @front_page.save!
@@ -675,7 +666,6 @@ describe "Pages API", type: :request do
 
         context 'with draft state' do
           before :once do
-            set_course_draft_state true
           end
 
           it 'should accept published' do
@@ -687,12 +677,9 @@ describe "Pages API", type: :request do
 
             @test_page.reload
             expect(@test_page).to be_unpublished
-            expect(@test_page.hide_from_students).to be_truthy
           end
 
           it 'should ignore hide_from_students' do
-            set_course_draft_state true
-
             json = api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@test_page.url}",
                      { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param, :url => @test_page.url },
                      { :wiki_page => {'hide_from_students' => 'true'} })
@@ -701,14 +688,12 @@ describe "Pages API", type: :request do
 
             @test_page.reload
             expect(@test_page).to be_active
-            expect(@test_page.hide_from_students).to be_falsey
           end
         end
       end
 
       context 'with unpublished page' do
         before :once do
-          set_course_draft_state
           @unpublished_page = @course.wiki.wiki_pages.build(:title => 'Unpublished Page', :body => 'Body of unpublished page')
           @unpublished_page.workflow_state = 'unpublished'
           @unpublished_page.save!
@@ -733,7 +718,6 @@ describe "Pages API", type: :request do
       end
 
       it "should unpublish a page" do
-        set_course_draft_state
         json = api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@hidden_page.url}?wiki_page[published]=false",
                  :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
                  :url => @hidden_page.url, :wiki_page => {'published' => 'false'})
@@ -833,8 +817,6 @@ describe "Pages API", type: :request do
       before :once do
         @deleted_page = @wiki.wiki_pages.create! :title => "Deleted page"
         @deleted_page.destroy
-        @course.account.allow_feature!(:draft_state)
-        @course.enable_feature!(:draft_state)
         @unpublished_page = @wiki.wiki_pages.create(:title => "Draft Page", :body => "Don't text and drive.")
         @unpublished_page.workflow_state = :unpublished
         @unpublished_page.save!
@@ -903,7 +885,7 @@ describe "Pages API", type: :request do
       expect(json.size).to eq 1
       urls += json.collect{ |page| page['url'] }
 
-      expect(urls).to eq @wiki.wiki_pages.select{ |p| !p.hide_from_students }.sort_by(&:id).collect(&:url)
+      expect(urls).to eq @wiki.wiki_pages.select{ |p| p.published? }.sort_by(&:id).collect(&:url)
     end
     
     it "should refuse to show a hidden page" do
@@ -924,6 +906,7 @@ describe "Pages API", type: :request do
       other_course = course
       other_course.offer!
       other_wiki = other_course.wiki
+      other_wiki.set_front_page_url!('front-page')
       other_page = other_wiki.front_page
       other_page.workflow_state = 'active'
       other_page.save!
@@ -942,6 +925,7 @@ describe "Pages API", type: :request do
       other_course.is_public = true
       other_course.offer!
       other_wiki = other_course.wiki
+      other_wiki.set_front_page_url!('front-page')
       other_page = other_wiki.front_page
       other_page.workflow_state = 'active'
       other_page.save!
@@ -954,23 +938,35 @@ describe "Pages API", type: :request do
                {:controller=>'wiki_pages_api', :action=>'show', :format=>'json', :course_id=>"#{other_course.id}", :url=>'front-page'})
     end
     
-    it "should fulfill module progression requirements" do
-      mod = @course.context_modules.create!(:name => "some module")
-      tag = mod.add_item(:id => @front_page.id, :type => 'wiki_page')
-      mod.completion_requirements = { tag.id => {:type => 'must_view'} }
-      mod.save!
+    describe "module progression" do
+      before :once do
+        @mod = @course.context_modules.create!(:name => "some module")
+        @tag = @mod.add_item(:id => @front_page.id, :type => 'wiki_page')
+        @mod.completion_requirements = { @tag.id => {:type => 'must_view'} }
+        @mod.save!
+      end
 
-      # index should not affect anything
-      api_call(:get, "/api/v1/courses/#{@course.id}/pages",
-               {:controller=>'wiki_pages_api', :action=>'index', :format=>'json', :course_id=>"#{@course.id}"})
-      expect(mod.evaluate_for(@user).workflow_state).to eq "unlocked"
+      it "should not fulfill requirements with index" do
+        api_call(:get, "/api/v1/courses/#{@course.id}/pages",
+                 {:controller=>'wiki_pages_api', :action=>'index', :format=>'json', :course_id=>"#{@course.id}"})
+        expect(@mod.evaluate_for(@user).requirements_met).not_to include({id: @tag.id, type: 'must_view'})
+      end
 
-      # show should count as a view
-      api_call(:get, "/api/v1/courses/#{@course.id}/pages/#{@front_page.url}",
-               {:controller=>'wiki_pages_api', :action=>'show', :format=>'json', :course_id=>"#{@course.id}", :url=>@front_page.url})
-      expect(mod.evaluate_for(@user).workflow_state).to eq "completed"
+      it "should fulfill requirements with view on an unlocked page" do
+        api_call(:get, "/api/v1/courses/#{@course.id}/pages/#{@front_page.url}",
+                 {:controller=>'wiki_pages_api', :action=>'show', :format=>'json', :course_id=>"#{@course.id}", :url=>@front_page.url})
+        expect(@mod.evaluate_for(@user).requirements_met).to include({id: @tag.id, type: 'must_view'})
+      end
+
+      it "should not fulfill requirements with view on a locked page" do
+        @mod.unlock_at = 1.year.from_now
+        @mod.save!
+        api_call(:get, "/api/v1/courses/#{@course.id}/pages/#{@front_page.url}",
+                 {:controller=>'wiki_pages_api', :action=>'show', :format=>'json', :course_id=>"#{@course.id}", :url=>@front_page.url})
+        expect(@mod.evaluate_for(@user).requirements_met).not_to include({id: @tag.id, type: 'must_view'})
+      end
     end
-    
+
     it "should not allow editing a page" do
       api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@front_page.url}",
                { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
@@ -999,7 +995,6 @@ describe "Pages API", type: :request do
       end
 
       it 'should not allow editing attributes (with draft state)' do
-        set_course_draft_state
         api_call(:put, "/api/v1/courses/#{@course.id}/pages/#{@editable_page.url}",
                  { :controller => 'wiki_pages_api', :action => 'update', :format => 'json', :course_id => @course.to_param,
                    :url => @editable_page.url },
@@ -1023,7 +1018,7 @@ describe "Pages API", type: :request do
 
         @editable_page.reload
         expect(@editable_page).to be_active
-        expect(@editable_page.hide_from_students).to be_falsey
+        expect(@editable_page.published?).to be_truthy
         expect(@editable_page.title).to eq 'Editable Page'
         expect(@editable_page.user_id).not_to eq @student.id
         expect(@editable_page.editing_roles).to eq 'students'
@@ -1056,8 +1051,6 @@ describe "Pages API", type: :request do
 
     context "unpublished pages" do
       before :once do
-        @course.account.allow_feature!(:draft_state)
-        @course.enable_feature!(:draft_state)
         @unpublished_page = @wiki.wiki_pages.create(:title => "Draft Page", :body => "Don't text and drive.")
         @unpublished_page.workflow_state = :unpublished
         @unpublished_page.save!
@@ -1097,12 +1090,10 @@ describe "Pages API", type: :request do
         @vpage.workflow_state = 'unpublished'
         @vpage.save! # rev 1
 
-        @vpage.hide_from_students = true
         @vpage.workflow_state = 'active'
         @vpage.body = 'published but hidden'
         @vpage.save! # rev 2
 
-        @vpage.hide_from_students = false
         @vpage.body = 'now visible to students'
         @vpage.save! # rev 3
       end
@@ -1196,7 +1187,6 @@ describe "Pages API", type: :request do
                    :controller=>"wiki_pages_api", :action=>"revert", :format=>"json", :course_id=>@course.to_param,
                    :url=>@vpage.url, :revision_id=>'2')
           @vpage.reload
-          expect(@vpage.hide_from_students).to be_falsey  # permissions aren't (conceptually) versioned
           expect(@vpage.body).to eq 'published but hidden'
         end
       end

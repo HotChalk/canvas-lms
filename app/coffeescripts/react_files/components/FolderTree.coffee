@@ -1,11 +1,14 @@
 define [
+  'jquery'
   'i18n!folder_tree'
   'react'
   'react-router'
-  'compiled/views/TreeBrowserView'
+  '../modules/BBTreeBrowserView'
   'compiled/views/RootFoldersFinder'
   '../modules/customPropTypes'
-], (I18n, React, Router, TreeBrowserView, RootFoldersFinder, customPropTypes) ->
+  'compiled/react/shared/utils/withReactElement'
+  'compiled/jquery.rails_flash_notifications'
+], ($, I18n, React, Router, BBTreeBrowserView, RootFoldersFinder, customPropTypes, withReactElement) ->
 
   FolderTree = React.createClass
     displayName: 'FolderTree'
@@ -14,27 +17,36 @@ define [
       rootFoldersToShow: React.PropTypes.arrayOf(customPropTypes.folder).isRequired
       rootTillCurrentFolder: React.PropTypes.arrayOf(customPropTypes.folder)
 
-    mixins: [Router.Navigation, Router.ActiveState]
+    mixins: [Router.Navigation, Router.State]
 
     componentDidMount: ->
       rootFoldersFinder = new RootFoldersFinder({
         rootFoldersToShow: @props.rootFoldersToShow
       })
-      new TreeBrowserView({
-        onlyShowFolders: true,
-        rootModelsFinder: rootFoldersFinder
-        onClick: @onClick
-        dndOptions: @props.dndOptions
-        href: @hrefFor
-        focusStyleClass: @focusStyleClass
-        selectedStyleClass: @selectedStyleClass
-      }).render().$el.appendTo(@refs.FolderTreeHolder.getDOMNode())
+
+      @treeBrowserId = BBTreeBrowserView.create({
+          onlyShowSubtrees: true,
+          rootModelsFinder: rootFoldersFinder
+          onClick: @onClick
+          dndOptions: @props.dndOptions
+          href: @hrefFor
+          focusStyleClass: @focusStyleClass
+          selectedStyleClass: @selectedStyleClass
+          autoFetch: true
+          fetchItAll: "to heck"
+        },
+        {
+          render: true
+          element: @refs.FolderTreeHolder.getDOMNode()
+        }).index
+
       @expandTillCurrentFolder(@props)
 
+    componentWillUnmount: ->
+      BBTreeBrowserView.remove(@treeBrowserViewId)
 
     componentWillReceiveProps: (newProps) ->
       @expandTillCurrentFolder(newProps)
-
 
     onClick: (event, folder) ->
       event.preventDefault()
@@ -45,6 +57,7 @@ define [
         $.flashError message
         $.screenReaderFlashMessage message
       else
+        $.screenReaderFlashMessageExclusive I18n.t('File list updated')
         @transitionTo (if folder.urlPath() then 'folder' else 'rootFolder'), splat: folder.urlPath()
 
 
@@ -61,10 +74,10 @@ define [
     expandTillCurrentFolder: (props) ->
       expandFolder = (folderIndex) ->
         return unless folder = props.rootTillCurrentFolder?[folderIndex]
-        folder.expand(false, {onlyShowFolders: true}).then ->
+        folder.expand(false, {onlyShowSubtrees: true}).then ->
           expandFolder(folderIndex + 1)
       expandFolder(0)
 
 
-    render: ->
-      React.DOM.div( {className:"ef-folder-list", ref: 'FolderTreeHolder'})
+    render: withReactElement ->
+      div( {className:"ef-folder-list", ref: 'FolderTreeHolder'})

@@ -25,6 +25,8 @@ define([
   'compiled/views/quizzes/LDBLoginPopup',
   'worker!compiled/workers/quizzes/quiz_taking_police',
   'compiled/quizzes/log_auditing',
+  'compiled/quizzes/dump_events',
+  'compiled/views/editor/KeyboardShortcuts',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.toJSON',
   'jquery.instructure_date_and_time' /* friendlyDatetime, friendlyDate */,
@@ -36,7 +38,10 @@ define([
   'ckeditor-all',
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'compiled/behaviors/quiz_selectmenu'
-], function(FileUploadQuestionView, File, I18n, $, autoBlurActiveInput, _, LDBLoginPopup, QuizTakingPolice, QuizLogAuditing) {
+], function(FileUploadQuestionView, File, I18n, $, autoBlurActiveInput, _,
+            LDBLoginPopup, QuizTakingPolice, QuizLogAuditing,
+            QuizLogAuditingEventDumper, KeyboardShortcuts) {
+
   var lastAnswerSelected = null;
   var lastSuccessfulSubmissionData = null;
   var showDeauthorizedDialog;
@@ -512,7 +517,8 @@ define([
           }
         }
       })
-      .delegate(".flag_question", 'click', function() {
+      .delegate(".flag_question", 'click', function(e) {
+        e.preventDefault();
         var $question = $(this).parents(".question");
         $question.toggleClass('marked');
         $(this).attr("aria-checked", $question.hasClass('marked'));
@@ -750,7 +756,11 @@ define([
         $timer.text($timeRunningTimeRemaining.text());
       }
     });
-
-    QuizLogAuditing.start();
+    if(location.href.indexOf("preview=1") == -1){
+      QuizLogAuditing.start();
+    }
+    QuizLogAuditingEventDumper(false);
   });
+
+  $('.essay_question .answers').before((new KeyboardShortcuts()).render().el);
 });

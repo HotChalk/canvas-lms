@@ -2,9 +2,6 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignment_overrides.rb')
 
 describe "quizzes" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include AssignmentOverridesSeleniumHelper
   include_examples "quizzes selenium tests"
@@ -16,6 +13,30 @@ describe "quizzes" do
       @course.update_attributes(:name => 'teacher course')
       @course.save!
       @course.reload
+    end
+
+    context "save and publish button" do
+
+      it "should save and publish a quiz", priority: "1", test_id: 193785 do
+        @quiz = course_quiz
+        get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+        expect(f("#quiz-draft-state")).to be_displayed
+
+        expect_new_page_load {f(".save_and_publish").click}
+        expect(f("#quiz-publish-link.btn-published")).to be_displayed
+
+        # Check that the list of quizzes is also updated
+        get "/courses/#{@course.id}/quizzes"
+        expect(f("#summary_quiz_#{@quiz.id} .icon-publish")).to be_displayed
+      end
+
+      it "should not exist in a published quiz" do
+        @quiz = course_quiz true
+        get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+
+        expect(f(".save_and_publish")).to be_nil
+      end
     end
 
     it "should show a summary of due dates if there are multiple" do
@@ -118,9 +139,8 @@ describe "quizzes" do
       expect(f('#quiz_details')).to be_displayed
     end
 
-    
+
     it "should republish on save" do
-      Account.default.enable_feature!(:draft_state)
       get "/courses/#{@course.id}/quizzes"
       expect_new_page_load { f(".new-quiz-link").click }
       quiz = Quizzes::Quiz.last
@@ -249,7 +269,6 @@ describe "quizzes" do
       expect(f('.attempts_left').text).to eq '3'
     end
 
-    
     it "should indicate when it was last saved" do
       take_quiz do
         indicator = f('#last_saved_indicator')
@@ -279,7 +298,7 @@ describe "quizzes" do
         input.send_keys(:tab)
         wait_for_ajaximations
         keep_trying_until {
-          expect(input[:value]).to be_blank  
+          expect(input[:value]).to be_blank
         }
 
         input.click
@@ -335,18 +354,18 @@ describe "quizzes" do
 
         # marked as answer
         keep_trying_until {
-          expect(ff('#question_list .answered').size).to eq 2 
+          expect(ff('#question_list .answered').size).to eq 2
         }
         wait_for_ajaximations
 
-        driver.find_element(:link, 'Quizzes').click
+        fln('Quizzes').click
         wait_for_ajaximations
 
         driver.switch_to.alert.accept
         wait_for_ajaximations
 
         get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
-        f(:link, "Resume Quiz").click
+        fln("Resume Quiz").click
 
         # there's some initial setTimeout stuff that happens, so things won't
         # be ready right when the page loads
@@ -527,7 +546,7 @@ describe "quizzes" do
 
       click_quiz_statistics_button
 
-      expect(f('#content .question_name')).to include_text("Question 1")
+      expect(f('#content .question-statistics .question-text')).to include_text("Which book(s) are required for this course?")
     end
 
     it "should display a link to quiz statistics for a MOOC" do

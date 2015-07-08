@@ -57,6 +57,25 @@ describe ExternalToolsController do
         @course.save!
       end
 
+      it "should remove query params when post_only is set" do
+        user_session(@teacher)
+        tool = @tool
+        tool.settings['post_only'] = 'true'
+        tool.url = "http://www.example.com/basic_lti?first=john&last=smith"
+        tool.save!
+        get :show, course_id: @course.id, id: tool.id
+        expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti'
+      end
+
+      it "should not remove query params when post_only is not set" do
+        user_session(@teacher)
+        tool = @tool
+        tool.url = "http://www.example.com/basic_lti?first=john&last=smith"
+        tool.save!
+        get :show, course_id: @course.id, id: tool.id
+        expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti?first=john&last=smith'
+      end
+
       it "generates launch params for a ContentItemSelectionResponse message" do
         user_session(@teacher)
         Lti::Asset.stubs(:opaque_identifier_for).returns('ABC123')
@@ -235,7 +254,114 @@ describe ExternalToolsController do
     end
   end
 
+  describe "GET 'show'" do
+    context 'ContentItemSelectionRequest' do
+      before :once do
+        @tool = new_valid_tool(@course)
+        @tool.migration_selection = { message_type: 'ContentItemSelectionRequest' }
+        @tool.resource_selection = { message_type: 'ContentItemSelectionRequest' }
+        @tool.homework_submission = { message_type: 'ContentItemSelectionRequest' }
+        @tool.editor_button = { message_type: 'ContentItemSelectionRequest', icon_url: 'http://example.com/icon.png' }
+        @tool.save!
+
+        @course.name = 'a course'
+        @course.save!
+      end
+
+      it "generates launch params for a ContentItemSelectionRequest message" do
+        user_session(@teacher)
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'migration_selection'
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['lti_message_type']).to eq 'ContentItemSelectionRequest'
+        expect(lti_launch.params['content_item_return_url']).to eq "http://test.host/courses/#{@course.id}/content_migrations"
+        expect(lti_launch.params['accept_multiple']).to eq 'false'
+      end
+
+      it "sets proper return data for migration_selection" do
+        user_session(@teacher)
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'migration_selection'
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_copy_advice']).to eq 'true'
+        expect(lti_launch.params['accept_presentation_document_targets']).to eq 'download'
+        expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.imsccv1p1,application/vnd.ims.imsccv1p2,application/vnd.ims.imsccv1p3,application/zip,application/xml'
+      end
+
+      it "sets proper return data for resource_selection" do
+        user_session(@teacher)
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'resource_selection'
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_copy_advice']).to eq nil
+        expect(lti_launch.params['accept_presentation_document_targets']).to eq 'frame,window'
+        expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.lti.v1.launch+json'
+      end
+
+      it "sets proper return data for homework_submission" do
+        user_session(@teacher)
+        assignment = @course.assignments.create!(name: 'an assignment')
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'homework_submission', assignment_id: assignment.id
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_copy_advice']).to eq 'true'
+        expect(lti_launch.params['accept_presentation_document_targets']).to eq 'none'
+        expect(lti_launch.params['accept_media_types']).to eq '*/*'
+      end
+
+      it "sets proper accept_media_types for homework_submission with extension restrictions" do
+        user_session(@teacher)
+        assignment = @course.assignments.create!(name: 'an assignment')
+        assignment.allowed_extensions += ['pdf', 'jpeg']
+        assignment.save!
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'homework_submission', assignment_id: assignment.id
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_media_types']).to eq 'application/pdf,image/jpeg'
+      end
+
+
+      it "sets proper return data for editor_button" do
+        user_session(@teacher)
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'editor_button'
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_copy_advice']).to eq nil
+        expect(lti_launch.params['accept_presentation_document_targets']).to eq 'embed,frame,iframe,window'
+        expect(lti_launch.params['accept_media_types']).to eq 'image/*,text/html,application/vnd.ims.lti.v1.launch+json,*/*'
+      end
+
+    end
+  end
+
   describe "GET 'retrieve'" do
+      let :account do
+        Account.default
+      end
+
+      let :tool do
+        tool = account.context_external_tools.new(
+            name: "bob",
+            consumer_key: "bob",
+            shared_secret: "bob",
+            tool_id: 'some_tool',
+            privacy_level: 'public'
+        )
+        tool.url = "http://www.example.com/basic_lti?first=john&last=smith"
+        tool.resource_selection = {
+            :url => "http://#{HostUrl.default_host}/selection_test",
+            :selection_width => 400,
+            :selection_height => 400}
+        tool.save!
+        tool
+      end
+
     it "should require authentication" do
       user_model
       user_session(@user)
@@ -268,6 +394,27 @@ describe ExternalToolsController do
       get 'retrieve', :course_id => @course.id, :url => "http://www.example.com"
       expect(response).to be_redirect
       expect(flash[:error]).to eq "Couldn't find valid settings for this link"
+    end
+
+    it "should remove query params when post_only is set" do
+        u = user(:active_all => true)
+        account.account_users.create!(user: u)
+        user_session(@user)
+
+        tool.settings['post_only'] = 'true'
+        tool.save!
+        get :retrieve, {url: tool.url, account_id:account.id}
+        expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti'
+    end
+
+    it "should not remove query params when post_only is not set" do
+      u = user(:active_all => true)
+      account.account_users.create!(user: u)
+      user_session(@user)
+
+      tool.save!
+      get :retrieve, {url: tool.url, account_id:account.id}
+      expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti?first=john&last=smith'
     end
   end
 
@@ -402,7 +549,7 @@ describe ExternalToolsController do
     </blti:extensions>
     <cartridge_bundle identifierref="BLTI001_Bundle"/>
     <cartridge_icon identifierref="BLTI001_Icon"/>
-</cartridge_basiclti_link>  
+</cartridge_basiclti_link>
       XML
       post 'create', :course_id => @course.id, :external_tool => {:name => "tool name", :consumer_key => "key", :shared_secret => "secret", :config_type => "by_xml", :config_xml => xml}, :format => "json"
       expect(response).not_to be_success
@@ -437,7 +584,7 @@ describe ExternalToolsController do
     </blti:extensions>
     <cartridge_bundle identifierref="BLTI001_Bundle"/>
     <cartridge_icon identifierref="BLTI001_Icon"/>
-</cartridge_basiclti_link>  
+</cartridge_basiclti_link>
       XML
       post 'create', :course_id => @course.id, :external_tool => {:name => "tool name", :url => "http://example.com", :consumer_key => "key", :shared_secret => "secret", :config_type => "by_xml", :config_xml => xml}, :format => "json"
       expect(response).to be_success
@@ -479,7 +626,7 @@ describe ExternalToolsController do
     </blti:extensions>
     <cartridge_bundle identifierref="BLTI001_Bundle"/>
     <cartridge_icon identifierref="BLTI001_Icon"/>
-</cartridge_basiclti_link>  
+</cartridge_basiclti_link>
       XML
       post 'create', :course_id => @course.id, :external_tool => {:name => "tool name", :consumer_key => "key", :shared_secret => "secret", :config_type => "by_xml", :config_xml => xml}, :format => "json"
       expect(response).to be_success
@@ -522,11 +669,12 @@ describe ExternalToolsController do
     </blti:extensions>
     <cartridge_bundle identifierref="BLTI001_Bundle"/>
     <cartridge_icon identifierref="BLTI001_Icon"/>
-</cartridge_basiclti_link>  
+</cartridge_basiclti_link>
       XML
       obj = OpenStruct.new({:body => xml})
       Net::HTTP.any_instance.stubs(:request).returns(obj)
       post 'create', :course_id => @course.id, :external_tool => {:name => "tool name", :url => "http://example.com", :consumer_key => "key", :shared_secret => "secret", :config_type => "by_url", :config_url => "http://config.example.com"}, :format => "json"
+
       expect(response).to be_success
       expect(assigns[:tool]).not_to be_nil
       # User-entered name overrides name provided in xml
@@ -708,5 +856,4 @@ describe ExternalToolsController do
       expect(tool_settings['custom_canvas_user_id']).to eq @user.id.to_s
     end
   end
-
 end

@@ -65,6 +65,11 @@ require 'action_controller_test_process'
 #           "example": "Toph Beifong",
 #           "type": "string"
 #         },
+#         "author": {
+#           "description": "Abbreviated user object UserDisplay (see users API).",
+#           "example": "{}",
+#           "type": "string"
+#         },
 #         "comment": {
 #           "example": "Well here's the thing...",
 #           "type": "string"
@@ -131,7 +136,7 @@ class SubmissionsController < ApplicationController
       @visible_rubric_assessments = @submission.rubric_assessments.select{|a| a.grants_right?(@current_user, session, :read)}.sort_by{|a| [a.assessment_type == 'grading' ? CanvasSort::First : CanvasSort::Last, Canvas::ICU.collation_key(a.assessor_name)] }
     end
 
-    @assessment_request = @submission.assessment_requests.where(assessor_id: @current_user).first rescue nil
+    @assessment_request = @submission.assessment_requests.where(assessor_id: @current_user).first
     if authorized_action(@submission, @current_user, :read)
       respond_to do |format|
         json_handled = false
@@ -160,7 +165,7 @@ class SubmissionsController < ApplicationController
                                             @assignment.quiz.id, quiz_params)
             }
           else
-            format.html { render :action => "show_preview" }
+            format.html { render :show_preview }
           end
         elsif params[:download]
           if params[:comment_id]
@@ -206,11 +211,11 @@ class SubmissionsController < ApplicationController
   end
 
   API_SUBMISSION_TYPES = {
-    "online_text_entry" => ["body"],
-    "online_url" => ["url"],
-    "online_upload" => ["file_ids"],
-    "media_recording" => ["media_comment_id", "media_comment_type"],
-  }
+    "online_text_entry" => ["body"].freeze,
+    "online_url" => ["url"].freeze,
+    "online_upload" => ["file_ids"].freeze,
+    "media_recording" => ["media_comment_id", "media_comment_type"].freeze,
+  }.freeze
 
   # @API Submit an assignment
   #
@@ -283,6 +288,7 @@ class SubmissionsController < ApplicationController
 
     @group = @assignment.group_category.group_for(@current_user) if @assignment.has_group_category?
 
+    return unless valid_text_entry?
     return unless process_api_submission_params if api_request?
 
     lookup_existing_attachments
@@ -345,7 +351,7 @@ class SubmissionsController < ApplicationController
       else
         format.html do
           flash[:error] = t('errors.assignment_submit_fail', "Assignment failed to submit")
-          render :action => "show", :id => @submission.assignment.context.id
+          render :show, id: @submission.assignment.context.id
         end
         format.json { render :json => @submission.errors, :status => :bad_request }
       end
@@ -469,6 +475,17 @@ class SubmissionsController < ApplicationController
   end
   private :extensions_allowed?
 
+  def valid_text_entry?
+    sub_params = params[:submission]
+    if sub_params[:submission_type] == 'online_text_entry' && sub_params[:body].blank?
+      flash[:error] = t('Text entry submission cannot be empty')
+      redirect_to named_context_url(@context, :context_assignment_url, @assignment)
+      return false
+    end
+    return true
+  end
+  private :valid_text_entry?
+
   def is_google_doc?
     return params[:google_doc] && params[:google_doc][:document_id] && params[:submission][:submission_type] == "google_doc"
   end
@@ -476,17 +493,19 @@ class SubmissionsController < ApplicationController
 
   def submit_google_doc(document_id)
     # fetch document from google
-    google_docs = google_docs_connection
-    document_response, display_name, file_extension = google_docs.download(document_id)
+    google_docs = google_service_connection
+
+    # since google drive can have many different export types, we need to send along our preferred extensions
+    document_response, display_name, file_extension = google_docs.download(document_id, @assignment.allowed_extensions)
 
     # error handling
-    unless document_response.try(:is_a?, Net::HTTPOK)
+    unless document_response.try(:is_a?, Net::HTTPOK) || document_response.status == 200
       flash[:error] = t('errors.assignment_submit_fail', 'Assignment failed to submit')
     end
 
     restriction_enabled           = @domain_root_account.feature_enabled?(:google_docs_domain_restriction)
     restricted_google_docs_domain = @domain_root_account.settings[:google_docs_domain]
-    if restriction_enabled && !@current_user.gmail.match(%r{@#{restricted_google_docs_domain}$})
+    if restriction_enabled && !restricted_google_docs_domain.blank? && !@current_user.gmail.match(%r{@#{restricted_google_docs_domain}$})
       flash[:error] = t('errors.invalid_google_docs_domain', 'You cannot submit assignments from this google_docs domain')
     end
 
@@ -497,16 +516,18 @@ class SubmissionsController < ApplicationController
 
     # process the file and create an attachment
     filename = "google_doc_#{Time.now.strftime("%Y%m%d%H%M%S")}#{@current_user.id}.#{file_extension}"
-    path     = File.join("tmp", filename)
-    File.open(path, 'wb') do |f|
-      f.write(document_response.body)
-    end
+    Dir.mktmpdir do |dirname|
+      path     = File.join(dirname, filename)
+      File.open(path, 'wb') do |f|
+        f.write(document_response.body)
+      end
 
-    @attachment = @assignment.attachments.new(
-      uploaded_data: Rack::Test::UploadedFile.new(path, document_response.content_type, true),
-      display_name: display_name, user: @current_user
-    )
-    @attachment.save!
+      @attachment = @assignment.attachments.new(
+        uploaded_data: Rack::Test::UploadedFile.new(path, document_response.content_type, true),
+        display_name: display_name, user: @current_user
+      )
+      @attachment.save!
+    end
     @attachment
   end
   protected :submit_google_doc
@@ -583,7 +604,7 @@ class SubmissionsController < ApplicationController
       begin
         @submissions = @assignment.update_submission(@user, params[:submission])
       rescue => e
-        ErrorReport.log_exception(:submissions, e)
+        Canvas::Errors.capture_exception(:submissions, e)
         logger.error(e)
       end
       respond_to do |format|
@@ -608,7 +629,7 @@ class SubmissionsController < ApplicationController
         else
           @error_message = t('errors_update_failed', "Update Failed")
           flash[:error] = @error_message
-          format.html { render :action => "show", :id => @assignment.context.id }
+          format.html { render :show, id: @assignment.context.id }
           format.json { render :json => {:errors => {:base => @error_message}}, :status => :bad_request }
           format.text { render :json => {:errors => {:base => @error_message}}, :status => :bad_request }
         end
@@ -633,8 +654,8 @@ class SubmissionsController < ApplicationController
     respond_to do |format|
       if attachment.zipped?
         if Attachment.s3_storage?
-          format.html { redirect_to attachment.cacheable_s3_inline_url }
-          format.zip { redirect_to attachment.cacheable_s3_inline_url }
+          format.html { redirect_to attachment.inline_url }
+          format.zip { redirect_to attachment.inline_url }
         else
           cancel_cache_buster
 

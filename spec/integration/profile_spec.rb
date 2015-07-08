@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+require 'nokogiri'
+
 describe ProfileController do
   it "should respect account setting for editing names" do
     a = Account.create!
@@ -51,6 +53,6 @@ describe ProfileController do
     enter_student_view
 
     get '/profile/settings'
-    assert_unauthorized
+    expect(response.status).to eq 401
   end
 end

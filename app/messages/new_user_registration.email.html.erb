@@ -1,9 +1,7 @@
 <% p = asset.is_a?(Pseudonym) ? asset : asset.pseudonym %>
 
 <% define_content :link do %>
-  <a href="<%= HostUrl.protocol %>://<%= HostUrl.default_host %>">
-    <%= HostUrl.protocol %>://<%= HostUrl.default_host %>
-  </a>
+  <%= HostUrl.context_host(asset.account) %>
 <% end %>
 
 <% define_content :subject do %>
@@ -17,9 +15,9 @@
 <p>To access HotChalk Ember:</p>
 
 <ul>
-    <li>Login to <%= content :link %> with your username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your HotChalk Ember courses.</li>
+    <li>Login to <a href="<%= content :link %>"><%= content :link %></a> with your username and password. Please bookmark this page, if you have not done so already, as it is the only access point for your HotChalk Ember courses.</li>
     <li>To view your courses, hover over the Courses tab at the top of the page. You will see all courses you are enrolled in that have been published.</li>
-    <li>If you are unable to access HotChalk Ember or your course, please submit a help ticket at <a href="https://embersupport.zendesk.com">https://embersupport.zendesk.com</a> and our support team will get back to you promptly.</li>
+    <li>If you are unable to access HotChalk Ember or your course, please submit a help ticket at <a href="https://support.hotchalkember.com/hc/en-us">https://support.hotchalkember.com/hc/en-us</a> and our support team will get back to you promptly.</li>
 </ul>
 
 <p>Warm regards,</p>

@@ -143,28 +143,28 @@
               <td title="<%= avg.round(2) %> of <%= possible %> point(s) awarded on average" class="correct_answer" data-responses="<%= avg.round(2) %>">
                   <span href="#" class="tooltip answer_bar">
                   <span class="tooltip_wrap" style="font-size: 1.2em;">
-                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{avg} of %{total} point(s) awarded on average", :avg => avg.round(2), :total => possible) %></span>
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:points_on_average, "%{avg} of %{total} point(s) awarded on average", :avg => avg.round(2), :total => possible) %></span>
                   </span>
                   <div class="response">
                     <div class="response_bar" style="margin-top: <%= (100 - pct).to_i %>px; height: <%= pct.to_i %>px;">
                     </div>
                   </div>
                   <div class="answer_text">
-                    Avg. points awarded
+                    <%= t(:average_points_awarded, "Avg. points awarded") %>
                   </div>
                 </span>
               </td>
               <td title="<%= possible %> points possible" data-responses="<%= possible %>">
                   <span href="#" class="tooltip answer_bar">
                   <span class="tooltip_wrap" style="font-size: 1.2em;">
-                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:percent_of_responses, "%{total} point(s) possible", :total => possible) %></span>
+                    <span class="tooltip_text" style="padding: 10px 5px;"><%= t(:points_possible, "%{total} point(s) possible", :total => possible) %></span>
                   </span>
                   <div class="response">
                     <div class="response_bar" style="margin-top: 0px; height: 100px;">
                     </div>
                   </div>
                   <div class="answer_text" style="font-weight: bold;">
-                    Points possible
+                    <%= t(:points_possible2, "Points possible") %>
                   </div>
                 </span>
               </td>

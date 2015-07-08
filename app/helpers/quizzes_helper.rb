@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'nokogiri'
+
 module QuizzesHelper
   RE_EXTRACT_BLANK_ID = /['"]question_\w+_(.*?)['"]/
 
@@ -49,7 +51,11 @@ module QuizzesHelper
   end
 
   def quiz_published_state_warning(quiz=@quiz)
-    !quiz.available? ? unpublished_quiz_warning : unsaved_changes_warning
+    if !quiz.available?
+      unpublished_quiz_warning
+    else
+      unsaved_changes_warning
+    end
   end
 
   def display_save_button?(quiz=@quiz)
@@ -83,6 +89,8 @@ module QuizzesHelper
       I18n.t('Highest')
     when "keep_latest"
       I18n.t('Latest')
+    when "keep_average"
+      I18n.t('Average')
     end
   end
 
@@ -355,6 +363,14 @@ module QuizzesHelper
         "none",
         false,
         false
+      ),
+      "learnosity_question" => QuestionType.new(
+        "learnosity_question",
+        "learnosity",
+        "none",
+        "learnosity",
+        false,
+        false
       )
     }
     res = @answer_types_lookup[question[:question_type]] || @answer_types_lookup["other"]
@@ -371,8 +387,9 @@ module QuizzesHelper
   def question_comment(user_answer, question)
     correct_text   = (hash_get(user_answer, :correct) == true) ? comment_get(question, :correct_comments) : nil
     incorrect_text = (hash_get(user_answer, :correct) == false) ? comment_get(question, :incorrect_comments) : nil
-    neutral_text   = (hash_get(question, :neutral_comments).present?) ? comment_get(question, :neutral_comments) : nil
-
+    neutral_text   = if hash_get(question, :neutral_comments).present? || hash_get(question, :neutral_comments_html).present?
+      comment_get(question, :neutral_comments)
+    end
     text = []
     text << content_tag(:p, correct_text, {:class => 'correct_comments'}) if correct_text.present?
     text << content_tag(:p, incorrect_text, {:class => 'incorrect_comments'}) if incorrect_text.present?
@@ -406,7 +423,8 @@ module QuizzesHelper
     answer_list.each do |entry|
       entry[:blank_id] = AssessmentQuestion.variable_id(entry[:blank_id])
     end
-    res.gsub! %r{<input.*?name=\\?['"](question_.*?)\\?['"].*?>} do |match|
+    # Requires mutliline option to be robust
+    res.gsub!(%r{<input.*?name=\\?['"](question_.*?)\\?['"].*?>}m) do |match|
       blank = match.match(RE_EXTRACT_BLANK_ID).to_a[1]
       blank.gsub!(/\\/,'')
       answer = answer_list.detect { |entry| entry[:blank_id] == blank } || {}
@@ -414,7 +432,7 @@ module QuizzesHelper
 
       # If given answer list, insert the values into the text inputs for displaying user's answers.
       if answer_list.any?
-        #  Replace the {{question_BLAH}} template text with the user's answer text.
+        #  Replace the {{question_IDNUM_VARIABLEID}} template text with the user's answer text.
         match = match.sub(/\{\{question_.*?\}\}/, answer.to_s).
           # Match on "/>" but only when at the end of the string and insert "readonly" if set to be readonly
           sub(/\/*>\Z/, readonly_markup)
@@ -439,15 +457,23 @@ module QuizzesHelper
     answer_list = hash_get(options, :answer_list)
     res      = user_content hash_get(question, :question_text)
     index  = 0
-    res.to_str.gsub %r{<select.*?name=['"](question_.*?)['"].*?>.*?</select>} do |match|
+    doc = Nokogiri::HTML.fragment(res)
+    selects = doc.css(".question_input")
+    selects.each do |s|
       if answer_list && !answer_list.empty?
         a = answer_list[index]
         index += 1
       else
-        a = hash_get(answers, $1)
+        question_id = s["name"]
+        a = hash_get(answers, question_id)
       end
-      match.sub(%r{(<option.*?value=['"]#{ERB::Util.h(a)}['"])}, '\\1 selected')
-    end.html_safe
+
+      # If existing answer is one of the options, select it
+      if opt_tag = s.children.css("option[value='#{a}']").first
+        opt_tag["selected"] = "selected"
+      end
+    end
+    doc.to_s.html_safe
   end
 
   def duration_in_minutes(duration_seconds)
@@ -542,9 +568,14 @@ module QuizzesHelper
   end
 
   def score_to_keep_message(quiz=@quiz)
-    quiz.scoring_policy == "keep_highest" ?
-      I18n.t("Will keep the highest of all your scores") :
+    case quiz.scoring_policy
+    when "keep_highest"
+      I18n.t("Will keep the highest of all your scores")
+    when "keep_latest"
       I18n.t("Will keep the latest of all your scores")
+    when "keep_average"
+      I18n.t("Will keep the average of all your scores")
+    end
   end
 
   def quiz_edit_text(quiz=@quiz)
@@ -575,7 +606,7 @@ module QuizzesHelper
     titles = []
 
     if selected_answer || correct_answer || show_correct_answers
-      titles << h("#{answer}.")
+      titles << ("#{answer}.")
     end
 
     if selected_answer
@@ -586,6 +617,33 @@ module QuizzesHelper
       titles << I18n.t(:correct_answer, "This was the correct answer.")
     end
 
+    titles = titles.map { |title| h(title) }
+    title = "title=\"#{titles.join(' ')}\"".html_safe if titles.length > 0
+  end
+
+  def matching_answer_title(item_text, did_select_answer, selected_answer_text, is_correct_answer, correct_answer_text, show_correct_answers)
+    titles = []
+
+    if did_select_answer || is_correct_answer || show_correct_answers
+      titles << "#{item_text}."
+    end
+
+
+    if did_select_answer
+      titles << I18n.t(:user_selected_answer, "You selected")
+    end
+
+    titles << "#{selected_answer_text}."
+
+    if is_correct_answer && show_correct_answers
+      titles << I18n.t(:correct_answer, "This was the correct answer.")
+    end
+
+    if !is_correct_answer && show_correct_answers
+      titles << I18n.t(:user_selected_wrong, "The correct answer was %{correct_answer_text}.", correct_answer_text: correct_answer_text)
+    end
+
+    titles = titles.map { |title| h(title) }
     title = "title=\"#{titles.join(' ')}\"".html_safe if titles.length > 0
   end
 
@@ -610,6 +668,60 @@ module QuizzesHelper
       "--"
     else
       question[:points_possible] || 0
+    end
+  end
+
+  def learnosity_question(options)
+    learnosity_json(options)
+    render :partial => 'quizzes/quizzes/learnosity_question'
+  end
+
+  def learnosity_json(options)
+    question = hash_get(options, :question)
+    question_text = hash_get(question, :question_text)
+    answers = hash_get(options, :answers)
+    state = learnosity_state(options)
+    question_data = ActiveSupport::JSON::decode(question_text) rescue {}
+    question_data[:response_id] = "#{question[:id]}"
+    @response_id = "#{question[:id]}"
+    @learnosity_request = learnosity_request.merge!({
+                                                      :state => state,
+                                                      :questions => [question_data]
+                                                    })
+    if ['resume', 'review'].include? state
+      @learnosity_request[:responses] = answers || {}
+    end
+    @learnosity_request
+  end
+
+  def learnosity_request
+    @plugin ||= Canvas::Plugin.find('learnosity')
+    @consumer_key ||= @plugin.setting(:consumer_key)
+    @consumer_secret ||= @plugin.setting(:consumer_secret)
+    @domain ||= @plugin.setting(:domain)
+    timestamp = Time.now.utc.strftime('%Y%m%d-%H%M')
+    sha256 = Digest::SHA256.new
+    sha256.update("#{@consumer_key}_#{@domain}_#{timestamp}_#{@current_user.uuid}_#{@consumer_secret}")
+    signature = sha256.hexdigest
+    return {
+      :consumer_key => @consumer_key,
+      :timestamp => timestamp,
+      :signature => signature,
+      :user_id => @current_user.uuid,
+      :type => "local_practice"
+    }
+  end
+
+  def learnosity_state(options)
+    answers = hash_get(options, :answers)
+    assessing = hash_get(options, :assessing)
+    assessment_results = hash_get(options, :assessment_results)
+    if assessing
+      answers.nil? ? 'initial' : 'resume'
+    elsif assessment_results
+      'review'
+    else
+      'preview'
     end
   end
 

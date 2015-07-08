@@ -63,7 +63,7 @@
       </td>
       <td class="email_actions hidden_for_single">
         <% if c.bouncing? %>
-          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_email', 'Canvas was unable to send email to this address. Please ensure the address is correct to continue receiving email from Canvas.') %>" aria-label="<%= t('bouncing_email', 'Canvas was unable to send email to this address. Please ensure the address is correct to continue receiving email from Canvas.') %>">
+          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_email', 'HotChalk Ember was unable to send email to this address. Please ensure the address is correct to continue receiving email from HotChalk Ember.') %>" aria-label="<%= t('bouncing_email', 'HotChalk Ember was unable to send email to this address. Please ensure the address is correct to continue receiving email from HotChalk Ember.') %>">
             <i class="text text-warning icon-warning"></i>
           </span>
         <% end %>
@@ -116,7 +116,7 @@
       <td><%= c.path_type %></td>
       <td style="padding: 0; text-align: center;">
         <% if c.bouncing? %>
-          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_channel', 'Canvas was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from Canvas.') %>" aria-label="<%= t('bouncing_channel', 'Canvas was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from Canvas.') %>">
+          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_channel', 'HotChalk Ember was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from HotChalk Ember.') %>" aria-label="<%= t('bouncing_channel', 'HotChalk Ember was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from HotChalk Ember.') %>">
             <i class="text text-warning icon-warning"></i>
           </span>
         <% end %>
@@ -258,7 +258,6 @@
 <div style="display: none;" id="select_templates">
   <%= render :partial => "email_select" %>
   <%= render :partial => "sms_select" %>
-  <%= render :partial => "facebook_select" %>
   <%= render :partial => "twitter_select" %>
   <%= render :partial => "yo_select" %>
 </div>

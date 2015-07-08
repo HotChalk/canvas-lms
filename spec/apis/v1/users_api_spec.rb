@@ -24,9 +24,13 @@ class TestUserApi
   include Api::V1::User
   attr_accessor :services_enabled, :context, :current_user, :params, :request
   def service_enabled?(service); @services_enabled.include? service; end
+
   def avatar_image_url(*args); "avatar_image_url(#{args.first})"; end
+
   def course_student_grades_url(course_id, user_id); ""; end
+
   def course_user_url(course_id, user_id); ""; end
+
   def initialize
     @domain_root_account = Account.default
     @params = {}
@@ -348,6 +352,63 @@ describe "Users API", type: :request do
     expect(json.size).to eq 1
   end
 
+  describe "api_show" do
+    before :each do
+      @other_user = User.create!(:name => "user name")
+      email = "email@somewhere.org"
+      @other_user.pseudonyms.create!(:unique_id => email, :account => Account.default) { |p| p.sis_user_id = email }
+      Account.default.tap { |a| a.disable_service(:avatars) }.save
+    end
+
+    it "should retrieve user details as an admin user" do
+      account_admin_user
+      json = api_call(:get, "/api/v1/users/#{@other_user.id}",
+                      { :controller => 'users', :action => 'api_show', :id => @other_user.id.to_param, :format => 'json' })
+
+      expect(json).to eq({
+         'name' => @other_user.name,
+         'sortable_name' => @other_user.sortable_name,
+         'sis_user_id' => @other_user.pseudonym.sis_user_id,
+         'sis_import_id' => nil,
+         'id' => @other_user.id,
+         'short_name' => @other_user.short_name,
+         'sis_user_id' => @other_user.pseudonym.sis_user_id,
+         'integration_id' => nil,
+         'sis_login_id' => @other_user.pseudonym.sis_user_id,
+         'login_id' => @other_user.pseudonym.unique_id,
+         'locale' => nil,
+         'permissions' => {'can_update_name' => true, 'can_update_avatar' => false}
+      })
+    end
+
+    it "should retrieve limited user details as self" do
+      @user = @other_user
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json).to eq({
+         'name' => @other_user.name,
+         'sortable_name' => @other_user.sortable_name,
+         'id' => @other_user.id,
+         'short_name' => @other_user.short_name,
+         'locale' => nil,
+         'permissions' => {'can_update_name' => true, 'can_update_avatar' => false}
+      })
+    end
+
+    it "should retrieve the right permissions" do
+      @user = @other_user
+      Account.default.tap { |a| a.settings[:users_can_edit_name] = false }.save
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json['permissions']).to eq({'can_update_name' => false, 'can_update_avatar' => false})
+
+      Account.default.tap { |a| a.enable_service(:avatars) }.save
+      json = api_call(:get, "/api/v1/users/self",
+                      { :controller => 'users', :action => 'api_show', :id => 'self', :format => 'json' })
+      expect(json['permissions']).to eq({'can_update_name' => false, 'can_update_avatar' => true})
+    end
+  end
+
   describe "user account listing" do
     it "should return users for an account" do
       @account = Account.default
@@ -458,6 +519,58 @@ describe "Users API", type: :request do
         Account.site_admin.account_users.create!(user: @site_admin)
       end
 
+      context 'using force_validations param' do
+        it "validates with force_validations set to true" do
+          raw_api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
+            {
+              :user => {
+                :name => ""
+              },
+              :pseudonym => {
+                :unique_id  => "bademail@",
+              },
+              :force_validations => true
+            }
+          )
+
+          assert_status(400)
+          errors = JSON.parse(response.body)['errors']
+          expect(errors['user']['name']).to be_present
+          expect(errors['user']['terms_of_use']).to be_present
+          expect(errors['pseudonym']).to be_present
+          expect(errors['pseudonym']['unique_id']).to be_present
+        end
+
+        it "does not validate when force_validations is not set to true" do
+          # successful request even with oddball user params because we're making the request as an admin
+          json = api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
+            {
+              :user => {
+                :name => ""
+              },
+              :pseudonym => {
+                :unique_id  => "bademail@",
+              }
+            }
+          )
+
+          users = User.where(name: "").to_a
+          expect(users.length).to eql 1
+          user = users.first
+
+          expect(json).to eq({
+            "id"            => user.id,
+            "name"          => "",
+            "sortable_name" => "",
+            "short_name"    => "",
+            "login_id"      => "bademail@",
+            "locale"        => nil
+          })
+        end
+      end
+
       it "should allow site admins to create users" do
         json = api_call(:post, "/api/v1/accounts/#{@site_admin.account.id}/users",
           { :controller => 'users', :action => 'create', :format => 'json', :account_id => @site_admin.account.id.to_s },
@@ -507,6 +620,56 @@ describe "Users API", type: :request do
           "locale"           => "en",
           "confirmation_url" => user.communication_channels.email.first.confirmation_url
         })
+      end
+
+      context "sis reactivation" do
+        it "should allow reactivating deleting users using sis_user_id" do
+          other_user = user_with_pseudonym(:active_all => true)
+          @pseudonym.sis_user_id = "12345"
+          @pseudonym.save!
+          other_user.remove_from_root_account(Account.default)
+
+          @user = @site_admin
+          json = api_call(:post, "/api/v1/accounts/#{Account.default.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => Account.default.id.to_s },
+            { :enable_sis_reactivation => '1', :user => { :name => "Test User" },
+              :pseudonym => { :unique_id => "test@example.com", :password => "password123", :sis_user_id => "12345"},
+            }
+          )
+
+          expect(other_user).to eq User.find(json['id'])
+          other_user.reload
+          @pseudonym.reload
+          expect(other_user).to be_registered
+          expect(other_user.user_account_associations.where(:account_id => Account.default).first).to_not be_nil
+          expect(@pseudonym).to be_active
+        end
+
+        it "should raise an error trying to reactivate an active section" do
+          other_user = user_with_pseudonym(:active_all => true)
+          @pseudonym.sis_user_id = "12345"
+          @pseudonym.save!
+
+          @user = @site_admin
+          json = api_call(:post, "/api/v1/accounts/#{Account.default.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => Account.default.id.to_s },
+            { :enable_sis_reactivation => '1', :user => { :name => "Test User" },
+              :pseudonym => { :unique_id => "test@example.com", :password => "password123", :sis_user_id => "12345"},
+            }, {}, {:expected_status => 400}
+          )
+        end
+
+        it "should carry on if there's no section to reactivate" do
+          json = api_call(:post, "/api/v1/accounts/#{Account.default.id}/users",
+            { :controller => 'users', :action => 'create', :format => 'json', :account_id => Account.default.id.to_s },
+            { :enable_sis_reactivation => '1', :user => { :name => "Test User" },
+              :pseudonym => { :unique_id => "test@example.com", :password => "password123", :sis_user_id => "12345"},
+            }
+          )
+
+          user = User.find(json['id'])
+          expect(user.pseudonym.sis_user_id).to eq '12345'
+        end
       end
 
       it "should catch invalid dates before passing to the database" do
@@ -761,6 +924,38 @@ describe "Users API", type: :request do
         user = User.find(json['id'])
         expect(user.avatar_image_source).to eql 'external'
         expect(user.avatar_image_url).to eql url_to_set
+      end
+    end
+
+    context "non-account-admin user" do
+      before :once do
+        user_with_pseudonym name: "Earnest Lambert Watkins"
+        course_with_teacher user: @user, active_all: true
+      end
+
+      context "with users_can_edit_name enabled" do
+        before :once do
+          @course.root_account.settings = { users_can_edit_name: true }
+          @course.root_account.save!
+        end
+
+        it "should allow user to rename self" do
+          json = api_call(:put, "/api/v1/users/#{@user.id}", @path_options.merge(id: @user.id),
+                          { user: { name: "Blue Ivy Carter" } })
+          expect(json["name"]).to eq "Blue Ivy Carter"
+        end
+      end
+
+      context "with users_can_edit_name disabled" do
+        before :once do
+          @course.root_account.settings = { users_can_edit_name: false }
+          @course.root_account.save!
+        end
+
+        it "should not allow user to rename self" do
+          api_call(:put, "/api/v1/users/#{@user.id}", @path_options.merge(id: @user.id),
+                   { user: { name: "Ovaltine Jenkins" } }, {}, { expected_status: 401 })
+        end
       end
     end
 
@@ -1055,6 +1250,139 @@ describe "Users API", type: :request do
           id: @user2.to_param, destination_user_id: @user1.to_param}
       )
       assert_status(401)
+    end
+  end
+
+  describe 'Custom Colors' do
+    before :each do
+      @a = Account.default
+      @u = user(:active_all => true)
+      @a.account_users.create!(user: @u)
+    end
+
+    describe 'GET custom colors' do
+      before :each do
+        @user.preferences[:custom_colors] = {
+          "user_#{@user.id}" => "efefef",
+          "course_3" => "ababab"
+        }
+        @user.save!
+      end
+
+      it "should return an empty object if nothing is stored" do
+        @user.preferences.delete(:custom_colors)
+        @user.save!
+
+        json = api_call(
+          :get,
+          "/api/v1/users/#{@user.id}/colors",
+          { controller: 'users', action: 'get_custom_colors', format: 'json',
+            id: @user.to_param
+          },
+          {:expected_status => 200}
+        )
+        expect(json['custom_colors'].size).to eq 0
+      end
+
+      it "should return all custom colors for the user" do
+        json = api_call(
+          :get,
+          "/api/v1/users/#{@user.id}/colors",
+          { controller: 'users', action: 'get_custom_colors', format: 'json',
+            id: @user.to_param
+          },
+          {:expected_status => 200}
+        )
+        expect(json['custom_colors'].size).to eq 2
+      end
+
+      it "should return the color for a context when requested" do
+        json = api_call(
+          :get,
+          "/api/v1/users/#{@user.id}/colors/user_#{@user.id}",
+          { controller: 'users', action: 'get_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "user_#{@user.id}"
+          },
+          {:expected_status => 200}
+        )
+        expect(json['hexcode']).to eq "efefef"
+      end
+    end
+
+    describe 'PUT custom colors' do
+      it "should not allow creating entries for entities that do not exist" do
+        api_call(
+          :put,
+          "/api/v1/users/#{@user.id}/colors/course_999",
+          { controller: 'users', action: 'set_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "course_999", hexcode: 'ababab'
+          },
+          {},
+          {},
+          {:expected_status => 404}
+        )
+      end
+
+      it "should not allow creating entries for entities the user doesn't have read access to" do
+        course_with_teacher
+
+        api_call(
+          :put,
+          "/api/v1/users/#{@user.id}/colors/course_#{@course.id}",
+          { controller: 'users', action: 'set_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "course_#{@course.id}", hexcode: 'ababab'
+          },
+          {},
+          {},
+          {:expected_status => 401}
+        )
+      end
+
+      it "should throw a bad request if a color isn't provided" do
+        course_with_student(active_all: true)
+        @user = @student
+        api_call(
+          :put,
+          "/api/v1/users/#{@user.id}/colors/course_#{@course.id}",
+          { controller: 'users', action: 'set_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "course_#{@course.id}"
+          },
+          {},
+          {},
+          {:expected_status => 400}
+        )
+      end
+
+      it "should throw a bad request if an invalid hexcode is provided" do
+        course_with_student(active_all: true)
+        @user = @student
+        api_call(
+          :put,
+          "/api/v1/users/#{@user.id}/colors/course_#{@course.id}",
+          { controller: 'users', action: 'set_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "course_#{@course.id}", hexcode: 'yellow'
+          },
+          {},
+          {},
+          {:expected_status => 400}
+        )
+      end
+
+      it "should add an entry for entities the user has access to" do
+        course_with_student(active_all: true)
+        @user = @student
+        json = api_call(
+          :put,
+          "/api/v1/users/#{@user.id}/colors/course_#{@course.id}",
+          { controller: 'users', action: 'set_custom_color', format: 'json',
+            id: @user.to_param, asset_string: "course_#{@course.id}", hexcode: 'ababab'
+          },
+          {},
+          {},
+          {:expected_status => 200}
+        )
+        expect(json['hexcode']).to eq '#ababab'
+      end
     end
   end
 end

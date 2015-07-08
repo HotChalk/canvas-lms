@@ -388,7 +388,7 @@ select:focus:required:invalid {
 // ------------
 
 /*
-@styleguide Forms: Form Actions
+Forms: Form Actions
 
 This is the standard form actions button bar at the bottom of every content form. Buttons may vary, but the styling or the container and button positions should be consistent
 
@@ -427,7 +427,6 @@ This is the standard form actions button bar at the bottom of every content form
 
 .help-inline {
   display: inline-block;
-  @include ie7-inline-block();
   vertical-align: middle;
   padding-left: 5px;
 }
@@ -558,7 +557,7 @@ input.search-query {
   padding-left: 14px;
   padding-left: 4px \9; /* IE7-8 doesn't have border-radius, so don't indent the padding */
   margin-bottom: 0; // Remove the default margin on all inputs
-  @include border-radius(15px);
+  @if $use_new_styles == false { @include border-radius(15px); }
 }
 
 /* Allow for input prepend/append in search forms */
@@ -599,7 +598,6 @@ input.search-query {
   .input-prepend,
   .input-append {
     display: inline-block;
-    @include ie7-inline-block();
     margin-bottom: 0;
     vertical-align: middle;
   }

@@ -103,7 +103,7 @@ class UserMerge
       Pseudonym.where(:user_id => from_user).update_all(["user_id=?, position=position+?", target_user, max_position])
 
       target_user.communication_channels.email.unretired.each do |cc|
-        Rails.cache.delete([cc.path, 'invited_enrollments'].cache_key)
+        Rails.cache.delete([cc.path, 'invited_enrollments2'].cache_key)
       end
       [
         [:quiz_id, :'quizzes/quiz_submissions'],
@@ -149,7 +149,7 @@ class UserMerge
             scope.update_all(:user_id => target_user)
           end
         rescue => e
-          Rails.logger.error "migrating #{table} column user_id failed: #{e.to_s}"
+          Rails.logger.error "migrating #{table} column user_id failed: #{e}"
         end
       end
       from_user.all_conversations.find_each { |c| c.move_to_user(target_user) } unless Shard.current != target_user.shard
@@ -162,7 +162,7 @@ class UserMerge
         entries.update_all(user_id: target_user.id)
         DiscussionTopic.where(user_id: from_user).update_all(user_id: target_user.id, updated_at: Time.now.utc)
       rescue => e
-        Rails.logger.error "migrating discussions failed: #{e.to_s}"
+        Rails.logger.error "migrating discussions failed: #{e}"
       end
 
       updates = {}
@@ -193,7 +193,7 @@ class UserMerge
             end
           end
         rescue => e
-          Rails.logger.error "migrating #{table} column #{column} failed: #{e.to_s}"
+          Rails.logger.error "migrating #{table} column #{column} failed: #{e}"
         end
       end
 
@@ -207,8 +207,10 @@ class UserMerge
       end
 
       unless Shard.current != target_user.shard
-        # delete duplicate observers/observees, move the rest
+        # delete duplicate or invalid observers/observees, move the rest
         from_user.user_observees.where(:user_id => target_user.user_observees.map(&:user_id)).delete_all
+        from_user.user_observees.where(user_id: target_user).delete_all
+        target_user.user_observees.where(user_id: from_user).delete_all
         from_user.user_observees.update_all(:observer_id => target_user)
         xor_observer_ids = (Set.new(from_user.user_observers.map(&:observer_id)) ^ target_user.user_observers.map(&:observer_id)).to_a
         from_user.user_observers.where(:observer_id => target_user.user_observers.map(&:observer_id)).delete_all
@@ -305,6 +307,13 @@ class UserMerge
             # mark all conflicts on from_user as deleted so they will be left
             scope.active.where("id<>?", keeper).where(column => from_user).destroy_all
           end
+
+          # prevent observing self by marking them as deleted
+          Enrollment.active.where("type = 'ObserverEnrollment' AND
+                                  (associated_user_id = :target_user AND user_id = :from_user OR
+                                  associated_user_id = :from_user AND user_id = :target_user)",
+                                  {target_user: target_user, from_user: from_user}).destroy_all
+
           # move all the enrollments that are not marked as deleted to the target user
           Enrollment.active.where(column => from_user).update_all(column => target_user)
         end
@@ -335,7 +344,7 @@ class UserMerge
             version_ids << version.id
           end
         rescue => e
-          Rails.logger.error "migrating versions for #{table} column #{column} failed: #{e.to_s}"
+          Rails.logger.error "migrating versions for #{table} column #{column} failed: #{e}"
           raise e unless Rails.env.production?
         end
       end

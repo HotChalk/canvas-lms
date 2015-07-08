@@ -41,10 +41,6 @@ describe AssignmentOverrideApplicator do
   end
 
   describe "assignment_overridden_for" do
-    before :once do
-      Account.default.enable_feature!(:draft_state)
-    end
-
     before :each do
       student_in_course
       @assignment = create_assignment(:course => @course)
@@ -369,6 +365,27 @@ describe AssignmentOverrideApplicator do
           expect(result.length).to eq 1
         end
 
+        it "should enforce lenient date" do
+
+          adhoc_due_at = 10.days.from_now
+
+          ao = AssignmentOverride.new()
+          ao.assignment = @assignment
+          ao.title = "ADHOC OVERRIDE"
+          ao.workflow_state = "active"
+          ao.set_type = "ADHOC"
+          ao.override_due_at(adhoc_due_at)
+          ao.save!
+          override_student = ao.assignment_override_students.build
+          override_student.user = @student2
+          override_student.save!
+          @assignment.reload
+
+          students_assignment = AssignmentOverrideApplicator.
+            assignment_overridden_for(@assignment, @student2)
+          expect(students_assignment.due_at.to_i).to eq adhoc_due_at.to_i
+        end
+
         it "should include section overrides for sections with an active student enrollment" do
           overrides = AssignmentOverrideApplicator.overrides_for_assignment_and_user(@assignment, @student2)
           expect(overrides).to eq [@override2]
@@ -599,7 +616,6 @@ describe AssignmentOverrideApplicator do
         context "without draft states" do
           it "skips versions of the override that have nil for an assignment version" do
             student_in_course
-            set_course_draft_state
             expected_time = Time.zone.now
             quiz = @course.quizzes.create! :title => "VDD Quiz", :quiz_type => 'assignment'
             section = @course.course_sections.create! :name => "title"
@@ -632,7 +648,6 @@ describe AssignmentOverrideApplicator do
           it "quiz should always have an assignment for overrides" do
             # with draft states quizzes always have an assignment.
             student_in_course
-            course.root_account.enable_feature!(:draft_state)
             expected_time = Time.zone.now
             quiz = @course.quizzes.create! :title => "VDD Quiz", :quiz_type => 'assignment'
             section = @course.course_sections.create! :name => "title"
@@ -658,7 +673,6 @@ describe AssignmentOverrideApplicator do
               overrides = AssignmentOverrideApplicator.
                 overrides_for_assignment_and_user(quiz.assignment, @student)
             end.to_not raise_error
-            course.root_account.disable_feature!(:draft_state)
           end
         end
       end

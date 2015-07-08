@@ -107,16 +107,25 @@ class RoleOverridesController < ApplicationController
   #   Filter by role state. If this argument is omitted, only 'active' roles are
   #   returned.
   #
+  # @argument show_inherited [Boolean]
+  #   If this argument is true, all roles inherited from parent accounts will
+  #   be included.
+  #
   # @returns [Role]
   def api_index
     if authorized_action(@context, @current_user, :manage_role_overrides)
       route = polymorphic_url([:api, :v1, @context, :roles])
       states = params[:state].to_a.reject{ |s| %w(active inactive).exclude?(s) }
       states = %w(active) if states.empty?
+
       roles = []
       roles += Role.visible_built_in_roles if states.include?('active')
-      roles += @context.roles.where(:workflow_state => states).order(:id).all
+
+      scope = value_to_boolean(params[:show_inherited]) ? @context.available_custom_roles(true) : @context.roles
+      roles += scope.where(:workflow_state => states).order(:id).all
+
       roles = Api.paginate(roles, self, route)
+      ActiveRecord::Associations::Preloader.new(roles, :account).run
       render :json => roles.collect{|role| role_json(@context, role, @current_user, session)}
     end
   end
@@ -447,7 +456,26 @@ class RoleOverridesController < ApplicationController
     end
   end
 
-  # Summary: 
+  # Internal API endpoint
+  # Used for checking Canvas permissions from Catalog
+  # Could be generalized for other use cases by adding to the whitelist
+
+  def check_account_permission
+    whitelist = %w(manage_catalog)
+    permission = params[:permission]
+
+    if whitelist.include?(permission)
+      render json: {
+        permission: permission,
+        granted: @context.grants_right?(@current_user, permission.to_sym)
+      }
+    else
+      render json: { message: t("Permission not found") },
+             status: :bad_request
+    end
+  end
+
+  # Summary:
   #   Adds ENV.CURRENT_ACCOUNT with the account we are working with.
   def set_js_env_for_current_account
     js_env :CURRENT_ACCOUNT => @context

@@ -1,22 +1,29 @@
 define [
   'jquery'
   'react'
-  'compiled/react/shared/utils/withReactDOM'
+  'compiled/react/shared/utils/withReactElement'
   'i18n!broccoli_cloud'
   'compiled/models/FilesystemObject'
   './RestrictedDialogForm'
   '../modules/customPropTypes'
   'compiled/jquery.rails_flash_notifications'
-], ($, React, withReactDOM, I18n, FilesystemObject, RestrictedDialogForm, customPropTypes) ->
+], ($, React, withReactElement, I18n, FilesystemObject, RestrictedDialogFormComponent, customPropTypes) ->
+
+  RestrictedDialogForm = React.createFactory RestrictedDialogFormComponent
+
   PublishCloud = React.createClass
     displayName: 'PublishCloud'
 
     propTypes:
+      togglePublishClassOn: React.PropTypes.object
       model: customPropTypes.filesystemObject
       userCanManageFilesForContext: React.PropTypes.bool.isRequired
 
     # == React Functions == #
     getInitialState: -> @extractStateFromModel( @props.model )
+
+    componentDidMount: -> @updatePublishClassElements() if @props.togglePublishClassOn
+    componentDidUpdate: -> @updatePublishClassElements() if @props.togglePublishClassOn
 
     componentWillMount: ->
       setState = (model) => @setState(@extractStateFromModel( model ))
@@ -24,6 +31,12 @@ define [
 
     componentWillUnmount: ->
       @props.model.off(null, null, this)
+
+    updatePublishClassElements: ->
+      if @state.published
+        @props.togglePublishClassOn.classList.add('ig-published')
+      else
+        @props.togglePublishClassOn.classList.remove('ig-published')
 
     getRestrictedText: ->
       if @props.model.get('unlock_at') and @props.model.get('lock_at')
@@ -70,14 +83,14 @@ define [
           React.unmountComponentAtNode this
           $(this).remove()
 
-      React.renderComponent(RestrictedDialogForm({
+      React.render(RestrictedDialogForm({
         usageRightsRequiredForContext: @props.usageRightsRequiredForContext
         models: [@props.model]
         closeDialog: -> $dialog.dialog('close')
       }), $dialog[0])
 
 
-    render: withReactDOM ->
+    render: withReactElement ->
       if @props.userCanManageFilesForContext
         if @state.published && @state.restricted
           button
@@ -87,7 +100,7 @@ define [
             ref: "publishCloud"
             className:'btn-link published-status restricted'
             title: @getRestrictedText()
-            'aria-label': @getRestrictedText(),
+            'aria-label': @getRestrictedText() + ' - ' + I18n.t('Click to modify'),
               i className:'icon-cloud-lock'
         else if @state.published && @state.hidden
           button
@@ -97,7 +110,7 @@ define [
             ref: "publishCloud"
             className:'btn-link published-status hiddenState'
             title: I18n.t('hidden_title', 'Hidden. Available with a link')
-            'aria-label': I18n.t('label.hidden', 'Hidden. Available with a link'),
+            'aria-label': I18n.t('Hidden. Available with a link - Click to modify'),
               i className:'icon-cloud-lock'
         else if @state.published
           button
@@ -107,7 +120,7 @@ define [
             ref: "publishCloud",
             className:'btn-link published-status published'
             title: I18n.t('published_title', 'Published')
-            'aria-label': I18n.t('label.published', 'Published'),
+            'aria-label': I18n.t('Published - Click to modify'),
               i className:'icon-publish'
         else
           button
@@ -117,7 +130,7 @@ define [
             ref: "publishCloud"
             className:'btn-link published-status unpublished'
             title: I18n.t('unpublished_title', 'Unpublished')
-            'aria-label': I18n.t('label.unpublished', 'Unpublished'),
+            'aria-label': I18n.t('Unpublished - Click to modify'),
               i className:'icon-unpublish'
       else
         if @state.published && @state.restricted

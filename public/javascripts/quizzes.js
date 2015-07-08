@@ -15,6 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+// xsslint jqueryObject.function makeFormAnswer makeDisplayAnswer
+// xsslint jqueryObject.property sortable placeholder
+// xsslint safeString.property question_text
 define([
   'jst/quiz/regrade',
   'i18n!quizzes',
@@ -24,13 +28,13 @@ define([
   'str/htmlEscape',
   'str/pluralize',
   'wikiSidebar',
-  'compiled/views/assignments/DueDateList',
   'compiled/views/assignments/DueDateOverride',
   'compiled/models/Quiz',
   'compiled/models/DueDateList',
   'compiled/collections/SectionCollection',
   'compiled/views/calendar/MissingDateDialogView',
   'compiled/editor/MultipleChoiceToggle',
+  'compiled/editor/EditorToggle',
   'compiled/str/TextHelper',
   'compiled/views/editor/KeyboardShortcuts',
   'INST', // safari sniffing for VO workarounds
@@ -53,9 +57,9 @@ define([
   'jqueryui/sortable' /* /\.sortable/ */,
   'jqueryui/tabs' /* /\.tabs/ */
 ], function(regradeTemplate, I18n,_,$,calcCmd, htmlEscape, pluralize,
-            wikiSidebar, DueDateListView, DueDateOverrideView, Quiz,
+            wikiSidebar, DueDateOverrideView, Quiz,
             DueDateList,SectionList,
-            MissingDateDialog,MultipleChoiceToggle,TextHelper,
+            MissingDateDialog,MultipleChoiceToggle,EditorToggle,TextHelper,
             RCEKeyboardShortcuts, INST, QuizFormulaSolution){
 
   var dueDateList, overrideView, quizModel, sectionList, correctAnswerVisibility,
@@ -73,7 +77,9 @@ define([
         var _date = dates[date];
         if (!dates.hasOwnProperty(date)) continue;
         if (_override[_date]) {
-          _override[_date] = _override[_date].toUTCString();
+          if(_override[_date].toUTCString){
+            _override[_date] = _override[_date].toUTCString();
+          }
         } else {
           _override[_date] = "";
         }
@@ -98,33 +104,56 @@ define([
     return $('#quiz_one_time_results').prop('checked');
   };
 
-  if (ENV.QUIZ && ENV.ASSIGNMENT_OVERRIDES != null) {
+  var renderDueDates = function(){
+    if (ENV.QUIZ && ENV.ASSIGNMENT_OVERRIDES != null) {
 
-    ENV.QUIZ.assignment_overrides = ENV.ASSIGNMENT_OVERRIDES;
-    quizModel = new Quiz(ENV.QUIZ);
+      ENV.QUIZ.assignment_overrides = ENV.ASSIGNMENT_OVERRIDES;
+      quizModel = new Quiz(ENV.QUIZ);
 
-    sectionList = new SectionList(ENV.SECTION_LIST);
+      sectionList = new SectionList(ENV.SECTION_LIST);
 
-    dueDateList = new DueDateList(quizModel.get('assignment_overrides'),
-                                  sectionList, quizModel);
+      dueDateList = new DueDateList(quizModel.get('assignment_overrides'),
+                                    sectionList, quizModel);
 
-    overrideView = window.overrideView = new DueDateOverrideView({
-      el: '.js-assignment-overrides',
-      model: dueDateList,
-      views: {
-        'due-date-overrides': new DueDateListView({
-          model: dueDateList
-        })
-      }
-    });
-
-    overrideView.render();
-  }
-
+      overrideView = window.overrideView = new DueDateOverrideView({
+        el: '.js-assignment-overrides',
+        model: dueDateList,
+        views: {}
+      });
+      overrideView.render()
+    }
+  }.bind(this);
 
   var clickSetCorrect = I18n.t('titles.click_to_set_as_correct', "Click to set this answer as correct"),
       isSetCorrect = I18n.t('titles.set_as_correct', "This answer is set as correct"),
-      clickUnsetCorrect = I18n.t('titles.click_to_unset_as_correct', "Click to unset this answer as correct");
+      clickUnsetCorrect = I18n.t('titles.click_to_unset_as_correct', "Click to unset this answer as correct"),
+      correctAnswerLabel = I18n.t('labels.correct_answer', "Correct Answer"),
+      possibleAnswerLabel = I18n.t('labels.possible_answer', "Possible Answer");
+
+  function togglePossibleCorrectAnswerLabel($answers) {
+    $answers.find('.select_answer label').text(possibleAnswerLabel);
+    $answers.find('.select_answer input[name=answer_text]').attr("aria-label", possibleAnswerLabel);
+    $answers.filter('.correct_answer').find(".select_answer label").text(correctAnswerLabel);
+    $answers.filter('.correct_answer').find(".select_answer  input[name=answer_text]").attr("aria-label", correctAnswerLabel);
+  }
+
+  function toggleSelectAnswerAltText($answers,type) {
+    if (type != "multiple_answer") {
+      $answers.find('.select_answer_link')
+        .attr('title', clickSetCorrect)
+        .find('img').attr('alt', clickSetCorrect);
+      $answers.filter('.correct_answer').find('.select_answer_link')
+        .attr('title', isSetCorrect)
+        .find('img').attr('alt', isSetCorrect);
+    } else {
+      $answers.filter(".correct_answer").find('.select_answer_link')
+        .attr('title', clickUnsetCorrect)
+        .find('img').attr('alt', clickUnsetCorrect);
+      $answers.filter(":not(.correct_answer)").find('.select_answer_link')
+        .attr('title', clickSetCorrect)
+        .find('img').attr('alt', clickSetCorrect);
+    }
+  }
 
   // TODO: refactor this... it's not going to be horrible, but it will
   // take a little bit of work.  I just wrapped it in a closure for now
@@ -189,29 +218,21 @@ define([
       }
       answer.answer_selection_type = answer.answer_selection_type || quiz.answerSelectionType(answer.question_type);
 
+      var $answers = $answer.parent().find(".answer");
       if (answer.answer_selection_type == "any_answer") {
         $answer.addClass('correct_answer');
       } else if (answer.answer_selection_type == "matching") {
         $answer.removeClass('correct_answer');
       } else if (answer.answer_selection_type != "multiple_answer") {
-        var $answers = $answer.parent().find(".answer");
         $answers.find(".answer").filter(".correct_answer").not(":first").removeClass('correct_answer');
         if ($answers.filter(".correct_answer").length === 0) {
           $answers.filter(":first").addClass('correct_answer');
         }
-        $answers.find('.select_answer_link')
-          .attr('title', clickSetCorrect)
-          .find('img').attr('alt', clickSetCorrect);
-        $answers.filter('.correct_answer').find('.select_answer_link')
-          .attr('title', isSetCorrect)
-          .find('img').attr('alt', isSetCorrect);
+        toggleSelectAnswerAltText($answers,answer.answer_selection_type);
+        togglePossibleCorrectAnswerLabel($answers);
       } else {
-        $answer.filter(".correct_answer").find('.select_answer_link')
-          .attr('title', clickUnsetCorrect)
-          .find('img').attr('alt', clickUnsetCorrect);
-        $answer.filter(":not(.correct_answer)").find('.select_answer_link')
-          .attr('title', clickSetCorrect)
-          .find('img').attr('alt', clickSetCorrect);
+        toggleSelectAnswerAltText($answers,answer.answer_selection_type);
+        togglePossibleCorrectAnswerLabel($answers);
       }
 
       $answer.find(".numerical_answer_type").change();
@@ -413,7 +434,7 @@ define([
       fillArgs = {
         data: question,
         except: ['answers'],
-        htmlValues: []
+        htmlValues: ['correct_comments_html', 'incorrect_comments_html', 'neutral_comments_html']
       };
 
       if (escaped) {
@@ -424,9 +445,6 @@ define([
 
       $question.fillTemplateData(fillArgs);
       $question.find(".original_question_text").fillFormData(question);
-      $question.find(".question_correct_comment").toggleClass('empty', !question.correct_comments && !question.correct_comments_html);
-      $question.find(".question_incorrect_comment").toggleClass('empty', !question.incorrect_comments && !question.incorrect_comments_html);
-      $question.find(".question_neutral_comment").toggleClass('empty', !question.neutral_comments && !question.neutral_comments_html);
       $question.find(".answers").empty();
       $question.find(".equation_combinations").empty();
       $question.find(".equation_combinations_holder_holder").css('display', 'none');
@@ -494,14 +512,14 @@ define([
               $tr.append($td);
             }
             var $td = $("<td class='final_answer'/>");
-            var answer = data.answer;
+            var answerHtml = data.answer;
             if (question.answerDecimalPoints || question.answer_tolerance) {
               var tolerance = parseFloatOrPercentage(question.answer_tolerance);
               tolerance = tolerance || Math.pow(0.1, question.answerDecimalPoints);
-              answer = answer + " <span style='font-size: 0.8em;'>+/-</span> " + tolerance;
+              answerHtml = answerHtml + " <span style='font-size: 0.8em;'>+/-</span> " + htmlEscape(tolerance);
               $question.find(".answer_tolerance").text(tolerance);
             }
-            $td.html(answer);
+            $td.html(answerHtml);
             $tr.append($td);
             $question.find(".equation_combinations tbody").append($tr);
           });
@@ -532,9 +550,9 @@ define([
       $question.find(".blank_id_select").empty();
       if (question.question_type == 'missing_word_question') {
         var $text = $question.find(".question_text");
-        $text.html("<span class='text_before_answers'>" + question.question_text + "</span> ");
+        $text.html("<span class='text_before_answers'>" + $.raw(question.question_text) + "</span> ");
         $text.append($select);
-        $text.append(" <span class='text_after_answers'>" + question.text_after_answers + "</span>");
+        $text.append(" <span class='text_after_answers'>" + $.raw(question.text_after_answers) + "</span>");
       } else if (question.question_type == 'multiple_dropdowns_question' || question.question_type == 'fill_in_multiple_blanks_question') {
         var variables = {}
         $.each(question.answers, function(i, data) {
@@ -570,15 +588,15 @@ define([
             split = split.split("\n");
           }
         }
-        var code = "";
+        var codeHtml = "";
         for(var cdx in split) {
           if(split[cdx]) {
-            code = code + "<li>" + htmlEscape(split[cdx]) + "</li>";
+            codeHtml = codeHtml + "<li>" + htmlEscape(split[cdx]) + "</li>";
           }
         }
 
-        if (code) {
-          $text.append(I18n.beforeLabel(I18n.t('labels.other_incorrect_matches', "Other Incorrect Match Options")) + "<ul class='matching_answer_incorrect_matches_list'>" + code + "</ul>");
+        if (codeHtml) {
+          $text.append(htmlEscape(I18n.beforeLabel(I18n.t('labels.other_incorrect_matches', "Other Incorrect Match Options"))) + "<ul class='matching_answer_incorrect_matches_list'>" + codeHtml + "</ul>");
         }
       }
       $question.find(".blank_id_select").change();
@@ -646,14 +664,7 @@ define([
       $formQuestion.find(".question_header").text(I18n.t('question_colon', "Question:"));
       $formQuestion.addClass(question_type);
         $formQuestion.find(".question_points_holder").showIf(!$formQuestion.closest(".question_holder").hasClass('group') && question_type != 'text_only_question');
-      $formQuestion.find("textarea.comments").each(function() {
-        $(this).val($.trim($(this).val()));
-        if ($(this).val()) {
-          $(this).parents(".question_comment").removeClass('empty');
-        } else {
-          $(this).parents(".question_comment").addClass('empty');
-        }
-      });
+
       var options = {
         addable: true
       };
@@ -779,12 +790,12 @@ define([
       var tally = 0;
       $("#questions .question_holder:not(.group) .question:not(#question_new)").each(function() {
         var val = parseFloat($(this).find(".question_points,.question_points.hidden").text());
-        if (isNaN(val)) { val = 0; }
+        if (isNaN(val) || val < 0) { val = 0; }
         tally += val;
       });
       $("#questions .group_top:not(#group_top_new)").each(function() {
         var val = parseFloat($(this).find(".question_points").text());
-        if (isNaN(val)) { val = 0; }
+        if (isNaN(val) || val < 0) { val = 0; }
         var cnt = parseInt($(this).find(".pick_count").text(), 10);
         if (isNaN(cnt)) { cnt = 0; }
         tally += val * cnt;
@@ -1268,7 +1279,7 @@ define([
       }
       question.position = i;
       question.question_points = parseFloat(question.question_points);
-      if (isNaN(question.question_points)) {
+      if (isNaN(question.question_points) || question.question_points < 0) {
         question.question_points = 0;
       }
       quiz.points_possible += question.question_points;
@@ -1304,9 +1315,9 @@ define([
       q.assessment_question_id = question.assessment_question_id;
       q.question_type = question.question_type;
       q.points_possible = question.question_points;
-      q.correct_comments = question.correct_comments;
-      q.incorrect_comments = question.incorrect_comments;
-      q.neutral_comments = question.neutral_comments;
+      q.correct_comments_html = question.correct_comments_html;
+      q.incorrect_comments_html = question.incorrect_comments_html;
+      q.neutral_comments_html = question.neutral_comments_html;
       q.question_text = question.question_text;
       q.regrade_option = question.regrade_option;
       q.position = question.position;
@@ -1327,10 +1338,13 @@ define([
 
   function addHTMLFeedback($container, question_data, name) {
     html = question_data[name+'_html'];
+    if (!html || html.length == 0) {
+      html = question_data[name];
+      question_data[name+'_html'] = html;
+    }
     if (html && html.length > 0) {
-      $container.find('.'+name+'_html').html(html).css('display', 'inline-block');
-      $container.find('textarea').val(html);
-      $container.find('a,textarea').hide();
+      $container.find('.'+name+'_html').html(html);
+      $container.find('input[type="hidden"]').val(html);
       $container.removeClass('empty');
     }
   }
@@ -1387,6 +1401,7 @@ define([
     quiz.init().updateDisplayComments();
     correctAnswerVisibility.init();
     scoreValidation.init();
+    renderDueDates();
 
     $('#quiz_tabs').tabs();
     $('#editor_tabs').show();
@@ -1395,9 +1410,9 @@ define([
     var $quiz_edit_wrapper = $("#quiz_edit_wrapper");
     $.scrollSidebar();
     $(".datetime_field").datetime_field();
-    $("#questions").delegate('.group_top,.question,.answer_select', 'mouseover', function(event) {
+    $("#questions").delegate('.group_top,.question,.answer_select,.comment', 'mouseover', function(event) {
       $(this).addClass('hover');
-    }).delegate('.group_top,.question,.answer_select', 'mouseout', function(event) {
+    }).delegate('.group_top,.question,.answer_select,.comment', 'mouseout', function(event) {
       $(this).removeClass('hover');
     });
 
@@ -1447,7 +1462,26 @@ define([
       var $optionGroup = $checkbox.closest('.option-group');
       var checked = $checkbox.prop('checked');
 
-      $optionGroup.find('> .options').toggle(checked);
+      // All of this magic here is so that VoiceOver will properly navigate to
+      // the inputs after they are shown.
+      var $foundOptions = $optionGroup.find('> .options');
+      if (checked) {
+        $foundOptions.removeClass('screenreader-only');
+        // We have to do this bit so keyboard only users aren't confused
+        // when their focus goes to something shown offscreen.
+        $foundOptions.find('[tabindex="-1"]').each(function (k,v) {
+          $(v).attr('tabindex', 0);
+        });
+      } else {
+        $foundOptions.addClass('screenreader-only');
+        // Same as above
+        $foundOptions.find('[tabindex="0"]').each(function (k,v) {
+          $(v).attr('tabindex', -1);
+        });
+      }
+
+
+
 
       if (!checked) {
         $optionGroup
@@ -1595,19 +1629,12 @@ define([
         }
         data.allowed_attempts = attempts;
         data['quiz[allowed_attempts]'] = attempts;
-        overrideView.updateOverrides();
         var overrides = overrideView.getOverrides();
         if (ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED) {
           data['quiz[only_visible_to_overrides]'] = overrideView.containsSectionsWithoutOverrides();
         }
-        var quizData = overrideView.getDefaultDueDate();
-        if (quizData) {
-          quizData = quizData.toJSON().assignment_override;
-        } else {
-          quizData = {};
-        }
         var validationData = {
-          assignment_overrides: overrideView.getAllDates(quizData)
+          assignment_overrides: overrideView.getAllDates()
         };
         var errs = overrideView.validateBeforeSave(validationData,{});
         if (_.keys(errs).length > 0) {
@@ -1662,16 +1689,14 @@ define([
       },
 
       beforeSubmit: function(data) {
-        $quiz_edit_wrapper
-          .find(".btn.save_quiz_button")
-          .attr('disabled', true)
-          .text(I18n.t('buttons.saving', "Saving..."));
+        $quiz_edit_wrapper.find(".btn.save_quiz_button").attr('disabled', true);
+        $quiz_edit_wrapper.find(".btn.save_and_publish").attr('disabled', true);
       },
 
       success: function(data) {
         var $form = $(this);
         $quiz_edit_wrapper
-          .find(".btn.save_quiz_button")
+          .find(".btn.saving")
           .text(I18n.t('buttons.saved', "Saved!"));
         if (data.quiz.assignment) {
           var assignment = data.quiz.assignment;
@@ -1696,17 +1721,44 @@ define([
         $("#quiz_edit_wrapper")
           .find(".btn.save_quiz_button")
           .attr('disabled', false)
+          .removeClass("saving")
           .text(I18n.t('buttons.save', "Save"));
+        $("#quiz_edit_wrapper")
+          .find(".btn.save_and_publish")
+          .attr('disabled', false)
+          .removeClass("saving")
+          .text(I18n.t('buttons.save_and_publish', "Save & Publish"));
+        $("#quiz_edit_wrapper")
+          .find('input[name="publish"]')
+          .remove();
 
         $(this).trigger('xhrError', data);
         $(this).formErrors(data);
-        $quiz_edit_wrapper.find(".btn.save_quiz_button").attr('disabled', false);
       }
     });
 
     $quiz_edit_wrapper.find(".save_quiz_button").click(function(event) {
       event.preventDefault();
       event.stopPropagation();
+      $quiz_edit_wrapper
+        .find(".btn.save_quiz_button")
+        .addClass("saving")
+        .text(I18n.t('buttons.saving', "Saving..."));
+      $quiz_options_form.data('submit_type', 'save_only').submit();
+    }).end();
+
+    $quiz_edit_wrapper.find(".save_and_publish").click(function(event) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      var $publish_input = $(document.createElement('input'));
+      $publish_input.attr('type', 'hidden').attr('name', 'publish').attr('value', 'true');
+      $quiz_options_form.append($publish_input);
+
+      $quiz_edit_wrapper
+        .find(".btn.save_and_publish")
+        .addClass("saving")
+        .text(I18n.t('buttons.saving', "Saving..."));
       $quiz_options_form.data('submit_type', 'save_only').submit();
     }).end();
 
@@ -1737,6 +1789,9 @@ define([
         'quiz[title]': quiz_title
       };
       $("#quiz_title").showIf(true);
+      var gradedQuiz = event.target.value === "assignment" ||
+                       event.target.value === "graded_survey";
+      $("#post_to_sis_option").showIf(gradedQuiz);
       $("#quiz_options_form .quiz_survey_setting").showIf(assignment_id && assignment_id.match(/survey/));
       $("#quiz_points_possible").showIf(assignment_id == 'graded_survey');
       $("#survey_instructions").showIf(assignment_id == 'survey' || assignment_id == 'graded_survey');
@@ -1803,7 +1858,7 @@ define([
 
       question.matching_answer_incorrect_matches = matches.join("\n");
       question.question_points = parseFloat(question.question_points, 10);
-      if (isNaN(question.question_points)) { question.question_points = 0; }
+      if (isNaN(question.question_points) || question.question_points < 0) { question.question_points = 0; }
       var $form = $("#question_form_template").clone(true).attr('id', '');
       var $formQuestion = $form.find(".question");
       $formQuestion.addClass('initialLoad');
@@ -1867,12 +1922,12 @@ define([
             $td.attr('aria-labelledby', 'possible_solution_' + question.answers[idx].variables[jdx].name);
             $tr.append($td);
           }
-          var text = question.answers[idx].answer_text;
+          var html = question.answers[idx].answer_text;
           if (question.answer_tolerance) {
-            text = text + " <span style='font-size: 0.8em;'>+/-</span> " + question.answer_tolerance;
+            html = html + " <span style='font-size: 0.8em;'>+/-</span> " + htmlEscape(question.answer_tolerance);
           }
           var $td = $("<td class='final_answer'/>");
-          $td.html(text);
+          $td.html(html);
           $td.attr('aria-labelledby', 'possible_solution_final');
           $tr.append($td);
           $form.find(".combinations tbody").append($tr);
@@ -1930,6 +1985,8 @@ define([
       if (REGRADE_OPTIONS[idValue]) {
         showRegradeOptions($question,questionID);
       }
+      toggleSelectAnswerAltText($(".form_answers .answer"), quiz.answerSelectionType(question.question_type))
+      togglePossibleCorrectAnswerLabel($(".form_answers .answer"));
     });
 
     $(".question_form :input[name='question_type']").change(function() {
@@ -1961,52 +2018,37 @@ define([
       quiz.updateDisplayComments();
     });
 
-    $(document).delegate("a.comment_focus", 'focus click', function(event) {
-      var $commentEditor;
-      var $focusProxy = $(this);
-      var focusEditor = function() {
-        $commentEditor.focus().select();
-      };
-
+    $(document).delegate("a.comment_focus", 'click', function(event) {
       event.preventDefault();
+      var $link = $(this);
+      var $comment = $link.closest('.question_comment, .answer_comments');
+      var $comment_html = $comment.find('.comment_html');
 
-      $commentEditor = $focusProxy
-        .closest('.question_comment, .answer_comments')
-          .removeClass('empty')
-          .find('textarea.comments');
+      var toggler = $comment.data('editorToggle');
 
-      // Hack to fix focusing the editor on Safari using keyboard arrows under
-      // VoiceOver (tab worked just fine, just not VO+arrow cursor navigation)
-      // by waiting a while before we focus the comment editor.
-      //
-      // Read below for a "guess" on why this is happening.
-      //
-      // It seems VO/Safari ignores manual focus calls past a certain threshold,
-      // so the fact that we're focusing the a.comment_focus then moving focus
-      // to the textarea does not work with arrows. This is the closest thing I
-      // found to the issue: http://bit.ly/1rkdSUh
-      //
-      // @since CNVS-15099
-      if (INST.browser.safari && event.type === 'focusin') {
-        setTimeout(function() {
-          // don't focus the editor if the user has tabbed/moved away from the
-          // proxy anchor
-          if ($focusProxy.is(':focus')) {
-            focusEditor();
+      // create toggler instance on the first click
+      if (!toggler) {
+        toggler = new EditorToggle($comment_html, {editorBoxLabel: $link.title });
+        toggler.editButton = $link;
+        toggler.on('display', function() {
+
+          $comment.removeClass('editing');
+
+          var html = $comment_html.html();
+          $comment.find('input[type="hidden"]').val(html);
+          if (html == '') {
+            $comment.addClass('empty');
           }
-        }, 500 /* the magic started working at 350ms but it wasn't reliable */);
-      } else {
-        focusEditor();
+        });
+        $comment.data('editorToggle', toggler);
       }
-    });
 
-    $(document).delegate("textarea.comments", 'focus', function() {
-      $(this).parents(".question_comment,.answer_comments").removeClass('empty');
-    }).delegate('textarea.comments', 'blur', function() {
-      $(this).val($.trim($(this).val()));
-      if ($(this).val() == "") {
-        $(this).parents(".question_comment,.answer_comments").addClass('empty');
+      if (!toggler.editing) {
+        $comment.removeClass('empty');
+        $comment.addClass('editing');
+        toggler.edit();
       }
+
     });
 
     $(document).delegate(".numerical_answer_type", 'change', function() {
@@ -2026,6 +2068,7 @@ define([
       if (!REGRADE_DATA[questionID]){
         REGRADE_DATA[questionID] = correctAnswerIDs($question)
       }
+      var $answers = $answer.parent().find(".answer");
       if ($question.find(":input[name='question_type']").val() != "multiple_answers_question") {
         $question.find(".answer:visible").removeClass('correct_answer')
           .find('.select_answer_link').attr('title', clickSetCorrect)
@@ -2034,6 +2077,7 @@ define([
           .attr('title', isSetCorrect)
           .find('img').attr('alt', isSetCorrect);
         $answer.addClass('correct_answer');
+        togglePossibleCorrectAnswerLabel($answers);
       } else {
         $answer.toggleClass('correct_answer');
         if ($answer.hasClass('correct_answer')) {
@@ -2045,6 +2089,7 @@ define([
             .attr('title', clickSetCorrect)
             .find('img').attr('alt', clickSetCorrect);
         }
+        togglePossibleCorrectAnswerLabel($answers);
       }
 
       $answer.addClass('hover').siblings().removeClass('hover');
@@ -2232,7 +2277,7 @@ define([
       var $form = $question.parents(".question_holder").children("form");
       $form.attr('action', $("#quiz_urls .add_question_url,#bank_urls .add_question_url").attr('href'))
         .attr('method', 'POST')
-        .find(".submit_button").html(I18n.t('buttons.create_question', "Create Question"));
+        .find(".submit_button").text(I18n.t('buttons.create_question', "Create Question"));
       $form.find("option.missing_word").remove();
       $question.find(".question_type").change();
       $("html,body").scrollTo({top: $question.offset().top - 10, left: 0});
@@ -2690,14 +2735,21 @@ define([
       var $answers = $form.find(".answer");
       var $question = $(this).find(".question");
       var answers = [];
+
+      // save any open html answers or comments
+      $form.find('.edit_html_done').trigger('click');
+
       var questionData = $question.getFormData({
         textValues: ['question_type', 'question_name', 'question_points', 'correct_comments', 'incorrect_comments', 'neutral_comments',
           'question_text', 'answer_selection_type', 'text_after_answers', 'matching_answer_incorrect_matches',
-          'regrade_option', 'regrade_disabled']
+          'regrade_option', 'regrade_disabled'],
+        htmlValues: ['correct_comments_html', 'incorrect_comments_html', 'neutral_comments_html']
       });
 
-      // save any open html answers
-      $form.find('.edit_html_done').trigger('click');
+      if (questionData.question_points && questionData.question_points < 0) {
+        $form.find("input[name='question_points']").errorBox(I18n.t('question.positive_points', "Must be zero or greater"));
+        return;
+      }
 
       questionData.assessment_question_bank_id = $(".question_bank_id").text() || ""
       var error_text = null;
@@ -2712,26 +2764,27 @@ define([
           error_text = I18n.t('errors.no_correct_answer', "Please choose a correct answer");
         }
       } else if (questionData.question_type == "fill_in_multiple_blanks_question" || questionData.question_type == "short_answer_question") {
-        // Scan each answer for non-blank answers.
         function checkForNotBlanks(elements) {
           return elements.filter(function(i,element) {
             return !!element.value;
           }).length;
         }
-        var $validAnswers = $answers.filter("div[class*='answer_for_none'], div[class*='answer_idx_'], div.fill_in_blank_answer");
         if (questionData.question_type == "fill_in_multiple_blanks_question") {
-          var multipleBlankCount = $form.find(".blank_id_select > option").length;
-          var checkEachBlankArray = []
-          for(var j=0; j < multipleBlankCount; j++) {checkEachBlankArray.push(j) }
-          $validAnswers.each(function(i, element) {
-            var $validInputs = $(element).find( $("input[name='answer_text']")).not(".disabled_answer")
-            var i = element.className.match(/answer_idx_(\d+)/)[1];
-            if (checkForNotBlanks($validInputs) > 0) {checkEachBlankArray.splice(parseInt(i-1),1)}
+          var $variables = $form.find(".blank_id_select > option");
+          $variables.each(function(i, answer_blank) {
+            var blankCount = 0;
+            $answers.filter(".answer_idx_" + i).each(function(i, element) {
+              var $validInputs = $(element).find( $("input[name='answer_text']")).not(".disabled_answer");
+              if (checkForNotBlanks($validInputs) > 0) {blankCount += 1;}
+            });
+            if (blankCount == 0) {error_text = I18n.t("Please add at least one non-blank answer for each variable.");}
           });
-          if(checkEachBlankArray.length > 0) {error_text = I18n.t("Please add at least one non-blank answer for each variable.");}
         } else {
-          var $validInputs = $validAnswers.find( $("input[name='answer_text']")).not(".disabled_answer")
-          if (checkForNotBlanks($validInputs) == 0) {error_text = I18n.t("Please add at least one non-blank answer.");}
+          var $validAnswers = $answers.filter("div[class*='answer_for_none'], div[class*='answer_idx_'], div.fill_in_blank_answer");
+          var $validInputs = $validAnswers.find( $("input[name='answer_text']")).not(".disabled_answer");
+          if (checkForNotBlanks($validInputs) == 0) {
+            error_text = I18n.t("Please add at least one non-blank answer.");
+          }
         }
       }
 
@@ -2822,7 +2875,6 @@ define([
           question.answers.push(data);
         });
       }
-
 
       quiz.updateDisplayQuestion($displayQuestion, question);
 
@@ -3113,17 +3165,17 @@ define([
 
         if (this.intoGroups.length > 0) {
           options = $.map(this.intoGroups, function(g) {
-            return '<option value="' + g.id + '">' + g.name + '</option>';
+            return '<option value="' + g.id + '">' + htmlEscape(g.name) + '</option>';
           });
           options.unshift('<option value="top">' +
-            I18n.t('top_level', '-- Top level --') +
+            htmlEscape(I18n.t('top_level', '-- Top level --')) +
           '</option>');
 
           moveWrapper.show();
         } else {
           moveWrapper.hide();
         }
-        moveSelect.html(options.join(''));
+        moveSelect.html($.raw(options.join('')));
 
         // trigger building 'place' menu
         moveSelect.change(this.buildPlaceMenu.bind(this));
@@ -3139,14 +3191,14 @@ define([
 
         // build options
         var options = $.map(filtered, function(item) {
-          return '<option value="' + item.type + '_' + item.id + '">' +
-            I18n.t('before_quiz_item', "before %{name}", {name: item.name}) +
+          return '<option value="' + htmlEscape(item.type) + '_' + item.id + '">' +
+            htmlEscape(I18n.t('before_quiz_item', "before %{name}", {name: item.name})) +
           '</option>';
         });
         options.push('<option value="last">' +
-          I18n.t('at_the_bottom', "-- at the bottom --") +
+          htmlEscape(I18n.t('at_the_bottom', "-- at the bottom --")) +
         '</option>');
-        this.$form.find('#move_select_question').html(options.join(''));
+        this.$form.find('#move_select_question').html($.raw(options.join('')));
       },
 
       itemsInGroup: function(group) {
@@ -3235,7 +3287,7 @@ define([
         this.reorderDomGroupContent(bottom);
         this.setQuestionGroupClass(group);
       },
-      reorderDomGroupContent: function(bottom) {
+      reorderDomGroupContent: function($bottom) {
         if (this.selected.type != 'group') { return; }
 
         var prev = this.selected.sortable;
@@ -3246,7 +3298,7 @@ define([
             prev = item.sortable;
           });
         }
-        prev.after(bottom);
+        prev.after($bottom);
       },
       setQuestionGroupClass: function(group) {
         if (this.selected.type != 'question') { return; }
@@ -3336,7 +3388,7 @@ define([
           } else {
             ui.placeholder.removeClass('group');
           }
-          ui.placeholder.append("<div class='question_placeholder' style='height: " + (ui.helper.height() - 10) + "px;'>&nbsp;</div>");
+          ui.placeholder.append("<div class='question_placeholder' style='height: " + $.raw(ui.helper.height() - 10) + "px;'>&nbsp;</div>");
         }
       },
       change: function(event, ui) {
@@ -3547,8 +3599,8 @@ define([
     $("#calc_helper_methods").change(function() {
       var method = $(this).val();
       $("#calc_helper_method_description").text(calcCmd.functionDescription(method));
-      var code = "<pre>" + calcCmd.functionExamples(method).join("</pre><pre>") + "</pre>";
-      $("#calc_helper_method_examples").html(code);
+      var html = "<pre>" + $.raw($.map(calcCmd.functionExamples(method), htmlEscape).join("</pre><pre>")) + "</pre>";
+      $("#calc_helper_method_examples").html(html);
     });
 
     $("#equations_dialog_tabs").tabs();
@@ -3606,7 +3658,7 @@ define([
       }
       // if there are not any options besides the default "<option class="shown_when_no_other_options_available" value='0'>[ Enter Answer Variables Above ]</option>" one
       if (!$select.find("option:not(.shown_when_no_other_options_available)").length) {
-        $select.append("<option class='shown_when_no_other_options_available' value='0'>" + I18n.t('enter_answer_variable_above', "[ Enter Answer Variables Above ]") + "</option>");
+        $select.append("<option class='shown_when_no_other_options_available' value='0'>" + htmlEscape(I18n.t('enter_answer_variable_above', "[ Enter Answer Variables Above ]")) + "</option>");
       }
       $select.find("option.to_be_removed").remove();
       $select.change();
@@ -3762,12 +3814,12 @@ define([
               });
               var $td = $("<td/>");
               $td.addClass('final_answer');
-              var text = solution.rawText();
+              var html = htmlEscape(solution.rawText());
               var tolerance = answer_tolerance;
               if (tolerance) {
-                text += " <span style='font-size: 0.8em;'>+/-</span> " + tolerance;
+                html += " <span style='font-size: 0.8em;'>+/-</span> " + htmlEscape(tolerance);
               }
-              $td.html(text);
+              $td.html(html);
               $result.append($td);
               succeeded++;
               failedCount = 0;
@@ -3846,7 +3898,7 @@ define([
       val = Math.round(val * data.rounder) / (data.rounder);
       $variable.attr('data-value', val);
       if (!options || options.template) {
-        $variable.find(".value").html(val);
+        $variable.find(".value").text(val);
       }
       if (!options || options.recompute) {
         $question.find(".supercalc").superCalc('recalculate');
@@ -3889,7 +3941,8 @@ define([
             if (!matchHash[variable]) {
               var $variable = $question.find('.variables tr.variable[data-name="' + variable + '"]');
               if ($variable.length === 0) {
-                var label_id = "label_for_var_" + variable;
+                var label_id = htmlEscape("label_for_var_" + variable);
+                // xsslint safeString.identifier label_id
 
                 $variable = $("<tr class='variable'>"
                               + "<th id='" + label_id + "' class='name'></th>"

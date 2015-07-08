@@ -1,5 +1,5 @@
 <% define_content :link do %>
-  <%= HostUrl.protocol %>://<%= HostUrl.context_host(asset.context) %>/<%= asset.context.class.to_s.downcase.pluralize %>/<%= asset.context_id %>/content_exports
+  <%= polymorphic_url([asset.context, :content_exports]) %>
 <% end %>
 
 <% define_content :subject do %>
@@ -15,7 +15,7 @@
 <p>
 <%= t :body2, <<-BODY, :course => asset.context.name, :wrapper => '<em>\1</em>'
 There was a problem exporting the course *%{course}*.
-Please notify your system administrator at <a href="https://embersupport.zendesk.com">https://embersupport.zendesk.com</a>, and give them the following export identifier:
+Please notify your system administrator, and give them the following export identifier:
 BODY
 %>
 </p>

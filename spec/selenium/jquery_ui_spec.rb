@@ -8,12 +8,14 @@ describe "jquery ui" do
   def active
     driver.switch_to.active_element
   end
+
   def shift_tab
     driver.action.key_down(:shift)
       .send_keys(:tab)
       .key_up(:shift)
       .perform
   end
+
   def create_simple_modal
     driver.execute_script(<<-JS)
       return $('<div><select /><input /></div>')
@@ -25,7 +27,6 @@ describe "jquery ui" do
 
   before (:each) do
     course_with_teacher_logged_in
-    set_course_draft_state
     get "/"
   end
   

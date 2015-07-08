@@ -6,7 +6,6 @@ define [
   'compiled/models/DueDateList'
   'compiled/models/Section'
   'compiled/views/assignments/AssignmentGroupSelector'
-  'compiled/views/assignments/DueDateList'
   'compiled/views/assignments/DueDateOverride'
   'compiled/views/assignments/EditView'
   'compiled/views/assignments/GradingTypeSelector'
@@ -16,7 +15,7 @@ define [
   'compiled/userSettings'
   'helpers/jquery.simulate'
 ], ($, _, SectionCollection, Assignment, DueDateList, Section,
-  AssignmentGroupSelector, DueDateListView, DueDateOverrideView, EditView,
+  AssignmentGroupSelector, DueDateOverrideView, EditView,
   GradingTypeSelector, GroupCategorySelector, PeerReviewsSelector, fakeENV, userSettings) ->
 
   defaultAssignmentOpts =
@@ -50,8 +49,7 @@ define [
       views:
         'js-assignment-overrides': new DueDateOverrideView
           model: dueDateList
-          views:
-            'due-date-overrides': new DueDateListView(model: dueDateList)
+          views: {}
 
     sinon.stub(app, "_initializeWikiSidebar")
     app.render()
@@ -59,6 +57,7 @@ define [
   module 'EditView',
     setup: ->
       fakeENV.setup()
+      ENV.VALID_DATE_RANGE = {}
     teardown: ->
       fakeENV.teardown()
 
@@ -88,23 +87,36 @@ define [
     view = editView()
     equal view.assignment.toView()['groupCategoryId'], null
 
-  test 'does not allow point valid of 0 or less if grading type is percentage', ->
+  test 'does not allow point value of -1 or less if grading type is letter', ->
     view = editView()
-    data = points_possible: '0', grading_type: 'percent'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+    data = points_possible: '-1', grading_type: 'letter_grade'
+    errors = view._validatePointsRequired(data, [])
+    equal errors['points_possible'][0]['message'], 'Points possible must be 0 or more for selected grading type'
 
-  test 'does not allow point valid of 0 or less if grading type is letter', ->
-    view = editView()
-    data = points_possible: '0', grading_type: 'letter_grade'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+  test 'does show error message on assignment point change with submissions', ->
+    view = editView has_submitted_submissions: true
+    view.$el.appendTo $('#fixtures')
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(1)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(0)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
 
-  test 'does not allow point valid of 0 or less if grading type is gpa scale', ->
+  test 'does show error message on assignment point change without submissions', ->
+    view = editView has_submitted_submissions: false
+    view.$el.appendTo $('#fixtures')
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+    view.$el.find('#assignment_points_possible').val(1)
+    view.$el.find('#assignment_points_possible').trigger("change")
+    ok !view.$el.find('#point_change_warning:visible').attr('aria-expanded')
+
+  test 'does not allow point value of "" if grading type is letter', ->
     view = editView()
-    data = points_possible: '0', grading_type: 'gpa_scale'
-    errors = view.validateBeforeSave(data, [])
-    equal errors['points_possible'][0]['message'], 'Points possible must be more than 0 for selected grading type'
+    data = points_possible: '', grading_type: 'letter_grade'
+    errors = view._validatePointsRequired(data, [])
+    equal errors['points_possible'][0]['message'], 'Points possible must be 0 or more for selected grading type'
 
     #fragile spec on Firefox, Safari
     #adds student group
@@ -115,6 +127,21 @@ define [
     #removes student group
     view.$('#has_group_category').click()
     equal view.getFormData()['groupCategoryId'], null
+
+  test 'does not allow blank external tool url', ->
+    view = editView()
+    data = submission_type: 'external_tool'
+    errors = view._validateExternalTool(data, [])
+    equal errors["external_tool_tag_attributes[url]"][0]['message'], 'External Tool URL cannot be left blank'
+
+  test 'removes group_category_id if an external tool is selected', ->
+    view = editView()
+    data = {
+      submission_type: 'external_tool'
+      group_category_id: '1'
+    }
+    data = view._unsetGroupsIfExternalTool(data)
+    equal data.group_category_id, null
 
   test 'renders escaped angle brackets properly', ->
     desc = "<p>&lt;E&gt;</p>"

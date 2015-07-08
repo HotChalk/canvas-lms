@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'atom'
+
 # @API Calendar Events
 #
 # API for creating, accessing and updating calendar events.
@@ -566,11 +568,11 @@ class CalendarEventsApiController < ApplicationController
     @events = @events.sort_by { |e| [e.start_at || CanvasSort::Last, Canvas::ICU.collation_key(e.title)] }
 
     @contexts.each do |context|
-      log_asset_access("calendar_feed:#{context.asset_string}", "calendar", 'other')
+      log_asset_access([ "calendar_feed", context ], "calendar", 'other')
     end
     respond_to do |format|
       format.ics do
-        name = t('ics_title', "%{course_or_group_name} Calendar (Canvas)", :course_or_group_name => @context.name)
+        name = t('ics_title', "%{course_or_group_name} Calendar (HotChalk Ember)", :course_or_group_name => @context.name)
         description = case
                         when @context.is_a?(Course)
                           t('ics_description_course', "Calendar events for the course, %{course_name}", :course_name => @context.name)

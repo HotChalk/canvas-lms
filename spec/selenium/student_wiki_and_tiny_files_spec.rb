@@ -6,7 +6,6 @@ describe "Wiki pages and Tiny WYSIWYG editor Files" do
   context "wiki and tiny files as a student" do
     before (:each) do
       course(:active_all => true, :name => 'wiki course')
-      set_course_draft_state
       @student = user_with_pseudonym(:active_user => true, :username => 'student@example.com', :name => 'student@example.com', :password => 'asdfasdf')
       @teacher = user_with_pseudonym(:active_user => true, :username => 'teacher@example.com', :name => 'teacher@example.com', :password => 'asdfasdf')
       @course.enroll_student(@student).accept
@@ -14,11 +13,11 @@ describe "Wiki pages and Tiny WYSIWYG editor Files" do
     end
 
     it "should add a file to the page and validate a student can see it" do
-      login_as(@teacher.name)
+      create_session(@teacher.pseudonym)
 
       add_file_to_rce
       @course.wiki.wiki_pages.first.publish!
-      login_as(@student.name)
+      create_session(@student.pseudonym)
       get "/courses/#{@course.id}/pages/front-page"
       expect(fj('a[title="text_file.txt"]')).to be_displayed
       #check_file would be good to do here but the src on the file in the wiki body is messed up
@@ -28,7 +27,6 @@ describe "Wiki pages and Tiny WYSIWYG editor Files" do
   context "wiki sidebar files and locking/hiding" do
     before (:each) do
       course_with_teacher(:active_all => true, :name => 'wiki course')
-      set_course_draft_state
       @student = user_with_pseudonym(:active_user => true, :username => 'student@example.com', :name => 'student@example.com', :password => 'asdfasdf')
       @course.enroll_student(@student).accept
       user_session(@student)
@@ -123,7 +121,6 @@ describe "Wiki pages and Tiny WYSIWYG editor Files" do
   context "wiki sidebar images and locking/hiding" do
     before (:each) do
       course_with_teacher(:active_all => true, :name => 'wiki course')
-      set_course_draft_state
       @student = user_with_pseudonym(:active_user => true, :username => 'student@example.com', :name => 'student@example.com', :password => 'asdfasdf')
       @course.enroll_student(@student).accept
       user_session(@student)

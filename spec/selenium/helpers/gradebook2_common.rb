@@ -102,9 +102,9 @@ def conclude_and_unconclude_course
   @course.reload
 end
 
-def gradebook_data_setup
+def gradebook_data_setup(opts={})
   assignment_setup_defaults
-  assignment_setup
+  assignment_setup(opts)
 end
 
 def data_setup_as_observer
@@ -127,16 +127,16 @@ def assignment_setup_defaults
   @student_name_3 = "student 3"
 
   @student_1_total_ignoring_ungraded = "100%"
-  @student_2_total_ignoring_ungraded = "66.7%"
-  @student_3_total_ignoring_ungraded = "66.7%"
-  @student_1_total_treating_ungraded_as_zeros = "18.8%"
+  @student_2_total_ignoring_ungraded = "66.67%"
+  @student_3_total_ignoring_ungraded = "66.67%"
+  @student_1_total_treating_ungraded_as_zeros = "18.75%"
   @student_2_total_treating_ungraded_as_zeros = "12.5%"
   @student_3_total_treating_ungraded_as_zeros = "12.5%"
   @default_password = "qwerty"
 end
 
-def assignment_setup
-  course_with_teacher_logged_in
+def assignment_setup(opts={})
+  course_with_teacher_logged_in(opts)
   @course.grading_standard_enabled = true
   @course.save!
   @course.reload

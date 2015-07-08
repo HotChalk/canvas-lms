@@ -97,6 +97,7 @@ module CanvasPartman::Concerns
         end
 
         date = date_attr[1]
+        date = date.utc if ActiveRecord::Base.default_timezone == :utc
 
         case partitioning_interval
         when :months
@@ -109,11 +110,6 @@ module CanvasPartman::Concerns
             interval.
           ERROR
         end
-      end
-
-      # :nodoc:
-      def partitioned?
-        true
       end
     end
   end

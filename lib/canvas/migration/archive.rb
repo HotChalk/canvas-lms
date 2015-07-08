@@ -21,7 +21,7 @@ module Canvas::Migration
       else
         unzip_archive
         path = File.join(self.unzipped_file_path, entry)
-        File.exists?(path) && File.read(path)
+        File.exist?(path) && File.read(path)
       end
     end
 
@@ -32,7 +32,7 @@ module Canvas::Migration
         # if it's not an actual zip file
         # just extract the package (or try to) and look for the file
         unzip_archive
-        File.exists?(File.join(self.unzipped_file_path, entry))
+        File.exist?(File.join(self.unzipped_file_path, entry))
       end
     end
 
@@ -41,8 +41,14 @@ module Canvas::Migration
       if @settings[:export_archive_path]
         File.open(@settings[:export_archive_path], 'rb')
       elsif @settings[:course_archive_download_url].present?
-        # open-uri downloads the http response to a tempfile
-        open(@settings[:course_archive_download_url])
+        _, uri = CanvasHttp.validate_url(@settings[:course_archive_download_url])
+        CanvasHttp.get(@settings[:course_archive_download_url]) do |http_response|
+          raise CanvasHttp::InvalidResponseCodeError.new(http_response.code.to_i) unless http_response.code.to_i == 200
+          tmpfile = CanvasHttp.tempfile_for_uri(uri)
+          http_response.read_body(tmpfile)
+          tmpfile.rewind
+          return tmpfile
+        end
       elsif @settings[:attachment_id]
         att = Attachment.find(@settings[:attachment_id])
         att.open(:temp_folder => config[:data_folder], :need_local_file => true)
@@ -94,7 +100,7 @@ module Canvas::Migration
     end
 
     def delete_unzipped_file
-      if File.exists?(self.unzipped_file_path)
+      if File.exist?(self.unzipped_file_path)
         FileUtils::rm_rf(self.unzipped_file_path)
       end
     end

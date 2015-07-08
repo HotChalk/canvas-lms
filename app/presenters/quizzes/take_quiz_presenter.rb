@@ -86,6 +86,7 @@ class Quizzes::TakeQuizPresenter
   def text_only?(q)
     q['question_type'] == "text_only_question"
   end
+
   def answered_icon(q)
     question_answered?(q) ? 'icon-check' : 'icon-question'
   end
@@ -189,7 +190,7 @@ class Quizzes::TakeQuizPresenter
   def form_action_params(session, user)
     url_params = { :user_id => user && user.id }
     if session['lockdown_browser_popup']
-      url_params.merge!(Canvas::LockdownBrowser.plugin.base.quiz_exit_params({}))
+      url_params.merge!(Canvas::LockdownBrowser.plugin.base.quiz_exit_params)
     end
     url_params
   end

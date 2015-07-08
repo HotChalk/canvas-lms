@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'atom'
+
 # @API Groups
 #
 # Groups serve as the data for a few different ideas in Canvas.  The first is
@@ -123,7 +125,7 @@
 #         },
 #         "permissions": {
 #           "description": "optional: the permissions the user has for the group. returned only for a single group and include[]=permissions",
-#           "example": "{\"create_discussion_topic\"=>true}",
+#           "example": "{\"create_discussion_topic\"=>true,\"create_announcement\"=>true}",
 #           "type": "map",
 #           "key": { "type": "string" },
 #           "value": { "type": "boolean" }
@@ -139,7 +141,10 @@ class GroupsController < ApplicationController
   include Api::V1::Group
   include Api::V1::GroupCategory
 
-  SETTABLE_GROUP_ATTRIBUTES = %w(name description join_level is_public group_category avatar_attachment storage_quota_mb max_membership leader)
+  SETTABLE_GROUP_ATTRIBUTES = %w(
+    name description join_level is_public group_category avatar_attachment
+    storage_quota_mb max_membership leader
+  ).freeze
 
   include TextHelper
 
@@ -218,6 +223,9 @@ class GroupsController < ApplicationController
   #
   # Returns the list of active groups in the given context that are visible to user.
   #
+  # @argument only_own_groups [Boolean]
+  #  Will only include groups that the user belongs to if this is set
+  #
   # @example_request
   #     curl https://<canvas>/api/v1/courses/1/groups \
   #          -H 'Authorization: Bearer <token>'
@@ -228,8 +236,6 @@ class GroupsController < ApplicationController
     @groups      = all_groups = @context.groups.active
                                   .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
                                   .includes(:group_category)
-    @categories  = @context.group_categories.order("role <> 'student_organized'", GroupCategory.best_unicode_collation_key('name'))
-    @user_groups = @current_user.group_memberships_for(@context) if @current_user
 
     unless api_request?
       if @context.is_a?(Account)
@@ -248,15 +254,14 @@ class GroupsController < ApplicationController
       add_crumb t('#crumbs.groups', "Groups"), named_context_url(@context, :context_groups_url)
     end
 
-    unless @context.grants_right?(@current_user, session, :manage_groups)
-      @groups = @user_groups = @groups & (@user_groups || [])
-    end
-
     respond_to do |format|
       format.html do
+        @categories  = @context.group_categories.order("role <> 'student_organized'", GroupCategory.best_unicode_collation_key('name'))
+        @user_groups = @current_user.group_memberships_for(@context) if @current_user
+
         if @context.grants_right?(@current_user, session, :manage_groups)
           if @domain_root_account.enable_manage_groups2?
-            categories_json = @categories.map{ |cat| group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
+            categories_json = @categories.map{ |cat| get_section_filtered_group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
             uncategorized = @context.groups.uncategorized.all
             if uncategorized.present?
               json = group_category_json(GroupCategory.uncategorized, @current_user, session)
@@ -270,12 +275,13 @@ class GroupsController < ApplicationController
             # since there are generally lots of users in an account, always do large roster view
             @js_env[:IS_LARGE_ROSTER] ||= @context.is_a?(Account)
           end
-          render :action => 'context_manage_groups'
+          render :context_manage_groups
         else
+          @groups = @user_groups = @groups & (@user_groups || [])
           @available_groups = (all_groups - @user_groups).select do |group|
             group.grants_right?(@current_user, :join)
           end
-          render :action => 'context_groups'
+          render :context_groups
         end
       end
 
@@ -283,10 +289,25 @@ class GroupsController < ApplicationController
 
       format.json do
         path = send("api_v1_#{@context.class.to_s.downcase}_user_groups_url")
+
+        if value_to_boolean(params[:only_own_groups])
+          all_groups = all_groups.merge(@current_user.current_groups.scoped)
+        end
+
         @paginated_groups = Api.paginate(all_groups, self, path)
         render :json => @paginated_groups.map { |g| group_json(g, @current_user, session, :include => Array(params[:include])) }
       end
     end
+  end
+
+  def get_section_filtered_group_category_json(group_category, user, session, options = {})
+    json = group_category_json(group_category, user, session, options)
+    #if the user is not admin we need to adjust the group count per category to account for visible sections
+    if !@current_user.account_admin?(@context)
+        sections = @context.sections_visible_to(user)
+        json['groups_count'] = group_category.groups.where(course_section_id: sections).length
+    end
+    json
   end
 
   # @API Get a single group
@@ -330,7 +351,7 @@ class GroupsController < ApplicationController
           end
           @group.request_user(@current_user)
           if !@group.grants_right?(@current_user, session, :read)
-            render :action => 'membership_pending'
+            render :membership_pending
             return
           else
             flash[:notice] = t('notices.welcome', "Welcome to the group %{group_name}!", :group_name => @group.name)
@@ -398,7 +419,7 @@ class GroupsController < ApplicationController
   def create
     if api_request?
       if params[:group_category_id]
-        group_category = GroupCategory.find(params[:group_category_id])
+        group_category = GroupCategory.active.find(params[:group_category_id])
         return render :json => {}, :status => bad_request unless group_category
         @context = group_category.context
         params[:group_category] = group_category
@@ -431,7 +452,7 @@ class GroupsController < ApplicationController
           format.html { redirect_to group_url(@group) }
           format.json { render :json => group_json(@group, @current_user, session, {include: ['users', 'group_category', 'permissions']}) }
         else
-          format.html { render :action => "new" }
+          format.html { render :new }
           format.json { render :json => @group.errors, :status => :bad_request }
         end
       end
@@ -522,7 +543,7 @@ class GroupsController < ApplicationController
           format.html { redirect_to clean_return_to(params[:return_to]) || group_url(@group) }
           format.json { render :json => group_json(@group, @current_user, session, {include: ['users', 'group_category', 'permissions']}) }
         else
-          format.html { render :action => "edit" }
+          format.html { render :edit }
           format.json { render :json => @group.errors, :status => :bad_request }
         end
       end
@@ -667,9 +688,7 @@ class GroupsController < ApplicationController
     folder ||= @group.folders.active.create! :name => 'Group Pictures'
     js_env :GROUP_ID => @group.id, :FOLDER_ID => folder.id
 
-    if authorized_action(@group, @current_user, :update)
-      render :action => :edit
-    end
+    authorized_action(@group, @current_user, :update)
   end
 
   def public_feed

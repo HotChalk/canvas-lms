@@ -165,11 +165,11 @@ describe GroupCategory do
       expect{ GroupCategory.find(category.id) }.not_to raise_error
     end
 
-    it "should set deleted_at" do
+    it "should set deleted_at upon destroy" do
       category = GroupCategory.create(name: "foo")
       category.destroy
       category.reload
-      expect(category.deleted_at).not_to be_nil
+      expect(category.deleted_at?).to eq true
     end
 
     it "should destroy dependent groups" do
@@ -387,8 +387,8 @@ describe GroupCategory do
 
     it "should assign unassigned users while respecting group limits in the category" do
       initial_spread = [0, 0, 0]
-      result_spread = [1, 1, 1]
-      opts = {group_limit: 1,
+      result_spread = [2, 2, 2]
+      opts = {group_limit: 2,
               expected_leftover_count: 1}
       assert_random_group_assignment(@category, @course, initial_spread, result_spread, opts)
     end
@@ -444,7 +444,7 @@ end
 def assert_random_group_assignment(category, course, initial_spread, result_spread, opts={})
   if group_limit = opts[:group_limit]
     category.group_limit = group_limit
-    category.save
+    category.save!
   end
 
   expected_leftover_count = opts[:expected_leftover_count] || 0

@@ -1,23 +1,34 @@
 define [
+  'underscore'
   'i18n!discussions'
   'jquery'
   'compiled/views/DialogFormView'
+  'jst/EmptyDialogFormWrapper'
   'compiled/models/DiscussionsSettings'
   'compiled/models/UserSettings'
   'jst/DiscussionTopics/DiscussionsSettingsView'
-], (I18n, $, DialogFormView, DiscussionsSettings, UserSettings, template) ->
+], (_, I18n, $, DialogFormView, wrapperTemplate, DiscussionsSettings, UserSettings, template) ->
 
   class DiscussionsSettingsView extends DialogFormView
 
     defaults:
       title: I18n.t "edit_settings", "Edit Discussions Settings"
+      fixDialogButtons: false
+
+    events: _.extend {},
+      DialogFormView::events
+      'click .dialog_closer': 'close'
 
     template: template
+    wrapperTemplate: wrapperTemplate
 
     initialize: ->
       super
       @model      or= new DiscussionsSettings
       @userSettings = new UserSettings
+
+    openAgain: () ->
+      super
       @fetch()
 
     render: () ->

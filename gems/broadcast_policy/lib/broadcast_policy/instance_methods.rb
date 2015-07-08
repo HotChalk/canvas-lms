@@ -48,12 +48,10 @@ module BroadcastPolicy
     def generate_prior_version
       obj = self.class.new
       self.attributes.each do |attr, value|
-        obj.__send__("#{attr}=", value) rescue nil
+        next unless obj.column_for_attribute(attr)
+        value = changed_attributes[attr] if changed_attributes.key?(attr)
+        obj.write_attribute(attr, value)
       end
-      self.changes.each do |attr, values|
-        obj.__send__("#{attr}=", values[0]) rescue nil
-      end
-      obj.workflow_state = self.workflow_state_was if obj.respond_to?("workflow_state=") && self.respond_to?("workflow_state_was")
       obj
     end
 
@@ -61,7 +59,7 @@ module BroadcastPolicy
     def broadcast_notifications
       return if @broadcasted
       @broadcasted = true
-      raise ArgumentError, "Broadcast Policy block not supplied for #{self.class.to_s}" unless self.class.broadcast_policy_list
+      raise ArgumentError, "Broadcast Policy block not supplied for #{self.class}" unless self.class.broadcast_policy_list
       self.class.broadcast_policy_list.broadcast(self)
     end
 
@@ -126,8 +124,12 @@ module BroadcastPolicy
         else
           self.workflow_state != self.prior_version.workflow_state
         end
-      rescue Exception => e
-        ErrorReport.log_exception(:broadcast_policy, e, message: "Could not check if a record changed state")
+      rescue StandardError => e
+        Canvas::Errors.capture(
+          e,
+          type: :broadcast_policy,
+          message: "Could not check if a record changed state"
+        )
         logger.warn "Could not check if a record changed state: #{e.inspect}"
         false
       end

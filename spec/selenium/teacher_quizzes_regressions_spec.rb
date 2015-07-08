@@ -3,9 +3,6 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignment_overrides.rb')
 
 describe "quizzes regressions" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include AssignmentOverridesSeleniumHelper
   include_examples "quizzes selenium tests"
@@ -31,7 +28,7 @@ describe "quizzes regressions" do
   it "should pop up calendar on top of #main" do
     get "/courses/#{@course.id}/quizzes/new"
     wait_for_ajaximations
-    fj('.due-date-row input:first + .ui-datepicker-trigger').click
+    fj(".ui-datepicker-trigger:first").click
     cal = f('#ui-datepicker-div')
     expect(cal).to be_displayed
     expect(cal.style('z-index')).to be > f('#main').style('z-index')

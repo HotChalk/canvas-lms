@@ -154,14 +154,12 @@ describe ContextModule do
 
     it "should add a header as unpublished" do
       course_module
-      @course.enable_feature!(:draft_state)
       tag = @module.add_item(type: 'context_module_sub_header', title: 'unpublished header')
       expect(tag.unpublished?).to be_truthy
     end
 
-    context "when draft state is enabled" do
+    context "when differentiated assignments" do
       before do
-        Course.any_instance.stubs(:feature_enabled?).with(:draft_state).returns(true)
         Course.any_instance.stubs(:feature_enabled?).with(:differentiated_assignments).returns(false)
       end
 
@@ -542,7 +540,10 @@ describe ContextModule do
       @module.completion_requirements = {@tag.id => {:type => 'min_score', :min_score => 5}}
       @module.save!
 
+      expect(@module2.evaluate_for(@user)).to be_completed
+      @module.relock_progressions
       expect(@module2.evaluate_for(@user)).to be_locked
+
       expect(@module.evaluate_for(@user)).to be_unlocked
       
       @assignment.reload
@@ -554,6 +555,8 @@ describe ContextModule do
 
       @submissions = @assignment.reload.grade_student(@user, :grade => "4", :grader => @teacher)
 
+      expect(@module2.evaluate_for(@user)).to be_completed
+      @module.relock_progressions
       expect(@module2.evaluate_for(@user)).to be_locked
       expect(@module.evaluate_for(@user)).to be_unlocked
       
@@ -709,6 +712,8 @@ describe ContextModule do
       @module.completion_requirements = {@tag.id => {:type => 'min_score', :min_score => 5}}
       @module.save
       @module2.reload
+      expect(@module2.evaluate_for(@user)).to be_completed
+      @module.relock_progressions
       expect(@module2.evaluate_for(@user)).to be_locked
 
       @progression = @module.evaluate_for(@user)
@@ -727,6 +732,8 @@ describe ContextModule do
 
       @submissions = @assignment.reload.grade_student(@user, :grade => "4", :grader => @teacher)
 
+      expect(@module2.evaluate_for(@user)).to be_completed
+      @module.relock_progressions
       expect(@module2.evaluate_for(@user)).to be_locked
 
       @progression = @module.evaluate_for(@user)
@@ -743,6 +750,29 @@ describe ContextModule do
       expect(@module2.evaluate_for(@user)).to be_completed
     end
     
+    it "should update quiz progression status on assignment manual grading" do
+      course_module
+      @module.require_sequential_progress = true
+      @module.save!
+      @quiz = @course.quizzes.build(:title => "some quiz", :quiz_type => "assignment", :scoring_policy => 'keep_highest')
+      @quiz.workflow_state = 'available'
+      @quiz.save!
+
+      @tag = @module.add_item({:id => @quiz.id, :type => 'quiz'})
+      @module.completion_requirements = {@tag.id => {:type => 'min_score', :min_score => 90}}
+      @module.save!
+
+      @teacher = User.create!(:name => "some teacher")
+      @course.enroll_teacher(@teacher)
+      @user = User.create!(:name => "some name")
+      @course.enroll_student(@user)
+
+      @quiz.assignment.grade_student(@user, :grade => 100)
+
+      @progression = @module.evaluate_for(@user)
+      expect(@progression).to be_completed
+    end
+
     it "should update progression status on grading and view events for quizzes too" do
       course_module
       @module.require_sequential_progress = true
@@ -751,24 +781,24 @@ describe ContextModule do
       @quiz.workflow_state = 'available'
       @quiz.save!
       @assignment = @course.assignments.create!(:title => "some assignment")
-      
+
       @tag = @module.add_item({:id => @quiz.id, :type => 'quiz'})
       @tag2 = @module.add_item({:id => @assignment.id, :type => 'assignment'})
       @module.completion_requirements = {@tag.id => {:type => 'min_score', :min_score => 90}}
       @module.save!
-      
+
       @teacher = User.create!(:name => "some teacher")
       @course.enroll_teacher(@teacher)
       @user = User.create!(:name => "some name")
       @course.enroll_student(@user)
-      
+
       @progression = @module.evaluate_for(@user)
       expect(@progression).to be_unlocked
       expect(@progression.current_position).to eql(@tag.position)
 
       expect(@quiz.reload.locked_for?(@user)).to be_falsey
       expect(@assignment.reload.locked_for?(@user)).to be_truthy
-      
+
       @submission = @quiz.generate_submission(@user)
       @submission.score = 100
       @submission.workflow_state = 'complete'
@@ -899,6 +929,18 @@ describe ContextModule do
         expect(@module.content_tags_visible_to(@student_1).map(&:content).include?(@assignment)).to be_truthy
         expect(@module.content_tags_visible_to(@student_2).map(&:content).include?(@assignment)).to be_falsey
       end
+
+      it "should also have the right assignment_and_quiz_visibilities" do
+        expect(@teacher.assignment_and_quiz_visibilities(@course)[:assignment_ids].include?(@assignment.id)).to be_truthy
+        expect(@student_1.assignment_and_quiz_visibilities(@course)[:assignment_ids].include?(@assignment.id)).to be_truthy
+        expect(@student_2.assignment_and_quiz_visibilities(@course)[:assignment_ids].include?(@assignment.id)).to be_falsey
+      end
+
+      it "should properly return differentiated assignments for teacher even without update rights" do
+        @course.account.role_overrides.create!(role: teacher_role, enabled: false, permission: :manage_content)
+        expect(@module.content_tags_visible_to(@teacher).map(&:content).include?(@assignment)).to be_truthy
+      end
+
       it "should properly return unpublished assignments" do
         @assignment.workflow_state = "unpublished"
         @assignment.save!
@@ -980,12 +1022,73 @@ describe ContextModule do
   end
 
   describe "restore" do
-    it "should restore to unpublished state if draft_state is enabled" do
-      course(draft_state: true)
+    it "should restore to unpublished state" do
+      course
       @module = @course.context_modules.create!
       @module.destroy
       @module.restore
       expect(@module.reload).to be_unpublished
+    end
+  end
+
+  describe "#relock_warning?" do
+    before :each do
+      course(:active_all => true)
+    end
+
+    it "should be true when adding a prerequisite" do
+      mod1 = @course.context_modules.create!(:name => "some module")
+      mod2 = @course.context_modules.create!(:name => "some module2")
+
+      mod2.prerequisites = "module_#{mod1.id}"
+      mod2.save!
+
+      expect(mod2.relock_warning?).to be_truthy
+
+      mod2.prerequisites = ""
+      mod2.save!
+
+      expect(mod2.relock_warning?).to be_falsey
+    end
+
+    it "should be true when adding a completion requirement" do
+      mod = @course.context_modules.create!(:name => "some module")
+
+      quiz = @course.quizzes.create!(title: "some quiz")
+      quiz.publish!
+      tag = mod.add_item({id: quiz.id, type: 'quiz'})
+      mod.completion_requirements = {tag.id => {type: 'must_submit'}}
+      mod.save!
+
+      expect(mod.relock_warning?).to be_truthy
+
+      mod.completion_requirements = []
+      mod.save!
+
+      expect(mod.relock_warning?).to be_falsey
+    end
+
+    it "should be true when publishing a prerequisite" do
+      mod1 = @course.context_modules.new(:name => "some module")
+      mod1.workflow_state = "unpublished"
+      mod1.save!
+
+      mod2 = @course.context_modules.new(:name => "some module2")
+      mod2.prerequisites = "module_#{mod1.id}"
+      mod2.workflow_state = "unpublished"
+      mod2.save!
+
+      mod1.publish!
+      expect(mod1.relock_warning?).to be_falsey # mod2 is not active
+
+      mod2.publish!
+      mod1.unpublish!; mod1.publish!
+      expect(mod1.relock_warning?).to be_truthy # now mod2 is active
+
+      mod2.prerequisites = ""
+      mod2.save!
+      mod1.unpublish!; mod1.publish!
+      expect(mod1.relock_warning?).to be_falsey
     end
   end
 

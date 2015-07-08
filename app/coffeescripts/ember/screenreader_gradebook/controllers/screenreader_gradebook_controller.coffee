@@ -13,7 +13,10 @@ define [
   'compiled/grade_calculator'
   'compiled/gradebook2/OutcomeGradebookGrid'
   '../../shared/components/ic_submission_download_dialog_component'
-  ], (ajax, round, userSettings, fetchAllPages, parseLinkHeader, I18n, Ember, _, tz, AssignmentDetailsDialog, AssignmentMuter, GradeCalculator, outcomeGrid, ic_submission_download_dialog ) ->
+  'str/htmlEscape'
+  'compiled/models/grade_summary/CalculationMethodContent'
+  'jquery.instructure_date_and_time'
+  ], (ajax, round, userSettings, fetchAllPages, parseLinkHeader, I18n, Ember, _, tz, AssignmentDetailsDialog, AssignmentMuter, GradeCalculator, outcomeGrid, ic_submission_download_dialog, htmlEscape, CalculationMethodContent) ->
 
   {get, set, setProperties} = Ember
 
@@ -56,23 +59,69 @@ define [
 
   ScreenreaderGradebookController = Ember.ObjectController.extend
 
+    checkForCsvExport: (->
+      currentProgress = get(window, 'ENV.GRADEBOOK_OPTIONS.gradebook_csv_progress')
+      attachment = get(window, 'ENV.GRADEBOOK_OPTIONS.attachment')
+
+      if currentProgress &&
+         (currentProgress.progress.workflow_state != 'completed' &&
+          currentProgress.progress.workflow_state != 'failed')
+
+        attachmentProgress =
+          progress_id: currentProgress.progress.id
+          attachment_id: attachment.attachment.id
+
+        $('#gradebook-export').prop('disabled', true)
+        $('#last-exported-gradebook').hide()
+        @pollGradebookCsvProgress(attachmentProgress)
+    ).on('init')
+
     errors: (->
       # this is a sad, sad hack
       # until we can get flash notifications working app-wide for screenreaders
       if Ember.$('#flash_message_holder li').size() > 0
         close = Ember.$('#flash_message_holder li a').text().trim()
         message = Ember.$('#flash_message_holder li').text().replace(close,'').trim()
-        node = Ember.$("<span role='alert'>#{message}</span>")
+        node = Ember.$("<span role='alert'>#{htmlEscape(message)}</span>")
         Ember.$(node).appendTo(Ember.$('#flash_screenreader_holder'))
     ).on('init')
 
     contextUrl: contextUrl
+    uploadCsvUrl: "#{contextUrl}/gradebook_upload/new"
 
-    downloadCsvUrl: "#{contextUrl}/gradebook.csv"
+    lastGeneratedCsvAttachmentUrl: get(window, 'ENV.GRADEBOOK_OPTIONS.attachment_url')
 
     downloadOutcomeCsvUrl: "#{contextUrl}/outcome_rollups.csv"
 
     gradingHistoryUrl:"#{contextUrl}/gradebook/history"
+
+    submissionsUrl: get(window, 'ENV.GRADEBOOK_OPTIONS.submissions_url')
+
+    mgpEnabled: get(window, 'ENV.GRADEBOOK_OPTIONS.multiple_grading_periods_enabled')
+
+    gradingPeriods:
+      _.compact [{id: '0', title: I18n.t("all_grading_periods", "All Grading Periods")}].concat get(window, 'ENV.GRADEBOOK_OPTIONS.active_grading_periods')
+
+    lastGeneratedCsvLabel:  do () =>
+      if get(window, 'ENV.GRADEBOOK_OPTIONS.gradebook_csv_progress')
+        gradebook_csv_export_date = get(window, 'ENV.GRADEBOOK_OPTIONS.gradebook_csv_progress.progress.updated_at')
+        I18n.t('Download Scores Generated on %{date}',
+          {date: $.datetimeString(gradebook_csv_export_date)})
+
+
+    selectedGradingPeriod: ((key, newValue) ->
+      savedGradingPeriodId = userSettings.contextGet('gradebook_current_grading_period')
+      if savedGradingPeriodId
+        savedGP = @get('gradingPeriods').findBy('id', savedGradingPeriodId)
+      if newValue
+        userSettings.contextSet('gradebook_current_grading_period', newValue.id)
+        newValue
+      else if savedGP?
+        savedGP
+      else
+        # default to current grading period, but don't change saved setting
+        @get('gradingPeriods').findBy('id', ENV.GRADEBOOK_OPTIONS.current_grading_period_id)
+    ).property()
 
     speedGraderUrl: (->
       "#{contextUrl}/gradebook/speed_grader?assignment_id=#{@get('selectedAssignment.id')}"
@@ -85,9 +134,6 @@ define [
     showTotalAsPoints: (->
       ENV.GRADEBOOK_OPTIONS.show_total_grade_as_points
     ).property()
-
-    isDraftState: ->
-      ENV.GRADEBOOK_OPTIONS.draft_state_enabled
 
     publishToSisEnabled: (->
       ENV.GRADEBOOK_OPTIONS.publish_to_sis_enabled
@@ -144,11 +190,41 @@ define [
       columnUpdated: (columnData, columnID) ->
         @updateColumnData columnData, columnID
 
+      exportGradebookCsv: () ->
+        $('#gradebook-export').prop('disabled', true)
+        $('#last-exported-gradebook').hide()
+
+        $.ajaxJSON(ENV.GRADEBOOK_OPTIONS.export_gradebook_csv_url, 'GET')
+         .then((attachment_progress) => @pollGradebookCsvProgress(attachment_progress))
+
       gradeUpdated: (submissions) ->
         @updateSubmissionsFromExternal submissions
 
       selectItem: (property, item) ->
         @announce property, item
+
+    pollGradebookCsvProgress: (attachmentProgress) ->
+      self = this
+      pollingProgress = setInterval(() =>
+        $.ajaxJSON("/api/v1/progress/#{attachmentProgress.progress_id}", 'GET')
+        .then((response) ->
+          if response.workflow_state == 'completed'
+            $.ajaxJSON("/api/v1/users/#{ENV.current_user_id}/files/#{attachmentProgress.attachment_id}", 'GET')
+            .then((attachment) ->
+              self.updateGradebookExportOptions(pollingProgress)
+              document.getElementById('gradebook-export-iframe').src = attachment.url
+              $('#last-exported-gradebook').attr('href', attachment.url)
+            )
+
+          if response.workflow_state == 'failed'
+            self.updateGradebookExportOptions(pollingProgress)
+        )
+      , 2000)
+
+    updateGradebookExportOptions: (pollingProgress) =>
+      clearInterval pollingProgress
+      $('#gradebook-export').prop('disabled', false)
+      $('#last-exported-gradebook').show()
 
     announce: (prop, item) ->
       Ember.run.next =>
@@ -209,7 +285,7 @@ define [
 
     updateAssignmentVisibilities: (assignment, userId) ->
       visibilities = get(assignment, 'assignment_visibility')
-      filteredVisibilities = visibilities.filter (id) ->
+      filteredVisibilities = visibilities?.filter (id) ->
         id != userId
       set(assignment, 'assignment_visibility', filteredVisibilities)
 
@@ -242,6 +318,24 @@ define [
     assignmentSelectDefaultLabel: I18n.t "no_assignment", "No Assignment Selected"
     outcomeSelectDefaultLabel: I18n.t "no_outcome", "No Outcome Selected"
 
+    assignment_groups: []
+
+    fetchAssignmentGroups: (->
+      params = {}
+      gpId = @get('selectedGradingPeriod.id')
+      if @get('mgpEnabled') && gpId != '0'
+        params =
+          grading_period_id: gpId
+      @set('assignment_groups', [])
+      array = Ember.ArrayProxy.createWithMixins(Ember.SortableMixin,
+        content: []
+        sortProperties: ['ag_position', 'position']
+      )
+      @set('assignments', array)
+      Ember.run.once =>
+        fetchAllPages(get(window, 'ENV.GRADEBOOK_OPTIONS.assignment_groups_url'), records: @get('assignment_groups'), data: params)
+    ).observes('selectedGradingPeriod').on('init')
+
     students: studentsUniqByEnrollments('enrollments')
 
     studentsHash: ->
@@ -261,7 +355,7 @@ define [
         return unless notYetLoaded.length
         student_ids = notYetLoaded.mapBy('id')
         fetchAllPages(ENV.GRADEBOOK_OPTIONS.submissions_url, records: @get('submissions'), data: student_ids: student_ids)
-    ).observes('students.@each').on('init')
+    ).observes('students.@each', 'selectedGradingPeriod').on('init')
 
     showNotesColumn: (->
       notes = @get('teacherNotes')
@@ -459,6 +553,7 @@ define [
         set as, 'sortable_date', Number.MAX_VALUE
 
     differentiatedAssignmentVisibleToStudent: (assignment, student_id) ->
+      return false unless assignment?
       return true unless assignment.only_visible_to_overrides
       _.include(assignment.assignment_visibility, student_id)
 
@@ -509,7 +604,7 @@ define [
         return if assignmentsProxy.findBy('id', as.id)
         @processAssignment(as, assignmentGroups)
 
-        shouldRemoveAssignment = (@isDraftState() and as.published is false) or
+        shouldRemoveAssignment = (as.published is false) or
           as.submission_types.contains 'not_graded' or
           as.submission_types.contains 'attendance' and !@get('showAttendance')
         if shouldRemoveAssignment
@@ -534,6 +629,7 @@ define [
 
     assignmentGroupsHash: ->
       ags = {}
+      return ags unless @get('assignment_groups')
       @get('assignment_groups').forEach (ag) ->
         ags[ag.id] = ag
       ags
@@ -605,6 +701,7 @@ define [
       outcome = @get 'selectedOutcome'
       result = @get('outcome_rollups').find (x) ->
         x.user_id == student.id && x.outcome_id == outcome.id
+      result.mastery_points = outcome.mastery_points if result
       result or {
         user_id: student.id
         outcome_id: outcome.id
@@ -646,6 +743,15 @@ define [
         min: outcomeGrid.Math.min(scores)
         cnt: outcomeGrid.Math.cnt(scores)
     ).property('selectedOutcome', 'outcome_rollups')
+
+    calculationDetails: (->
+      return null unless @get('selectedOutcome')?
+      outcome = @get('selectedOutcome')
+      _.extend({
+        calculation_method: outcome.calculation_method
+        calculation_int: outcome.calculation_int
+      }, new CalculationMethodContent(outcome).present())
+    ).property('selectedOutcome')
 
     assignmentSubmissionTypes: (->
       types = @get('selectedAssignment.submission_types')

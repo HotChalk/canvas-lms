@@ -36,6 +36,11 @@
 #           "type": "integer",
 #           "description": "The student's score"
 #         },
+#         "submitted_or_assessed_at": {
+#           "description": "The datetime the resulting OutcomeResult was submitted at, or absent that, when it was assessed.",
+#           "example": "2013-02-01T00:00:00-06:00",
+#           "type": "datetime"
+#         },
 #         "links": {
 #           "example": "{\"user\"=>\"3\", \"learning_outcome\"=>\"97\", \"alignment\"=>\"53\"}",
 #           "description": "Unique identifiers of objects associated with this result"
@@ -363,13 +368,14 @@ class OutcomeResultsController < ApplicationController
   def require_outcome_context
     reject! "invalid context type" unless @context.is_a?(Course)
 
-    return true if is_authorized_action?(@context, @current_user, [:manage_grades, :view_all_grades])
+    return true if @context.grants_any_right?(@current_user, session, :manage_grades, :view_all_grades)
     reject! "users not specified and no access to all grades", :forbidden unless params[:user_ids]
     user_ids = Api.value_to_array(params[:user_ids]).map(&:to_i).uniq
     enrollments = @context.enrollments.where(user_id: user_ids)
-    reject! "specified users not enrolled" unless enrollments.length == user_ids.length
+    enrollment_user_ids = enrollments.map(&:user_id).uniq
+    reject! "specified users not enrolled" unless enrollment_user_ids.length == user_ids.length
     reject! "not authorized to read grades for specified users", :forbidden unless enrollments.all? do |e|
-      is_authorized_action?(e, @current_user, :read_grades)
+      e.grants_right?(@current_user, session, :read_grades)
     end
   end
 

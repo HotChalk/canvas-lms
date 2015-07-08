@@ -31,11 +31,21 @@ define [
     #     first_name: '[name=user[first_name]]'
     fieldSelectors: null
 
+    ##
+    # For a given dom element, retrieve the sibling CKEditor wrapper.
+    #
+    # @param {jQuery Object} the textarea for whom we wish to get the
+    #   related CK editor area
+    # @return {jQuery Object} the relevant div that wraps the CKEditor
+    #   iframe related to this textarea
+    findSiblingCk: ($el)->
+      $el.siblings('.cke').find('.cke_wysiwyg_frame')
+
     findField: (field) ->
       selector = @fieldSelectors?[field] or "[name='#{field}']"
       $el = @$(selector)
       if $el.data('rich_text')
-        $el = $el.next('.cke').find('.cke_wysiwyg_frame')
+        $el = @findSiblingCk($el)
       $el
 
     ##
@@ -60,7 +70,6 @@ define [
     #       }
     #     ]
     #   }
-
     showErrors: (errors) ->
       for fieldName, field of errors
         $input = @findField fieldName

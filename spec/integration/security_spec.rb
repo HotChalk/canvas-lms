@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper')
 
+require 'nokogiri'
+
 describe "security" do
 
   describe "session fixation" do
@@ -33,9 +35,9 @@ describe "security" do
       assert_response :success
       cookie = cookies['_normandy_session']
       expect(cookie).to be_present
-      expect(path).to eq "/login"
+      expect(path).to eq "/login/canvas"
 
-      post_via_redirect "/login", "pseudonym_session[unique_id]" => "nobody@example.com",
+      post_via_redirect "/login/canvas", "pseudonym_session[unique_id]" => "nobody@example.com",
                                   "pseudonym_session[password]" => "asdfasdf",
                                   "pseudonym_session[remember_me]" => "1",
                                   "redirect_to_ssl" => "1"
@@ -519,8 +521,9 @@ describe "security" do
       expect(session[:become_user_id]).to be_nil
       expect(assigns['current_user'].id).to eq @admin.id
       expect(assigns['real_current_user']).to be_nil
-      expect(PageView.last.user_id).to eq @admin.id
-      expect(PageView.last.real_user_id).to be_nil
+      pv1 = PageView.last
+      expect(pv1.user_id).to eq @admin.id
+      expect(pv1.real_user_id).to be_nil
 
       post "/users/#{@student.id}/masquerade"
       assert_response 302
@@ -531,8 +534,9 @@ describe "security" do
       expect(session[:become_user_id]).to eq @student.id.to_s
       expect(assigns['current_user'].id).to eq @student.id
       expect(assigns['real_current_user'].id).to eq @admin.id
-      expect(PageView.last.user_id).to eq @student.id
-      expect(PageView.last.real_user_id).to eq @admin.id
+      pv2 = PageView.all.detect{|pv| pv != pv1}
+      expect(pv2.user_id).to eq @student.id
+      expect(pv2.real_user_id).to eq @admin.id
     end
 
     it "should remember the destination with an intervening auth" do
@@ -573,7 +577,7 @@ describe "security" do
 
     HostUrl.stubs(:is_file_host?).returns(false)
     get "http://test.host/login"
-    expect(response).to be_success
+    expect(response).to redirect_to('http://test.host/login/canvas')
   end
 
   describe "admin permissions" do
@@ -876,6 +880,7 @@ describe "security" do
 
       it 'read_course_content' do
         @course.assignments.create!
+        @course.wiki.set_front_page_url!("front-page")
         @course.wiki.front_page.save!
         @course.quizzes.create!
         @course.attachments.create!(:uploaded_data => default_uploaded_data)
@@ -890,9 +895,7 @@ describe "security" do
         assert_status(401)
 
         get "/courses/#{@course.id}/wiki"
-        expect(response).to be_redirect
-        follow_redirect!
-        expect(response).to be_redirect
+        assert_status(401)
 
         get "/courses/#{@course.id}/quizzes"
         assert_status(401)
@@ -935,15 +938,12 @@ describe "security" do
 
         get "/courses/#{@course.id}/assignments"
         expect(response).to be_success
-        expect(response.body).not_to match /People/
+        expect(response.body).to match /People/ # still has read_as_admin rights
 
         get "/courses/#{@course.id}/assignments/syllabus"
         expect(response).to be_success
 
         get "/courses/#{@course.id}/wiki"
-        expect(response).to be_redirect
-
-        follow_redirect!
         expect(response).to be_success
 
         get "/courses/#{@course.id}/quizzes"

@@ -10,8 +10,19 @@
   bottom: 0;
   margin-bottom: 0;
   display: none;
-  width: 100%;
   box-sizing: border-box;
+  @if $use_new_styles {
+    top: 0 !important; // need a more elegant way of doing this
+    left: $ic-header-primary-width - $ic-sp;
+    width: calc(100% - (#{$ic-header-primary-width} - #{$ic-sp}) );
+    @include breakpoint(wide) { 
+      left: $ic-header-primary-width;
+      width: calc(100% - #{$ic-header-primary-width});
+    }
+  }
+  @else {
+    width: 100%;  
+  }
 }
 
 #footer {
@@ -27,21 +38,54 @@
 }
 
 .conversations {
-  min-width: 1160px;
   position: relative;
+  @if $use_new_styles == false { min-width: 1160px; }
 }
 
 .conversations .panel {
-  background: #f1f1f1;
-  border-bottom: 1px solid #acacac;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
   box-sizing: border-box;
-  color: #555;
   height: 58px;
-  padding: 9px 12px 0 12px;
-
-  > div {
-    display: inline-block;
+  
+  @if $use_new_styles {
+    background: $lightBackground;
+    border-bottom: 1px solid $ic-border-light;
+    height: 112px;
+    padding: $ic-sp;
+    @include breakpoint(wide) { 
+      height: 62px; 
+      display: flex;
+      align-items: center;
+      padding-bottom: 0;
+      padding-top: 0;
+    }
+    .panel__primary {
+      margin-bottom: $ic-sp;
+      @include breakpoint(wide) {
+        margin-bottom: 0;
+        flex: 1;
+        white-space: nowrap;
+      }
+      > * {
+        display: inline-block;
+        white-space: nowrap;
+      }
+    }
+    .panel__secondary {
+      @include breakpoint(wide) { white-space: nowrap; }
+      > div { 
+        display: inline-block;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+    }
+  }
+  @else {
+    background: #f1f1f1;
+    border-bottom: 1px solid #acacac;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+    padding: 9px 12px 0 12px;
+    color: #555;
+    > div { display: inline-block; }
   }
 
   .btn {
@@ -54,7 +98,8 @@
   }
 
   .actions {
-    margin-right: 20px;
+    @if $use_new_styles { margin-right: $ic-sp; }
+    @else { margin-right: 20px; }
   }
 }
 
@@ -66,7 +111,9 @@
 }
 
 .filters {
-  margin-right: 50px;
+  @if $use_new_styles { margin-right: $ic-sp; }
+  @else { margin-right: 50px; }
+  
 
   /* TODO: make sure we still need this with the frd filters (may not be selects) */
   select {
@@ -110,17 +157,25 @@
 }
 
 .search .ac {
-  float: left;
-  width: 250px;
   display: block;
+  @if $use_new_styles == false {
+    float: left;
+    width: 250px;
+  }
 
   .ac-input-box {
-    border-radius: 16px 0 0 16px;
     float: left;
-    width: 205px;
     min-height: 0;
     height: 38px;
-    padding: 7px 12px;
+    padding: 6px 12px;
+    @if $use_new_styles {
+      box-sizing: border-box;
+      width: 205px;
+    }
+    @else {
+      border-radius: 16px 0 0 16px;
+      width: 203px;
+    }
 
     .ac-placeholder {
       top: 0;
@@ -141,15 +196,19 @@
   }
 
   .btn {
-    border-radius: 0 16px 16px 0;
     float: left;
+    @if $use_new_styles == false { border-radius: 0 16px 16px 0; }
   }
 }
 
 .messaging-wrapper {
   position: absolute;
-  top: 58px;
   bottom: 0;
+  @if $use_new_styles {
+    top: 112px;
+    @include breakpoint(wide) { top: 62px; }
+  }
+  @else { top: 58px; }
 }
 
 .message-list-scroller {
@@ -160,31 +219,44 @@
 
 .message-list {
   .list-header {
-    background: #f3f3f3;
-    border-bottom: 1px solid #bfbfbf;
-    color: darken($canvas-neutral, 50);;
+    color: darken($ic-color-neutral, 50);
     padding: 3px 12px;
+    @if $use_new_styles { 
+      background: $lightBackground;
+      border-bottom: 1px solid $ic-border-light;
+    }
+    @else {
+      background: #f3f3f3;
+      border-bottom: 1px solid #bfbfbf; 
+    }
   }
 
   .current-context-code {
     color: #f3f3f3;
-    background-color: $canvas-neutral;
+    background-color: $ic-color-neutral;
     padding: 0 10px;
   }
 
   .messages > li {
     background: #fff;    
     box-sizing: border-box;
-    border-bottom: 1px solid #bfbfbf;
     cursor: pointer;
     height: 100px;
     padding: 8px 12px 8px 32px;
     position: relative;
-
-    &.active {
-      background: lighten($canvas-neutral, 10);
+    @if $use_new_styles {
+      border-bottom: 1px solid $ic-border-light;
+    }
+    @else {
+      border-bottom: 1px solid #bfbfbf;
     }
 
+    &.active {
+      background: $ic-bg-light-primary;
+    }
+    &:hover {
+      background: $ic-bg-light-primary;
+    }
     &:hover .message-actions a, .message-actions a:focus {
       left: 0;
       outline: none;
@@ -207,7 +279,7 @@
   }
 
   .date {
-    color: $canvas-primary;
+    color: $ic-brand-primary;
   }
 
   .summary {
@@ -249,11 +321,11 @@ h2.subject {
 }
 
 .message-full-participants {
-	display: none;
+  display: none;
 }
 
 .message-summarized-participants:focus, .message-full-participants:focus {
-	outline: 0;
+  outline: 0;
 }
 
 .message-count {
@@ -261,7 +333,7 @@ h2.subject {
   position: absolute;
   right: 13px;
   top: 43%;
-  background-color: $canvas-secondary;
+  background-color: $ic-brand-secondary;
   text-shadow: none;
 }
 
@@ -279,7 +351,7 @@ h2.subject {
   }
 
   .read-state {
-    background: $canvas-secondary;
+    background: $ic-brand-secondary;
     border-radius: 5px;
     box-sizing: border-box;
     display: inline-block;
@@ -288,23 +360,23 @@ h2.subject {
     width: 10px;
 
     &.read {
-      background: $canvas-primary;
-      border: 1px solid darken($canvas-primary, 10);
+      background: $ic-brand-primary;
+      border: 1px solid darken($ic-brand-primary, 10);
       @if $use_high_contrast {
-        background: $canvas-light;
-        border: 1px solid $canvas-dark;
+        background: $ic-color-light;
+        border: 1px solid $ic-color-dark;
       }
       left: -9999px;
     }
 
     &:focus {
-      border: 1px solid $canvas-dark;
+      border: 1px solid $ic-color-dark;
       box-shadow: none;
     }
   }
 
   .star-btn {
-    color: $canvas-secondary;
+    color: $ic-brand-secondary;
     display: inline-block;
     font-family: 'Hiragino Kaku Gothic Pro', 'Lucida Sans Unicode', 'Arial Unicode MS';
     font-size: 16px;
@@ -328,7 +400,7 @@ h2.subject {
         position: absolute;
       }
       &:before {
-        color: $canvas-alert;
+        color: $ic-color-alert;
         content: "\2605";
       }
       &:focus {
@@ -392,10 +464,11 @@ h2.subject {
   }
 
   .message-header {
-    border-bottom: 1px solid #bfbfbf;
     height: 40px;
     line-height: 40px;
     padding: 0 12px;
+    @if $use_new_styles { border-bottom: 1px solid $ic-border-light; }
+    @else { border-bottom: 1px solid #bfbfbf; }
 
     .label {
       margin-top: 12px;
@@ -409,19 +482,22 @@ h2.subject {
   }
 
   .message-content > li {
-    border-bottom: 1px solid #bfbfbf;
+    
     margin: 0 12px;
     padding: 24px 0;
+    @if $use_new_styles { border-bottom: 1px solid $ic-border-light; }
+    @else { border-bottom: 1px solid #bfbfbf; }
 
     p:last-child {
       margin-bottom: 0;
     }
 
     .message-attachments {
-      border-top: 1px solid #bfbfbf;
       list-style: none;
       margin: 0 1em;
       padding: 0.5em;
+      @if $use_new_styles { border-top: 1px solid $ic-border-light; }
+      @else { border-top: 1px solid #bfbfbf; }
     }
 
     .message-attachment-thumbnail {
@@ -441,7 +517,7 @@ h2.subject {
     }
 
     .context {
-      color: darken($canvas-neutral, 50);
+      color: darken($ic-color-neutral, 50);
       display: block;
     }
 
@@ -455,7 +531,7 @@ h2.subject {
   }
 
   .date {
-    color: darken($canvas-neutral, 50);
+    color: darken($ic-color-neutral, 50);
     position: absolute;
     right: 10px;
     top: 0;
@@ -477,7 +553,7 @@ h2.subject {
 
   .message-detail-actions li a,
   .actions li a {
-    color: darken($canvas-neutral, 50);;
+    color: darken($ic-color-neutral, 50);;
 
     &:hover, &:focus {
       color: #333;

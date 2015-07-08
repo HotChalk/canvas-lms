@@ -2,12 +2,13 @@
 ////////////////////////////////
 $preview-bg: rgba(#0f1317, 0.9);
 $preview-info-bg: lighten($preview-bg, 5%);
-$preview-border-color: darken($canvas-light, 45);
+$preview-border-color: darken($ic-color-light, 45);
 $preview-toggle-border: 1px solid $preview-border-color;
-$preview-font-color: $canvas-light;
+$preview-font-color: $ic-color-light;
 $spacing-width: 0;
 $preview-footer-height: 140px;
 $preview-header-height: 9vh;
+$preview-html-background: whitesmoke;
 
 .ReactModal__Overlay.ReactModal__Overlay--ef-file-preview {
   background: rgba(black, 0.9);
@@ -58,8 +59,8 @@ $preview-header-height: 9vh;
 ////////////////////////////////
 .ef-file-preview-header {
   height: $preview-header-height;
-  color: $preview-font-color;  
-  font-weight: 300; 
+  color: $preview-font-color;
+  font-weight: 300;
   flex: 0 0 $preview-header-height;
   display: flex;
   align-items: center;
@@ -85,7 +86,7 @@ $preview-header-height: 9vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  
+
   .ef-file-preview-not-available {
     padding: 100px 0;
   }
@@ -103,23 +104,22 @@ $preview-header-height: 9vh;
 
 .ef-file-preview-button {
   transition: all 0.2s;
-  color: darken($preview-font-color, 45);  
+  color: darken($preview-font-color, 45);
   cursor: pointer;
   padding: 0 12px;
   font-size: 14px;
   border: none;
   text-align: center;
-  display: flex;
   align-items: center;
   background: $preview-bg;
   white-space: nowrap;
   @include breakpoint(desktop) { padding: 0 24px; }
-  &:hover, &:focus { color: $canvas-light; text-decoration: none;}
+  &:hover, &:focus { color: $ic-color-light; text-decoration: none;}
   [class^=icon-] { margin-right: 3px; }
 
-  &:hover, &:focus { 
+  &:hover, &:focus {
     background: rgba(white, 0.1);
-    border-bottom-color: lighten($canvas-primary, 15%);
+    border-bottom-color: lighten($ic-brand-primary, 15%);
   }
 
   &.ef-file-preview-button--active {
@@ -132,13 +132,36 @@ $preview-header-height: 9vh;
   }
 }
 
+// To support flex in buttons, we need to use an internal div
+// see https://bugzilla.mozilla.org/show_bug.cgi?id=984869
+a.ef-file-preview-button, button.ef-file-preview-button div {
+  display: flex;
+}
+
 /// __File Preview Content
 ////////////////////////////////
+#media_preview {
+  color: $preview-font-color;
+}
+.ef-file-not-found{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  color: white;
+  font-size: 2.5em;
+}
 .ef-file-align-center {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
+}
+.ef-not-found-icon{
+  width: 100px;
+  height: 100px;
+  margin-bottom: 10px;
+  background-size: 70px;
 }
 .ef-file-preview-item {
   padding: 10px;
@@ -154,10 +177,10 @@ $preview-header-height: 9vh;
   border-radius: 6px;
   padding: 20px 10px 24px;
   text-align: center;
-  &:hover, &:focus { 
-    border-color: lighten($canvas-primary, 15%); 
+  &:hover, &:focus {
+    border-color: lighten($ic-brand-primary, 15%);
     background: transparent;
-  } 
+  }
   i {
     width: auto;
     font-size: 30px;
@@ -189,8 +212,8 @@ $preview-header-height: 9vh;
 // Information Tab
 ////////////////////////////////
 .ef-file-preview-information-container {
-  background: $preview-info-bg;   
-  border-left: 1px solid $preview-border-color; 
+  background: $preview-info-bg;
+  border-left: 1px solid $preview-border-color;
   padding: 24px;
 }
 .ef-file-preview-infotable {
@@ -221,4 +244,13 @@ $preview-header-height: 9vh;
 .ef-file-preview-not-available {
   color: #fff;
   padding: 40px;
+}
+
+.FilePreviewInfoPanel__usageRights {
+  vertical-align: top;
+}
+
+// so previews of unstyled HTML will not feature black-on-black text
+.ef-file-preview-frame-html {
+  background-color: $preview-html-background;
 }

@@ -69,6 +69,8 @@ define [
 
       if data.show && data.show != ''
         @visibleContextList = data.show.split(',')
+        for visibleContext, i in @visibleContextList
+          @visibleContextList[i] = visibleContext.replace(/^group_(.*_.*)/, '$1')
 
       $(document).fragmentChange(@fragmentChange)
 
@@ -156,7 +158,7 @@ define [
         dayClick: @dayClick
         addEventClick: @addEventClick
         titleFormat:
-          week: "MMM d[ yyyy]{ '&ndash;'[ MMM] d, yyyy}"
+          week: "MMM d[ yyyy]{ '–'[ MMM] d, yyyy}"
         viewDisplay: @viewDisplay
         windowResize: @windowResize
         drop: @drop
@@ -263,7 +265,7 @@ define [
         if event.calendarEvent.reserved == true
           status = "Reserved" # TODO: i18n
         $element.find('.fc-event-title').text(status)
-      
+
       # TODO: i18n
       timeString = if !event.endDate() || event.startDate().getTime() == event.endDate().getTime()
           @calendar.fullCalendar('formatDate', event.startDate(), 'h:mmtt')
@@ -275,8 +277,8 @@ define [
           I18n.t('event_event_title', 'Event Title:')
 
       $element.attr('title', $.trim("#{timeString}\n#{$element.find('.fc-event-title').text()}\n\n#{I18n.t('calendar_title', 'Calendar:')} #{htmlEscape(event.contextInfo.name)}"))
-      $element.find('.fc-event-inner').prepend($("<span class='screenreader-only'>#{I18n.t('calendar_title', 'Calendar:')} #{htmlEscape(event.contextInfo.name)}</span>"))
-      $element.find('.fc-event-title').prepend($("<span class='screenreader-only'>#{screenReaderTitleHint} </span>"))
+      $element.find('.fc-event-inner').prepend($("<span class='screenreader-only'>#{htmlEscape I18n.t('calendar_title', 'Calendar:')} #{htmlEscape(event.contextInfo.name)}</span>"))
+      $element.find('.fc-event-title').prepend($("<span class='screenreader-only'>#{htmlEscape screenReaderTitleHint} </span>"))
       $element.find('.fc-event-title').toggleClass('calendar__event--completed', event.isCompleted())
       element.find('.fc-event-inner').prepend($('<i />', {'class': "icon-#{event.iconType()}"}))
       true
@@ -410,20 +412,20 @@ define [
     drawNowLine: =>
       return unless @currentView == 'week'
 
-      if !@nowLine
-        @nowLine = $('<div />', {'class': 'calendar-nowline'})
-      $('.fc-agenda-slots').parent().append(@nowLine)
+      if !@$nowLine
+        @$nowLine = $('<div />', {'class': 'calendar-nowline'})
+      $('.fc-agenda-slots').parent().append(@$nowLine)
 
       now = $.fudgeDateForProfileTimezone(new Date)
       midnight = new Date(now.getTime())
       midnight.setHours(0, 0, 0)
       seconds = (now.getTime() - midnight.getTime())/1000
 
-      @nowLine.toggle(@isSameWeek(@getCurrentDate(), now))
+      @$nowLine.toggle(@isSameWeek(@getCurrentDate(), now))
 
-      @nowLine.css('width', $('.fc-agenda-slots .fc-widget-content:first').css('width'))
+      @$nowLine.css('width', $('.fc-agenda-slots .fc-widget-content:first').css('width'))
       secondHeight = $('.fc-agenda-slots').css('height').replace('px', '')/24/3600
-      @nowLine.css('top', seconds*secondHeight + 'px')
+      @$nowLine.css('top', seconds*secondHeight + 'px')
 
     setDateTitle: (title) =>
       @header.setHeaderText(title)
@@ -591,14 +593,14 @@ define [
         replaceState: !_.has(@dataFromDocumentHash(), 'view_name') # use replaceState if view_name wasn't set before
 
       @currentView = view
-      userSettings.set('calendar_view', view)
+      userSettings.set('calendar_view', view) unless view is 'scheduler'
 
     getCurrentView: ->
       if @currentView
         @currentView
       else if (data = @dataFromDocumentHash()) && data.view_name
         data.view_name
-      else if userSettings.get('calendar_view')
+      else if userSettings.get('calendar_view') and userSettings.get('calendar_view') isnt 'scheduler'
         userSettings.get('calendar_view')
       else
         'month'
@@ -644,7 +646,7 @@ define [
       @agenda.fetch(@visibleContextList, start)
 
     renderDateRange: (start, end) =>
-      @setDateTitle(I18n.l('#date.formats.medium', start)+' &ndash; '+I18n.l('#date.formats.medium', end))
+      @setDateTitle(I18n.l('#date.formats.medium', start)+' – '+I18n.l('#date.formats.medium', end))
       # for "load more" with voiceover, we want the alert to happen later so
       # the focus change doesn't interrupt it.
       window.setTimeout =>
@@ -669,19 +671,30 @@ define [
 
     # we use a <div> (with a <style> inside it) because you cant set .innerHTML directly on a
     # <style> node in ie8
-    $styleContainer = $('<div />').appendTo('body')
+    $styleContainer = $('<div id="calendar_color_style_overrides" />').appendTo('body')
 
     colorizeContexts: =>
-      colors = colorSlicer.getColors(@contextCodes.length, 275, {unsafe: !ENV.SETTINGS.use_high_contrast})
-      html = for contextCode, index in @contextCodes
-        color = colors[index]
-        ".group_#{contextCode}{
-           color: #{color};
-           border-color: #{color};
-           background-color: #{color};
-        }"
+      # Get any custom colors that have been set
+      $.getJSON(
+          '/api/v1/users/' + @options.userId + '/colors/'
+          (data) =>
+            customColors = data.custom_colors
 
-      $styleContainer.html "<style>#{html.join('')}</style>"
+            colors = colorSlicer.getColors(@contextCodes.length, 275, {unsafe: !ENV.use_high_contrast})
+            html = (for contextCode, index in @contextCodes
+              # Use a custom color if found.
+              color = if customColors[contextCode] then customColors[contextCode] else colors[index]
+              color = htmlEscape(color)
+              contextCode = htmlEscape(contextCode)
+              ".group_#{contextCode}{
+                 color: #{color};
+                 border-color: #{color};
+                 background-color: #{color};
+              }"
+            ).join('')
+
+            $styleContainer.html "<style>#{html}</style>"
+      )
 
     dataFromDocumentHash: () =>
       data = {}

@@ -16,7 +16,7 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
 
 describe FeatureFlags do
   let(:t_site_admin) { Account.site_admin }
@@ -44,6 +44,7 @@ describe FeatureFlags do
   end
 
   it "should report feature_allowed? correctly" do
+    expect(t_sub_account.feature_allowed?(:account_feature)).to be_truthy
     expect(t_root_account.feature_allowed?(:root_account_feature)).to be_falsey
     expect(t_course.feature_allowed?(:course_feature)).to be_truthy
   end
@@ -248,6 +249,33 @@ describe FeatureFlags do
 
         it "should not find the feature on a root account without a flag" do
           expect(account_model.lookup_feature_flag('hidden_feature')).to be_nil
+        end
+      end
+    end
+
+    context "cross-sharding" do
+      specs_require_sharding
+
+      it "should search on the correct shard" do
+        t_sub_account.feature_flags.create! feature: 'course_feature', state: 'on'
+        @other_course = t_sub_account.courses.create!
+
+        @shard1.activate do
+          flag = @other_course.lookup_feature_flag('course_feature')
+          expect(flag).to_not be_default
+          expect(@other_course.feature_enabled?('course_feature')).to be_truthy
+        end
+      end
+
+      it "should search for site admin flags on the correct shard" do
+        t_site_admin.feature_flags.create! feature: 'course_feature', state: 'on'
+
+        @shard1.activate do
+          account = Account.create!
+          @other_course = account.courses.create!
+          flag = @other_course.lookup_feature_flag('course_feature')
+          expect(flag).to_not be_default
+          expect(@other_course.feature_enabled?('course_feature')).to be_truthy
         end
       end
     end

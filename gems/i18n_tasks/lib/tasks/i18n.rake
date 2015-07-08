@@ -26,6 +26,7 @@ namespace :i18n do
     @command = I18nliner::Commands::Check.run(options)
     @command.success? or exit 1
     @translations = @command.translations
+    remove_unwanted_translations(@translations)
 
     # merge js in
     js_translations.each do |key, value|
@@ -64,6 +65,7 @@ namespace :i18n do
     require 'action_controller'
     require 'active_record'
     require 'will_paginate'
+    I18n.load_path.unshift(*WillPaginate::I18n.load_path)
     I18n.load_path += Dir[Rails.root.join('config', 'locales', '*.{rb,yml}')]
 
     require 'i18nema'
@@ -342,6 +344,10 @@ namespace :i18n do
     end
     new_translations = YAML.safe_load(open(args[:translated_file]))
     autoimport(source_translations, new_translations)
+  end
+
+  def remove_unwanted_translations(translations)
+    translations['date'].delete('order')
   end
 
   def autoimport(source_translations, new_translations)

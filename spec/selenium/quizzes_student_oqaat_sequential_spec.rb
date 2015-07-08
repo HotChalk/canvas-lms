@@ -2,9 +2,6 @@
 require_relative "helpers/quiz_questions_common"
 
 describe "One Question at a Time Quizzes as a student" do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   include_examples "quiz question selenium tests"
 
@@ -15,13 +12,12 @@ describe "One Question at a Time Quizzes as a student" do
   end
 
   it "displays one question at a time but you cant go back" do
-    skip("193")
     take_the_quiz
 
     it_should_show_cant_go_back_warning
     accept_cant_go_back_warning
 
-    sequential_flow
+    check_if_cant_go_back
   end
 
   it "saves answers and grades the quiz" do
@@ -40,11 +36,9 @@ describe "One Question at a Time Quizzes as a student" do
     navigate_away_and_resume_quiz
     accept_cant_go_back_warning
     it_should_be_on_second_question
-    
+
     navigate_directly_to_first_question
     it_should_be_on_second_question
-
-    submit_unfinished_quiz
   end
 
   it "warns you about submitting a quiz when you are not on the last question" do
@@ -68,13 +62,14 @@ describe "One Question at a Time Quizzes as a student" do
     it_should_show_cant_go_back_warning
     accept_cant_go_back_warning
 
-    fj("a:contains('Quizzes')").click
-    driver.switch_to.alert.accept
+    expect_new_page_load(true) do
+      fj("a:contains('Quizzes')").click
+    end
 
-    wait_for_ajaximations
+    expect_new_page_load do
+      fj("a:contains('OQAAT quiz')").click
+    end
 
-    fj("a:contains('OQAAT quiz')").click
-    wait_for_ajaximations
     fj("#not_right_side .take_quiz_button a:contains('Resume Quiz')").click
 
     it_should_show_cant_go_back_warning

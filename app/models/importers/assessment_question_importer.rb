@@ -93,7 +93,13 @@ module Importers
       self.prep_for_import(hash, context, migration)
 
       missing_links = hash.delete(:missing_links) || {}
-      import_warnings = hash.delete(:import_warnings)
+      import_warnings = hash.delete(:import_warnings) || []
+      if error = hash.delete(:import_error)
+        import_warnings << error
+      end
+      if error = hash.delete(:qti_error)
+        import_warnings << error
+      end
 
       if id = hash['assessment_question_id']
         AssessmentQuestion.where(id: id).update_all(name: hash[:question_name], question_data: hash.to_yaml,
@@ -129,7 +135,11 @@ module Importers
     def self.prep_for_import(hash, context, migration=nil)
       return hash if hash[:prepped_for_import]
       hash[:missing_links] = {}
-      [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html].each do |field|
+      fields_to_convert = [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html]
+      if hash[:question_type] == 'learnosity_question'
+        fields_to_convert.delete :question_text # do not HTML-convert Learnosity questions
+      end
+      fields_to_convert.each do |field|
         hash[:missing_links][field] = []
         if hash[field].present?
           hash[field] = ImportedHtmlConverter.convert(hash[field], context, migration, {:remove_outer_nodes_if_one_child => true}) do |warn, link|

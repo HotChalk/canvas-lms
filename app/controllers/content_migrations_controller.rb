@@ -17,7 +17,6 @@
 #
 
 # @API Content Migrations
-# @beta
 #
 # API for accessing content migrations and migration issues
 # @model ContentMigration
@@ -172,6 +171,7 @@ class ContentMigrationsController < ApplicationController
       js_env(:OLD_START_DATE => unlocalized_datetime_string(@context.start_at, :verbose))
       js_env(:OLD_END_DATE => unlocalized_datetime_string(@context.conclude_at, :verbose))
       js_env :ROOT_ACCOUNT_ID => (@context.respond_to?(:root_account_id) ? @context.root_account_id : nil)
+      js_env(:SHOW_SELECT => @current_user.manageable_courses.count <= 100)
     end
   end
 

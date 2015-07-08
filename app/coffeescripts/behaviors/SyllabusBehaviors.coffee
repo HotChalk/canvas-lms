@@ -187,7 +187,9 @@ define [
       $edit_course_syllabus_form.show()
       $course_syllabus.hide()
       $course_syllabus_details.hide()
-      $course_syllabus_body.val($course_syllabus.data('syllabus_body')).editorBox()
+      $course_syllabus_body.val($course_syllabus.data('syllabus_body'))
+      $course_syllabus_body.editorBox()
+      $('.jump_to_today_link').focus() # a11y: Set focus so it doesn't get lost.
       if wikiSidebar
         wikiSidebar.attachToEditor $course_syllabus_body
         wikiSidebar.show()
@@ -230,6 +232,9 @@ define [
         $course_syllabus.loadingImage()
 
       success: (data) ->
+        ###
+        xsslint safeString.property syllabus_body
+        ###
         $course_syllabus.loadingImage('remove').html data.course.syllabus_body
         $course_syllabus.data('syllabus_body', data.course.syllabus_body)
         $course_syllabus_details.hide()

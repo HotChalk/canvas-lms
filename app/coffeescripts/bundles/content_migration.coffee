@@ -129,6 +129,7 @@ require [
             courseFindSelect: new CourseFindSelectView
                                 current_user_id: ENV.current_user_id
                                 model: ConverterViewControl.getModel()
+                                show_select: ENV.SHOW_SELECT
 
             selectContent:    new SelectContentCheckboxView(model: ConverterViewControl.getModel())
 

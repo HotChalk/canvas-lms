@@ -22,9 +22,11 @@ describe AssignmentGroupsController do
   def course_assignment
     @assignment = @course.assignments.create(:title => "some assignment")
   end
+
   def course_group
     @group = @course.assignment_groups.create(:name => "some group")
   end
+
   def group_assignment
     @assignment = @group.assignments.create(:name => "some group assignment")
   end
@@ -73,6 +75,15 @@ describe AssignmentGroupsController do
         # ensures that check is not an N+1 from the gradebook
         Assignment.any_instance.expects(:students_with_visibility).never
         get 'index', :course_id => @course.id, :include => ["assignments","assignment_visibility"], :format => :json
+        expect(response).to be_success
+      end
+    end
+
+    context "multiple grading periods feature enabled" do
+      it "should not throw an error when grading_period_id is passed in as empty string" do
+        @course.root_account.enable_feature!(:multiple_grading_periods)
+        user_session(@teacher)
+        get 'index', :course_id => @course.id, :include => ["assignments", "assignment_visibility"], :grading_period_id => "", :format => :json
         expect(response).to be_success
       end
     end

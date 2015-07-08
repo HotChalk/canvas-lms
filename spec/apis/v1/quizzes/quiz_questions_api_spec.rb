@@ -19,9 +19,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/../../api_spec_helper')
 
 describe Quizzes::QuizQuestionsController, type: :request do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   context 'as a teacher' do
     before :once do
@@ -53,6 +50,38 @@ describe Quizzes::QuizQuestionsController, type: :request do
         question_ids = json.collect {|q| q['id'] }
         expect(question_ids).to eq [question2.id]
       end
+
+      context 'given a submission id and attempt' do
+        it 'returns the list of questions that were used for the submission' do
+          question1 = @quiz.quiz_questions.create!(:question_data => { :question_name => "Question 1"})
+          question2 = @quiz.quiz_questions.create!(:question_data => { :question_name => "Question 2"})
+
+          @quiz.generate_quiz_data
+          @quiz.save
+
+          qs = @quiz.generate_submission(@teacher)
+
+          question1.destroy
+
+          json = api_call(
+            :get,
+            "/api/v1/courses/#{@course.id}/quizzes/#{@quiz.id}/questions",
+            {
+              :controller => "quizzes/quiz_questions",
+              :action => "index",
+              :format => "json",
+              :course_id => @course.id.to_s,
+              :quiz_id => @quiz.id.to_s
+            },
+            {
+              quiz_submission_id: qs.id,
+              quiz_submission_attempt: qs.attempt
+            })
+
+          question_ids = json.collect {|q| q['id'] }.sort
+          expect(question_ids).to eq [question1.id, question2.id]
+        end
+      end
     end
 
     describe "GET /courses/:course_id/quizzes/:quiz_id/questions/:id (show)" do
@@ -77,6 +106,7 @@ describe Quizzes::QuizQuestionsController, type: :request do
 
         it "has only the allowed question output fields" do
           question_fields = Api::V1::QuizQuestion::API_ALLOWED_QUESTION_OUTPUT_FIELDS[:only].map(&:to_sym) +  Api::V1::QuizQuestion::API_ALLOWED_QUESTION_DATA_OUTPUT_FIELDS.map(&:to_sym)
+          expect(question_fields).to include(:correct_comments_html)
           @json.keys.each { |key| expect(question_fields.to_s).to include(key.to_s) }
         end
 

@@ -92,7 +92,7 @@ class GroupCategoriesController < ApplicationController
   include Api::V1::Group
   include Api::V1::Progress
 
-  SETTABLE_GROUP_ATTRIBUTES = %w(name description join_level is_public group_category avatar_attachment)
+  SETTABLE_GROUP_ATTRIBUTES = %w(name description join_level is_public group_category avatar_attachment).freeze
 
   include TextHelper
 
@@ -300,7 +300,13 @@ class GroupCategoriesController < ApplicationController
   # @returns [Group]
   def groups
     if authorized_action(@context, @current_user, :manage_groups)
-      @groups = @group_category.groups.active.by_name
+      if  @current_user.account_admin?(@context) 
+        @groups = @group_category.groups.active.by_name
+      else 
+        sections = @context.sections_visible_to(@current_user)
+        @groups = @group_category.groups.where(course_section_id: sections)
+      end
+
       @groups = Api.paginate(@groups, self, api_v1_group_category_groups_url)
       render :json => @groups.map { |g| group_json(g, @current_user, session) }
     end
@@ -445,26 +451,34 @@ class GroupCategoriesController < ApplicationController
     # option disabled for student organized groups or section-restricted
     # self-signup groups. (but self-signup is ignored for non-Course groups)
     return render(:json => {}, :status => :bad_request) if @group_category.student_organized?
-    return render(:json => {}, :status => :bad_request) if @context.is_a?(Course) && @group_category.restricted_self_signup?
-
-    if value_to_boolean(params[:sync])
-      # do the distribution and note the changes
-      memberships = @group_category.assign_unassigned_members
-
-      # render the changes
-      json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
-        { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
+    if @context.is_a?(Course) 
+      if @group_category.restricted_self_signup? 
+        return render(:json => {}, :status => :bad_request)
+      else
+        progress = @group_category.current_progress || @group_category.progresses.order(:completion).limit(1).first
+        render :json => progress_json(progress, @current_user, session)
       end
-      render :json => json
     else
-      @group_category.assign_unassigned_members_in_background
-      render :json => progress_json(@group_category.current_progress, @current_user, session)
+      if value_to_boolean(params[:sync])
+        # do the distribution and note the changes
+        memberships = @group_category.assign_unassigned_members
+
+        # render the changes
+        json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
+          { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
+        end
+        render :json => json
+      else
+        @group_category.assign_unassigned_members_in_background
+        render :json => progress_json(@group_category.current_progress, @current_user, session)
+      end
     end
   end
 
   def populate_group_category_from_params
     args = api_request? ? params : params[:category]
     @group_category = GroupCategories::ParamsPolicy.new(@group_category, @context).populate_with(args)
+    @group_category.current_user = @current_user
     unless @group_category.save
       render :json => @group_category.errors, :status => :bad_request
       return false
@@ -475,7 +489,7 @@ class GroupCategoriesController < ApplicationController
   protected
   def get_category_context
     begin
-      @group_category = api_request? ? GroupCategory.find(params[:group_category_id]) : GroupCategory.find(params[:id])
+      @group_category = api_request? ? GroupCategory.active.find(params[:group_category_id]) : GroupCategory.active.find(params[:id])
     rescue ActiveRecord::RecordNotFound
       return render(:json => {'status' => 'not found'}, :status => :not_found) unless @group_category
     end

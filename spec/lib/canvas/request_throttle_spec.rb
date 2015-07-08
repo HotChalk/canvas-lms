@@ -28,12 +28,20 @@ describe 'Canvas::RequestThrottle' do
   let(:request_logged_out) { base_req.merge({ 'REMOTE_ADDR' => '1.2.3.4', 'rack.session.options' => { id: 'sess1' } }) }
   let(:request_no_session) { base_req.merge({ 'REMOTE_ADDR' => '1.2.3.4' }) }
 
-  let(:response) { [200, {'Content-Type' => 'text/plain'}, ['Hello']] }
+  # not a let so that actual and expected aren't the same object that get modified together
+  def response; [200, {'Content-Type' => 'text/plain'}, ['Hello']]; end
+
   let(:inner_app) { lambda { |env| response } }
   let(:throttler) { Canvas::RequestThrottle.new(inner_app) }
   let(:rate_limit_exceeded) { throttler.rate_limit_exceeded }
 
   after { Canvas::RequestThrottle.reload! }
+
+  def strip_variable_headers(response)
+    response[1].delete('X-Request-Cost')
+    response[1].delete('X-Rate-Limit-Remaining')
+    response
+  end
 
   describe "#client_identifier" do
     def req(hash)
@@ -66,26 +74,26 @@ describe 'Canvas::RequestThrottle' do
     it "should pass on other requests" do
       throttler.stubs(:whitelisted?).returns(false)
       throttler.stubs(:blacklisted?).returns(false)
-      expect(throttler.call(request_user_1)).to eq response
+      expect(strip_variable_headers(throttler.call(request_user_1))).to eq response
     end
 
     it "should blacklist based on ip" do
       set_blacklist('ip:1.2.3.4')
       expect(throttler.call(request_user_1)).to eq rate_limit_exceeded
-      expect(throttler.call(request_user_2)).to eq response
+      expect(strip_variable_headers(throttler.call(request_user_2))).to eq response
       set_blacklist('ip:1.2.3.4,ip:4.3.2.1')
       expect(throttler.call(request_user_2)).to eq rate_limit_exceeded
     end
 
     it "should blacklist based on user id" do
       set_blacklist('user:2')
-      expect(throttler.call(request_user_1)).to eq response
+      expect(strip_variable_headers(throttler.call(request_user_1))).to eq response
       expect(throttler.call(request_user_2)).to eq rate_limit_exceeded
     end
 
     it "should blacklist based on access token" do
       set_blacklist("token:#{AccessToken.hashed_token(token2.full_token)}")
-      expect(throttler.call(request_query_token)).to eq response
+      expect(strip_variable_headers(throttler.call(request_query_token))).to eq response
       expect(throttler.call(request_header_token)).to eq rate_limit_exceeded
       set_blacklist("token:#{AccessToken.hashed_token(token1.full_token)},token:#{AccessToken.hashed_token(token2.full_token)}")
       expect(throttler.call(request_query_token)).to eq rate_limit_exceeded
@@ -101,6 +109,35 @@ describe 'Canvas::RequestThrottle' do
   end
 
   describe "cost throttling" do
+    describe "#calculate_cost" do
+      let(:throttle){ Canvas::RequestThrottle.new(nil) }
+
+      it "sums cpu and db time when extra cost is nil" do
+        cost = throttle.calculate_cost(40, 2, {'extra-request-cost' => nil})
+        expect(cost).to eq(42)
+      end
+
+      it "doesnt care if extra cost key doesnt exist" do
+        cost = throttle.calculate_cost(40, 2, {})
+        expect(cost).to eq(42)
+      end
+
+      it "adds arbitrary cost if in the env" do
+        cost = throttle.calculate_cost(40, 2, {'extra-request-cost' => 8})
+        expect(cost).to eq(50)
+      end
+
+      it "doesn't bomb when the extra cost is something nonsensical" do
+        cost = throttle.calculate_cost(40, 2, {'extra-request-cost' => 'hai'})
+        expect(cost).to eq(42)
+      end
+
+      it "sanity checks range of extra cost" do
+        cost = throttle.calculate_cost(40, 2, {'extra-request-cost' => -100})
+        expect(cost).to eq(42)
+      end
+    end
+
     before do
       throttler.stubs(:whitelisted?).returns(false)
       throttler.stubs(:blacklisted?).returns(false)
@@ -111,7 +148,7 @@ describe 'Canvas::RequestThrottle' do
         Canvas.stubs(:redis_enabled?).returns(false)
         Redis::Scripting::Module.any_instance.expects(:run).never
       end
-      expect(throttler.call(request_user_1)).to eq response
+      expect(strip_variable_headers(throttler.call(request_user_1))).to eq response
     end
 
     it "should skip if no client_identifier found" do
@@ -124,34 +161,48 @@ describe 'Canvas::RequestThrottle' do
     def throttled_request
       bucket = mock('Bucket')
       Canvas::RequestThrottle::LeakyBucket.expects(:new).with("user:1").returns(bucket)
-      bucket.expects(:reserve_capacity).yields
+      bucket.expects(:reserve_capacity).yields.returns(1)
       bucket.expects(:full?).returns(true)
       bucket.expects(:to_json) # in the logger.info line
+      bucket
     end
 
     it "should throttle if bucket is full" do
-      throttled_request
-      expect(throttler.call(request_user_1)).to eq rate_limit_exceeded
+      bucket = throttled_request
+      bucket.expects(:remaining).returns(-2)
+      expected = rate_limit_exceeded
+      expected[1]['X-Rate-Limit-Remaining'] = "-2"
+      expect(throttler.call(request_user_1)).to eq expected
     end
 
     it "should not throttle if disabled" do
-      Setting.set("request_throttle.enabled", "false")
-      throttled_request
-      expect(throttler.call(request_user_1)).to eq response
+      Canvas::RequestThrottle.stubs(:enabled?).returns(false)
+      bucket = throttled_request
+      # shouldn't even check these
+      bucket.unstub(:full?)
+      bucket.unstub(:to_json)
+      # the cost is still returned anyway
+      expected = response
+      expected[1]['X-Request-Cost'] = '1'
+      expect(throttler.call(request_user_1)).to eq expected
     end
 
     it "should not throttle, but update, if bucket is not full" do
       bucket = mock('Bucket')
       Canvas::RequestThrottle::LeakyBucket.expects(:new).with("user:1").returns(bucket)
-      bucket.expects(:reserve_capacity).yields
+      bucket.expects(:reserve_capacity).yields.returns(1)
       bucket.expects(:full?).returns(false)
+      bucket.expects(:remaining).returns(599)
+      Canvas.stubs(:redis_enabled?).returns(true)
 
-      expect(throttler.call(request_user_1)).to eq response
+      expected = response
+      expected[1].merge!('X-Request-Cost' => '1', 'X-Rate-Limit-Remaining' => '599')
+      expect(throttler.call(request_user_1)).to eq expected
     end
 
     if Canvas.redis_enabled?
       it "should increment the bucket" do
-        expect(throttler.call(request_user_1)).to eq response
+        expect(strip_variable_headers(throttler.call(request_user_1))).to eq response
         bucket = Canvas::RequestThrottle::LeakyBucket.new("user:1")
         count, last_touched = bucket.redis.hmget(bucket.cache_key, 'count', 'last_touched')
         expect(last_touched.to_f).to be > 0.0
@@ -247,6 +298,7 @@ describe 'Canvas::RequestThrottle' do
               Timecop.freeze(Time.now + 6.seconds)
               5
             end
+            Timecop.return
           end
           expect(@bucket.count).to eq 0
           expect(@bucket.redis.hget(@bucket.cache_key, 'count').to_f).to eq 0

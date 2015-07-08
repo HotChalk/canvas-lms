@@ -9,9 +9,17 @@ describe I18n do
 
     it 'should return en-US for a locale without a qualified locale' do
       I18n.backend.stub lolz: {key: "text"} do
+        I18n.config.available_locales_set << :lolz
         I18n.locale = :lolz
         expect(I18n.qualified_locale).to eq 'en-US'
       end
+    end
+  end
+
+  describe ".i18nliner_scope" do
+    it "should be correct for model class and instances" do
+      expect(User.i18nliner_scope.scope).to eq "user."
+      expect(Group.new.i18nliner_scope.scope).to eq "group."
     end
   end
 end

@@ -22,6 +22,7 @@ describe EportfolioEntriesController do
   def eportfolio_category
     @category = @portfolio.eportfolio_categories.create
   end
+
   def eportfolio_entry(category=nil)
     @entry = @portfolio.eportfolio_entries.new
     @entry.eportfolio_category_id = category.id if category
@@ -129,7 +130,7 @@ describe EportfolioEntriesController do
     it "should redirect to page" do
       user_session(@user)
       begin
-        get 'attachment', :eportfolio_id => @portfolio.id, :entry_id => @entry.id, :attachment_id => CanvasUUID.generate
+        get 'attachment', :eportfolio_id => @portfolio.id, :entry_id => @entry.id, :attachment_id => SecureRandom.uuid
       rescue => e
         expect(e.to_s).to eql("Not Found")
       end

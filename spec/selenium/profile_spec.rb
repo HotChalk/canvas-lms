@@ -35,7 +35,7 @@ describe "profile" do
 
   it "should give error - wrong old password" do
     user_with_pseudonym({:active_user => true})
-    login_as
+    create_session(@pseudonym)
     get '/profile/settings'
     wrong_old_password = 'wrongoldpassword'
     new_password = 'newpassword'
@@ -54,7 +54,7 @@ describe "profile" do
 
   it "should change the password" do
     user_with_pseudonym({:active_user => true})
-    login_as
+    create_session(@pseudonym)
     get '/profile/settings'
     old_password = 'asdfasdf'
     new_password = 'newpassword'
@@ -66,7 +66,7 @@ describe "profile" do
     submit_form(edit_form)
     wait_for_ajaximations
     #login with new password
-    keep_trying_until { login_as('nobody@example.com', new_password) }
+    expect(@pseudonym.reload).to be_valid_password(new_password)
   end
 
   context "non password tests" do
@@ -361,6 +361,41 @@ describe "profile" do
         expect(profile_pic).to have_attribue('src', image_src)
       end
       expect(Attachment.last.folder).to eq @user.profile_pics_folder
+    end
+  end
+
+  describe "avatar reporting" do
+    before :each do
+      Account.default.enable_service(:avatars)
+      Account.default.settings[:avatars] = 'enabled_pending'
+      Account.default.save!
+
+      course_with_student_logged_in(:active_all => true)
+      @other_student = user
+      @other_student.avatar_state = "submitted"
+      @other_student.save!
+      student_in_course(:course => @course, :user => @other_student, :active_all => true)
+    end
+
+    it "should be able to report inappropriate pictures without profiles enabled" do
+      get "/courses/#{@course.id}/users/#{@other_student.id}"
+      f('.report_avatar_picture_link').click
+      wait_for_ajaximations
+      expect(f('#content').text).to include("This image has been reported")
+      @other_student.reload
+      expect(@other_student.avatar_state).to eq :reported
+    end
+
+    it "should be able to report inappropriate pictures with profiles enabled" do
+      Account.default.settings[:enable_profiles] = true
+      Account.default.save!
+      get "/courses/#{@course.id}/users/#{@other_student.id}"
+      f('.report_avatar_link').click
+      expect(alert_present?).to be_truthy
+      accept_alert
+      wait_for_ajaximations
+      @other_student.reload
+      expect(@other_student.avatar_state).to eq :reported
     end
   end
 end

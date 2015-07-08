@@ -20,22 +20,8 @@ require File.expand_path(File.dirname(__FILE__) + '/../../spec_helper')
 require File.expand_path(File.dirname(__FILE__) + '/../views_helper')
 
 describe "/shared/_select_content_dialog" do
-  it "should alphabetize the file list" do
-    course_with_teacher
-    folder = @course.folders.create!(:name => 'test')
-    folder.attachments.create!(:context => @course, :uploaded_data => default_uploaded_data, :display_name => "b")
-    folder.attachments.create!(:context => @course, :uploaded_data => default_uploaded_data, :display_name => "a")
-    view_context
-    render :partial => "shared/select_content_dialog"
-    expect(response).not_to be_nil
-    page = Nokogiri(response.body)
-    options = page.css("#attachments_select .module_item_select option")
-    expect(options[1].text).to eq "a"
-    expect(options[2].text).to eq "b"
-  end
 
   it "should include unpublished wiki pages" do
-    Account.default.enable_feature!(:draft_state)
     course_with_teacher
     published_page = @course.wiki.wiki_pages.build title: 'published_page'
     published_page.workflow_state = 'active'
@@ -73,7 +59,7 @@ describe "/shared/_select_content_dialog" do
   end
 
   it "should create new topics in unpublished state if draft state is enabled" do
-    course_with_teacher(active_all: true, draft_state: true)
+    course_with_teacher(active_all: true)
     view_context
     render partial: 'shared/select_content_dialog'
     page = Nokogiri(response.body)

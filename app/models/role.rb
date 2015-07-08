@@ -4,7 +4,7 @@
 # This file is part of Canvas.
 #
 # Canvas is free software: you can redistribute it and/or modify it under
-# the terms of the GNU Affero General Public License as published by the Free
+# the terms of the GNU Affero General Public License as published by the Fr
 # Software Foundation, version 3 of the License.
 #
 # Canvas is distributed in the hope that it will be useful, but WITHOUT ANY
@@ -36,7 +36,7 @@ class Role < ActiveRecord::Base
     # this is an override to take advantage of built-in role caching since those are by far the most common
     def role
       self.association(:role).target ||= self.shard.activate do
-        Role.get_role_by_id(read_attribute(:role_id)) || (self.respond_to?(:default_role) && self.default_role)
+        Role.get_role_by_id(read_attribute(:role_id)) || (self.respond_to?(:default_role) ? self.default_role : nil)
       end
       super
     end
@@ -264,17 +264,17 @@ class Role < ActiveRecord::Base
   end
 
   def self.manageable_roles_by_user(user, course)
-    manageable = ['ObserverEnrollment', 'DesignerEnrollment']
+    manageable = []
     if course.grants_right?(user, :manage_students)
-      manageable << 'StudentEnrollment'
+      manageable += ['StudentEnrollment', 'ObserverEnrollment']
+      if course.teacherless?
+        manageable << 'TeacherEnrollment'
+      end
     end
     if course.grants_right?(user, :manage_admin_users)
-      manageable << 'TeacherEnrollment'
-      manageable << 'TaEnrollment'
-    elsif course.teacherless?
-      manageable << 'TeacherEnrollment'
+      manageable += ['ObserverEnrollment', 'TeacherEnrollment', 'TaEnrollment', 'DesignerEnrollment']
     end
-    manageable.sort
+    manageable.uniq.sort
   end
 
   def self.role_data(course, user, include_inactive=false)

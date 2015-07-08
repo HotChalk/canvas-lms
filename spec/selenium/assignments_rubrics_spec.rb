@@ -4,7 +4,7 @@ describe "assignment rubrics" do
   include_examples "in-process server selenium tests"
 
   context "assignment rubrics as a teacher" do
-    before (:each) do
+    before(:each) do
       course_with_teacher_logged_in
     end
 
@@ -40,11 +40,6 @@ describe "assignment rubrics" do
       expect(rubric.data.first[:points]).to eq initial_points
       expect(rubric.data.first[:ratings].first[:points]).to eq initial_points
       expect(f('#rubrics .rubric .rubric_title .displaying .title')).to include_text(rubric_name)
-
-      #Commented out because we still want this test to run but this is the part where the bug is
-      #BUG 7193 - Rubric total overwrites assignment total despite choosing to leave them different
-      #get "/courses/#{@course.id}/assignments"
-      #f('.points_text').should include_text(initial_points.to_s)
     end
 
     it "should carry decimal values through rubric to grading" do
@@ -204,6 +199,29 @@ describe "assignment rubrics" do
       wait_for_ajaximations
     end
 
+    it "should properly manage rubric focus on submission preview page" do
+      student_in_course(:active_all => true)
+      outcome_with_rubric
+      @assignment = @course.assignments.create(:name => 'assignment with rubric')
+      @association = @rubric.associate_with(@assignment, @course, :purpose => 'grading', :use_for_grading => true)
+      @submission = @assignment.submit_homework(@student, {:url => "http://www.instructure.com/"})
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}/submissions/#{@student.id}"
+      wait_for_ajaximations
+      f(".assess_submission_link").click
+      wait_for_ajaximations
+      check_element_has_focus(f(".hide_rubric_link"))
+      driver.action.key_down(:shift)
+        .send_keys(:tab)
+        .key_up(:shift)
+        .perform
+      check_element_has_focus(f(".save_rubric_button"))
+      driver.action.send_keys(:tab).perform
+      check_element_has_focus(f(".hide_rubric_link"))
+      f(".hide_rubric_link").click
+      wait_for_ajaximations
+      check_element_has_focus(f(".assess_submission_link"))
+    end
+
     it "should allow multiple rubric associations for grading" do
       outcome_with_rubric
       @assignment1 = @course.assignments.create!(:name => "assign 1", :points_possible => @rubric.points_possible)
@@ -223,10 +241,29 @@ describe "assignment rubrics" do
       expect(@association2.reload.use_for_grading).to be_truthy
       expect(@association2.rubric.id).to eq @rubric.id
     end
+
+    it "shows status of 'use_for_grading' properly" do
+      outcome_with_rubric
+      @assignment1 = @course.assignments.create!(
+        :name => "assign 1",
+        :points_possible => @rubric.points_possible
+      )
+      @association1 = @rubric.associate_with(
+        @assignment1,
+        @course,
+        :purpose => 'grading'
+      )
+
+      get "/courses/#{@course.id}/assignments/#{@assignment1.id}"
+      mark_rubric_for_grading(@rubric, false)
+
+      f("#rubric_#{@rubric.id} .edit_rubric_link").click
+      expect(is_checked(".grading_rubric_checkbox:visible")).to be_truthy
+    end
   end
 
   context "assignment rubrics as a student" do
-    before (:each) do
+    before(:each) do
       course_with_student_logged_in
     end
 
@@ -268,10 +305,21 @@ describe "assignment rubrics" do
       expect(ee.first).to be_displayed
       expect(ee.last).not_to be_displayed
     end
+
+    it "shouldn't show 'update description' button in long description dialog" do
+      @assignment = @course.assignments.create(:name => 'assignment with rubric')
+      rubric_for_course
+      @rubric.associate_with(@assignment, @course, :purpose => 'grading')
+
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+
+      f(".criterion_description .long_description_link").click
+      expect(fj('.ui-dialog .save_button:visible')).to be_nil
+    end
   end
 
   context "assignment rubrics as an designer" do
-    before (:each) do
+    before(:each) do
       course_with_designer_logged_in
     end
 

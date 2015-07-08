@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'atom'
+
 class Account < ActiveRecord::Base
   include Context
   attr_accessible :name, :turnitin_account_id, :turnitin_shared_secret,
@@ -52,6 +54,7 @@ class Account < ActiveRecord::Base
   has_many :all_groups, :class_name => 'Group', :foreign_key => 'root_account_id'
   has_many :enrollment_terms, :foreign_key => 'root_account_id'
   has_many :enrollments, :foreign_key => 'root_account_id', :conditions => ["enrollments.type != 'StudentViewEnrollment'"]
+  has_many :all_enrollments, :class_name => 'Enrollment', :foreign_key => 'root_account_id'
   has_many :sub_accounts, :class_name => 'Account', :foreign_key => 'parent_account_id', :conditions => ['workflow_state != ?', 'deleted']
   has_many :all_accounts, :class_name => 'Account', :foreign_key => 'root_account_id', :order => 'name'
   has_many :account_users, :dependent => :destroy
@@ -109,8 +112,11 @@ class Account < ActiveRecord::Base
 
   before_validation :verify_unique_sis_source_id
   before_save :ensure_defaults
-  before_save :set_update_account_associations_if_changed
   after_save :update_account_associations_if_changed
+
+  before_save :setup_quota_cache_invalidation
+  after_save :invalidate_quota_caches_if_changed
+
   after_create :default_enrollment_term
 
   serialize :settings, Hash
@@ -145,23 +151,7 @@ class Account < ActiveRecord::Base
     result
   end
 
-  cattr_accessor :account_settings_options
-  self.account_settings_options = {}
-
-  def self.add_setting(setting, opts=nil)
-    self.account_settings_options[setting.to_sym] = opts || {}
-    if (opts && opts[:boolean] && opts.has_key?(:default))
-      if opts[:default]
-        # if the default is true, we want a nil result to evaluate to true.
-        # this prevents us from having to backfill true values into a
-        # serialized column, which would be expensive.
-        self.class_eval "def #{setting}?; settings[:#{setting}] != false; end"
-      else
-        # if the default is not true, we can fall back to a straight boolean.
-        self.class_eval "def #{setting}?; !!settings[:#{setting}]; end"
-      end
-    end
-  end
+  include ::Account::Settings
 
   # these settings either are or could be easily added to
   # the account settings page
@@ -173,8 +163,12 @@ class Account < ActiveRecord::Base
   add_setting :error_reporting, :hash => true, :values => [:action, :email, :url, :subject_param, :body_param], :root_only => true
   add_setting :custom_help_links, :root_only => true
   add_setting :prevent_course_renaming_by_teachers, :boolean => true, :root_only => true
-  add_setting :login_handle_name, :root_only => true
-  add_setting :restrict_student_future_view, :boolean => true, :root_only => true, :default => false
+  add_setting :login_handle_name, root_only: true
+  add_setting :change_password_url, root_only: true
+
+  add_setting :restrict_student_future_view, :boolean => true, :default => false, :inheritable => true
+  add_setting :restrict_student_past_view, :boolean => true, :default => false, :inheritable => true
+
   add_setting :teachers_can_create_courses, :boolean => true, :root_only => true, :default => false
   add_setting :students_can_create_courses, :boolean => true, :root_only => true, :default => false
   add_setting :restrict_quiz_questions, :boolean => true, :root_only => true, :default => false
@@ -218,8 +212,13 @@ class Account < ActiveRecord::Base
   add_setting :dashboard_url, root_only: true
   add_setting :product_name, root_only: true
   add_setting :author_email_in_notifications, boolean: true, root_only: true, default: false
-  add_setting :include_students_in_global_survey, boolean: true, root_only: true, default: true
+  add_setting :include_students_in_global_survey, boolean: true, root_only: true, default: false
   add_setting :trusted_referers, root_only: true
+
+  BRANDING_SETTINGS = [:header_image, :favicon, :apple_touch_icon,
+    :msapplication_tile_color, :msapplication_tile_square, :msapplication_tile_wide
+  ]
+  BRANDING_SETTINGS.each { |setting| add_setting(setting, root_only: true) }
 
   def settings=(hash)
     if hash.is_a?(Hash)
@@ -228,24 +227,31 @@ class Account < ActiveRecord::Base
           opts = account_settings_options[key.to_sym]
           if (opts[:root_only] && !self.root_account?) || (opts[:condition] && !self.send("#{opts[:condition]}?".to_sym))
             settings.delete key.to_sym
-          elsif opts[:boolean]
-            settings[key.to_sym] = (val == true || val == 'true' || val == '1' || val == 'on')
           elsif opts[:hash]
             new_hash = {}
             if val.is_a?(Hash)
               val.each do |inner_key, inner_val|
-                if opts[:values].include?(inner_key.to_sym)
-                  new_hash[inner_key.to_sym] = inner_val.to_s
+                inner_key = inner_key.to_sym
+                if opts[:values].include?(inner_key)
+                  if opts[:inheritable] && (inner_key == :locked || (inner_key == :value && opts[:boolean]))
+                    new_hash[inner_key] = Canvas::Plugin.value_to_boolean(inner_val)
+                  else
+                    new_hash[inner_key] = inner_val.to_s
+                  end
                 end
               end
             end
             settings[key.to_sym] = new_hash.empty? ? nil : new_hash
+          elsif opts[:boolean]
+            settings[key.to_sym] = Canvas::Plugin.value_to_boolean(val)
           else
             settings[key.to_sym] = val.to_s
           end
         end
       end
     end
+    # prune nil or "" hash values to save space in the DB.
+    settings.reject! { |_, value| value.nil? || value == "" }
     settings
   end
 
@@ -293,24 +299,21 @@ class Account < ActiveRecord::Base
     true
   end
 
-  def terms_of_use_url
-    Setting.get('terms_of_use_url', 'http://www.canvaslms.com/policies/terms-of-use')
-  end
-
-  def privacy_policy_url
-    Setting.get('privacy_policy_url', 'http://www.hotchalk.com/privacy-policy/')
-  end
-
   def terms_required?
     Setting.get('terms_required', 'true') == 'true'
   end
 
   def require_acceptance_of_terms?(user)
+    soc2_start_date = Setting.get('SOC2_start_date', Time.new(2015, 5, 16, 0, 0, 0).utc).to_datetime
+
     return false if !terms_required?
     return true if user.nil? || user.new_record?
     terms_changed_at = settings[:terms_changed_at]
     last_accepted = user.preferences[:accepted_terms]
-    return false if terms_changed_at.nil? && user.registered? # make sure existing users are grandfathered in
+
+    # make sure existing users are grandfathered in
+    return false if terms_changed_at.nil? && user.registered? && user.created_at < soc2_start_date
+
     return false if last_accepted && (terms_changed_at.nil? || last_accepted > terms_changed_at)
     true
   end
@@ -337,35 +340,33 @@ class Account < ActiveRecord::Base
   def ensure_defaults
     self.uuid ||= CanvasSlug.generate_securish_uuid
     self.lti_guid ||= "#{self.uuid}:#{INSTANCE_GUID_SUFFIX}" if self.respond_to?(:lti_guid)
+    self.root_account_id ||= self.parent_account.root_account_id if self.parent_account
+    self.root_account_id ||= self.parent_account_id
+    self.parent_account_id ||= self.root_account_id
+    Account.invalidate_cache(self.id) if self.id
+    true
   end
 
   def verify_unique_sis_source_id
     return true unless self.sis_source_id
+    return true if !root_account_id_changed? && !sis_source_id_changed?
+
     if self.root_account?
       self.errors.add(:sis_source_id, t('#account.root_account_cant_have_sis_id', "SIS IDs cannot be set on root accounts"))
       return false
     end
 
-    root = self.root_account
-    existing_account = Account.where(root_account_id: root, sis_source_id: self.sis_source_id).first
+    scope = root_account.all_accounts.where(sis_source_id:  self.sis_source_id)
+    scope = scope.where("id<>?", self) unless self.new_record?
 
-    return true if !existing_account || existing_account.id == self.id
+    return true unless scope.exists?
 
     self.errors.add(:sis_source_id, t('#account.sis_id_in_use', "SIS ID \"%{sis_id}\" is already in use", :sis_id => self.sis_source_id))
     false
   end
 
-  def set_update_account_associations_if_changed
-    self.root_account_id ||= self.parent_account.root_account_id if self.parent_account
-    self.root_account_id ||= self.parent_account_id
-    self.parent_account_id ||= self.root_account_id
-    Account.invalidate_cache(self.id) if self.id
-    @should_update_account_associations = self.parent_account_id_changed? || self.root_account_id_changed?
-    true
-  end
-
   def update_account_associations_if_changed
-    send_later_if_production(:update_account_associations) if @should_update_account_associations
+    send_later_if_production(:update_account_associations) if self.parent_account_id_changed? || self.root_account_id_changed?
   end
 
   def equella_settings
@@ -500,6 +501,27 @@ class Account < ActiveRecord::Base
     nil
   end
 
+  def setup_quota_cache_invalidation
+    @quota_invalidations = []
+    unless self.new_record?
+      @quota_invalidations += ['default_storage_quota', 'current_quota'] if self.try_rescue(:default_storage_quota_changed?)
+      @quota_invalidations << 'default_group_storage_quota' if self.try_rescue(:default_group_storage_quota_changed?)
+    end
+  end
+
+  def invalidate_quota_caches_if_changed
+    Account.send_later_if_production(:invalidate_quota_caches, self.id, @quota_invalidations) if @quota_invalidations.present?
+  end
+
+  def self.invalidate_quota_caches(account_id, keys)
+    account_ids = Account.sub_account_ids_recursive(account_id) + [account_id]
+    keys.each do |quota_key|
+      account_ids.each do |id|
+        Rails.cache.delete([quota_key, id].cache_key)
+      end
+    end
+  end
+
   def quota
     Rails.cache.fetch(['current_quota', self.id].cache_key) do
       read_attribute(:storage_quota) ||
@@ -532,8 +554,6 @@ class Account < ActiveRecord::Base
     if parent_account && parent_account.default_storage_quota == val
       val = nil
     end
-    clear_sub_account_quota_cache('default_storage_quota')
-    clear_sub_account_quota_cache('current_quota')
     write_attribute(:default_storage_quota, val)
   end
 
@@ -570,7 +590,6 @@ class Account < ActiveRecord::Base
         (self.parent_account && self.parent_account.default_group_storage_quota == val)
       val = nil
     end
-    clear_sub_account_quota_cache('default_group_storage_quota')
     write_attribute(:default_group_storage_quota, val)
   end
 
@@ -580,15 +599,6 @@ class Account < ActiveRecord::Base
 
   def default_group_storage_quota_mb=(val)
     self.default_group_storage_quota = val.try(:to_i).try(:megabytes)
-  end
-
-  def clear_sub_account_quota_cache(quota_key)
-    return unless self.id
-    account_ids = Account.sub_account_ids_recursive(self.id)
-    account_ids << self.id
-    account_ids.each do |account_id|
-      Rails.cache.delete([quota_key, account_id].cache_key)
-    end
   end
 
   def turnitin_shared_secret=(secret)
@@ -703,9 +713,7 @@ class Account < ActiveRecord::Base
   end
 
   def available_custom_account_roles(include_inactive=false)
-    account_roles = include_inactive ? self.roles.for_accounts.not_deleted : self.roles.for_accounts.active
-    account_roles += self.parent_account.available_custom_account_roles(include_inactive) if self.parent_account
-    account_roles
+    available_custom_roles(include_inactive).for_accounts
   end
 
   def available_account_roles(include_inactive=false, user = nil)
@@ -718,15 +726,20 @@ class Account < ActiveRecord::Base
   end
 
   def available_custom_course_roles(include_inactive=false)
-    course_roles = include_inactive ? self.roles.for_courses.not_deleted : self.roles.for_courses.active
-    course_roles += self.parent_account.available_custom_course_roles(include_inactive) if self.parent_account
-    course_roles
+    available_custom_roles(include_inactive).for_courses
   end
 
   def available_course_roles(include_inactive=false)
     course_roles = available_custom_course_roles(include_inactive)
     course_roles += Role.built_in_course_roles
     course_roles
+  end
+
+  def available_custom_roles(include_inactive=false)
+    @role_chain_ids ||= self.account_chain.map(&:id)
+    scope = Role.where(:account_id => @role_chain_ids)
+    scope = include_inactive ? scope.not_deleted : scope.active
+    scope
   end
 
   def available_roles(include_inactive=false)
@@ -784,23 +797,13 @@ class Account < ActiveRecord::Base
     self.account_authorization_configs.first
   end
 
-  # If an account uses an authorization_config, it's login_handle_name is used.
-  # Otherwise they can set it on the account settings page.
   def login_handle_name_is_customized?
-    if self.account_authorization_config
-      self.account_authorization_config.login_handle_name.present?
-    else
-      settings[:login_handle_name].present?
-    end
+    self.login_handle_name.present?
   end
 
-  def login_handle_name
+  def login_handle_name_with_inference
     if login_handle_name_is_customized?
-      if account_authorization_config
-        account_authorization_config.login_handle_name
-      else
-        settings[:login_handle_name]
-      end
+      self.login_handle_name
     elsif self.delegated_authentication?
       AccountAuthorizationConfig.default_delegated_login_handle_name
     else
@@ -952,31 +955,31 @@ class Account < ActiveRecord::Base
   end
 
   def password_authentication?
-    !!(!self.account_authorization_config || self.account_authorization_config.password_authentication?)
+    !self.account_authorization_config
   end
 
   def delegated_authentication?
-    !canvas_authentication? || !!(self.account_authorization_config && self.account_authorization_config.delegated_authentication?)
+    !canvas_authentication? || !!(self.account_authorization_config && self.account_authorization_config.is_a?(AccountAuthorizationConfig::Delegated))
   end
 
   def forgot_password_external_url
-    account_authorization_config.try(:change_password_url)
+    self.change_password_url
   end
 
   def cas_authentication?
-    !!(self.account_authorization_config && self.account_authorization_config.cas_authentication?)
+    !!(self.account_authorization_config && self.account_authorization_config.is_a?(AccountAuthorizationConfig::CAS))
   end
 
   def ldap_authentication?
-    self.account_authorization_configs.any? { |aac| aac.ldap_authentication? }
+    self.account_authorization_configs.any? { |aac| aac.is_a?(AccountAuthorizationConfig::LDAP) }
   end
 
   def saml_authentication?
-    !!(self.account_authorization_config && self.account_authorization_config.saml_authentication?) && AccountAuthorizationConfig.saml_enabled
+    !!(self.account_authorization_config && self.account_authorization_config.is_a?(AccountAuthorizationConfig::SAML)) && AccountAuthorizationConfig::SAML.enabled?
   end
 
   def hmac_authentication?
-    !!(self.account_authorization_config && self.account_authorization_config.hmac_authentication?)
+    !!(self.account_authorization_config && self.account_authorization_config.is_a?(AccountAuthorizationConfig::HMAC))
   end
 
   def multi_auth?
@@ -989,6 +992,22 @@ class Account < ActiveRecord::Base
 
   def auth_discovery_url
     self.settings[:auth_discovery_url]
+  end
+
+  def login_handle_name=(handle_name)
+    self.settings[:login_handle_name] = handle_name
+  end
+
+  def login_handle_name
+    self.settings[:login_handle_name]
+  end
+
+  def change_password_url=(change_password_url)
+    self.settings[:change_password_url] = change_password_url
+  end
+
+  def change_password_url
+    self.settings[:change_password_url]
   end
 
   def validate_auth_discovery_url
@@ -1145,7 +1164,7 @@ class Account < ActiveRecord::Base
   end
 
   def course_count
-    self.child_courses.not_deleted.count('DISTINCT course_id')
+    self.courses.active.count
   end
 
   def sub_account_count
@@ -1257,8 +1276,8 @@ class Account < ActiveRecord::Base
         tabs << { :id => TAB_OUTCOMES, :label => t('#account.tab_outcomes', "Outcomes"), :css_class => 'outcomes', :href => :account_outcomes_path }
         tabs << { :id => TAB_RUBRICS, :label => t('#account.tab_rubrics', "Rubrics"), :css_class => 'rubrics', :href => :account_rubrics_path }
       end
-      tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading Schemes"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
-      tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_grades)
+      tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
+      tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
       tabs << { :id => TAB_TERMS, :label => t('#account.tab_terms', "Terms"), :css_class => 'terms', :href => :account_terms_path } if self.root_account? && manage_settings
@@ -1289,86 +1308,11 @@ class Account < ActiveRecord::Base
     Canvas::Help.default_links + (settings[:custom_help_links] || [])
   end
 
-  def self.allowable_services
-    {
-      :google_docs => {
-        :name => t("account_settings.google_docs", "Google Docs"),
-        :description => "",
-        :expose_to_ui => (GoogleDocs::Connection.config ? :service : false)
-      },
-      :google_docs_previews => {
-        :name => t("account_settings.google_docs_preview", "Google Docs Preview"),
-        :description => "",
-        :expose_to_ui => :service
-      },
-      :facebook => {
-        :name => t("account_settings.facebook", "Facebook"),
-        :description => "",
-        :expose_to_ui => (Facebook::Connection.config ? :service : false)
-      },
-      :skype => {
-        :name => t("account_settings.skype", "Skype"),
-        :description => "",
-        :expose_to_ui => :service
-      },
-      :linked_in => {
-        :name => t("account_settings.linked_in", "LinkedIn"),
-        :description => "",
-        :expose_to_ui => (LinkedIn::Connection.config ? :service : false)
-      },
-      :twitter => {
-        :name => t("account_settings.twitter", "Twitter"),
-        :description => "",
-        :expose_to_ui => (Twitter::Connection.config ? :service : false)
-      },
-      :yo => {
-        :name => t("account_settings.yo", "Yo"),
-        :description => "",
-        :expose_to_ui => (Canvas::Plugin.find(:yo).try(:enabled?) ? :service : false)
-      },
-      :delicious => {
-        :name => t("account_settings.delicious", "Delicious"),
-        :description => "",
-        :expose_to_ui => :service
-      },
-      :diigo => {
-        :name => t("account_settings.diigo", "Diigo"),
-        :description => "",
-        :expose_to_ui => (Diigo::Connection.config ? :service : false)
-      },
-      # TODO: move avatars to :settings hash, it makes more sense there
-      # In the meantime, we leave it as a service but expose it in the
-      # "Features" (settings) portion of the account admin UI
-      :avatars => {
-        :name => t("account_settings.avatars", "User Avatars"),
-        :description => "",
-        :default => false,
-        :expose_to_ui => :setting
-      },
-      :account_survey_notifications => {
-        :name => t("account_settings.account_surveys", "Account Surveys"),
-        :description => "",
-        :default => false,
-        :expose_to_ui => :setting,
-        :expose_to_ui_proc => proc { |user, account| user && account && account.grants_right?(user, :manage_site_settings) },
-      },
-    }.merge(@plugin_services || {}).freeze
-  end
-
-  def self.register_service(service_name, info_hash)
-    @plugin_services ||= {}
-    @plugin_services[service_name.to_sym] = info_hash.freeze
-  end
-
-  def self.default_allowable_services
-    self.allowable_services.reject {|s, info| info[:default] == false }
-  end
-
   def set_service_availability(service, enable)
     service = service.to_sym
-    raise "Invalid Service" unless Account.allowable_services[service]
+    raise "Invalid Service" unless AccountServices.allowable_services[service]
     allowed_service_names = (self.allowed_services || "").split(",").compact
-    if allowed_service_names.count > 0 and not [ '+', '-' ].member?(allowed_service_names[0][0,1])
+    if allowed_service_names.count > 0 && ![ '+', '-' ].include?(allowed_service_names[0][0,1])
       # This account has a hard-coded list of services, so handle accordingly
       allowed_service_names.reject! { |flag| flag.match("^[+-]?#{service}$") }
       allowed_service_names << service if enable
@@ -1376,10 +1320,10 @@ class Account < ActiveRecord::Base
       allowed_service_names.reject! { |flag| flag.match("^[+-]?#{service}$") }
       if enable
         # only enable if it is not enabled by default
-        allowed_service_names << "+#{service}" unless Account.default_allowable_services[service]
+        allowed_service_names << "+#{service}" unless AccountServices.default_allowable_services[service]
       else
         # only disable if it is not enabled by default
-        allowed_service_names << "-#{service}" if Account.default_allowable_services[service]
+        allowed_service_names << "-#{service}" if AccountServices.default_allowable_services[service]
       end
     end
 
@@ -1397,7 +1341,7 @@ class Account < ActiveRecord::Base
 
   def allowed_services_hash
     return @allowed_services_hash if @allowed_services_hash
-    account_allowed_services = Account.default_allowable_services
+    account_allowed_services = AccountServices.default_allowable_services
     if self.allowed_services
       allowed_service_names = self.allowed_services.split(",").compact
 
@@ -1415,7 +1359,7 @@ class Account < ActiveRecord::Base
             if flag == '-'
               account_allowed_services.delete(service_name)
             else
-              account_allowed_services[service_name] = Account.allowable_services[service_name]
+              account_allowed_services[service_name] = AccountServices.allowable_services[service_name]
             end
           end
         end
@@ -1428,10 +1372,10 @@ class Account < ActiveRecord::Base
   # if it's :service or :setting, then only services set to be exposed as that type are returned
   def self.services_exposed_to_ui_hash(expose_as = nil, current_user = nil, account = nil)
     if expose_as
-      self.allowable_services.reject { |key, setting| setting[:expose_to_ui] != expose_as }
+      AccountServices.allowable_services.reject { |_, setting| setting[:expose_to_ui] != expose_as }
     else
-      self.allowable_services.reject { |key, setting| !setting[:expose_to_ui] }
-    end.reject { |key, setting| setting[:expose_to_ui_proc] && !setting[:expose_to_ui_proc].call(current_user, account) }
+      AccountServices.allowable_services.reject { |_, setting| !setting[:expose_to_ui] }
+    end.reject { |_, setting| setting[:expose_to_ui_proc] && !setting[:expose_to_ui_proc].call(current_user, account) }
   end
 
   def service_enabled?(service)
@@ -1520,14 +1464,6 @@ class Account < ActiveRecord::Base
     false
   end
 
-  def calendar2_only?
-    true
-  end
-
-  def enable_scheduler?
-    true
-  end
-
   def change_root_account_setting!(setting_name, new_value)
     root_account.settings[setting_name] = new_value
     root_account.save!
@@ -1555,7 +1491,7 @@ class Account < ActiveRecord::Base
   end
 
   def trusted_referer?(referer_url)
-    return if !self.settings.has_key?(:trusted_referers) || self.settings[:trusted_referers].empty?
+    return if !self.settings.has_key?(:trusted_referers) || self.settings[:trusted_referers].blank?
     if referer_with_port = format_referer(referer_url)
       self.settings[:trusted_referers].split(',').include?(referer_with_port)
     end

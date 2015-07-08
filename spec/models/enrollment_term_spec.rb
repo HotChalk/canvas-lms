@@ -34,6 +34,7 @@ describe EnrollmentTerm do
       I18n.backend.stub(translations) do
         begin
           old_locale = I18n.locale
+          I18n.config.available_locales_set << :test_locale
           I18n.locale = :test_locale
 
           expect(term.name).to eq "mreT tluafeD"
@@ -92,4 +93,26 @@ describe EnrollmentTerm do
 
     term.valid?.should be_false
   end
+
+  describe "deletion" do
+    it "should not be able to delete a default term" do
+      account_model
+      expect { @account.default_enrollment_term.destroy }.to raise_error
+    end
+
+    it "should not be able to delete an enrollment term with active courses" do
+      account_model
+      @term = @account.enrollment_terms.create!
+      course account: @account
+      @course.enrollment_term = @term
+      @course.save!
+
+      expect { @term.destroy }.to raise_error
+
+      @course.destroy
+
+      @term.destroy
+    end
+  end
+
 end

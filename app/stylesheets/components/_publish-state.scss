@@ -1,6 +1,7 @@
 /*
 @styleguide Publish State
 
+<br/>
 The publish button has two states on click (publish and published) and a hover state of 'Unpublish' once published.
 
 ```html
@@ -41,15 +42,16 @@ The publish button has two states on click (publish and published) and a hover s
 .btn-publish,
 .btn-published,
 .btn-unpublish {
+  transition: none;
   padding-left: 9px;
 
   i {
-    margin-right: 2px;
+    margin-right: 4px;
     vertical-align: text-top;
     line-height: 17px;
   }
   i:before {
-    font-size: 17px;
+    font-size: 18px;
   }
 }
 .btn-publish {
@@ -60,12 +62,19 @@ The publish button has two states on click (publish and published) and a hover s
 
 .btn-published,
 .btn-published:hover {
-  background: #35842c;
-  border: 1px solid #2a5325;
-  color: #fff;
-  text-shadow: none;
-  box-shadow: inset 0 0 6px #1b2d19;
+  background: $ic-color-success;
+  border: 1px solid darken($ic-color-success, 15%);
+  color: $ic-color-light;
 }
+
+.btn-published {
+  &:focus {
+    @include button-focus-dark;
+    background: darken($ic-color-success, 10%); 
+    color: $ic-color-light;  
+  } 
+}
+
 .btn-published.disabled,
 .btn-published.disabled:hover {
   border: 1px solid #256f1e;
@@ -77,6 +86,7 @@ The publish button has two states on click (publish and published) and a hover s
 .btn-unpublish {
   @include buttonBackground($btnDangerBackground, $btnDangerBackgroundHighlight);
   box-shadow: none;
+  &:focus { @include button-focus-dark; }
 }
 
 .btn-published.disabled,
@@ -87,34 +97,25 @@ The publish button has two states on click (publish and published) and a hover s
 }
 
 .publish-icon {
+  @include ic-focus-base;
   display: inline-block;  
-  color: $ic-base-color-icon-disabled;
+  color: $ic-color-icon-disabled;
   cursor: pointer;
-  &:focus {
-    @if $use_high_contrast { @include button-focus; }
-  }
-
-  &.publish-icon-unpublish {
-    color: $ic-base-color-icon-disabled;
-  }
-
-  &.publish-icon-published {
-    color: $canvas-success;
-  }
-
-  .publish-text {
-    display: none;
-  }
+  &:focus { @include ic-focus-variant; }
+  &.publish-icon-unpublish { color: $ic-color-icon-disabled; }
+  &.publish-icon-published { color: $ic-color-success; }
+  .publish-text { display: none; }
 }
 
 .published-status {
   &.published {
     font-weight: bold;
-    color: $canvas-success;
+    @if $use_high_contrast { color: darken($ic-color-success, 4%); }
+    @else { color: $ic-color-success; }
   }
 
   &.unpublished {
     font-weight: normal;
-    color: $ic-base-color-icon-disabled;
+    color: $ic-color-icon-disabled;
   }
 }

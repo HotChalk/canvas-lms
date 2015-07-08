@@ -15,6 +15,9 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+
+require 'nokogiri'
+
 module CC
 module CCHelper
   
@@ -65,7 +68,7 @@ module CCHelper
   OBJECT_TOKEN = "$CANVAS_OBJECT_REFERENCE$"
   COURSE_TOKEN = "$CANVAS_COURSE_REFERENCE$"
   WIKI_TOKEN = "$WIKI_REFERENCE$"
-  WEB_CONTENT_TOKEN = "$IMS_CC_FILEBASE$"
+  WEB_CONTENT_TOKEN = "$IMS-CC-FILEBASE$"
 
   # file names/paths
   ASSESSMENT_CC_QTI = "assessment_qti.xml"

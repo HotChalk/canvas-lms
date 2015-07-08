@@ -18,6 +18,8 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 
+require 'nokogiri'
+
 describe ExternalToolsController, type: :request do
 
   describe "in a course" do
@@ -271,7 +273,6 @@ describe ExternalToolsController, type: :request do
 
   def show_call(context, type="course")
     et = tool_with_everything(context)
-
     json = api_call(:get, "/api/v1/#{type}s/#{context.id}/external_tools/#{et.id}.json",
                     {:controller => 'external_tools', :action => 'show', :format => 'json',
                      :"#{type}_id" => context.id.to_s, :external_tool_id => et.id.to_s})
@@ -480,6 +481,7 @@ describe ExternalToolsController, type: :request do
      "consumer_key"=>"oi",
      "domain"=>nil,
      "url"=>"http://www.example.com/ims/lti",
+     "tool_configuration"=>nil,
      "id"=>et ? et.id : nil,
      "not_selectable"=> et ? et.not_selectable : nil,
      "workflow_state"=>"public",
@@ -605,6 +607,8 @@ describe ExternalToolsController, type: :request do
           "display_type"=>'full_width',
           "selection_height"=>400,
           "selection_width"=>800},
+     "link_selection"=>nil,
+     "assignment_selection"=>nil
     }
   end
 end

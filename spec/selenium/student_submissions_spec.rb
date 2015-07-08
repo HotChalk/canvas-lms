@@ -274,13 +274,14 @@ describe "submissions" do
         user_with_pseudonym :username => "nobody2@example.com",
                             :password => "asdfasdf2"
         course_with_student_logged_in :user => @user
-        create_session @pseudonym, false
+        create_session @pseudonym
         add_file(fixture_file_upload('files/html-editing-test.html', 'text/html'),
                  @user, "html-editing-test.html")
         File.read(fixture_file_path("files/html-editing-test.html"))
         assignment = @course.assignments.create!(:title => 'assignment 1',
                                                  :name => 'assignment 1',
-                                                 :submission_types => "online_upload")
+                                                 :submission_types => "online_upload",
+                                                 :allowed_extensions => '.html')
         get "/courses/#{@course.id}/assignments/#{assignment.id}"
         f('.submit_assignment_link').click
         wait_for_ajaximations
@@ -321,7 +322,7 @@ describe "submissions" do
         user_with_pseudonym :username => "nobody2@example.com",
                             :password => "asdfasdf2"
         course_with_student_logged_in :user => @user
-        create_session @pseudonym, false
+        create_session @pseudonym
         add_file(fixture_file_upload(FIXTURE_FN, 'application/x-sh'),
                  @user, FILENAME)
         File.read(fixture_file_path(FIXTURE_FN))

@@ -20,8 +20,8 @@ require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 
 describe DiscussionTopic do
   before :once do
-    course_with_teacher(:active_all => 1)
-    student_in_course(:active_all => 1)
+    course_with_teacher(:active_all => true)
+    student_in_course(:active_all => true)
   end
 
   it "should santize message" do
@@ -128,28 +128,20 @@ describe DiscussionTopic do
 
   describe "visibility" do
     before(:once) do
-      #course_with_teacher(:active_all => 1, :draft_state => false) # this does not disable draft state if it is switched on at the account level
       #student_in_course(:active_all => 1)
-      @course.disable_feature!(:draft_state)
       @topic = @course.discussion_topics.create!(:user => @teacher)
     end
 
-    context "with draft state enabled" do
-      before(:once) do
-        @course.enable_feature!(:draft_state)
-      end
+    it "should be visible to author when unpublished" do
+      @topic.unpublish!
+      expect(@topic.visible_for?(@teacher)).to be_truthy
+    end
 
-      it "should be visible to author when unpublished" do
-        @topic.unpublish!
-        expect(@topic.visible_for?(@teacher)).to be_truthy
-      end
-
-      it "should be visible when published even when for delayed posting" do
-        @topic.delayed_post_at = 5.days.from_now
-        @topic.workflow_state = 'post_delayed'
-        @topic.save!
-        expect(@topic.visible_for?(@student)).to be_truthy
-      end
+    it "should be visible when published even when for delayed posting" do
+      @topic.delayed_post_at = 5.days.from_now
+      @topic.workflow_state = 'post_delayed'
+      @topic.save!
+      expect(@topic.visible_for?(@student)).to be_truthy
     end
 
     it "should not be visible when unpublished even when it is active" do
@@ -161,16 +153,16 @@ describe DiscussionTopic do
       expect(@topic.visible_for?(@student)).to be_truthy
     end
 
-    it "should not be visible to students when topic delayed_post_at is in the future" do
+    it "should be visible to students when topic delayed_post_at is in the future" do
       @topic.delayed_post_at = 5.days.from_now
       @topic.save!
-      expect(@topic.visible_for?(@student)).to @topic.draft_state_enabled? ? be_truthy : be_falsey
+      expect(@topic.visible_for?(@student)).to be_truthy
     end
 
-    it "should not be visible to students when topic is for delayed posting" do
+    it "should be visible to students when topic is for delayed posting" do
       @topic.workflow_state = 'post_delayed'
       @topic.save!
-      expect(@topic.visible_for?(@student)).to @topic.draft_state_enabled? ? be_truthy : be_falsey
+      expect(@topic.visible_for?(@student)).to be_truthy
     end
 
     it "should be visible to students when topic delayed_post_at is in the past" do
@@ -185,7 +177,7 @@ describe DiscussionTopic do
       expect(@topic.visible_for?(@student)).to be_truthy
     end
 
-    it "should not be visible when no delayed_post but assignment unlock date in future" do
+    it "should be visible when no delayed_post but assignment unlock date in future" do
       @topic.delayed_post_at = nil
       group_category = @course.group_categories.create(:name => "category")
       @topic.group_category = group_category
@@ -197,7 +189,7 @@ describe DiscussionTopic do
       @topic.assignment.saved_by = :discussion_topic
       @topic.save
 
-      expect(@topic.visible_for?(@student)).to @topic.draft_state_enabled? ? be_truthy : be_falsey
+      expect(@topic.visible_for?(@student)).to be_truthy
     end
 
     it "should be visible to all teachers in the course" do
@@ -205,6 +197,25 @@ describe DiscussionTopic do
       new_teacher = user
       @course.enroll_teacher(new_teacher).accept!
       expect(@topic.visible_for?(new_teacher)).to be_truthy
+    end
+
+    it "unpublished topics should not be visible to custom account admins by default" do
+      @topic.unpublish
+
+      account = @course.root_account
+      nobody_role = custom_account_role('NobodyAdmin', account: account)
+      admin = account_admin_user(account: account, role: nobody_role, active_user: true)
+      expect(@topic.visible_for?(admin)).to be_falsey
+    end
+
+    it "unpublished topics should be visible to account admins with :read_course_content permission" do
+      @topic.unpublish
+
+      account = @course.root_account
+      nobody_role = custom_account_role('NobodyAdmin', account: account)
+      account_with_role_changes(account: account, role: nobody_role, role_changes: { read_course_content: true })
+      admin = account_admin_user(account: account, role: nobody_role, active_user: true)
+      expect(@topic.visible_for?(admin)).to be_truthy
     end
 
     context "differentiated assignements" do
@@ -220,13 +231,9 @@ describe DiscussionTopic do
         @assignment.save!
         @topic.assignment_id = @assignment.id
         @topic.save!
-        @entry1 = @topic.discussion_entries.create!(:message => "second message", :user => @student)
-        @entry1.created_at = 1.week.ago
-        @entry1.save
 
         @course.enroll_student(@student2, :enrollment_state => 'active')
         @section = @course.course_sections.create!(name: "test section")
-        @section2 = @course.course_sections.create!(name: "second test section")
         student_in_section(@section, user: @student1)
         create_section_override_for_assignment(@assignment, {course_section: @section})
         @course.reload
@@ -253,6 +260,45 @@ describe DiscussionTopic do
               expect(@topic.active_participants_with_visibility.include?(user)).to be_truthy
             end
             expect(@topic.active_participants_with_visibility.include?(@student2)).to be_falsey
+          end
+
+          it "should work when ungraded and context is a course" do
+            group_category = @course.group_categories.create(:name => "new cat")
+            @topic = @course.discussion_topics.create(:title => "group topic")
+            @topic.save!
+
+            expect(@topic.context).to eq(@course)
+            expect(@topic.active_participants_with_visibility.include?(@student1)).to be_truthy
+            expect(@topic.active_participants_with_visibility.include?(@student2)).to be_truthy
+          end
+
+          it "should work when ungraded and context is a group" do
+            group_category = @course.group_categories.create(:name => "new cat")
+            @group = @course.groups.create(:name => "group", :group_category => group_category)
+            @group.add_user(@student1)
+            @topic = @group.discussion_topics.create(:title => "group topic")
+            @topic.save!
+
+            expect(@topic.context).to eq(@group)
+            expect(@topic.active_participants_with_visibility.include?(@student1)).to be_truthy
+            expect(@topic.active_participants_with_visibility.include?(@student2)).to be_falsey
+          end
+
+          it "should work for subtopics for graded assignments" do
+            group_discussion_assignment
+            ct = @topic.child_topics.first
+            ct.context.add_user(@student)
+
+            @section = @course.course_sections.create!(name: "test section")
+            student_in_section(@section, user: @student)
+            create_section_override_for_assignment(@assignment, {course_section: @section})
+
+            @topic = @topic.child_topics.first
+            @topic.subscribe(@student)
+            @topic.save!
+
+            expect(@topic.context.class).to eq(Group)
+            expect(@topic.active_participants_with_visibility.include?(@student)).to be_truthy
           end
         end
       end
@@ -541,6 +587,18 @@ describe DiscussionTopic do
       expect(@topic.reload.child_topics).to be_empty
     end
 
+    it "should refresh when groups are added to a group_category" do
+      group_category = @course.group_categories.create!(:name => "category")
+
+      topic = @course.discussion_topics.build(:title => "topic")
+      topic.group_category = group_category
+      topic.save!
+
+      group = @course.groups.create!(:name => "group 1", :group_category => group_category)
+      expect(topic.reload.child_topics.size).to eq 1
+      expect(group.reload.discussion_topics.size).to eq 1
+    end
+
     context "in a group discussion" do
       before :once do
         group_discussion_assignment
@@ -559,10 +617,20 @@ describe DiscussionTopic do
       it "should copy appropriate attributes from the parent topic to subtopics on updates to the parent" do
         @topic.refresh_subtopics
         subtopics = @topic.reload.child_topics
-        subtopics.each {|st| expect(st.discussion_type).to eq 'side_comment' }
+        subtopics.each do |st|
+          expect(st.discussion_type).to eq 'side_comment'
+          expect(st.attachment_id).to be_nil
+        end
+
+        attachment_model(context: @course)
         @topic.discussion_type = 'threaded'
+        @topic.attachment = @attachment
         @topic.save!
-        subtopics.each {|st| expect(st.reload.discussion_type).to eq 'threaded' }
+        subtopics = @topic.reload.child_topics
+        subtopics.each do |st|
+          expect(st.discussion_type).to eq 'threaded'
+          expect(st.attachment_id).to eq @attachment.id
+        end
       end
 
       it "should not rename the assignment to match a subtopic" do
@@ -856,6 +924,18 @@ describe DiscussionTopic do
           expect(@topic.subscribers).to include(@observer)
         end
 
+        it "should work for graded subtopics" do
+          group_discussion_assignment
+          ct = @topic.child_topics.first
+          ct.context.add_user(@student)
+
+          @topic = @topic.child_topics.first
+          @topic.subscribe(@student)
+          @topic.save!
+
+          expect(@topic.subscribers).to include(@student)
+        end
+
       end
       context "disabled" do
         before{@course.disable_feature!(:differentiated_assignments)}
@@ -980,6 +1060,27 @@ describe DiscussionTopic do
 
     it "should create submissions for existing entries when setting the assignment (even if locked)" do
       @topic.reply_from(:user => @student, :text => "entry")
+      @student.reload
+      expect(@student.submissions).to be_empty
+
+      @assignment = assignment_model(:course => @course, :lock_at => 1.day.ago)
+      @topic.assignment = @assignment
+      @topic.save
+      @student.reload
+      expect(@student.submissions.size).to eq 1
+      expect(@student.submissions.first.submission_type).to eq 'discussion_topic'
+    end
+
+    it "should create submissions for existing entries in group topics when setting the assignment (even if locked)" do
+      group_category = @course.group_categories.create!(:name => "category")
+      @group1 = @course.groups.create!(:name => "group 1", :group_category => group_category)
+
+      @topic.group_category = group_category
+      @topic.save!
+
+      child_topic = @topic.child_topics.first
+      child_topic.context.add_user(@student)
+      child_topic.reply_from(:user => @student, :text => "entry")
       @student.reload
       expect(@student.submissions).to be_empty
 
@@ -1325,6 +1426,10 @@ describe DiscussionTopic do
       Timecop.travel(Time.now + 20.seconds)
     end
 
+    after :each do
+      Timecop.return
+    end
+
     it "should return nil if the view has not been built yet, and schedule a job" do
       DiscussionTopic::MaterializedView.for(@topic).destroy
       expect(@topic.materialized_view).to be_nil
@@ -1392,7 +1497,6 @@ describe DiscussionTopic do
     end
 
     it "should restore to unpublished state if draft mode is enabled" do
-      @course.root_account.enable_feature!(:draft_state)
       @topic.destroy
 
       @topic.reload.assignment.expects(:restore).with(:discussion_topic).once
@@ -1427,6 +1531,14 @@ describe DiscussionTopic do
       expect { @topic.reply_from(:user => @student, :text => "reply") }.to raise_error(IncomingMail::Errors::ReplyToLockedTopic)
     end
 
+    it "should not allow replies from students to topics locked based on date" do
+      discussion_topic_model
+      @topic.unlock_at = 1.day.from_now
+      @topic.save!
+      @topic.reply_from(:user => @teacher, :text => "reply") # should not raise error
+      student_in_course(:course => @course)
+      expect { @topic.reply_from(:user => @student, :text => "reply") }.to raise_error(IncomingMail::Errors::ReplyToLockedTopic)
+    end
   end
 
   describe "locked flag" do
@@ -1470,6 +1582,108 @@ describe DiscussionTopic do
       ids = new_order.map {|x| topics[x-1].id}
       topics[0].update_order(ids)
       expect(topics.first.list_scope.map(&:id)).to eq ids
+    end
+  end
+
+  describe "context_module_action" do
+    context "group discussion" do
+      before :once do
+        group_assignment_discussion
+        @module = @course.context_modules.create!
+        @topic_tag = @module.add_item(type: 'discussion_topic', id: @root_topic.id)
+        @module.completion_requirements = { @topic_tag.id => { type: 'must_contribute' } }
+        @module.save!
+        student_in_course active_all: true
+        @group.add_user @student, 'accepted'
+      end
+
+      it "fulfills module completion requirements on the root topic" do
+        @topic.reply_from(user: @student, text: "huttah!")
+        expect(@student.context_module_progressions.where(context_module_id: @module).first.requirements_met).to include({id: @topic_tag.id, type: 'must_contribute'})
+      end
+    end
+  end
+
+  describe 'entries_for_feed' do
+    before(:once) do
+      @topic = @course.discussion_topics.create!(user: @teacher, message: 'topic')
+      @entry1 = @topic.discussion_entries.create!(user: @teacher, message: 'hi from teacher')
+      @entry2 = @topic.discussion_entries.create!(user: @student, message: 'hi')
+    end
+
+    it 'returns active entries by default' do
+      expect(@topic.entries_for_feed(@student)).to_not be_empty
+    end
+
+    it 'returns empty if user cannot see posts' do
+      expect(@topic.entries_for_feed(nil)).to be_empty
+    end
+
+    it 'returns empty if the topic is locked for the user' do
+      @topic.lock!
+      expect(@topic.entries_for_feed(@student)).to be_empty
+    end
+
+    it 'returns student entries if specified' do
+      @topic.update_attributes(podcast_has_student_posts: true)
+      expect(@topic.entries_for_feed(@student, true)).to match_array([@entry1, @entry2])
+    end
+
+    it 'only returns admin entries if specified' do
+      @topic.update_attributes(podcast_has_student_posts: false)
+      expect(@topic.entries_for_feed(@student, true)).to match_array([@entry1])
+    end
+
+    it 'returns student entries for group discussions even if not specified' do
+      group_category
+      membership = group_with_user(group_category: @group_category, user: @student)
+      @topic = @group.discussion_topics.create(title: "group topic", user: @teacher)
+      @topic.discussion_entries.create(message: "some message", user: @student)
+      @topic.update_attributes(podcast_has_student_posts: false)
+      expect(@topic.entries_for_feed(@student, true)).to_not be_empty
+    end
+  end
+
+  describe 'to_podcast' do
+    it "includes media extension in enclosure url even though it is a redirect (for itunes)" do
+      @topic = @course.discussion_topics.create!(
+        user: @teacher,
+        message: 'topic'
+      )
+      attachment_model(:context => @course, :filename => 'test.mp4', :content_type => 'video')
+      @attachment.podcast_associated_asset = @topic
+
+      rss = DiscussionTopic.to_podcast([@attachment])
+      expect(rss.first.enclosure.url).to match(%r{download.mp4})
+    end
+  end
+
+
+  context "announcements" do
+    context "scopes" do
+      context "by_posted_at" do
+        let(:c) { Course.create! }
+        let(:new_ann) do
+          lambda do
+            Announcement.create!({
+              context: c,
+              message: "Test Message",
+            })
+          end
+        end
+
+        it "properly sorts collections by delayed_post_at and posted_at" do
+          anns = 10.times.map do |i|
+            ann = new_ann.call
+            setter = [:delayed_post_at=, :posted_at=][i % 2]
+            ann.send(setter, i.days.ago)
+            ann.position = 1
+            ann.save!
+            ann
+          end
+          expect(c.announcements.by_posted_at).to eq(anns)
+        end
+      end
     end
   end
 end

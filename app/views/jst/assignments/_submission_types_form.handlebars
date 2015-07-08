@@ -143,6 +143,9 @@
         <label for="assignment_external_tool_tag_attributes_url">
           {{#t "label.external_tool_url"}}External Tool URL{{/t}}
         </label>
+        <button class="screenreader-only" id="assignment_external_tool_tag_attributes_url_screenreader_button" type="button">
+          Open External Tool Url Options
+        </button>
         <div class="nested">
           <input id="assignment_external_tool_tag_attributes_url"
             name="external_tool_tag_attributes[url]"
@@ -165,6 +168,14 @@
             disabled=submissionTypesFrozen}}
           {{#t "label.external_tool_new_tab"}}Load This Tool In A New Tab{{/t}}
         </label>
+        {{#if groupCategoryId}}
+          <div class="alert assignment-edit-external-tool-alert">
+            {{#t "external_tool_group_warning"}}
+              Group assignments can't use External Tools.
+              The group setting will be unchecked when you save
+            {{/t}}
+          </div>
+        {{/if}}
       </div>
     </div>
   </div>

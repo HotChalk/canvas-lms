@@ -18,9 +18,11 @@
 
 require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 
+require 'nokogiri'
+
 describe LtiApiController, type: :request do
   before :once do
-    user_with_pseudonym(:username => 'parajsa', :password => 'password1')
+    user_with_pseudonym(:username => 'parajsa', :password => 'password1', :active_user => true)
     course_with_student(:active_all => true, :user => @user)
     @tool = @course.context_external_tools.create(:shared_secret => 'test_secret', :consumer_key => 'test_key', :name => 'logout service test tool', :domain => 'example.com')
     @tool.url = 'https://example.edu/tool-launch-url'

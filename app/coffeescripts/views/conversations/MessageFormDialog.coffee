@@ -50,6 +50,7 @@ define [
       '.media_comment':                 '$mediaComment'
       'input[name=media_comment_id]':   '$mediaCommentId'
       'input[name=media_comment_type]': '$mediaCommentType'
+      '#bulk_message':                  '$bulkMessage'
       '.ac':                            '$recipients'
       '.attachment_list':               '$attachments'
       '.attachments-pane':              '$attachmentsPane'
@@ -147,7 +148,7 @@ define [
       @$fullDialog.addClass('compose-message-dialog')
 
       # add attachment and media buttons to bottom bar
-      @$fullDialog.find('.ui-dialog-buttonpane').prepend composeButtonBarTemplate()
+      @$fullDialog.find('.ui-dialog-buttonpane').prepend composeButtonBarTemplate({isIE10: INST.browser.ie10})
 
       @$addMediaComment = @$fullDialog.find('.attach-media')
 
@@ -175,7 +176,11 @@ define [
         disabled: @model?.get('private')
       ).render()
       @recipientView.on('changeToken', @recipientIdsChanged)
-      @recipientView.disable(true) unless _.include(ENV.current_user_roles, 'admin')
+      @recipientView.on('recipientTotalChange', @recipientTotalChanged)
+
+      unless _.include(ENV.current_user_roles, 'admin')
+        @$messageCourse.attr('aria-required', true)
+        @recipientView.disable(true)
 
       @$messageCourse.prop('disabled', !!@model)
       @courseView = new CourseSelectionView(
@@ -314,6 +319,17 @@ define [
           @canAddNotesFor(tokenModel)
         @toggleUserNote(_.every(canAddNotes))
 
+    recipientTotalChanged: (lockBulkMessage) =>
+      if lockBulkMessage && !@bulkMessageLocked
+        @oldBulkMessageVal = @$bulkMessage.prop('checked')
+        @$bulkMessage.prop('checked', true)
+        @$bulkMessage.prop('disabled', true)
+        @bulkMessageLocked = true
+      else if !lockBulkMessage && @bulkMessageLocked
+        @$bulkMessage.prop('checked', @oldBulkMessageVal)
+        @$bulkMessage.prop('disabled', false)
+        @bulkMessageLocked = false
+
     canAddNotesFor: (user) =>
       return false unless ENV.CONVERSATIONS.NOTES_ENABLED
       return false unless user?
@@ -338,14 +354,20 @@ define [
       ($attachments.length * $attachments.outerWidth()) > @$attachmentsPane.width()
 
     addAttachment: ->
-      # when you click on the "label" that references the input it automatically open the file input
-      # we're exploiting this to get around the fact that IE won't let you submit the form when you try to
-      # "click" it through the javascript
-
       $('#file_input').attr('id', _.uniqueId('file_input'))
       @appendAddAttachmentTemplate()
       @updateAttachmentOverflow()
-      @focusAddAttachment()
+
+      # Hacky crazyness for ie10.
+      # If you try to use javascript to 'click' on a file input element,
+      # when you go to submit the form it will give you an "access denied" error.
+      # So, for IE10, we make the paperclip icon a <label>  that references the input it automatically open the file input.
+      # But making it a <label> makes it so you can't tab to it. so for everyone else me make it a <button> and open the file
+      # input dialog with a javascript "click"
+      if INST.browser.ie10
+        @focusAddAttachment()
+      else
+        @$fullDialog.find('.file_input:last').click()
 
     appendAddAttachmentTemplate: ->
       $attachment = $(addAttachmentTemplate())

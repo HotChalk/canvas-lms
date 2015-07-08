@@ -5,11 +5,11 @@ define [
   'compiled/models/Folder'
   '../modules/filesEnv'
   './FilesystemObjectThumbnail'
-], (I18n, React, customPropTypes, Folder, filesEnv, FilesystemObjectThumbnail) ->
+  'compiled/react/shared/utils/withReactElement'
+], (I18n, React, customPropTypes, Folder, filesEnv, FilesystemObjectThumbnailComponent, withReactElement) ->
 
   MAX_THUMBNAILS_TO_SHOW = 5
-
-  {div, i} = React.DOM
+  FilesystemObjectThumbnail = React.createFactory FilesystemObjectThumbnailComponent
 
   #####
   # This is used to show a preview inside of a modal dialog.
@@ -35,6 +35,6 @@ define [
               top: -140 * index
           }
 
-    render: ->
+    render: withReactElement ->
       div {className: 'DialogPreview__container'},
         @renderPreview()

@@ -95,7 +95,6 @@ end
 
 def should_create_a_learning_outcome_with_a_new_rating_root_level
   get outcome_url
-  wait_for_ajaximations
 
   ## when
   # create outcome
@@ -238,16 +237,83 @@ end
 def should_validate_mastery_points
   get outcome_url
   f('.add_outcome_link').click
-
+  # Must have title for correct validation message to appear.
+  replace_content(f('.outcomes-content input[name=title]'), 'Outcome Mastery')
   ## when
   # not in ratings
   replace_content f('input[name="mastery_points"]'), '-1'
   # submit
-  driver.execute_script("$('.submit_button').click()")
+  f('.submit_button').click
   wait_for_ajaximations
 
   ## expect
   expect(f('.error_box')).to be_present
+  expect(fj('.error_text div').text).to include("Must be greater than or equal to 0")
+end
+
+def should_validate_calculation_method_dropdown
+  get outcome_url
+  f('.add_outcome_link').click
+  # create array of drop down options
+  drop_down = get_options('#calculation_method').map(&:text)
+  expected_array = ['Decaying Average', 'n Number of Times', 'Most Recent Score', 'Highest Score']
+  # expect
+  expect(drop_down.length).to eq(4)
+  expect(drop_down).to match_array(expected_array)
+end
+
+def should_validate_decaying_average
+  get outcome_url
+  f('.add_outcome_link').click
+  below_range = 0
+  above_range = 100
+  replace_content(f('.outcomes-content input[name=title]'), 'Decaying Average')
+  # select option
+  click_option('#calculation_method', "Decaying Average")
+  # enter invalid number below range
+  replace_content(f('input[name=calculation_int]'), below_range)
+  # submit
+  f('.submit_button').click
+  wait_for_ajaximations
+  # expect
+  expect(f('.error_box')).to be_present
+  expect(fj('.error_text div').text).to include("'#{below_range}' is not a valid value")
+
+  # enter second invalid number above range
+  replace_content(f('input[name=calculation_int]'), above_range)
+  # submit
+  f('.submit_button').click
+  wait_for_ajaximations
+  # expect
+  expect(f('.error_box')).to be_present
+  expect(fj('.error_text div').text).to include("'#{above_range}' is not a valid value")
+end
+
+def should_validate_n_mastery
+  get outcome_url
+  f('.add_outcome_link').click
+  below_range = 1
+  above_range = 6
+  replace_content(f('.outcomes-content input[name=title]'), 'n Number of Times')
+  # select option
+  click_option('#calculation_method', "n Number of Times")
+  # enter invalid number below range
+  replace_content(f('input[name=calculation_int]'), below_range)
+  # submit
+  f('.submit_button').click
+  wait_for_ajaximations
+  # expect
+  expect(f('.error_box')).to be_present
+  expect(fj('.error_text div').text).to include("'#{below_range}' is not a valid value")
+
+  # enter second invalid number above range
+  replace_content(f('input[name=calculation_int]'), above_range)
+  # submit
+  f('.submit_button').click
+  wait_for_ajaximations
+  # expect
+  expect(f('.error_box')).to be_present
+  expect(fj('.error_text div').text).to include("'#{above_range}' is not a valid value")
 end
 
 def should_validate_short_description_presence
@@ -258,7 +324,13 @@ def should_validate_short_description_presence
   f('.outcome_title').clear
   f('.submit_button').click
   wait_for_ajaximations
-  expect(fj('.error_text div').text).to eq "Cannot be blank"
+  scroll_page_to_top
+  driver.execute_script("$('.outcomes-content').scrollTo(0, 0)")
+  wait_for_ajaximations
+
+  keep_trying_until {
+    expect(fj('.error_text div').text).to eq "Cannot be blank"
+  }
 end
 
 def should_validate_short_description_length

@@ -9,6 +9,7 @@ require([
   'jquery.loadingImg' /* loadingImage */,
   'compiled/jquery.rails_flash_notifications'
 ], function(I18n, $, htmlEscape, signupDialog) {
+
   $("#coenrollment_link").click(function(event) {
     event.preventDefault();
     signupDialog('parentDialog', I18n.t("parent_signup", "Parent Signup"));
@@ -80,9 +81,10 @@ require([
         success: function(response) {
           if (response.auth_type == 'canvas') {
             $("#pseudonym_session_unique_id").val($("#prelogin_unique_id").val());
+            $("#account_id").val(response.account_id);
             $("#resolve_login_form").hide();
             $("#login_form").show();
-          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac') {
+          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac' || response.auth_type == 'saml') {
             $("#external_login_link").attr('href', response.auth_url).text(response.account_name)
             $("#resolve_login_form button").hide();
             $("#external_login").show();

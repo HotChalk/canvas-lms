@@ -14,7 +14,6 @@ describe "assignment groups" do
     before(:each) do
       make_full_screen
       course_with_teacher_logged_in
-      set_course_draft_state
     end
 
     it "should create an assignment with default dates" do
@@ -23,6 +22,7 @@ describe "assignment groups" do
       fill_assignment_overrides
       click_option('#assignment_submission_type', 'No Submission')
       update_assignment!
+      wait_for_ajaximations
       a = Assignment.where(title: 'vdd assignment').first
       compare_assignment_times(a)
     end
@@ -56,7 +56,7 @@ describe "assignment groups" do
       assign = @course.assignments.create!(:title => "due tomorrow", :due_at => Time.zone.now + 2.days)
       get "/courses/#{@course.id}/assignments/#{assign.id}/edit"
 
-      f('.due-date-overrides [name="due_at"]').clear
+      fj(".date_field:first[data-date-type='due_at']").clear
       expect_new_page_load { submit_form('#edit_assignment_form') }
 
       expect(assign.reload.due_at).to be_nil
@@ -72,14 +72,16 @@ describe "assignment groups" do
       visit_assignment_edit_page(assign)
 
       wait_for_ajaximations
-      click_option('.due-date-row:first select', default_section.name)
+      select_first_override_section(default_section.name)
+
       first_due_at_element.clear
       first_due_at_element.
-      send_keys(default_section_due.strftime('%b %-d, %y'))
+        send_keys(default_section_due.strftime('%b %-d, %y'))
 
       add_override
-
+      wait_for_ajaximations
       select_last_override_section(other_section.name)
+
       last_due_at_element.
         send_keys(other_section_due.strftime('%b %-d, %y'))
 
@@ -92,6 +94,50 @@ describe "assignment groups" do
       other_override = overrides.detect{ |o| o.set_id == other_section.id }
       expect(other_override.due_at.strftime('%b %-d, %y')).
         to eq other_section_due.to_date.strftime('%b %-d, %y')
+    end
+
+    it "should validate override dates against proper section" do
+      date = Time.zone.now
+      date2 = Time.zone.now - 10.days
+      due_date = Time.zone.now + 5.days
+      section1 = @course.course_sections.create!(:name => "Section 9", :restrict_enrollments_to_section_dates => true, :start_at => date)
+      section2 = @course.course_sections.create!(:name => "Section 31", :restrict_enrollments_to_section_dates => true, :end_at => date2)
+
+      assign = create_assignment!
+      visit_assignment_edit_page(assign)
+      wait_for_ajaximations
+      select_first_override_section(section2.name)
+      add_override
+      select_last_override_section(section1.name)
+      first_due_at_element.clear
+      first_unlock_at_element.clear
+      first_lock_at_element.clear
+      last_due_at_element.
+        send_keys(due_date.strftime('%b %-d, %y'))
+      submit_form('#edit_assignment_form')
+      wait_for_ajaximations
+      overrides = assign.reload.assignment_overrides
+      section_override = overrides.detect{ |o| o.set_id == section1.id }
+      expect(section_override.due_at.strftime('%b %-d, %y'))
+        .to eq due_date.strftime('%b %-d, %y')
+    end
+
+    it "properly validates identical calendar dates when saving and editing" do
+      shared_date = "October 12 2014"
+      other_section = @course.course_sections.create!(:name => "Section 31", :restrict_enrollments_to_section_dates => true, :end_at => shared_date)
+      visit_new_assignment_page
+      wait_for_ajaximations
+
+      fill_assignment_title 'validation assignment'
+      add_override
+      select_last_override_section(other_section.name)
+      last_due_at_element.send_keys(shared_date)
+      click_option('#assignment_submission_type', 'No Submission')
+      update_assignment!
+      f(".edit_assignment_link").click
+      wait_for_ajaximations
+
+      update_assignment!
     end
 
     it "should show a vdd tooltip summary on the course assignments page" do
@@ -108,6 +154,24 @@ describe "assignment groups" do
       tooltip = fj('.vdd_tooltip_content:visible')
       expect(tooltip).to include_text 'New Section'
       expect(tooltip).to include_text 'Everyone else'
+    end
+  end
+
+  context "as a student" do
+
+    let(:unlock_at) { Time.zone.now - 2.days }
+    let(:lock_at) { Time.zone.now + 4.days }
+
+    before(:once) do
+      make_full_screen
+      course_with_student_logged_in(:active_all => true)
+    end
+
+    it "should show the available date range when overrides are set" do
+      assign = create_assignment!
+      get "/courses/#{@course.id}/assignments/#{assign.id}"
+      wait_for_ajaximations
+      expect(f('.student-assignment-overview')).to include_text 'Available'
     end
   end
 end

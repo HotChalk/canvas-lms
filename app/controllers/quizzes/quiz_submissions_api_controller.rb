@@ -160,12 +160,13 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #    "quiz_submissions": [QuizSubmission]
   #  }
   def index
-    quiz_submissions = if is_authorized_action?(@context, @current_user, [:manage_grades, :view_all_grades])
+    t = Time.now
+    quiz_submissions = if @context.grants_any_right?(@current_user, session, :manage_grades, :view_all_grades)
       # teachers have access to all student submissions
       Api.paginate @quiz.quiz_submissions.where(:user_id => visible_user_ids),
         self,
         api_v1_course_quiz_submissions_url(@context, @quiz)
-    elsif is_authorized_action?(@quiz, @current_user, :submit)
+    elsif @quiz.grants_right?(@current_user, session, :submit)
       # students have access only to their own
       @quiz.quiz_submissions.where(:user_id => @current_user)
     end
@@ -175,6 +176,9 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
     else
       serialize_and_render quiz_submissions
     end
+    Rails.logger.info "QS_API -- url: #{@_request.original_url}"
+    Rails.logger.info "QS_API -- filtered_params: #{@_request.filtered_parameters}"
+    Rails.logger.info "QS_API -- timer: #{Time.now-t} seconds"
   end
 
   # @API Get a single quiz submission.
@@ -193,6 +197,10 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #  }
   def show
     if authorized_action(@quiz_submission, @current_user, :read)
+      if params.has_key?(:attempt)
+        retrieve_quiz_submission_attempt!(params[:attempt])
+      end
+
       serialize_and_render @quiz_submission
     end
   end
@@ -341,8 +349,37 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   def complete
     @service.complete @quiz_submission, params[:attempt]
 
+    # TODO: should this go in the service instead?
+    Canvas::LiveEvents.quiz_submitted(@quiz_submission)
+
     serialize_and_render @quiz_submission
   end
+
+  # @API Get current quiz submission times.
+  # @beta
+  #
+  # Get the current timing data for the quiz attempt, both the end_at timestamp
+  # and the time_left parameter.
+  #
+  # <b>Responses</b>
+  #
+  # * <b>200 OK</b> if the request was successful
+  #
+  # @example_response
+  #  {
+  #    "end_at": [DateTime],
+  #    "time_left": [Integer]
+  #  }
+  def time
+    if authorized_action(@quiz_submission, @current_user, :record_events)
+      render :json =>
+      {
+        :end_at => @quiz_submission && @quiz_submission.end_at,
+        :time_left => @quiz_submission && @quiz_submission.time_left
+      }
+    end
+  end
+
 
   private
 

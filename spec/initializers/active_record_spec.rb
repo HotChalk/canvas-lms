@@ -79,6 +79,16 @@ module ActiveRecord
           end
         end
 
+        it 'should not bomb when you try to force past the cursor option on selects with the primary key' do
+          selectors = ["*", "users.*", "users.id, users.updated_at"]
+          User.create!
+          selectors.each do |selector|
+            expect {
+              User.select(selector).find_in_batches(start: 0){|batch| }
+            }.not_to raise_error
+          end
+        end
+
       end
     end
 
@@ -94,5 +104,93 @@ module ActiveRecord
       end
     end
 
+    describe "parse_asset_string" do
+      it "parses simple asset strings" do
+        expect(ActiveRecord::Base.parse_asset_string("course_123")).to eql(["Course", 123])
+      end
+
+      it "parses asset strings with multi-word class names" do
+        expect(ActiveRecord::Base.parse_asset_string("content_tag_456")).to eql(["ContentTag", 456])
+      end
+
+      it "parses namespaced asset strings" do
+        expect(ActiveRecord::Base.parse_asset_string("quizzes:quiz_789")).to eql(["Quizzes::Quiz", 789])
+      end
+
+      it "classifies the class name but leaves plurals in the namespaces alone" do
+        expect(ActiveRecord::Base.parse_asset_string("content_tags:content_tags_0")).to eql(["ContentTags::ContentTag", 0])
+      end
+
+      it "behaves predictably on an invalid asset string" do
+        expect(ActiveRecord::Base.parse_asset_string("what")).to eql(["", 0])
+      end
+    end
+  end
+
+  describe Relation do
+    describe "lock_with_exclusive_smarts" do
+      let(:scope){ User.active }
+
+      context "with postgres 90300" do
+        before do
+          scope.connection.stubs(:postgresql_version).returns(90300)
+        end
+
+        it "uses FOR UPDATE on a normal exclusive lock" do
+          scope.expects(:lock_without_exclusive_smarts).with(true)
+          scope.lock(true)
+        end
+
+        it "substitutes 'FOR NO KEY UPDATE' if specified" do
+          scope.expects(:lock_without_exclusive_smarts).with("FOR NO KEY UPDATE")
+          scope.lock(:no_key_update)
+        end
+      end
+
+      context "with postgres 90299" do
+        before do
+          scope.connection.stubs(:postgresql_version).returns(90299)
+        end
+
+        it "uses FOR UPDATE on a normal exclusive lock" do
+          scope.expects(:lock_without_exclusive_smarts).with(true)
+          scope.lock(true)
+        end
+
+        it "ignores 'FOR NO KEY UPDATE' if specified" do
+          scope.expects(:lock_without_exclusive_smarts).with(true)
+          scope.lock(:no_key_update)
+        end
+      end
+    end
+
+    describe "union" do
+      shared_examples_for "query creation" do
+        it "should include conditions after the union inside of the subquery" do
+          query = base.active.where(id:99).union(User.where(id:1)).to_sql
+          sql_before_union, sql_after_union = query.split("UNION ALL")
+          expect(sql_before_union.include?("99")).to be_falsey
+          expect(sql_after_union.include?("99")).to be_truthy
+        end
+
+        it "should include conditions prior to the union outside of the subquery" do
+          query = base.active.union(User.where(id:1)).where(id:99).to_sql
+          sql_before_union, sql_after_union = query.split("UNION ALL")
+          expect(sql_before_union.include?("99")).to be_truthy
+          expect(sql_after_union.include?("99")).to be_falsey
+        end
+      end
+
+      context "directly on the table" do
+        include_examples "query creation"
+        let(:base) { User.active }
+      end
+
+      context "through a relation" do
+        include_examples "query creation"
+        a = Account.create!
+        let(:base) { Account.find(a.id).users }
+      end
+    end
   end
 end

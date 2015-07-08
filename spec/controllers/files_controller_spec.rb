@@ -23,9 +23,11 @@ describe FilesController do
   def course_folder
     @folder = @course.folders.create!(:name => "a folder", :workflow_state => "visible")
   end
+
   def io
     fixture_file_upload('scribd_docs/doc.doc', 'application/msword', true)
   end
+
   def course_file
     @file = factory_with_protected_attributes(@course.attachments, :uploaded_data => io)
   end
@@ -199,6 +201,25 @@ describe FilesController do
       assert_unauthorized
     end
 
+    describe "with verifiers" do
+      it "should allow public access with legacy verifier" do
+        Attachment.any_instance.stubs(:canvadoc_url).returns "stubby"
+        get 'show', :course_id => @course.id, :id => @file.id, :verifier => @file.uuid, :format => 'json'
+        expect(response).to be_success
+        expect(json_parse['attachment']).to_not be_nil
+        expect(json_parse['attachment']['canvadoc_session_url']).to eq "stubby"
+        expect(json_parse['attachment']['md5']).to be_nil
+      end
+
+      it "should allow public access with new verifier" do
+        verifier = Attachments::Verification.new(@file).verifier_for_user(nil)
+        get 'show', :course_id => @course.id, :id => @file.id, :verifier => verifier, :format => 'json'
+        expect(response).to be_success
+        expect(json_parse['attachment']).to_not be_nil
+        expect(json_parse['attachment']['md5']).to be_nil
+      end
+    end
+
     it "should assign variables" do
       user_session(@teacher)
       get 'show', :course_id => @course.id, :id => @file.id
@@ -290,6 +311,18 @@ describe FilesController do
       expect(response).to be_redirect
     end
 
+    it "should find overwritten files" do
+      @old_file = @course.attachments.build(display_name: 'old file')
+      @old_file.file_state = 'deleted'
+      @old_file.replacement_attachment = @file
+      @old_file.save!
+
+      user_session(@teacher)
+      get 'show', course_id: @course.id, id: @old_file.id, preview: 1
+      expect(response).to be_redirect
+      expect(response.location).to match /\/courses\/#{@course.id}\/files\/#{@file.id}/
+    end
+
     describe "as a student" do
       before do
         user_session(@student)
@@ -309,7 +342,6 @@ describe FilesController do
         expect(json_parse).to eq({'ok' => true})
         @module.reload
         expect(@module.evaluate_for(@student).state).to eql(:completed)
-        expect(@file.reload.last_inline_view).to be > 1.minute.ago
       end
 
       it "should mark files as viewed for module progressions if the file is downloaded" do
@@ -317,7 +349,6 @@ describe FilesController do
         get 'show', :course_id => @course.id, :id => @file.id, :download => 1
         @module.reload
         expect(@module.evaluate_for(@student).state).to eql(:completed)
-        expect(@file.reload.last_inline_view).to be_nil
       end
 
       it "should mark files as viewed for module progressions if the file is previewed inline" do
@@ -326,7 +357,6 @@ describe FilesController do
         expect(json_parse).to eq({'ok' => true})
         @module.reload
         expect(@module.evaluate_for(@student).state).to eql(:completed)
-        expect(@file.reload.last_inline_view).to be > 1.minute.ago
       end
 
       it "should mark files as viewed for module progressions if the file data is requested and is canvadocable" do
@@ -335,7 +365,6 @@ describe FilesController do
         get 'show', :course_id => @course.id, :id => @file.id, :format => :json
         @module.reload
         expect(@module.evaluate_for(@student).state).to eql(:completed)
-        expect(@file.reload.last_inline_view).to be > 1.minute.ago
       end
 
       it "should redirect to the user's files URL when browsing to an attachment with the same path as a deleted attachment" do
@@ -391,7 +420,6 @@ describe FilesController do
         @assignment.submit_homework @student, :attachments => [@attachment]
         get 'show', :user_id => @student.id, :id => @attachment.id, :inline => 1
         expect(response).to be_success
-        expect(@attachment.reload.last_inline_view).to be > 1.minute.ago
       end
     end
 
@@ -412,6 +440,12 @@ describe FilesController do
         @file.save!
         get 'show', :course_id => @course.id, :id => @file.id, :format => 'json'
         expect(json_parse['attachment']['canvadoc_session_url']).to be_nil
+      end
+
+      it "is included in newly uploaded files" do
+        user_session(@teacher)
+        post 'create', :format => 'json', :course_id => @course.id, :attachment => {:display_name => "bob", :uploaded_data => io}
+        expect(json_parse['attachment']['canvadoc_session_url']).to be_present
       end
     end
   end
@@ -485,6 +519,31 @@ describe FilesController do
       expect(response).to be_redirect
       expect(assigns[:attachment]).not_to be_nil
       expect(assigns[:attachment].display_name).to eql("bob")
+    end
+
+    context "sharding" do
+      specs_require_sharding
+
+      it "should create when an unattached file is on another shard" do
+        root_attachment = factory_with_protected_attributes(Attachment, :context => @course, :file_state => 'deleted', :workflow_state => 'unattached', :filename => 'test.txt', :content_type => 'text')
+        root_attachment.uploaded_data = io
+        root_attachment.save!
+
+        @shard1.activate do
+          @student = user(:active_user => true)
+          @attachment = factory_with_protected_attributes(Attachment, :context => @student, :file_state => 'deleted', :workflow_state => 'unattached', :filename => 'test.txt', :content_type => 'text')
+        end
+
+        @course.enroll_user(@student, "StudentEnrollment").accept!
+        @assignment = @course.assignments.create!(:title => 'upload_assignment', :submission_types => 'online_upload')
+
+        user_session(@student)
+        post 'create', :attachment => {:display_name => "bob", :uploaded_data => io, :unattached_attachment_id => @attachment.id}
+        expect(response).to be_redirect
+        expect(assigns[:attachment]).not_to be_nil
+        expect(assigns[:attachment].display_name).to eql("bob")
+        expect(assigns[:attachment].shard).to eql @shard1
+      end
     end
   end
 
@@ -709,9 +768,38 @@ describe FilesController do
           course_with_teacher_logged_in(:active_all => true, :account => account)
         end
         post 'create_pending', {:attachment => {
-            :context_code => @course.asset_string,
-            :filename => "bob.txt"
-        }}
+                                 :context_code => @course.asset_string,
+                                 :filename => "bob.txt"
+                             }}
+        expect(response).to be_success
+        expect(assigns[:attachment]).not_to be_nil
+        expect(assigns[:attachment].id).not_to be_nil
+        expect(assigns[:attachment].shard).to eq @shard1
+        json = json_parse
+        expect(json).not_to be_nil
+        expect(json['id']).to eql(assigns[:attachment].id)
+        expect(json['upload_url']).not_to be_nil
+        expect(json['upload_params']).not_to be_nil
+        expect(json['upload_params']).not_to be_empty
+      end
+
+      it "should create the attachment on the user's shard when submitting" do
+        local_storage!
+        account = Account.create!
+        @shard1.activate do
+          @student = user(:active_user => true)
+        end
+        course(:active_all => true, :account => account)
+        @course.enroll_user(@student, "StudentEnrollment").accept!
+        @assignment = @course.assignments.create!(:title => 'upload_assignment', :submission_types => 'online_upload')
+
+        user_session(@student)
+        post 'create_pending', {:attachment => {
+                                 :context_code => @course.asset_string,
+                                 :asset_string => @assignment.asset_string,
+                                 :intent => 'submit',
+                                 :filename => "bob.txt"
+                             }}
         expect(response).to be_success
         expect(assigns[:attachment]).not_to be_nil
         expect(assigns[:attachment].id).not_to be_nil

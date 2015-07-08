@@ -155,7 +155,7 @@ module ApplicationHelper
     includes.each{|i| @wiki_sidebar_data[i] ||= [] }
     @wiki_sidebar_data[:wiki_pages] = @context.wiki.wiki_pages.active.order(:title).limit(150) if @context.respond_to?(:wiki)
     @wiki_sidebar_data[:wiki_pages] ||= []
-    if can_do(@context, @current_user, :manage_files)
+    if can_do(@context, @current_user, :manage_files, :read_as_admin)
       @wiki_sidebar_data[:root_folders] = Folder.root_folders(@context)
     elsif @context.is_a?(Course) && !@context.tab_hidden?(Course::TAB_FILES)
       @wiki_sidebar_data[:root_folders] = Folder.root_folders(@context).reject{|folder| folder.locked? || folder.hidden}
@@ -175,7 +175,9 @@ module ApplicationHelper
       :contents => capture(&block)
     )
   end
+
   def js_blocks; @js_blocks ||= []; end
+
   def render_js_blocks
     output = js_blocks.inject('') do |str, e|
       # print file and line number for debugging in development mode.
@@ -195,7 +197,9 @@ module ApplicationHelper
     end
     hidden_dialogs[id] = capture(&block)
   end
+
   def hidden_dialogs; @hidden_dialogs ||= {}; end
+
   def render_hidden_dialogs
     output = hidden_dialogs.keys.sort.inject('') do |str, id|
       str << "<div id='#{id}' style='display: none;''>" << hidden_dialogs[id] << "</div>"
@@ -240,8 +244,8 @@ module ApplicationHelper
   # Returns a <script> tag for each registered js_bundle
   def include_js_bundles
     paths = js_bundles.inject([]) do |ary, (bundle, plugin)|
-      base_url = plugin ? '' : js_base_url
-      base_url += "/plugins/#{plugin}/javascripts" if plugin
+      base_url = js_base_url
+      base_url += "/plugins/#{plugin}" if plugin
       ary.concat(Canvas::RequireJs.extensions_for(bundle, 'plugins/')) unless use_optimized_js?
       ary << "#{base_url}/compiled/bundles/#{bundle}.js"
     end
@@ -297,7 +301,10 @@ module ApplicationHelper
           end
         end
         return '' if tabs.empty?
-        html << '<nav role="navigation" class="prueba" aria-label="context"><ul id="section-tabs">'
+
+        inactive_element = "<span id='inactive_nav_link' class='screenreader-only'>#{I18n.t('* No content has been added')}</span>"
+
+        html << '<nav role="navigation" aria-label="context"><ul id="section-tabs">'
         tabs.each do |tab|
           path = nil
           if tab[:args]
@@ -311,10 +318,14 @@ module ApplicationHelper
           class_name = tab[:css_class].downcase.replace_whitespace("-")
           class_name += ' active' if @active_tab == tab[:css_class]
 
+          if hide
+            tab[:label] += inactive_element
+          end
+
           if tab[:screenreader]
-            link = link_to(tab[:label], path, :class => class_name, "aria-label" => tab[:screenreader])
+            link = "<a href='#{path}' class='#{class_name}' aria-label='#{tab[:screenreader]}'>#{tab[:label]}</a>"
           else
-            link = link_to(tab[:label], path, :class => class_name)
+            link = "<a href='#{path}' class='#{class_name}'>#{tab[:label]}</a>"
           end
 
           html << "<li class='section #{"section-tab-hidden" if hide }'>" + link + "</li>" if tab[:href]
@@ -328,7 +339,7 @@ module ApplicationHelper
         tabs.each do |tab|
           html << "<li class='section'>" + link_to(tab[:label], tab[:href]) + "</li>" if tab[:href]
         end
-        html << '</ul></nav>'
+        html << "</ul></nav>"
         html.join("")
       end
     end
@@ -417,7 +428,8 @@ module ApplicationHelper
     !!@equella_settings
   end
 
-  def show_user_create_course_button(user)
+  def show_user_create_course_button(user, account=nil)
+    return true if account && account.grants_any_right?(user, session, :create_courses, :manage_courses)
     @domain_root_account.manually_created_courses_account.grants_any_right?(user, session, :create_courses, :manage_courses)
   end
 
@@ -460,7 +472,11 @@ module ApplicationHelper
     global_inst_object = { :environment =>  Rails.env }
     {
       :allowMediaComments       => CanvasKaltura::ClientV3.config && @context.try_rescue(:allow_media_comments?),
-      :kalturaSettings          => CanvasKaltura::ClientV3.config.try(:slice, 'domain', 'resource_domain', 'rtmp_domain', 'partner_id', 'subpartner_id', 'player_ui_conf', 'player_cache_st', 'kcw_ui_conf', 'upload_ui_conf', 'max_file_size_bytes', 'do_analytics', 'use_alt_record_widget', 'hide_rte_button', 'js_uploader'),
+      :kalturaSettings          => CanvasKaltura::ClientV3.config.try(:slice,
+                                    'domain', 'resource_domain', 'rtmp_domain',
+                                    'partner_id', 'subpartner_id', 'player_ui_conf',
+                                    'player_cache_st', 'kcw_ui_conf', 'upload_ui_conf',
+                                    'max_file_size_bytes', 'do_analytics', 'hide_rte_button', 'js_uploader'),
       :equellaEnabled           => !!equella_enabled?,
       :googleAnalyticsAccount   => Setting.get('google_analytics_key', nil),
       :http_status              => @status,
@@ -483,14 +499,11 @@ module ApplicationHelper
   end
 
   def editor_buttons
-    tools = []
-    contexts = []
-    contexts << @context if @context && @context.respond_to?(:context_external_tools)
-    contexts += @context.account_chain if @context.respond_to?(:account_chain)
-    contexts << @domain_root_account if @domain_root_account
+    contexts = ContextExternalTool.contexts_to_search(@context)
     return [] if contexts.empty?
     Rails.cache.fetch((['editor_buttons_for'] + contexts.uniq).cache_key) do
-      tools = ContextExternalTool.active.having_setting('editor_button').where(contexts.map{|context| "(context_type='#{context.class.base_class.to_s}' AND context_id=#{context.id})"}.join(" OR "))
+      tools = ContextExternalTool.shard(@context.shard).active.
+          having_setting('editor_button').polymorphic_where(context: contexts)
       tools.sort_by(&:id).map do |tool|
         {
           :name => tool.label_for(:editor_button, nil),
@@ -687,8 +700,9 @@ module ApplicationHelper
   def get_global_includes
     return @global_includes if defined?(@global_includes)
     @global_includes = [Account.site_admin.global_includes_hash]
-    @global_includes << @domain_root_account.global_includes_hash if @domain_root_account.present?
-    if @domain_root_account.try(:sub_account_includes?)
+    current_root_account = @real_current_user ? @current_pseudonym.account.root_account : @domain_root_account
+    @global_includes << current_root_account.global_includes_hash if current_root_account.present?
+    if current_root_account.try(:sub_account_includes?)
       # get the deepest account to start looking for branding
       if acct = account_context(@context)
         key = [acct.id, 'account_context_global_includes'].cache_key
@@ -697,9 +711,9 @@ module ApplicationHelper
         end
         @global_includes.concat(includes)
       elsif @current_user.present?
-        key = [@domain_root_account.id, 'common_account_global_includes', @current_user.id].cache_key
+        key = [current_root_account.id, 'common_account_global_includes', @current_user.id].cache_key
         includes = Rails.cache.fetch(key, :expires_in => 15.minutes) do
-          @current_user.common_account_chain(@domain_root_account).map(&:global_includes_hash)
+          @current_user.common_account_chain(current_root_account).map(&:global_includes_hash)
         end
         @global_includes.concat(includes)
       end
@@ -742,7 +756,7 @@ module ApplicationHelper
   end
 
   def include_account_css
-    return if params[:global_includes] == '0' || @domain_root_account.try(:feature_enabled?, :k12) || @domain_root_account.try(:feature_enabled?, :use_new_styles)
+    return if params[:global_includes] == '0' || @domain_root_account.try(:feature_enabled?, :use_new_styles)
     includes = get_global_includes.inject([]) do |css_includes, global_include|
       css_includes << global_include[:css] if global_include[:css].present?
       css_includes
@@ -759,7 +773,7 @@ module ApplicationHelper
     context = opts[:context]
     tag_type = opts.fetch(:tag_type, :time)
     if datetime.present?
-      attributes[:title] ||= context_sensitive_datetime_title(datetime, context, just_text: true)
+      attributes['data-html-tooltip-title'] ||= context_sensitive_datetime_title(datetime, context, just_text: true)
       attributes['data-tooltip'] ||= 'top'
     end
 
@@ -777,12 +791,28 @@ module ApplicationHelper
     if context.present?
       course_time = datetime_string(datetime, :event, nil, false, context.time_zone)
       if course_time != local_time
-        text = "#{I18n.t('#helpers.local', "Local")}: #{local_time}<br>#{I18n.t('#helpers.course', "Course")}: #{course_time}".html_safe
+        text = "#{h I18n.t('#helpers.local', "Local")}: #{h local_time}<br>#{h I18n.t('#helpers.course', "Course")}: #{h course_time}".html_safe
       end
     end
 
     return text if just_text
-    "data-tooltip title=\"#{text}\"".html_safe
+    "data-tooltip data-html-tooltip-title=\"#{text}\"".html_safe
+  end
+
+  # used for generating a
+  # prompt for use with date pickers
+  # so it doesn't need to be declared all over the place
+  def datepicker_screenreader_prompt
+    prompt_text = I18n.t("#helpers.accessible_date_prompt", "Format Like")
+    format = accessible_date_format
+    "#{prompt_text} #{format}"
+  end
+
+  # useful for presenting a consistent
+  # date format to screenreader users across the app
+  # when telling them how to fill in a datetime field
+  def accessible_date_format
+    I18n.t("#helpers.accessible_date_format", "YYYY-MM-DD hh:mm")
   end
 
   # render a link with a tooltip containing a summary of due dates
@@ -828,11 +858,10 @@ module ApplicationHelper
   def agree_to_terms
     # may be overridden by a plugin
     @agree_to_terms ||
-    t("#user.registration.agree_to_terms_and_privacy_policy",
-      "You acknowledge the **privacy policy**.",
+    t("I agree to the **privacy policy**.",
       wrapper: {
-        '*' => link_to('\1', @domain_root_account.terms_of_use_url, target: '_blank'),
-        '**' => link_to('\1', "http://www.hotchalkmediagroup.com/privacy-policy/", target: '_blank')
+        '*' => link_to('\1', terms_of_use_url, target: '_blank'),
+        '**' => link_to('\1', privacy_policy_url, target: '_blank')
       }
     )
   end
@@ -863,4 +892,65 @@ module ApplicationHelper
         html_safe
     end
   end
+
+  def include_google_analytics
+    snippet = ""
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_google_analytics']
+      snippet = %[<script>
+          (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+          (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+          m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+          })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+          ga('create', 'UA-52928316-1', 'auto');
+          ga('send', 'pageview');
+        </script>
+        ]
+    end
+    snippet.html_safe
+  end
+
+  def include_inspectlet
+    snippet = ""
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_inspectlet']
+      snippet = %[ <script type="text/javascript" id="inspectletjs">
+        window.__insp = window.__insp || [];
+        __insp.push(['wid', 1695757460]);
+        (function() {
+          function __ldinsp(){var insp = document.createElement('script'); insp.type = 'text/javascript'; insp.async = true; insp.id = "inspsync"; insp.src = ('https:' == document.location.protocol ? 'https' : 'http') + '://cdn.inspectlet.com/inspectlet.js'; var x = document.getElementsByTagName('script')[0]; x.parentNode.insertBefore(insp, x); }
+          if (window.attachEvent){
+            window.attachEvent('onload', __ldinsp);
+          }else{
+            window.addEventListener('load', __ldinsp, false);
+          }
+        })();
+      </script>
+    ]
+    end
+    snippet.html_safe
+  end
+
+  def include_google_tag_manager
+    snippet = ""
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_google_tag_manager']
+      snippet = %[
+        <noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-MC7WJC"
+        height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+        <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+        '//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+        })(window,document,'script','dataLayer','GTM-MC7WJC');</script>
+    ]
+    end
+    snippet.html_safe
+  end
+
+  def include_qa_header
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    @external_web_tools_config['enable_qa_header']
+  end
+
 end

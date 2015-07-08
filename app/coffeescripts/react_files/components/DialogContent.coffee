@@ -1,9 +1,11 @@
 define [
   'react'
-  'compiled/react/shared/utils/withReactDOM'
-], (React, withReactDOM) ->
+  'compiled/react/shared/utils/withReactElement'
+], (React, withReactElement) ->
 
   DialogContent = React.createClass
 
-    render: withReactDOM ->
+    displayName: 'DialogContent'
+
+    render: withReactElement ->
       div {}, @props.children

@@ -104,6 +104,19 @@ module Lti
         expect(binding.context).to eq account
       end
 
+      it 'creates a tool setting for the tool proxy if custom is defined' do
+        tool_proxy = subject.process_tool_proxy_json(tool_proxy_fixture, account, tool_proxy_guid)
+        expect(tool_proxy.tool_settings.count).to eq 1
+        expect(tool_proxy.tool_settings.first.custom).to eq({"customerId"=>"394892759526"})
+      end
+
+      it 'does not create a tool setting for the tool proxy if custom is not defined' do
+        tool_proxy = JSON.parse(tool_proxy_fixture)
+        tool_proxy.delete('custom')
+        tool_proxy = subject.process_tool_proxy_json(tool_proxy.to_json, account, tool_proxy_guid)
+        expect(tool_proxy.tool_settings.count).to eq 0
+      end
+
       it 'creates a tool_proxy' do
         SecureRandom.stubs(:uuid).returns('my_uuid')
         tool_proxy = subject.process_tool_proxy_json(tool_proxy_fixture, account, tool_proxy_guid)
@@ -113,6 +126,8 @@ module Lti
         expect(tool_proxy.lti_version).to eq 'LTI-2p0'
         expect(tool_proxy.context).to eq account
         expect(tool_proxy.workflow_state).to eq 'disabled'
+        expect(tool_proxy.name).to eq 'Acme Assessments'
+        expect(tool_proxy.description).to eq 'Acme Assessments provide an interactive test format.'
       end
 
       context 'placements' do
@@ -181,6 +196,14 @@ module Lti
         tp.tool_profile.resource_handlers.first.messages.first.parameter = [IMS::LTI::Models::Parameter.new(name:'extra_test', variable: 'Custom.Variable')]
         expect { subject.process_tool_proxy_json(tp.as_json, account, tool_proxy_guid) }.to raise_error(ToolProxyService::InvalidToolProxyError, 'Invalid Capabilities')do |exception|
           expect(JSON.parse(exception.to_json)).to eq({"invalid_capabilities"=>["Custom.Variable"], "error"=>"Invalid Capabilities"})
+        end
+      end
+
+      it 'rejects tool proxies that are missing a shared secret' do
+        tp = IMS::LTI::Models::ToolProxy.new.from_json(tool_proxy_fixture)
+        tp.security_contract.shared_secret = nil
+        expect { subject.process_tool_proxy_json(tp.as_json, account, tool_proxy_guid) }.to raise_error(ToolProxyService::InvalidToolProxyError, 'Invalid SecurityContract')do |exception|
+          expect(JSON.parse(exception.to_json)).to eq({"invalid_security_contract"=>["shared_secret"], "error"=>"Invalid SecurityContract"})
         end
       end
 

@@ -5,7 +5,8 @@ define [
   'vendor/backbone-identity-map'
   'compiled/collections/PaginatedCollection'
   'compiled/collections/FilesCollection'
-], (require, FilesystemObject, _, identityMapMixin, PaginatedCollection, FilesCollection) ->
+  'compiled/util/natcompare'
+], (require, FilesystemObject, _, identityMapMixin, PaginatedCollection, FilesCollection, natcompare) ->
 
 
   Folder = identityMapMixin class __Folder extends FilesystemObject
@@ -15,6 +16,7 @@ define [
 
     initialize: (options) ->
       @contentTypes ||= options?.contentTypes
+      @useVerifiers ||= options?.useVerifiers
       @setUpFilesAndFoldersIfNeeded()
       @on 'change:sort change:order', @setQueryStringParams
       super
@@ -28,6 +30,7 @@ define [
     parse: (response) ->
       json = super
       @contentTypes ||= response.contentTypes
+      @useVerifiers ||= response.useVerifiers
       @setUpFilesAndFoldersIfNeeded()
 
       @folders.url = response.folders_url
@@ -41,7 +44,11 @@ define [
       unless @files
         @files = new FilesCollection [], parentFolder: this
 
+    getSubtrees: ->
+      @folders
 
+    getItems: ->
+      @files
 
     expand: (force=false, options={}) ->
       @isExpanded = true
@@ -57,7 +64,7 @@ define [
       fetchDfd = @fetch() if selfHasntBeenFetched || force
       $.when(fetchDfd).done =>
         foldersDfd = @folders.fetch() unless @get('folders_count') is 0
-        filesDfd = @files.fetch() if (@get('files_count') isnt 0) and !options.onlyShowFolders
+        filesDfd = @files.fetch() if (@get('files_count') isnt 0) and !options.onlyShowSubtrees
         $.when(foldersDfd, filesDfd).done(@expandDfd.resolve)
 
     collapse: ->
@@ -84,12 +91,17 @@ define [
     filesEnv = null
     urlPath: ->
       relativePath = (@get('full_name') or '').replace(EVERYTHING_BEFORE_THE_FIRST_SLASH, '')
+
+      relativePath = relativePath.split('/').map((component) ->
+        encodeURIComponent(component)
+      ).join('/')
+
       filesEnv ||= require('compiled/react_files/modules/filesEnv') # circular dep
 
       # when we are viewing all files we need to pad the context_asset_string on the front of the url
       # so it would be something like /files/folder/users_1/some/sub/folder
       if filesEnv.showingAllContexts
-        assetString = "#{@get('context_type').toLowerCase()}s_#{@get('context_id')}"
+        assetString = "#{@get('context_type')?.toLowerCase()}s_#{@get('context_id')}"
         relativePath = assetString + '/' + relativePath
 
       relativePath
@@ -111,17 +123,29 @@ define [
       else
         model.get(sortProp)
 
+    ##
+    # Special sorter for handling sorting with special properties
+    # It's been enhanced to sort naturally when certain sortProps
+    # are used.
     childrenSorter: (sortProp='name', sortOrder='asc', a, b) ->
+      # Only use natural mode for instances we expect strings in.
+      naturalMode = sortProp in ['name', 'user', 'usage_rights']
+
+      # Get actual values for the properties we are sorting by.
       a = getSortProp(a, sortProp)
       b = getSortProp(b, sortProp)
-      res = if a is b
-              0
-            else if a > b or a is undefined
-              1
-            else if a < b or b is undefined
-              -1
-            else
-              throw new Error("wat? error sorting")
+
+      if naturalMode
+        res = natcompare.strings(a, b)
+      else
+        res = if a is b
+                0
+              else if a > b or a is undefined
+                1
+              else if a < b or b is undefined
+                -1
+              else
+                throw new Error("wat? error sorting")
 
       res = 0 - res if sortOrder is 'desc'
       res
@@ -148,6 +172,7 @@ define [
       if response
         _.each response, (folder) =>
           folder.contentTypes = @parentFolder.contentTypes
+          folder.useVerifiers = @parentFolder.useVerifiers
       super
 
 

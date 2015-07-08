@@ -4,11 +4,9 @@ shared_examples_for "course copy" do
   before :once do
     course_with_teacher(:course_name => "from course", :active_all => true)
     @copy_from = @course
-    set_course_draft_state(:course => @copy_from)
 
     course_with_teacher(:user => @user, :course_name => "tocourse", :course_code => "tocourse")
     @copy_to = @course
-    set_course_draft_state(:course => @copy_to)
 
     @cm = ContentMigration.new(
       :context => @copy_to,
@@ -30,7 +28,7 @@ shared_examples_for "course copy" do
       er = ErrorReport.last
       expect("#{er.message} - #{er.backtrace}").to eq ""
     end
-    expect(@cm.warnings).to eq warnings
+    expect(@cm.warnings).to match_array warnings
     expect(@cm.workflow_state).to eq 'imported'
     @copy_to.reload
   end

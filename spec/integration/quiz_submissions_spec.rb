@@ -1,9 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
 describe Quizzes::QuizSubmissionsController do
-  before :once do
-    Account.default.enable_feature!(:draft_state)
-  end
 
   before do
     course_with_student_logged_in(:active_all => true)
@@ -81,6 +78,8 @@ describe Quizzes::QuizSubmissionsController do
   end
 
   def submit_quiz
+    Canvas::LiveEvents.expects(:quiz_submitted).with(@qs)
+
     post "/courses/#{@course.id}/quizzes/#{@quiz.id}/submissions/",
          :question_1 => 'password', :attempt => 1, :validation_token => @qs.validation_token
     expect(response).to be_redirect

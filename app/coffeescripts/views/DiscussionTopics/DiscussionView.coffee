@@ -6,8 +6,10 @@ define [
   'jst/DiscussionTopics/discussion'
   'compiled/views/PublishIconView'
   'compiled/views/ToggleableSubscriptionIconView'
+  'compiled/views/DiscussionTopics/DateDueColumnView'
+  'compiled/views/DiscussionTopics/DateAvailableColumnView'
   'compiled/views/MoveDialogView'
-], (I18n, $, _, {View}, template, PublishIconView, ToggleableSubscriptionIconView, MoveDialogView) ->
+], (I18n, $, _, {View}, template, PublishIconView, ToggleableSubscriptionIconView, DateDueColumnView, DateAvailableColumnView, MoveDialogView) ->
 
   class DiscussionView extends View
     # Public: View template (discussion).
@@ -48,14 +50,18 @@ define [
     # Public: Topic is able to be pinned/unpinned.
     @optionProperty 'pinnable'
 
-    @child 'publishIcon', '[data-view=publishIcon]' if ENV.permissions.publish
-
+    @child 'publishIcon',                '[data-view=publishIcon]' if ENV.permissions.publish
+    @child 'dateDueColumnView',          '[data-view=date-due]'
+    @child 'dateAvailableColumnView',    '[data-view=date-available]'
     @child 'toggleableSubscriptionIcon', '[data-view=toggleableSubscriptionIcon]'
 
     initialize: (options) ->
       @attachModel()
       options.publishIcon = new PublishIconView(model: @model) if ENV.permissions.publish
       options.toggleableSubscriptionIcon = new ToggleableSubscriptionIconView(model: @model)
+      options.dateDueColumnView       = new DateDueColumnView(model: @model)
+      options.dateAvailableColumnView = new DateAvailableColumnView(model: @model)
+      
       @moveItemView = new MoveDialogView
         model: @model
         nested: true
@@ -155,7 +161,8 @@ define [
       # check for permission to lock the discussion topic based on due date (see TL-219)
       assignment = @model.get('assignment')
       base.permissions.lock = @model.get('locked') || !(assignment && assignment.dueAt() && (new Date(assignment.dueAt()) > new Date()))
-      base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
+      if base.last_reply_at
+        base.display_last_reply_at = I18n.l "#date.formats.medium", base.last_reply_at
       base.ENV = ENV
       base.discussion_topic_menu_tools = ENV.discussion_topic_menu_tools
       _.each base.discussion_topic_menu_tools, (tool) =>

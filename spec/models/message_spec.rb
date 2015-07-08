@@ -91,6 +91,14 @@ describe Message do
 
       expect(msg.subject).to include(@teacher.name)
     end
+
+    it "displays a custom logo when configured" do
+      account = account_model
+      account.settings[:email_logo] = 'awesomelogo.jpg'
+      @au = AccountUser.create(:account => account)
+      msg = generate_message(:account_user_notification, :email, @au)
+      expect(msg.html_body).to include('awesomelogo.jpg')
+    end
   end
 
   context "named scopes" do
@@ -178,6 +186,32 @@ describe Message do
       Mailer.expects(:create_message).raises("450 recipient address rejected")
       ErrorReport.expects(:log_exception).never
       expect(@message.deliver).to eq false
+    end
+
+    context 'push' do
+      before :once do
+        user_model
+      end
+
+      it "deletes unreachable push endpoints" do
+        ne = mock()
+        ne.expects(:push_json).returns(false)
+        ne.expects(:destroy)
+        @user.expects(:notification_endpoints).returns(mock(all: [ne]))
+
+        message_model(:dispatch_at => Time.now, :workflow_state => 'staged', :to => 'somebody', :updated_at => Time.now.utc - 11.minutes, :path_type => 'push', :user => @user)
+        @message.deliver
+      end
+
+      it "delivers to each of a user's push endpoints" do
+        ne = mock()
+        ne.expects(:push_json).twice.returns(true)
+        ne.expects(:destroy).never
+        @user.expects(:notification_endpoints).returns(mock(all: [ne, ne]))
+
+        message_model(:dispatch_at => Time.now, :workflow_state => 'staged', :to => 'somebody', :updated_at => Time.now.utc - 11.minutes, :path_type => 'push', :user => @user)
+        @message.deliver
+      end
     end
   end
 

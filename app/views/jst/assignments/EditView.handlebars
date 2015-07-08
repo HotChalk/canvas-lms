@@ -58,7 +58,13 @@
       value="{{pointsPossible}}"
       type="text"
       {{disabledIfIncludes frozenAttributes "points_possible"}}/>
+      <div aria-live="polite" role="alert">
+        <div id=point_change_warning class="alert">
+          {{#t}}If you change an assignment's points possible you must regrade the assignment.{{/t}}
+         </div>
+      </div>
   </div>
+
 </div>
 
 <div id="section_selector">
@@ -70,7 +76,7 @@
 <div id="grading_type_selector"></div>
 
 {{#if postToSISEnabled}}
-<div class="form-column-left">Post Grades to SIS</div>
+<div class="form-column-left">{{#t}}Post Grades to SIS{{/t}}</div>
 <div class="form-column-right">
   <fieldset>
     <label class="checkbox">
@@ -120,19 +126,13 @@
   </div>
 {{/if}}
 
-<hr>
-
-{{#if differentiatedAssignmentsEnabled}}
-  <div class="text-center pad-box-mini" style="margin-bottom:10px">
-    <span>
-      <em>
-      {{#t "only_visible_to_overrides_note"}}Note: This assignment is <strong>only</strong> visible to the section(s) specified below:{{/t}}
-      </em>
-    </span>
+<div id="overrides-wrapper">
+  <div class="form-column-left">
+    {{#t}}Assign{{/t}}
   </div>
-{{/if}}
-
-<div class='js-assignment-overrides'></div>
+  <div class="overrides-column-right js-assignment-overrides overrideFormFlex">
+  </div>
+</div>
 
 <div class="form-actions flush" style="padding-left: 10px;">
 
@@ -148,8 +148,13 @@
   <button type="button" class="btn cancel_button">
     {{#t "#buttons.cancel"}}Cancel{{/t}}
   </button>
+  {{#unless published}}
+    <button type="button" class="btn btn-default save_and_publish">
+      {{#t "buttons.save_and_publish"}}Save & Publish{{/t}}
+    </button>
+  {{/unless}}
   <button type="submit" class="btn btn-primary">
-    {{#t "buttons.update"}}Update Assignment{{/t}}
+    {{#t "buttons.save"}}Save{{/t}}
   </button>
 
 </div>

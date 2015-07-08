@@ -48,7 +48,7 @@ class ActiveRecord::Base
 
   def feed_code
     id = self.uuid rescue self.id
-    "#{self.class.reflection_type_name}_#{id.to_s}"
+    "#{self.class.reflection_type_name}_#{id}"
   end
 
   def self.all_models
@@ -68,7 +68,11 @@ class ActiveRecord::Base
       "#{Rails.root}/vendor/plugins/*/app/models/**/*.rb",
       "#{Rails.root}/gems/plugins/*/app/models/**/*.rb",
     ].sort.collect { |file|
-      model = file.sub(%r{.*/app/models/(.*)\.rb$}, '\1').camelize.constantize
+      model = begin
+          file.sub(%r{.*/app/models/(.*)\.rb$}, '\1').camelize.constantize
+        rescue NameError, LoadError
+          next
+        end
       next unless model < ActiveRecord::Base
       model
     }
@@ -106,7 +110,7 @@ class ActiveRecord::Base
 
   def self.parse_asset_string(str)
     code = asset_string_components(str)
-    [code.first.classify, code.last.try(:to_i)]
+    [convert_class_name(code.first), code.last.try(:to_i)]
   end
 
   def self.asset_string_components(str)
@@ -115,11 +119,10 @@ class ActiveRecord::Base
     [components.join('_'), id.presence]
   end
 
-  def self.initialize_by_asset_string(string, asset_types)
-    type, id = asset_string_components(string)
-    res = type.classify.constantize rescue nil
-    res.id = id if res
-    res
+  def self.convert_class_name(str)
+    namespaces = str.split(':')
+    class_name = namespaces.pop
+    (namespaces.map(&:camelize) + [class_name.try(:classify)]).join('::')
   end
 
   def asset_string
@@ -206,10 +209,10 @@ class ActiveRecord::Base
   def touch_context
     return if (@@skip_touch_context ||= false || @skip_touch_context ||= false)
     if self.respond_to?(:context_type) && self.respond_to?(:context_id) && self.context_type && self.context_id
-      self.context_type.constantize.update_all({ :updated_at => Time.now.utc }, { :id => self.context_id })
+      self.context_type.constantize.update_all({ updated_at: Time.now.utc }, { id: self.context_id })
     end
   rescue
-    ErrorReport.log_exception(:touch_context, $!)
+    Canvas::Errors.capture_exception(:touch_context, $ERROR_INFO)
   end
 
   def touch_user
@@ -225,7 +228,7 @@ class ActiveRecord::Base
     end
     true
   rescue
-    ErrorReport.log_exception(:touch_user, $!)
+    Canvas::Errors.capture_exception(:touch_user, $ERROR_INFO)
     false
   end
 
@@ -241,13 +244,13 @@ class ActiveRecord::Base
     self.set_serialization_options if self.respond_to?(:set_serialization_options)
 
     except = options.delete(:except) || []
-    except = Array(except)
+    except = Array(except).dup
     except.concat(self.class.serialization_excludes) if self.class.respond_to?(:serialization_excludes)
     except.concat(self.serialization_excludes) if self.respond_to?(:serialization_excludes)
     except.uniq!
 
     methods = options.delete(:methods) || []
-    methods = Array(methods)
+    methods = Array(methods).dup
     methods.concat(self.class.serialization_methods) if self.class.respond_to?(:serialization_methods)
     methods.concat(self.serialization_methods) if self.respond_to?(:serialization_methods)
     methods.uniq!
@@ -616,12 +619,30 @@ if defined? ActiveRecord::ConnectionAdapters::PostgreSQLAdapter
 end
 
 ActiveRecord::Relation.class_eval do
+
+  def select_values_necessitate_temp_table?
+    return false unless select_values.present?
+    selects = select_values.flat_map{|sel| sel.to_s.split(",").map(&:strip) }
+    id_keys = [primary_key, "*", "#{table_name}.#{primary_key}", "#{table_name}.*"]
+    id_keys.all?{|k| !selects.include?(k) }
+  end
+  private :select_values_necessitate_temp_table?
+
+  def find_in_batches_needs_temp_table?
+    order_values.any? ||
+      group_values.any? ||
+      select_values.to_s =~ /DISTINCT/i ||
+      uniq_value ||
+      select_values_necessitate_temp_table?
+  end
+  private :find_in_batches_needs_temp_table?
+
   def find_in_batches_with_usefulness(options = {}, &block)
     # already in a transaction (or transactions don't matter); cursor is fine
-    if (connection.adapter_name == 'PostgreSQL' && (connection.readonly? || connection.open_transactions > (Rails.env.test? ? 1 : 0))) && !options[:start]
+    if can_use_cursor? && !options[:start]
       self.activate { find_in_batches_with_cursor(options, &block) }
-    elsif order_values.any? || group_values.any? || select_values.to_s =~ /DISTINCT/i || uniq_value || select_values.present? && !select_values.map(&:to_s).include?(primary_key)
-      raise ArgumentError.new("GROUP and ORDER are incompatible with :start") if options[:start]
+    elsif find_in_batches_needs_temp_table?
+      raise ArgumentError.new("GROUP and ORDER are incompatible with :start, as is an explicit select without the primary key") if options[:start]
       self.activate { find_in_batches_with_temp_table(options, &block) }
     else
       find_in_batches_without_usefulness(options) do |batch|
@@ -631,7 +652,14 @@ ActiveRecord::Relation.class_eval do
   end
   alias_method_chain :find_in_batches, :usefulness
 
-  def find_in_batches_with_cursor(options = {}, &block)
+  def can_use_cursor?
+    (connection.adapter_name == 'PostgreSQL' &&
+      (Shackles.environment == :slave ||
+        connection.readonly? ||
+        connection.open_transactions > (Rails.env.test? ? 1 : 0)))
+  end
+
+  def find_in_batches_with_cursor(options = {})
     batch_size = options[:batch_size] || 1000
     klass.transaction do
       begin
@@ -656,10 +684,24 @@ ActiveRecord::Relation.class_eval do
   end
 
   def find_in_batches_with_temp_table(options = {})
+    if options[:pluck]
+      pluck = Array(options[:pluck])
+      pluck_for_select = pluck.map do |column_name|
+        if column_name.is_a?(Symbol) && column_names.include?(column_name.to_s)
+          "#{connection.quote_table_name(table_name)}.#{connection.quote_column_name(column_name)}"
+        else
+          column_name.to_s
+        end
+      end
+    end
     batch_size = options[:batch_size] || 1000
-    sql = to_sql
+    if pluck
+      sql = select(pluck_for_select).to_sql
+    else
+      sql = to_sql
+    end
     table = "#{table_name}_find_in_batches_temp_table_#{sql.hash.abs.to_s(36)}"
-    table = table[-64..-1] if table.length > 64
+    table = table[-63..-1] if table.length > 63
     connection.execute "CREATE TEMPORARY TABLE #{table} AS #{sql}"
     begin
       index = "temp_primary_key"
@@ -667,12 +709,19 @@ ActiveRecord::Relation.class_eval do
         when 'PostgreSQL'
           begin
             old_proc = connection.raw_connection.set_notice_processor {}
-            connection.execute "ALTER TABLE #{table}
-                             ADD temp_primary_key SERIAL PRIMARY KEY"
+            if pluck && pluck.length == 1 && pluck.first.to_s == primary_key.to_s
+              connection.add_index table, primary_key, name: index
+              index = primary_key
+            else
+              pluck.unshift(index) if pluck
+              connection.execute "ALTER TABLE #{table}
+                               ADD temp_primary_key SERIAL PRIMARY KEY"
+            end
           ensure
             connection.raw_connection.set_notice_processor(&old_proc) if old_proc
           end
         when 'MySQL', 'Mysql2'
+          pluck.unshift(index) if pluck
           connection.execute "ALTER TABLE #{table}
                              ADD temp_primary_key MEDIUMINT NOT NULL PRIMARY KEY AUTO_INCREMENT"
         when 'SQLite'
@@ -683,21 +732,30 @@ ActiveRecord::Relation.class_eval do
       end
 
       includes = includes_values
-      sql = "SELECT * FROM #{table} ORDER BY #{index} LIMIT #{batch_size}"
       klass.send(:with_exclusive_scope) do
-        batch = klass.find_by_sql(sql)
+        if pluck
+          batch = klass.from(table).order(index).limit(batch_size).pluck(pluck)
+        else
+          sql = "SELECT * FROM #{table} ORDER BY #{index} LIMIT #{batch_size}"
+          batch = klass.find_by_sql(sql)
+        end
         while !batch.empty?
           ActiveRecord::Associations::Preloader.new(batch, includes).run if includes
           yield batch
           break if batch.size < batch_size
-          last_value = batch.last[index]
 
-          sql = "SELECT *
-             FROM #{table}
-             WHERE #{index} > #{last_value}
-             ORDER BY #{index} ASC
-             LIMIT #{batch_size}"
-          batch = klass.find_by_sql(sql)
+          if pluck
+            last_value = pluck.length == 1 ? batch.last : batch.last[index]
+            batch = klass.from(table).order(index).where("#{index} > ?", last_value).limit(batch_size).pluck(pluck)
+          else
+            last_value = batch.last[index]
+            sql = "SELECT *
+               FROM #{table}
+               WHERE #{index} > #{last_value}
+               ORDER BY #{index} ASC
+               LIMIT #{batch_size}"
+            batch = klass.find_by_sql(sql)
+          end
         end
       end
     ensure
@@ -762,7 +820,7 @@ ActiveRecord::Relation.class_eval do
           join_conditions.each { |join| scope = scope.where(join) }
           sql.concat(scope.arel.where_sql.to_s)
         when 'MySQL', 'Mysql2'
-          sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.join_sql.to_s} #{arel.where_sql.to_s}"
+          sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.join_sql} #{arel.where_sql}"
         else
           raise "Joins in delete not supported!"
         end
@@ -780,17 +838,28 @@ ActiveRecord::Relation.class_eval do
       case connection.adapter_name
       when 'MySQL', 'Mysql2'
         v = arel.visitor
-        sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.where_sql.to_s}
+        sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.where_sql}
             ORDER BY #{arel.orders.map { |x| v.send(:visit, x) }.join(', ')} LIMIT #{v.send(:visit, arel.limit)}"
         return connection.delete(sql, "#{name} Delete all")
       else
-        scope = scoped.select(primary_key)
+        scope = scoped.except(:select).select("#{quoted_table_name}.#{primary_key}")
         return unscoped.where(primary_key => scope).delete_all
       end
     end
     delete_all_without_limit(conditions)
   end
   alias_method_chain :delete_all, :limit
+
+  def lock_with_exclusive_smarts(lock_type = true)
+    if lock_type == :no_key_update
+      postgres_9_3_or_above = connection.adapter_name == 'PostgreSQL' &&
+        connection.send(:postgresql_version) >= 90300
+      lock_type = true
+      lock_type = 'FOR NO KEY UPDATE' if postgres_9_3_or_above
+    end
+    lock_without_exclusive_smarts(lock_type)
+  end
+  alias_method_chain :lock, :exclusive_smarts
 
   def with_each_shard(*args)
     scope = self
@@ -848,7 +917,11 @@ ActiveRecord::Relation.class_eval do
     relation = clone
     old_select = relation.select_values
     relation.select_values = ["DISTINCT ON (#{args.join(', ')}) "]
-    relation.uniq_value = false
+    if CANVAS_RAILS3
+      relation.uniq_value = false
+    else
+      relation.distinct_value = false
+    end
     if old_select.empty?
       relation.select_values.first << "*"
     else
@@ -856,6 +929,15 @@ ActiveRecord::Relation.class_eval do
     end
 
     relation
+  end
+
+  # if this sql is constructed on one shard then executed on another it wont work
+  # dont use it for cross shard queries
+  def union(*scopes)
+    uniq_identifier = "#{table_name}.#{primary_key}"
+    scopes << self
+    sub_query = (scopes).map {|s| s.except(:select).select(uniq_identifier).to_sql}.join(" UNION ALL ")
+    engine.where("#{uniq_identifier} IN (#{sub_query})")
   end
 end
 
@@ -1130,6 +1212,7 @@ if defined?(ActiveRecord::ConnectionAdapters::SQLiteAdapter)
     def quoted_true
       '1'
     end
+
     def quoted_false
       '0'
     end

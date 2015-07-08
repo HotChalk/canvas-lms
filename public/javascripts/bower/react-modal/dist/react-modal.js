@@ -1,7 +1,6 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.ReactModal=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
-/** @jsx React.DOM */
 var React = (typeof window !== "undefined" ? window.React : typeof global !== "undefined" ? global.React : null);
-var ModalPortal = _dereq_('./ModalPortal');
+var ModalPortal = React.createFactory(_dereq_('./ModalPortal'));
 var ariaAppHider = _dereq_('../helpers/ariaAppHider');
 var injectCSS = _dereq_('../helpers/injectCSS');
 
@@ -54,7 +53,7 @@ var Modal = module.exports = React.createClass({
     if (this.portal)
       this.portal.setProps(props);
     else
-      this.portal = React.renderComponent(ModalPortal(props), this.node);
+      this.portal = React.render(ModalPortal(props), this.node);
   },
 
   render: function () {
@@ -78,14 +77,16 @@ var CLASS_NAMES = {
   overlay: {
     base: 'ReactModal__Overlay',
     afterOpen: 'ReactModal__Overlay--after-open',
-    beforeClose: 'ReactModal__Overlay--before-close',
+    beforeClose: 'ReactModal__Overlay--before-close'
   },
   content: {
     base: 'ReactModal__Content',
     afterOpen: 'ReactModal__Content--after-open',
-    beforeClose: 'ReactModal__Content--before-close',
+    beforeClose: 'ReactModal__Content--before-close'
   }
 };
+
+var OVERLAY_STYLES = { position: 'fixed', left: 0, right: 0, top: 0, bottom: 0 };
 
 function stopPropagation(event) {
   event.stopPropagation();
@@ -114,12 +115,10 @@ var ModalPortal = module.exports = React.createClass({
     // Focus only needs to be set once when the modal is being opened
     if (!this.props.isOpen && newProps.isOpen) {
       this.setFocusAfterRender(true);
-    }
-
-    if (newProps.isOpen === true)
       this.open();
-    else if (newProps.isOpen === false)
+    } else if (this.props.isOpen && !newProps.isOpen) {
       this.close();
+    }
   },
 
   componentDidUpdate: function () {
@@ -173,7 +172,7 @@ var ModalPortal = module.exports = React.createClass({
   },
 
   handleKeyDown: function(event) {
-    if (event.keyCode == 9 /*tab*/) scopeTab(this.getDOMNode(), event);
+    if (event.keyCode == 9 /*tab*/) scopeTab(this.refs.content.getDOMNode(), event);
     if (event.keyCode == 27 /*esc*/) this.requestClose();
   },
 
@@ -197,8 +196,6 @@ var ModalPortal = module.exports = React.createClass({
     return !this.props.isOpen && !this.state.beforeClose;
   },
 
-  overlayStyles: { position: 'fixed', left: 0, right: 0, top: 0, bottom: 0 },
-
   buildClassName: function(which) {
     var className = CLASS_NAMES[which].base;
     if (this.state.afterOpen)
@@ -213,11 +210,12 @@ var ModalPortal = module.exports = React.createClass({
       div({
         ref: "overlay",
         className: cx(this.buildClassName('overlay'), this.props.overlayClassName),
-        style: this.overlayStyles,
+        style: OVERLAY_STYLES,
         onClick: this.handleOverlayClick
       },
         div({
           ref: "content",
+          style: this.props.style,
           className: cx(this.buildClassName('content'), this.props.className),
           tabIndex: "-1",
           onClick: stopPropagation,
@@ -313,15 +311,28 @@ exports.returnFocus = function() {
 
 exports.setupScopedFocus = function(element) {
   modalElement = element;
-  window.addEventListener('blur', handleBlur, false);
-  document.addEventListener('focus', handleFocus, true);
+
+  if (window.addEventListener) {
+    window.addEventListener('blur', handleBlur, false);
+    document.addEventListener('focus', handleFocus, true);
+  } else {
+    window.attachEvent('onBlur', handleBlur);
+    document.attachEvent('onFocus', handleFocus);
+  }
 };
 
 exports.teardownScopedFocus = function() {
   modalElement = null;
-  window.removeEventListener('blur', handleBlur);
-  document.removeEventListener('focus', handleFocus);
+
+  if (window.addEventListener) {
+    window.removeEventListener('blur', handleBlur);
+    document.removeEventListener('focus', handleFocus);
+  } else {
+    window.detachEvent('onBlur', handleBlur);
+    document.detachEvent('onFocus', handleFocus);
+  }
 };
+
 
 
 },{"../helpers/tabbable":7}],5:[function(_dereq_,module,exports){
@@ -443,7 +454,7 @@ module.exports = _dereq_('./components/Modal');
 
 },{"./components/Modal":1}],9:[function(_dereq_,module,exports){
 /**
- * Copyright 2013-2014, Facebook, Inc.
+ * Copyright 2013-2015, Facebook, Inc.
  * All rights reserved.
  *
  * This source code is licensed under the BSD-style license found in the
@@ -468,7 +479,22 @@ module.exports = _dereq_('./components/Modal');
  * @param [string ...]  Variable list of classNames in the string case.
  * @return string       Renderable space-separated CSS className.
  */
+
+'use strict';
+var warning = _dereq_("./warning");
+
+var warned = false;
+
 function cx(classNames) {
+  if ("production" !== "production") {
+    ("production" !== "production" ? warning(
+      warned,
+      'React.addons.classSet will be deprecated in a future version. See ' +
+      'http://fb.me/react-addons-classset'
+    ) : null);
+    warned = true;
+  }
+
   if (typeof classNames == 'object') {
     return Object.keys(classNames).filter(function(className) {
       return classNames[className];
@@ -480,6 +506,101 @@ function cx(classNames) {
 
 module.exports = cx;
 
-},{}]},{},[8])
+},{"./warning":11}],10:[function(_dereq_,module,exports){
+/**
+ * Copyright 2013-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule emptyFunction
+ */
+
+function makeEmptyFunction(arg) {
+  return function() {
+    return arg;
+  };
+}
+
+/**
+ * This function accepts and discards inputs; it has no side effects. This is
+ * primarily useful idiomatically for overridable function endpoints which
+ * always need to be callable, since JS lacks a null-call idiom ala Cocoa.
+ */
+function emptyFunction() {}
+
+emptyFunction.thatReturns = makeEmptyFunction;
+emptyFunction.thatReturnsFalse = makeEmptyFunction(false);
+emptyFunction.thatReturnsTrue = makeEmptyFunction(true);
+emptyFunction.thatReturnsNull = makeEmptyFunction(null);
+emptyFunction.thatReturnsThis = function() { return this; };
+emptyFunction.thatReturnsArgument = function(arg) { return arg; };
+
+module.exports = emptyFunction;
+
+},{}],11:[function(_dereq_,module,exports){
+/**
+ * Copyright 2014-2015, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ *
+ * @providesModule warning
+ */
+
+"use strict";
+
+var emptyFunction = _dereq_("./emptyFunction");
+
+/**
+ * Similar to invariant but only logs a warning if the condition is not met.
+ * This can be used to log issues in development environments in critical
+ * paths. Removing the logging code for production environments will keep the
+ * same logic and follow the same code paths.
+ */
+
+var warning = emptyFunction;
+
+if ("production" !== "production") {
+  warning = function(condition, format ) {for (var args=[],$__0=2,$__1=arguments.length;$__0<$__1;$__0++) args.push(arguments[$__0]);
+    if (format === undefined) {
+      throw new Error(
+        '`warning(condition, format, ...args)` requires a warning ' +
+        'message argument'
+      );
+    }
+
+    if (format.length < 10 || /^[s\W]*$/.test(format)) {
+      throw new Error(
+        'The warning format should be able to uniquely identify this ' +
+        'warning. Please, use a more descriptive format than: ' + format
+      );
+    }
+
+    if (format.indexOf('Failed Composite propType: ') === 0) {
+      return; // Ignore CompositeComponent proptype check.
+    }
+
+    if (!condition) {
+      var argIndex = 0;
+      var message = 'Warning: ' + format.replace(/%s/g, function()  {return args[argIndex++];});
+      console.warn(message);
+      try {
+        // --- Welcome to debugging React ---
+        // This error was thrown as a convenience so that you can use this stack
+        // to find the callsite that caused this warning to fire.
+        throw new Error(message);
+      } catch(x) {}
+    }
+  };
+}
+
+module.exports = warning;
+
+},{"./emptyFunction":10}]},{},[8])
 (8)
 });

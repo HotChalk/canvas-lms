@@ -19,7 +19,6 @@ define [
 
   fixtures.create()
   setup = (isDraftState=false, sortOrder='assignment_group') ->
-    window.ENV.GRADEBOOK_OPTIONS.draft_state_enabled = isDraftState
     originalWeightingScheme =  window.ENV.GRADEBOOK_OPTIONS.group_weighting_scheme
     @contextGetStub = sinon.stub(userSettings, 'contextGet')
     @contextSetStub = sinon.stub(userSettings, 'contextSet')
@@ -30,7 +29,7 @@ define [
       @srgb = SRGBController.create()
       @srgb.set('model', {
         enrollments: Ember.ArrayProxy.create(content: clone fixtures.students)
-        assignment_groups: Ember.ArrayProxy.create(content: clone fixtures.assignment_groups)
+        assignment_groups: Ember.ArrayProxy.create(content: [])
         submissions: Ember.ArrayProxy.create(content: [])
         sections: Ember.ArrayProxy.create(content: clone fixtures.sections)
         outcomes: Ember.ArrayProxy.create(content: clone fixtures.outcomes)
@@ -38,7 +37,6 @@ define [
       })
 
   teardown = ->
-    window.ENV.GRADEBOOK_OPTIONS.draft_state_enabled = false
     window.ENV.GRADEBOOK_OPTIONS.group_weighting_scheme = originalWeightingScheme
     @contextGetStub.restore()
     @contextSetStub.restore()
@@ -140,26 +138,11 @@ define [
     equal ids.length, 1
     equal ids[0], '1'
 
-  # Hacky setup and teardown (thanks, local storage). I invite you to make this better.
-  module 'screenreader_gradebook_controller: sorting alpha',
-    setup: ->
-      setup.call this, false, 'alpha'
-    teardown: ->
-      teardown.call this
-
   test 'sorting assignments alphabetically', ->
     Ember.run =>
       @srgb.set('assignmentSort', @srgb.get('assignmentSortOptions').findBy('value', 'alpha'))
     equal @srgb.get('assignments.firstObject.name'), 'Apples are good'
     equal @srgb.get('assignments.lastObject.name'), 'Z Eats Soup'
-
-
-  # Hacky setup and teardown (thanks, local storage). I invite you to make this better.
-  module 'screenreader_gradebook_controller: sorting due_date',
-    setup: ->
-      setup.call this, false, 'due_date'
-    teardown: ->
-      teardown.call this
 
   test 'sorting assignments by due date', ->
     Ember.run =>
@@ -474,4 +457,16 @@ define [
       @srgb.set('selectedStudent', student)
       equal @srgb.get('selectedSubmissionHidden'), true
 
+  module 'screenreader_gradebook_controller: selectedOutcomeResult',
+    setup: -> setup.call @
+    teardown: -> teardown.call @
+
+  test 'should return object including mastery_points if result is found', ->
+    student = @srgb.get('students.firstObject')
+    outcome = @srgb.get('outcomes.firstObject')
+
+    Ember.run =>
+      @srgb.set('selectedOutcome', outcome)
+      @srgb.set('selectedStudent', student)
+      equal @srgb.get('selectedOutcomeResult').mastery_points, outcome.mastery_points
 

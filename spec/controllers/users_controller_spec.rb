@@ -20,6 +20,57 @@ require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper')
 
 describe UsersController do
 
+ describe "external_tool" do
+
+   let :account do
+     Account.default
+   end
+
+   let :tool do
+     tool = account.context_external_tools.new(
+         name: "bob",
+         consumer_key: "bob",
+         shared_secret: "bob",
+         tool_id: 'some_tool',
+         privacy_level: 'public'
+     )
+     tool.url = "http://www.example.com/basic_lti?first=john&last=smith"
+     tool.resource_selection = {
+         :url => "http://#{HostUrl.default_host}/selection_test",
+         :selection_width => 400,
+         :selection_height => 400}
+     tool.save!
+     tool
+   end
+
+   it "removes query string when post_only = true" do
+     u = user(:active_all => true)
+     account.account_users.create!(user: u)
+     user_session(@user)
+     tool.user_navigation = {
+         :text => "example"
+     }
+     tool.settings['post_only'] = 'true'
+     tool.save!
+
+     get :external_tool, {id:tool.id, user_id:u.id}
+     expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti'
+   end
+
+   it "does not remove query string from url" do
+     u = user(:active_all => true)
+     account.account_users.create!(user: u)
+     user_session(@user)
+     tool.user_navigation = {
+         :text => "example"
+     }
+     tool.save!
+
+     get :external_tool, {id:tool.id, user_id:u.id}
+     expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti?first=john&last=smith'
+   end
+ end
+
   describe "index" do
     before :each do
       @a = Account.default
@@ -62,49 +113,90 @@ describe UsersController do
   end
 
   describe "GET oauth" do
-    it "sets up oauth for facebook" do
-      Facebook::Connection.config = Proc.new do
-        {}
-      end
-      CanvasSlug.stubs(:generate).returns("some_uuid")
+    it "sets up oauth for google_drive" do
+      state = nil
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      settings_mock.stubs(:enabled?).returns(true)
 
-      user_with_pseudonym
+      user(:active_all => true)
       user_session(@user)
 
-      OauthRequest.expects(:create).with(
-          :service => "facebook",
-          :secret => "some_uuid",
-          :return_url => "http://example.com",
-          :user => @user,
-          :original_host_with_port => "test.host"
-      ).returns(stub(global_id: "123"))
-      Facebook::Connection.expects(:authorize_url).returns("http://example.com/redirect")
+      Canvas::Plugin.stubs(:find).returns(settings_mock)
+      SecureRandom.stubs(:hex).returns('abc123')
+      GoogleDrive::Client.expects(:auth_uri).with() {|_c, s| state = s and true}.returns("http://example.com/redirect")
 
-      get :oauth, {service: "facebook", return_to: "http://example.com"}
+      get :oauth, {service: "google_drive", return_to: "http://example.com"}
 
       expect(response).to redirect_to "http://example.com/redirect"
+      json = Canvas::Security.decode_jwt(state)
+      expect(session[:oauth_gdrive_nonce]).to eq 'abc123'
+      expect(json['redirect_uri']).to eq oauth_success_url(:service => 'google_drive')
+      expect(json['return_to_url']).to eq "http://example.com"
+      expect(json['nonce']).to eq session[:oauth_gdrive_nonce]
     end
+
   end
 
   describe "GET oauth_success" do
-    it "handles facebook post oauth redirects" do
+    it "handles google_drive oauth_success for a logged_in_user" do
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      authorization_mock = mock('authorization', :code= => nil, fetch_access_token!: nil, refresh_token:'refresh_token', access_token: 'access_token')
+      drive_mock = mock('drive_mock', about: mock(get: nil))
+      client_mock = mock("client", discovered_api:drive_mock, :execute! => mock('result', status: 200, data:{'permissionId' => 'permission_id', 'user' => {'emailAddress' => 'blah@blah.com'}}))
+      client_mock.stubs(:authorization).returns(authorization_mock)
+      GoogleDrive::Client.stubs(:create).returns(client_mock)
 
-      user_with_pseudonym
-      user_session(@user)
+      session[:oauth_gdrive_nonce] = 'abc123'
+      state = Canvas::Security.create_jwt({'return_to_url' => 'http://localhost.com/return', 'nonce' => 'abc123'})
+      course_with_student_logged_in
 
+      get :oauth_success, state: state, service: "google_drive", code: "some_code"
 
-      Canvas::Security.expects(:decrypt_password).with("some", "state", 'facebook_oauth_request').returns("123")
-      mock_oauth_request = stub(original_host_with_port: "test.host", user: @user, return_url: "example.com")
-      OauthRequest.expects(:where).with(id: "123").returns(stub(first: mock_oauth_request))
-      Facebook::Connection.expects(:get_service_user_info).with("access_token").returns({"id" => "456", "name" => "joe", "link" => "some_link"})
-      UserService.any_instance.expects(:save) do |user_service|
-        expect(user_service.id).to eq "456"
-        expect(user_service.name).to eq "joe"
-        expect(user_service.link).to eq "some_link"
-      end
+      service = UserService.where(user_id: @user, service: 'google_drive', service_domain: 'drive.google.com').first
+      expect(service.service_user_id).to eq 'permission_id'
+      expect(service.service_user_name).to eq 'blah@blah.com'
+      expect(service.token).to eq 'refresh_token'
+      expect(service.secret).to eq 'access_token'
+      expect(session[:oauth_gdrive_nonce]).to be_nil
+    end
 
-      get :oauth_success, state: "some.state", service: "facebook", access_token: "access_token"
+    it "handles google_drive oauth_success for a non logged in user" do
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      authorization_mock = mock('authorization', :code= => nil, fetch_access_token!: nil, refresh_token:'refresh_token', access_token: 'access_token')
+      drive_mock = mock('drive_mock', about: mock(get: nil))
+      client_mock = mock("client", discovered_api:drive_mock, :execute! => mock('result', status: 200, data:{'permissionId' => 'permission_id'}))
+      client_mock.stubs(:authorization).returns(authorization_mock)
+      GoogleDrive::Client.stubs(:create).returns(client_mock)
 
+      session[:oauth_gdrive_nonce] = 'abc123'
+      state = Canvas::Security.create_jwt({'return_to_url' => 'http://localhost.com/return', 'nonce' => 'abc123'})
+
+      get :oauth_success, state: state, service: "google_drive", code: "some_code"
+
+      expect(session[:oauth_gdrive_access_token]).to eq 'access_token'
+      expect(session[:oauth_gdrive_refresh_token]).to eq 'refresh_token'
+      expect(session[:oauth_gdrive_nonce]).to be_nil
+    end
+
+    it "rejects invalid state" do
+      settings_mock = mock()
+      settings_mock.stubs(:settings).returns({})
+      authorization_mock = mock('authorization')
+      authorization_mock.stubs(:code= => nil, fetch_access_token!: nil, refresh_token:'refresh_token', access_token: 'access_token')
+      drive_mock = mock('drive_mock', about: mock(get: nil))
+      client_mock = mock("client", discovered_api:drive_mock, :execute! => mock('result', status: 200, data:{'permissionId' => 'permission_id'}))
+      client_mock.stubs(:authorization).returns(authorization_mock)
+      GoogleDrive::Client.stubs(:create).returns(client_mock)
+
+      state = Canvas::Security.create_jwt({'return_to_url' => 'http://localhost.com/return', 'nonce' => 'abc123'})
+      get :oauth_success, state: state, service: "google_drive", code: "some_code"
+
+      assert_unauthorized
+      expect(session[:oauth_gdrive_access_token]).to be_nil
+      expect(session[:oauth_gdrive_refresh_token]).to be_nil
     end
   end
 
@@ -120,6 +212,19 @@ describe UsersController do
 
     courses = json_parse
     expect(courses.map { |c| c['id'] }).to eq [course2.id]
+  end
+
+  it "should sort the results of manageable_courses by name" do
+    course_with_teacher_logged_in(:course_name => "B", :active_all => 1)
+    %w(c d a).each do |name|
+      course_with_teacher(:course_name => name, :user => @teacher, :active_all => 1)
+    end
+
+    get 'manageable_courses', :user_id => @teacher.id
+    expect(response).to be_success
+
+    courses = json_parse
+    expect(courses.map { |c| c['label'] }).to eq %w(a B c d)
   end
 
   context "GET 'delete'" do
@@ -540,6 +645,19 @@ describe UsersController do
           expect(u.pseudonym).not_to be_password_auto_generated
         end
 
+        it "allows admins to force the self-registration workflow for a given user" do
+          Pseudonym.any_instance.expects(:send_confirmation!)
+          post 'create', account_id: account.id,
+            pseudonym: {
+              unique_id: 'jacob@instructure.com', password: 'asdfasdf',
+              password_confirmation: 'asdfasdf', force_self_registration: "1",
+            }, user: { name: 'Jacob Fugal' }
+          expect(response).to be_success
+          u = User.where(name: 'Jacob Fugal').first
+          expect(u).to be_present
+          expect(u.pseudonym).not_to be_password_auto_generated
+        end
+
       end
 
       it "should not allow an admin to set the sis id when creating a user if they don't have privileges to manage sis" do
@@ -665,23 +783,9 @@ describe UsersController do
     it "should redirect to no-pic if avatars are disabled" do
       course_with_student_logged_in(:active_all => true)
       get 'avatar_image', :user_id  => @user.id
-      expect(response).to redirect_to 'http://test.host/images/no_pic.gif'
+      expect(response).to redirect_to User.default_avatar_fallback
     end
-    it "should handle passing an absolute fallback if avatars are disabled" do
-      course_with_student_logged_in(:active_all => true)
-      get 'avatar_image', :user_id  => @user.id, :fallback => "http://foo.com/my/custom/fallback/url.png"
-      expect(response).to redirect_to 'http://foo.com/my/custom/fallback/url.png'
-    end
-    it "should handle passing an absolute fallback if avatars are enabled" do
-      course_with_student_logged_in(:active_all => true)
-      @account = Account.default
-      @account.enable_service(:avatars)
-      @account.settings[:avatars] = 'enabled_pending'
-      @account.save!
-      expect(@account.service_enabled?(:avatars)).to be_truthy
-      get 'avatar_image', :user_id  => @user.id, :fallback => "http://foo.com/my/custom/fallback/url.png"
-      expect(response).to redirect_to 'http://foo.com/my/custom/fallback/url.png'
-    end
+
     it "should redirect to avatar silhouette if no avatar is set and avatars are enabled" do
       course_with_student_logged_in(:active_all => true)
       @account = Account.default
@@ -690,13 +794,9 @@ describe UsersController do
       @account.save!
       expect(@account.service_enabled?(:avatars)).to be_truthy
       get 'avatar_image', :user_id  => @user.id
-      expect(response).to redirect_to '/images/messages/avatar-50.png'
+      expect(response).to redirect_to User.default_avatar_fallback
     end
-    it "should handle passing a host-relative fallback" do
-      course_with_student_logged_in(:active_all => true)
-      get 'avatar_image', :user_id  => @user.id, :fallback => "/my/custom/fallback/url.png"
-      expect(response).to redirect_to 'http://test.host/my/custom/fallback/url.png'
-    end
+
     it "should pass along the default fallback to gravatar" do
       course_with_student_logged_in(:active_all => true)
       @account = Account.default
@@ -706,24 +806,7 @@ describe UsersController do
       get 'avatar_image', :user_id  => @user.id
       expect(response).to redirect_to "https://secure.gravatar.com/avatar/000?s=50&d=#{CGI.escape("http://test.host/images/messages/avatar-50.png")}"
     end
-    it "should handle passing an absolute fallback when avatars are enabled" do
-      course_with_student_logged_in(:active_all => true)
-      @account = Account.default
-      @account.enable_service(:avatars)
-      @account.save!
-      expect(@account.service_enabled?(:avatars)).to be_truthy
-      get 'avatar_image', :user_id  => @user.id, :fallback => "https://test.domain/my/custom/fallback/url.png"
-      expect(response).to redirect_to "https://secure.gravatar.com/avatar/000?s=50&d=#{CGI.escape("https://test.domain/my/custom/fallback/url.png")}"
-    end
-    it "should handle passing a host-relative fallback when avatars are enabled" do
-      course_with_student_logged_in(:active_all => true)
-      @account = Account.default
-      @account.enable_service(:avatars)
-      @account.save!
-      expect(@account.service_enabled?(:avatars)).to be_truthy
-      get 'avatar_image', :user_id  => @user.id, :fallback => "/my/custom/fallback/url.png"
-      expect(response).to redirect_to "https://secure.gravatar.com/avatar/000?s=50&d=#{CGI.escape("http://test.host/my/custom/fallback/url.png")}"
-    end
+
     it "should take an invalid id and return silhouette" do
       @account = Account.default
       @account.enable_service(:avatars)
@@ -732,6 +815,7 @@ describe UsersController do
       get 'avatar_image', :user_id  => 'a'
       expect(response).to redirect_to 'http://test.host/images/messages/avatar-50.png'
     end
+
     it "should take an invalid id with a hyphen and return silhouette" do
       @account = Account.default
       @account.enable_service(:avatars)
@@ -1003,6 +1087,37 @@ describe UsersController do
         expect(response.code).to eq '404'
         expect(response.body).to eq 'Could not find download URL'
       end
+    end
+  end
+
+  describe "login hooks" do
+    before :each do
+      a = Account.default
+      a.settings = { :self_registration => true }
+      a.save!
+    end
+
+    it "should hook on new" do
+      controller.expects(:run_login_hooks).once
+      get "new"
+    end
+
+    it "should hook on failed create" do
+      controller.expects(:run_login_hooks).once
+      post "create"
+    end
+  end
+
+  describe "teacher_activity" do
+    it "finds submission comment interaction" do
+      course_with_student_submissions
+      sub = @course.assignments.first.submissions.
+        where(user_id: @student).first
+      sub.add_comment(comment: 'hi', author: @teacher)
+
+      get 'teacher_activity', user_id: @teacher.id, course_id: @course.id
+
+      expect(assigns[:courses][@course][0]['last_interaction']).not_to be_nil
     end
   end
 end

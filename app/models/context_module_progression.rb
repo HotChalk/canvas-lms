@@ -121,6 +121,8 @@ class ContextModuleProgression < ActiveRecord::Base
       self.workflow_state = 'completed'
     elsif result.started?
       self.workflow_state = 'started'
+    else
+      self.workflow_state = 'unlocked'
     end
 
     if result.changed?
@@ -163,7 +165,9 @@ class ContextModuleProgression < ActiveRecord::Base
 
   def get_submission_or_quiz_submission(tag)
     if tag.content_type_quiz?
-      Quizzes::QuizSubmission.where(quiz_id: tag.content_id, user_id: user).first
+      sub = Quizzes::QuizSubmission.where(quiz_id: tag.content_id, user_id: user).first
+      sub ||= Submission.where(assignment_id: tag.content.assignment_id, user_id: user).first
+      sub
     elsif tag.content_type_discussion?
       if tag.content
         Submission.where(assignment_id: tag.content.assignment_id, user_id: user).first
@@ -176,7 +180,7 @@ class ContextModuleProgression < ActiveRecord::Base
 
   def get_submission_score(tag)
     submission = get_submission_or_quiz_submission(tag)
-    if tag.content_type_quiz?
+    if submission.is_a?(Quizzes::QuizSubmission)
       submission.try(:kept_score)
     else
       submission.try(:score)
@@ -303,33 +307,34 @@ class ContextModuleProgression < ActiveRecord::Base
   # calculates and saves the progression state
   # raises a StaleObjectError if there is a conflict
   def evaluate(as_prerequisite_for=nil)
-    return self unless outdated?
+    self.shard.activate do
+      return self unless outdated?
 
-    # there is no valid progression state for unpublished modules
-    return self if context_module.unpublished?
+      # there is no valid progression state for unpublished modules
+      return self if context_module.unpublished?
 
-    self.evaluated_at = Time.now.utc
-    self.current = true
-    self.requirements_met ||= []
-    self.workflow_state = 'locked'
+      self.evaluated_at = Time.now.utc
+      self.current = true
+      self.requirements_met ||= []
 
-    if check_prerequisites
-      evaluate_requirements_met
+      if check_prerequisites
+        evaluate_requirements_met
+      end
+      completion_changed = self.workflow_state_changed? && self.workflow_state_change.include?('completed')
+
+      evaluate_current_position
+
+      Shackles.activate(:master) do
+        self.save
+      end
+
+      if completion_changed
+        trigger_reevaluation_of_dependent_progressions(as_prerequisite_for)
+        trigger_completion_events if self.completed?
+      end
+
+      self
     end
-    completion_changed = self.workflow_state_changed? && self.workflow_state_change.include?('completed')
-
-    evaluate_current_position
-
-    Shackles.activate(:master) do
-      self.save
-    end
-
-    if completion_changed
-      trigger_reevaluation_of_dependent_progressions(as_prerequisite_for)
-      trigger_completion_events if self.completed?
-    end
-
-    self
   end
 
   def trigger_reevaluation_of_dependent_progressions(dependent_module_to_skip=nil)
@@ -340,9 +345,7 @@ class ContextModuleProgression < ActiveRecord::Base
       # re-evaluating progressions that have requested our progression's evaluation can cause cyclic evaluation
       next false if dependent_module_to_skip && progression.context_module_id == dependent_module_to_skip.id
 
-      (progression.context_module.prerequisites || []).any? do |prereq|
-        prereq[:type] == 'context_module' && prereq[:id] == context_module.id
-      end
+      self.context_module.is_prerequisite_for?(progression.context_module)
     end
 
     # invalidate all, then re-evaluate each

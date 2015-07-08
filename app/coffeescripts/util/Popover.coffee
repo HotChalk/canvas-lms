@@ -18,8 +18,9 @@ define [
   activePopovers = []
 
   class Popover
-    constructor: (clickEvent, @content, @options = {}) ->
-      @trigger = $(clickEvent.currentTarget)
+    constructor: (triggerEvent, @content, @options = {}) ->
+      @trigger = $(triggerEvent.currentTarget)
+      @triggerAction = triggerEvent.type
       @el = $(@content)
               .addClass('carat-bottom')
               .data('popover', this)
@@ -27,7 +28,6 @@ define [
                 # if the user hits the escape key, reset the focus to what it was.
                 if event.keyCode is $.ui.keyCode.ESCAPE
                   @hide()
-                  @previousTarget.focus() if @previousTarget and @previousTarget.is(':visible')
                 # If the user tabs or shift-tabs away, close.
                 return unless event.keyCode is $.ui.keyCode.TAB
                 tabbables = $ ":tabbable", @el
@@ -39,22 +39,20 @@ define [
                 else
                   @hide() if index == tabbables.length-1
 
-      @el.delegate '.popover_close', 'click', (event) =>
+      @el.delegate '.popover_close', 'keyclick click', (event) =>
         event.preventDefault()
         @hide()
-        # set focus back to the previously focused item.
-        @previousTarget.focus() if @previousTarget and @previousTarget.is(':visible')
 
-      @show(clickEvent)
+      @show(triggerEvent)
 
-    show: (clickEvent) ->
+    show: (triggerEvent) ->
       popoverToHide.hide() while popoverToHide = activePopovers.pop()
       activePopovers.push(this)
       id = "popover-#{idCounter++}"
       @trigger.attr
         "aria-expanded" : true
         "aria-controls" : id
-      @previousTarget = clickEvent.currentTarget
+      @previousTarget = triggerEvent.currentTarget
 
       @el
         .attr(
@@ -63,20 +61,22 @@ define [
         .appendTo(document.body)
         .show()
       @position()
-      @el.find(':tabbable').first().focus()
-      setTimeout(
-        () =>
-          @el.find(':tabbable').first().focus()
-        , 100
-      )
+      unless triggerEvent.type == "mouseenter"
+        @el.find(':tabbable').first().focus()
+        setTimeout(
+          () =>
+            @el.find(':tabbable').first().focus()
+          , 100
+        )
 
       # handle sticking the carat right above where you clicked on the button, bounded by the dialog
       @el.find(".ui-menu-carat").remove()
+      additionalOffset = @options.manualOffset || 0
       differenceInOffset = @trigger.offset().left - @el.offset().left
-      actualOffset = clickEvent.pageX - @trigger.offset().left
+      actualOffset = triggerEvent.pageX - @trigger.offset().left
       leftBound = Math.max(0, @trigger.width() / 2 - @el.width() / 2) + 20
       rightBound = @trigger.width() - leftBound
-      caratOffset = Math.min(Math.max(leftBound, actualOffset), rightBound) + differenceInOffset
+      caratOffset = Math.min(Math.max(leftBound, actualOffset), rightBound) + differenceInOffset + additionalOffset
       $('<span class="ui-menu-carat"><span /></span>').css('left', caratOffset).prependTo(@el)
 
       @positionInterval = setInterval @position, 200
@@ -91,6 +91,7 @@ define [
       @trigger.attr 'aria-expanded', false
       clearInterval @positionInterval
       $(window).unbind 'click', @outsideClickHandler
+      @restoreFocus()
 
     ignoreOutsideClickSelector: '.ui-dialog'
 
@@ -104,7 +105,15 @@ define [
         my: 'center '+(if @options.verticalSide == 'bottom' then 'top' else 'bottom'),
         at: 'center '+(@options.verticalSide || 'top'),
         of: @trigger,
-        offset: '0 -10px',
+        offset: "0px #{@offsetPx()}px",
         within: 'body',
         collision: 'flipfit '+(if @options.verticalSide then 'none' else 'flipfit')
         using: using
+
+    offsetPx: ->
+      offset = if @options.verticalSide == 'bottom' then 10 else -10
+      if @options.invertOffset then (offset * -1) else offset
+
+    restoreFocus: ->
+      # set focus back to the previously focused item.
+      @previousTarget.focus() if @previousTarget and $(@previousTarget).is(':visible')

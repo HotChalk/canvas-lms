@@ -55,7 +55,6 @@ describe AssignmentGroup do
     context "with differentiated assignments and draft state on" do
       it "should return only active assignments with overrides or grades for the user" do
         @c.enable_feature! :differentiated_assignments
-        @c.enable_feature! :draft_state
         expect(@ag.active_assignments.count).to eq 3
         # one with override, one with grade
         expect(@ag.visible_assignments(@u).count).to eq 2
@@ -66,7 +65,6 @@ describe AssignmentGroup do
     context "with differentiated assignments off and draft state on" do
       it "should return all published assignments" do
         @c.disable_feature! :differentiated_assignments
-        @c.enable_feature! :draft_state
         expect(@ag.active_assignments.count).to eq 3
         expect(@ag.visible_assignments(@u).count).to eq 3
         expect(AssignmentGroup.visible_assignments(@u, @c, [@ag]).count).to eq 3
@@ -74,10 +72,10 @@ describe AssignmentGroup do
     end
 
     context "logged out users" do
-      it "should return assignments for logged out users so that invited users can see them before accepting a course invite" do
-        expect(@ag.visible_assignments(nil).count).to eq 3
-        expect(AssignmentGroup.visible_assignments(nil, @c, [@ag]).count).to eq 3
-
+      it "should return published assignments for logged out users so that invited users can see them before accepting a course invite" do
+        @c.active_assignments.first.unpublish
+        expect(@ag.visible_assignments(nil).count).to eq 2
+        expect(AssignmentGroup.visible_assignments(nil, @c, [@ag]).count).to eq 2
       end
     end
   end
