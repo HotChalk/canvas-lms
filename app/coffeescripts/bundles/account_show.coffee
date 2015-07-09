@@ -9,6 +9,18 @@ require [
     if $courseDateFilters.length
       $courseDateFilters.datetime_field()
 
+    $filterButton = $('.filter_button')
+    if $filterButton.length
+      $filterButton.click (event) ->
+        fromEmpty = $('#from_date').val() == ''
+        toEmpty = $('#to_date').val() == ''
+        validRange = (!fromEmpty && !toEmpty) || (fromEmpty && toEmpty)
+
+        if $('.invalid_datetime').length || !validRange
+          event.preventDefault()
+          alert('Please choose valid dates for the Dates Active filter or leave both date fields blank.')
+
+
     $courseSearchField = $('#course_name')
     if $courseSearchField.length
       autocompleteSource = $courseSearchField.data('autocomplete-source')
