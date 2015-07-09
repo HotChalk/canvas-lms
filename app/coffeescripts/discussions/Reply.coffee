@@ -9,8 +9,7 @@ define [
   'compiled/fn/preventDefault'
   'compiled/views/editor/KeyboardShortcuts'
   'str/stripTags'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'tinymce.editor_box'
 ], (Backbone, _, I18n, $, Entry, htmlEscape, replyAttachmentTemplate, preventDefault, KeyboardShortcuts, stripTags) ->
 
   class Reply

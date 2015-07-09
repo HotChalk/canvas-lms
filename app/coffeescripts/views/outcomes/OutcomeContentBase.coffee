@@ -22,10 +22,10 @@ define [
   'underscore'
   'compiled/views/ValidatedFormView'
   'compiled/views/editor/KeyboardShortcuts'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'tinymce.editor_box'
   'compiled/jquery.rails_flash_notifications'
   'jquery.disableWhileLoading'
+  'compiled/tinymce',
 ], (I18n, $, _, ValidatedFormView, RCEKeyboardShortcuts) ->
 
   # Superclass for OutcomeView and OutcomeGroupView.

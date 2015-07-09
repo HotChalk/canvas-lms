@@ -50,8 +50,8 @@ define([
   'compiled/jquery.rails_flash_notifications',
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
   'supercalc' /* superCalc */,
-  'ckeditor.editor_box' /* editorBox */,
-  'ckeditor-all',
+  'compiled/tinymce',
+  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.placeholder' /* /\.placeholder/ */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/sortable' /* /\.sortable/ */,
@@ -1959,17 +1959,6 @@ define([
       $form.attr('action', $question.find(".update_question_url").attr('href'))
         .attr('method', 'POST')
         .find('.submit_button').text(I18n.t('buttons.update_question', 'Update Question'));
-      $form.find('.submit_button').click(function(event){
-        var text = $formQuestion.find(".question_content").editorBox('get_code');
-        var editorContainer = $form.find('textarea.question_content').next();
-        if(text.length < 16384) {
-          editorContainer.hideErrors();
-          $form.submit();
-        } else {
-          var offset = editorContainer.errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
-          $('html,body').scrollTo({top: offset.top, left:0});
-        }
-      });
       $form.find(":input:visible:first").focus().select();
       $("html,body").scrollTo({top: $form.offset().top - 10, left: 0});
       setTimeout(function() {
@@ -3558,17 +3547,14 @@ define([
       }
     });
 
-    var quizDescription = $("#quiz_description");
     if (wikiSidebar) {
       wikiSidebar.init();
-      wikiSidebar.attachToEditor(quizDescription);
+      wikiSidebar.attachToEditor($("#quiz_description"));
     }
 
     var keyboardShortcutsView = new RCEKeyboardShortcuts();
 
-    if (quizDescription.length) {
-      quizDescription.editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
-    }
+    $("#quiz_description").editorBox({tinyOptions: {aria_label: I18n.t('label.quiz.instructions', 'Quiz instructions, rich text area')}});
     keyboardShortcutsView.render().$el.insertBefore($(".toggle_description_views_link:first"));
 
     $(".toggle_description_views_link").click(function(event) {
@@ -3622,12 +3608,9 @@ define([
         $question_type = $question.find(".question_type");
     if ($question.data('multiple_sets_question_bindings')) { return; }
     $question.data('multiple_sets_question_bindings', true);
-    var editor = CKEDITOR.instances[$question_content.attr('id')];
-    if (editor) {
-      editor.on('key', function() {
-        setTimeout(function() {$question_content.triggerHandler('change')}, 50);
-      });
-    }
+    $question_content.bind('keypress', function(event) {
+      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
+    });
     $question_content.bind('change', function() {
       var question_type = $question_type.val();
       if (question_type != 'multiple_dropdowns_question' && question_type != 'fill_in_multiple_blanks_question') {
@@ -3922,12 +3905,9 @@ define([
       });
     });
     $question.find(".combinations_option").attr('disabled', true);
-    var editor = CKEDITOR.instances[$question.find('.question_content').attr('id')];
-    if (editor) {
-      editor.on('key', function() {
-        setTimeout(function() {$question.find('.question_content').triggerHandler('change')}, 50);
-      });
-    }
+    $question.find(".question_content").bind('keypress', function(event) {
+      setTimeout(function() {$(event.target).triggerHandler('change')}, 50);
+    });
     $question.find(".question_content").bind('change', function(event) {
       var text = $(this).editorBox('get_code');
       var matches = text.match(/\[[A-Za-z][A-Za-z0-9]*\]/g);

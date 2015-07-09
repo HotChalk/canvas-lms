@@ -1,6 +1,6 @@
 <% 
   content_for :page_title, join_title(t(:page_title, "Files"), @context && @context.name)
-  jammit_css :full_files
+  jammit_css :full_files, :tinymce
   js_bundle :full_files 
   showing_all_contexts = @context.is_a?(UserProfile) && @context.user == @current_user && params[:show_all_contexts]
 %>

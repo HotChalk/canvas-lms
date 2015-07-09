@@ -57,7 +57,7 @@
     <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => @is_prelogin ? "" : "display:none"} do |f| %>
       <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
       <div>
-        <span class=" field-with-fancyplaceholder"><%= f.label :unique_id, :en => 'Primary Email Address' %><%= f.text_field :unique_id, :class => "text", :value => params[:prelogin].try(:[], :unique_id) %></span>
+        <span class=" field-with-fancyplaceholder"><%= f.label :unique_id, :en => 'Username or Email Address' %><%= f.text_field :unique_id, :class => "text", :value => params[:prelogin].try(:[], :unique_id) %></span>
         <span id="external_login" class=" field-with-fancyplaceholder"><%= t('Click below to login:') %><br /><a id="external_login_link" href="#"></a></span>
         <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
         <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
