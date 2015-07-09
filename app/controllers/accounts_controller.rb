@@ -169,7 +169,11 @@ class AccountsController < ApplicationController
         return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
         js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
         load_course_right_side
-        @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses)
+        @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, 
+                                             :hide_enrollmentless_courses => @hide_enrollmentless_courses,
+                                             :states => @states, :date_type => @date_type, :from_date => @from_date, :to_date => @to_date,
+                                             :department_id => @department_id, :program_id => @program_id, 
+                                             :course_format => @course_format)
         ActiveRecord::Associations::Preloader.new(@courses, :enrollment_term).run
         build_course_stats
       end
@@ -705,6 +709,8 @@ class AccountsController < ApplicationController
     @root_account = @account.root_account
     @maximum_courses_im_gonna_show = 50
     @term = nil
+    @states = ['available', 'claimed']
+    @date_type = 'start_date'
     if params[:enrollment_term_id].present?
       @term = @root_account.enrollment_terms.active.find(params[:enrollment_term_id]) rescue nil
       @term ||= @root_account.enrollment_terms.active[-1]
@@ -713,8 +719,28 @@ class AccountsController < ApplicationController
     associated_courses = associated_courses.for_term(@term) if @term
     @associated_courses_count = associated_courses.count
     @hide_enrollmentless_courses = params[:hide_enrollmentless_courses] == "1"
+    @department_id = params[:department_id] if params[:department_id].present?
+    @program_id = params[:program_id] if params[:program_id].present?
+    @course_format = params[:course_format] if params[:course_format].present?
+    @states = params[:states] if params[:states].present?
+    @date_type = params[:date_type] if params[:date_type].present?
+    @from_date = params[:from_date] if params[:from_date].present?
+    @to_date = params[:to_date] if params[:to_date].present?
+
+
+    @departments = []
+    load_departments( @root_account, 0)
   end
   protected :load_course_right_side
+
+  def load_departments( account, level )
+    if( account.sub_accounts.count > 0)
+      account.sub_accounts.each do |sub_account|
+        @departments << {sub_account: sub_account, level: level}
+        load_departments(sub_account, level + 1)
+      end
+    end
+  end
 
   def statistics
     if authorized_action(@account, @current_user, :view_statistics)
