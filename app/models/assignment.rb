@@ -1961,7 +1961,7 @@ class Assignment < ActiveRecord::Base
     if attribute_present? :student_submission_count
       student_submission_count.to_i > 0
     else
-      submissions.having_submission.where("user_id IS NOT NULL").exists?
+      submissions.having_submission.for_user(self.context.all_real_student_ids).where("user_id IS NOT NULL").exists?
     end
   end
 
