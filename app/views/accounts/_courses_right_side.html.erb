@@ -4,6 +4,27 @@
     <h2><%= t(:course_filtering, "Course Filtering")%></h2>
     <div class="rs-margin-lr rs-margin-bottom">
       <form method="get">
+        
+        <label for="claimed"><%= t(:hide_enrollmentless_courses, "State:") %></label><br />
+        <input value="claimed" id="claimed" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'claimed' %>><label for="claimed">Unpublished</label><br />
+        <input value="available" id="available" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'available' %>><label for="available">Available</label><br />
+        <input value="completed" id="completed" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'completed' %>><label for="completed">Completed</label><br />
+        <br />
+
+        <label for="date_type"><%= t(:hide_enrollmentless_courses, "Dates Active:") %></label><br />
+        <input type="radio" name="date_type" value="start_date" id="start_date" <%= 'checked' if @date_type == 'start_date' %>/><label for="start_date"><%= t(:start_date, "Started") %></label>
+        <input type="radio" name="date_type" value="end_date" id="end_date" <%= 'checked' if @date_type == 'end_date' %>/><label for="end_date"><%= t(:end_date, "Ended") %></label>
+        <br/>
+        <div class="control-group">
+          <label class="control-label" for="from_date">From</label>
+          <input class="datetime_field" value="<%= @from_date%>" id="from_date" name="from_date" size="30" style="width: 150px;" type="text" aria-label="From:"/>
+        </div>
+        <div class="control-group">
+          <label class="control-label" for="to_date">To</label>
+          <input class="datetime_field" value="<%= @to_date%>" id="to_date" name="to_date" size="30" style="width: 150px;" type="text" aria-label="To:"/>
+        </div>
+        <br/>
+
         <% if term_count > 1 %>
           <label for="enrollment_term"><%= before_label(t(:enrollment_term_label, "Show courses from the term")) %></label><br />
           <select name="enrollment_term_id">
@@ -19,6 +40,62 @@
         <input id="enroll_filter_checkbox" name="hide_enrollmentless_courses" type="checkbox" value="1" <% if params[:hide_enrollmentless_courses] == "1" %>checked="checked"<% end %>/>
         <label for="enroll_filter_checkbox"><%= t(:hide_enrollmentless_courses, "Hide enrollmentless courses") %></label>
         <br />
+        <br />
+
+        <label for="department"><%= before_label(t(:department_label, "Show courses from the department")) %></label><br />
+        <select name="department_id">
+          <option value="" <%= 'selected' unless @department_id %>><%= t(:all_departments, "All departments") %></option>
+          <% @departments.each do |department| %>
+            <option value="<%= department[:sub_account].id %>" <%= 'selected' if department[:sub_account].id.to_s == @department_id %>>
+              <% department[:level].times do %>
+                &nbsp;&nbsp;
+              <%end%>
+              <%= department[:sub_account].name %>
+            </option>
+          <% end %>
+        </select>
+        <br />
+        
+        <label for="program"><%= before_label(t(:program_label, "Show courses from the program")) %></label><br />
+        <select name="program_id">
+          <option value="" <%= 'selected' unless @program_id %>><%= t(:all_programs, "All programs") %></option>
+          <optgroup label="<%= @root_account.name %>">
+            <% if @root_account.account_programs.count > 0  %>
+              <% @root_account.account_programs.each do |program| %>
+                <option value="<%= program.id %>" <%= 'selected' if program.id.to_s == @program_id %>>
+                  <%= program.name %>
+                </option>
+              <%end%>
+            <%end%>
+          </optgroup>
+
+          <% @departments.each do |department| %>
+            <optgroup label="<%= department[:sub_account].name %>">
+              <% if department[:sub_account].account_programs.count > 0  %>
+                <% department[:sub_account].account_programs.each do |program| %>
+                  <option value="<%= program.id %>" <%= 'selected' if program.id.to_s == @program_id %>>
+                    <%= program.name %>
+                  </option>
+                <%end%>
+              <%end%>
+          </optgroup>
+          <% end %>
+        </select>
+        <br />
+
+        <label for="course_format"><%= before_label( t(:course_format_label, "Format")) %></label><br />
+        <select name="course_format">
+            <option value="" <%= 'selected' unless @course_format %> >
+              <%= t(:not_set, "Not Set") %>
+            </option>
+            <option value="on_campus" <%= 'selected' if "on_campus" == @course_format %> >
+              <%= t(:on_campus, "On-Campus") %>
+            </option>
+            <option value="online" <%= 'selected' if "online" == @course_format %>>
+              <%= t(:online, "Online") %>
+            </option>
+        </select>
+
         <button class='btn filter_button'><%= t("#buttons.filter", "Filter") %></button>
       </form>
     </div>
