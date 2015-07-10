@@ -26,6 +26,7 @@ define([
   CKEDITOR.plugins.addExternal('instructure_external_tools', loadPath + 'instructure_external_tools/', 'plugin.js');
 
   // Add special configuration here
+  CKEDITOR.timestamp = '1436392146';
 
   // Change default table width in Table dialog
   CKEDITOR.on('dialogDefinition', function(ev) {
