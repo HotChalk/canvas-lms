@@ -141,6 +141,9 @@ class RubricAssociation < ActiveRecord::Base
     given {|user, session| self.context.grants_right?(user, session, :manage_assignments) }
     can :update and can :delete and can :manage and can :assess
 
+    given {|user, session| self.context.grants_right?(user, session, :manage_grades) }
+    can :assess
+
     given {|user| user && @assessing_user_id && self.assessment_requests.for_assessee(@assessing_user_id).map{|r| r.assessor_id}.include?(user.id) }
     can :assess
 
