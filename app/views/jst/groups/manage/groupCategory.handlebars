@@ -29,7 +29,20 @@
     {{#if ENV.IS_LARGE_ROSTER}}
       <div class="groups" data-view="groups"></div>
     {{else}}
-
+      
+      <div class="row-fluid">
+        <div class="span12 section-select">
+          {{#if sections.length}}
+             <h2 class="section-select-heading group-heading">{{#t "section"}}Section{{/t}}</h2>
+              <select class="course_section_id" name="course_section_id">
+                {{#each sections}}
+                  <option value="{{this.id}}">{{this.name}}</option>
+                {{/each}}
+              </select>
+          {{/if}}
+        </div>
+      </div>
+      
       <div class="row-fluid">
         <div class="span3 unassigned-students">
           <h2 class="unassigned-users-heading group-heading"></h2>

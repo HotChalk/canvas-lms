@@ -24,8 +24,11 @@ define [
       '.filterable-unassigned-users': '$filterUnassignedUsers'
       '.unassigned-users-heading': '$unassignedUsersHeading'
       '.groups-with-count': '$groupsHeading'
+      '.section-select': '$courseSectionSelect'
+
 
     _previousSearchTerm = ""
+    _previousSectionId = ""
 
     initialize: (options) ->
       @groups = @model.groups()
@@ -61,11 +64,20 @@ define [
     filterChange: (event) ->
       search_term = event.target.value
       return if search_term == _previousSearchTerm #Don't rerender if nothing has changed
-
-      @options.unassignedUsersView.setFilter(search_term)
-
+      if _previousSectionId
+        options = {section_id : _previousSectionId}
+      @options.unassignedUsersView.setFilter(search_term, options)
       @_setUnassignedHeading(@originalCount) unless search_term.length >= 3
       _previousSearchTerm = search_term
+
+    courseSectionChange: (event) ->
+      course_section_id = event.target.value
+      return if course_section_id == _previousSectionId #Don't rerender if nothing has changed
+      if course_section_id
+        options = {section_id : course_section_id, force_search : true}
+      @options.unassignedUsersView.setFilter(_previousSearchTerm, options)
+      @options.groupsView.setFilter(course_section_id)
+      _previousSectionId = course_section_id
 
     attach: ->
       @model.on 'destroy', @remove, this
@@ -89,6 +101,10 @@ define [
       if !@attachedFilter
         @$filterUnassignedUsers.on "keyup", _.debounce(@filterChange.bind(this), 300)
         @attachedFilter = true
+
+      if !@attachedSectionSelect
+        @$courseSectionSelect.on "load change", '.course_section_id', @courseSectionChange.bind(this)
+        @attachedSectionSelect = true
 
       # need to be set before their afterRender's run (i.e. before this
       # view's afterRender)
@@ -122,6 +138,7 @@ define [
     toJSON: ->
       json = @model.present()
       json.ENV = ENV
+      json.sections = ENV.sections
       json.groupsAreSearchable = ENV.IS_LARGE_ROSTER and
                                  not json.randomlyAssignStudentsInProgress
       json

@@ -44,3 +44,13 @@ define [
         @url = "/api/v1/group_categories/#{@category.id}/groups?per_page=50"
       else
         @url = super
+
+    filter: (course_section_id, options) ->
+      options = options || {}
+      options.reset = true
+
+      options.url = @url
+      if course_section_id
+          options.url = options.url + "&section_id=#{course_section_id}"
+
+      return @fetch(options)

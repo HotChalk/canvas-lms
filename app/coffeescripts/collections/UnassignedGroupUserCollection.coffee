@@ -22,13 +22,17 @@ define [
       options = options || {}
       options.reset = true
 
-      if filter && filter.length >= 3
+      if options.force_search || ( filter && filter.length >= 3 )
         options.url = @url + "&search_term=" + filter
+        if options.section_id
+          options.url = options.url + "&section_id=" + options.section_id
         @filtered = true
         return @fetch(options)
       else if @filtered
         @filtered = false
         options.url = @url
+        if options.section_id
+          options.url = options.url + "&section_id=" + options.section_id
         return @fetch(options)
 
       # do nothing
