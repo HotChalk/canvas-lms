@@ -497,6 +497,7 @@ class AccountsController < ApplicationController
             :show_scheduler,
             :enable_resources_link,
             :show_resources_link,
+            :syllabus_rename,
             :global_includes,
             :gmail_domain
           ] + Account::BRANDING_SETTINGS).each do |key|
@@ -557,7 +558,7 @@ class AccountsController < ApplicationController
         end
 
         if @account.update_attributes(params[:account])
-          flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted, because of course asociations") if program_delete_problem
+          flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted because of course associations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
           format.json { render :json => @account }
         else

@@ -127,7 +127,7 @@
                 <li title="<%= t('insert.discussions_page', %{Click to insert a link to the discussions page}) %>"><%= link_to t('links.discussions_page', "Discussions Index"), context_url(@context, :context_discussion_topics_url)%></li>
               <% end %>
               <% if @context.respond_to?(:assignments) %>
-                <li title="<%= t('insert.syllabus_page', %{Click to insert a link to the syllabus}) %>"><%= link_to t('links.syllabus', "Course Syllabus"), context_url(@context, :syllabus_context_assignments_url)%></li>
+                <li title="<%= t('insert.syllabus_page', %{Click to insert a link to the #{context_syllabus_name(@context) || 'syllabus'}}) %>"><%= link_to context_syllabus_name(@context) || t('links.syllabus', "Course Syllabus"), context_url(@context, :syllabus_context_assignments_url)%></li>
               <% end %>
               <% if @context.respond_to?(:announcements) %>
                 <li title="<%= t('insert.announcements_page', %{Click to insert a link to the announcements page}) %>"><%= link_to t('links.announcements_page', "Announcement List"), context_url(@context, :context_announcements_url)%></li>

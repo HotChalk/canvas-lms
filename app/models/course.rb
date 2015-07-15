@@ -2504,6 +2504,9 @@ class Course < ActiveRecord::Base
       # Uncommenting these lines will always put hidden links after visible links
       # tabs.each_with_index{|t, i| t[:sort_index] = i }
       # tabs = tabs.sort_by{|t| [t[:hidden_unused] || t[:hidden] ? 1 : 0, t[:sort_index]] } if !self.tab_configuration || self.tab_configuration.empty?
+
+      # Check for renamed Syllabus tab
+      tabs.detect { |t| t[:id] == TAB_SYLLABUS }[:label] = self.syllabus_label || t('#tabs.syllabus', "Syllabus")
       tabs
     end
   end
@@ -2928,5 +2931,13 @@ class Course < ActiveRecord::Base
     self.current_enrollments.each do |e|
       Enrollment.limit_privileges_to_course_section!(self, e.user, self.limit_section_visibility)
     end
+  end
+
+  def syllabus_label
+    if self.account
+      acc = self.account_chain.find {|a| a.settings[:syllabus_rename]}
+      return acc && acc.settings[:syllabus_rename]
+    end
+    nil
   end
 end

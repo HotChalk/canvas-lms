@@ -286,7 +286,7 @@ class AssignmentsController < ApplicationController
   end
 
   def syllabus
-    add_crumb t '#crumbs.syllabus', "Syllabus"
+    add_crumb context_syllabus_name(@context) || t('#tabs.syllabus', "Syllabus")
     active_tab = "Syllabus"
     if authorized_action(@context, @current_user, [:read, :read_syllabus])
       return unless tab_enabled?(@context.class::TAB_SYLLABUS)
