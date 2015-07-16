@@ -7,18 +7,18 @@
   <div style="margin-top: -5px; margin-bottom: 10px;"><a href="#" class="jump_to_today_link"><%= t 'links.jump_to_today', "Jump to Today" %></a></div>
 <% else %>
   <div style="float: right;"><a href="#" class="jump_to_today_link"><%= t 'links.jump_to_today', "Jump to Today" %></a></div>
-  <h1><%= t 'titles.course_syllabus', "Course Syllabus" %></h1>
+  <h1><%= context_syllabus_name(@context) || (t 'titles.course_syllabus', "Course Syllabus") %></h1>
 <% end %>
 <div id="course_syllabus" style="margin-bottom: 10px;" class="user_content">
   <%= user_content(@syllabus_body) %>
 </div>
 <div id="course_syllabus_details" style="<%= hidden unless can_do(@context, @current_user, :manage_content) && (!@context.syllabus_body || @context.syllabus_body.strip.empty?) %>">
   <%= mt 'instructions.syllabus', <<-DOC
-The syllabus page shows a table-oriented view of the course schedule, and the basics of
+The #{context_syllabus_name(@context) || 'syllabus'} page shows a table-oriented view of the course schedule, and the basics of
 course grading.  You can add any other comments, notes, or thoughts you have about the course
 structure, course policies or anything else.
 
-To add some comments, click the "Edit Syllabus Description" link to the right.
+To add some comments, click the "Edit #{context_syllabus_name(@context) || 'Syllabus'} Description" link to the right.
 DOC
       %>
 </div>
@@ -27,12 +27,12 @@ DOC
     <a href="#" class="toggle_views_link"><%= t '#editor.switch_editor_html', "HTML Editor" %></a>
     <a href="#" class="toggle_views_link" style="display:none;"><%= t '#editor.switch_editor_rich_text', "Rich Content Editor" %></a>
   </div>
-  <%= f.blabel :syllabus_body, :en => "Syllabus Description" %>
+  <%= f.blabel :syllabus_body, :en => "#{context_syllabus_name(@context) || 'Syllabus'} Description" %>
   <div class="clear"></div>
   <%= f.text_area :syllabus_body, :style => "width: 100%; height: 300px;", :id => "course_syllabus_body" %>
   <div class='form-actions'>
     <button type="button" class="btn cancel_button"><%= t '#buttons.cancel', "Cancel" %></button>
-    <button type="submit" class='btn btn-primary'><%= t 'buttons.update_syllabus', "Update Syllabus" %></button>
+    <button type="submit" class='btn btn-primary'><%= t 'buttons.update_syllabus', "Update #{context_syllabus_name(@context) || 'Syllabus'}" %></button>
   </div>
 <% end %>
 <div id="syllabusContainer">
