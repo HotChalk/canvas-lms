@@ -53,7 +53,11 @@ define [
         @_unassignedUsers.increment group.usersCount()
 
       if not @get('allows_multiple_memberships') and (not users.loadedAll or not @_unassignedUsers.loadedAll)
-        @_unassignedUsers.fetch()
+        if @current_section_id
+          options = {section_id : @current_section_id, force_search : true}
+          @_unassignedUsers.search('', options)
+        else
+          @_unassignedUsers.fetch()
 
     reassignUser: (user, newGroup) ->
       oldGroup = user.get('group')
@@ -68,7 +72,7 @@ define [
       user.save group: newGroup
 
     groupsCount: ->
-      if @_groups?.loadedAll
+      if @_groups?
         @_groups.length
       else
         @get('groups_count')
