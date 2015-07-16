@@ -31,6 +31,8 @@ define [
     _previousSectionId = ""
 
     initialize: (options) ->
+      if(ENV.sections.length > 0)
+        @model.setCurrentSectionId(ENV.sections[0].id)
       @groups = @model.groups()
       # TODO: move all of these to GroupCategoriesView#createItemView
       options.groupCategoryDetailView ?= new GroupCategoryDetailView
