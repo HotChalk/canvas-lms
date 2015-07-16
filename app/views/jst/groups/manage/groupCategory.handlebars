@@ -31,9 +31,11 @@
     {{else}}
       
       <div class="row-fluid">
-        <div class="span12 section-select">
+        <div class="span1">
+          <h2 class="section-select-heading group-heading">{{#t "section"}}Section{{/t}}</h2>
+        </div>
+        <div class="span11 section-select">
           {{#if sections.length}}
-             <h2 class="section-select-heading group-heading">{{#t "section"}}Section{{/t}}</h2>
               <select class="course_section_id" name="course_section_id">
                 {{#each sections}}
                   <option value="{{this.id}}">{{this.name}}</option>
