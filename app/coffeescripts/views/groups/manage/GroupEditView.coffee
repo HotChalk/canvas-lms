@@ -10,6 +10,7 @@ define [
 
     @optionProperty 'groupCategory'
     @optionProperty 'student'
+    @optionProperty 'sections'
 
     defaults:
       width: 550
@@ -55,5 +56,6 @@ define [
       json = _.extend super,
         role: @groupCategory.get('role')
         nameOnly: @options.nameOnly
+        sections: @options.sections
       json
 

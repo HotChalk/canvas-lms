@@ -300,11 +300,14 @@ class GroupCategoriesController < ApplicationController
   # @returns [Group]
   def groups
     if authorized_action(@context, @current_user, :manage_groups)
-      if  @current_user.account_admin?(@context) 
+      section_id = params[:section_id]
+      if section_id
+        @groups = @group_category.groups.active.where(course_section_id: section_id)
+      elsif  @current_user.account_admin?(@context) 
         @groups = @group_category.groups.active.by_name
       else 
         sections = @context.sections_visible_to(@current_user)
-        @groups = @group_category.groups.where(course_section_id: sections)
+        @groups = @group_category.groups.active.where(course_section_id: sections)
       end
 
       @groups = Api.paginate(@groups, self, api_v1_group_category_groups_url)
@@ -344,6 +347,7 @@ class GroupCategoriesController < ApplicationController
     @group_category ||= @context.group_categories.where(id: params[:category_id]).first
     exclude_groups = value_to_boolean(params[:unassigned]) ? @group_category.groups.active.pluck(:id) : []
     search_params[:exclude_groups] = exclude_groups
+    search_params[:section_id] = params[:section_id]
 
     if search_term
       users = UserSearch.for_user_in_context(search_term, @context, @current_user, session, search_params)

@@ -140,9 +140,10 @@ class GroupsController < ApplicationController
   include Api::V1::Attachment
   include Api::V1::Group
   include Api::V1::GroupCategory
+  include Api::V1::CourseSection
 
   SETTABLE_GROUP_ATTRIBUTES = %w(
-    name description join_level is_public group_category avatar_attachment
+    name description join_level is_public group_category avatar_attachment course_section
     storage_quota_mb max_membership leader
   ).freeze
 
@@ -197,7 +198,7 @@ class GroupsController < ApplicationController
   # @returns [Group]
   def index
     return context_index if @context
-    groups_scope = @current_user.current_groups
+    groups_scope = @current_user.current_groups    
     respond_to do |format|
       format.html do
         @groups = groups_scope.with_each_shard{ |scope|
@@ -236,6 +237,12 @@ class GroupsController < ApplicationController
     @groups      = all_groups = @context.groups.active
                                   .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
                                   .includes(:group_category)
+    
+    if @current_user.account_admin?(@context) 
+      @sections = @context.course_sections.active
+    else 
+      @sections = @context.sections_visible_to(@current_user)
+    end
 
     unless api_request?
       if @context.is_a?(Account)
@@ -262,6 +269,7 @@ class GroupsController < ApplicationController
         if @context.grants_right?(@current_user, session, :manage_groups)
           if @domain_root_account.enable_manage_groups2?
             categories_json = @categories.map{ |cat| get_section_filtered_group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
+            sections_json = course_sections_json(@sections)
             uncategorized = @context.groups.uncategorized.all
             if uncategorized.present?
               json = group_category_json(GroupCategory.uncategorized, @current_user, session)
@@ -271,7 +279,8 @@ class GroupsController < ApplicationController
 
             js_env group_categories: categories_json,
                    group_user_type: @group_user_type,
-                   allow_self_signup: @allow_self_signup
+                   allow_self_signup: @allow_self_signup,
+                   sections: sections_json
             # since there are generally lots of users in an account, always do large roster view
             @js_env[:IS_LARGE_ROSTER] ||= @context.is_a?(Account)
           end
@@ -437,6 +446,12 @@ class GroupsController < ApplicationController
       else
         params[:group][:group_category] = nil
       end
+    end
+
+    if params[:course_section_id]
+        course_section = CourseSection.active.find(params[:course_section_id])
+        return render :json => {}, :status => bad_request unless course_section
+        params[:course_section] = course_section
     end
 
     attrs = api_request? ? params : params[:group]
