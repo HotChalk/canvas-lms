@@ -219,7 +219,7 @@ define([
           var s = new Date((quizSubmission.countDown - now.getTime())).getUTCSeconds();
           if(now.getTime() < quizSubmission.countDown) { $countdownSeconds.text(s); }
 
-          if(s <= 0 && !quizSubmission.submitting) {
+          if(s <= 0 && !quizSubmission.submitting && !ENV.IS_PREVIEW) {
             quizSubmission.submitting = true;
             quizSubmission.submitQuiz();
           }
@@ -288,7 +288,7 @@ define([
             opacity: 0.7
           },
           close: function() {
-            if(!quizSubmission.submitting) {
+            if(!quizSubmission.submitting && !ENV.IS_PREVIEW) {
               quizSubmission.submitting = true;
               quizSubmission.submitQuiz();
             }
