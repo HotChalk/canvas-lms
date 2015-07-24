@@ -509,6 +509,8 @@ CanvasRails::Application.routes.draw do
 
     resources :terms, except: [:show, :new, :edit]
     resources :sub_accounts
+    get 'resources' => 'resources#index', as: :resources_links_index
+    put 'resources' => 'resources#update'
 
     get :avatars
     get :sis_import
