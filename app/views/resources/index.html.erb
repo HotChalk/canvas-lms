@@ -1,0 +1,61 @@
+<% add_crumb t('titles.resources', "Resources") %>
+<% @active_tab = "resources" %>
+<% content_for :page_title do %><%= t('titles.resources', 'Resources') %><% end %>
+
+<% content_for :right_side do %>
+    <%= render :partial => 'shared/accounts_right_side_shared' %>
+<% end %>
+
+<% jammit_css :resources %>
+<% js_bundle :resources %>
+
+<h1>
+  <%= t :page_header_title, 'Resources' %>
+  <%= link_to("<i class='icon-question standalone-icon'></i>".html_safe, '#', :class => 'resources_help_link no-hover', :title => t(:resources_help_tooltip, "What are Resources?")) %>
+</h1>
+<div id="resources_help_dialog" style="display: none;">
+  <%= mt(:resources_help_message,
+         "The links added here will display in the horizontal menu next to Courses, Grades, and Calendar. " +
+         "Only the courses in this account will display the links added below.") %>
+</div>
+<div id="resources_container">
+  <%= form_tag context_url(@context, :context_resources_url), :id => 'resources', :method => :put do %>
+      <div style="margin-bottom: 15px; margin-top: -10px;">
+        <%= check_box_tag :enable_resources_link, @resources[:enable_resources_link], :class => "disabled_checkbox" %>
+        <%= label_tag :enable_resources_link, :en => "Enable" %>
+      </div>
+      <fieldset>
+        <table class="formtable">
+          <thead>
+            <tr>
+              <th><%= t :title, 'Title' %></th>
+              <th><%= t :url, 'URL' %></th>
+              <th><!-- --></th>
+            </tr>
+          </thead>
+          <tbody id="resources_links">
+          <% @resources[:resources_links].each do |title, url| %>
+              <tr class="resource_link <%= raw ' blank" style="display: none;' if title.nil? %>">
+                <td><input type="text" class="title" value="<%= title %>"/></td>
+                <td><input type="text" class="url" value="<%= url %>" maxlength="255"/></td>
+                <td>
+                  <a href="#" title="<%= t(:resource_link_delete, "Remove Link") %>" class="delete_resource_link"><i class="icon-end standalone-icon"></i></a>
+                </td>
+              </tr>
+          <% end %>
+            <tr class="resource_link blank" style="display: none;">
+                <td><input type="text" class="title"  value=""/></td>
+                <td><input type="text" class="url" value="" maxlength="255"/></td>
+                <td>
+                  <a href="#" title="<%= t(:resource_link_delete, "Remove Link") %>" class="delete_resource_link"><i class="icon-end standalone-icon"></i></a>
+                </td>
+              </tr>
+          </tbody>
+        </table>
+        <a href="#" class="icon-add add_resource_link" style="font-size: 0.9em;"><%= t(:add_resource_link, "Add another link") %></a>
+      </fieldset>
+      <div class='button-container'>
+        <button type="submit" class="btn save_button"><%= t '#buttons.save', "Save" %></button>
+      </div>
+  <% end %>
+</div>

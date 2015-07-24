@@ -186,6 +186,7 @@ class Account < ActiveRecord::Base
   add_setting :enable_profiles, :boolean => true, :root_only => true, :default => false
   add_setting :enable_resources_link, :boolean => true, :root_only => true, :default => false
   add_setting :show_resources_link, :condition => :enable_resources_link
+  add_setting :resources_links, :condition => :enable_resources_link
   add_setting :syllabus_rename
   add_setting :enable_manage_groups2, :boolean => true, :root_only => true, :default => true
   add_setting :mfa_settings, :root_only => true
@@ -1268,6 +1269,7 @@ class Account < ActiveRecord::Base
   TAB_JOBS = 15
   TAB_DEVELOPER_KEYS = 16
   TAB_ADMIN_TOOLS = 17
+  TAB_RESOURCES = 18
 
   def external_tool_tabs(opts)
     tools = ContextExternalTool.active.find_all_for(self, :account_navigation)
@@ -1308,6 +1310,7 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
+      tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
       tabs << { :id => TAB_TERMS, :label => t('#account.tab_terms', "Terms"), :css_class => 'terms', :href => :account_terms_path } if self.root_account? && manage_settings
       tabs << { :id => TAB_AUTHENTICATION, :label => t('#account.tab_authentication', "Authentication"), :css_class => 'authentication', :href => :account_account_authorization_configs_path } if self.root_account? && manage_settings
