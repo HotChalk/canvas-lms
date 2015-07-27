@@ -95,7 +95,7 @@
             document.querySelector('input[name="pseudonym_session[unique_id]"]').value = uniqueId;
             $resolve_login_form.style.display = 'none';
             document.querySelector('#login_form').style.display = 'block';
-          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac') {
+          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac' || response.auth_type == 'saml') {
             var $external_login_link = document.querySelector('#external_login_link');
             $external_login_link.href = response.auth_url;
             $external_login_link.innerText += response.account_name;
