@@ -28,7 +28,7 @@
         <% if k12? or use_new_styles? %></div><% end %>
       </a>
     </li>
-    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:show_resources_link] %>
+    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
       <li id="resources_menu_item" class="menu-item">
         <%= render(:partial => 'shared/resources_menu') %>
       </li>

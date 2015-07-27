@@ -1,9 +1,9 @@
 <a href="#" class="menu-item-title">
-    <%= t('links.resources', "Resources")%>
-    <span class="menu-item-title-icon"></span> <i class="icon-mini-arrow-down"></i>
-  </a>
-  <div class="menu-item-drop">
-    <% if @context && (acct = account_context(@context)) %>
+  <%= t('links.resources', "Resources")%>
+  <span class="menu-item-title-icon"></span><i class="icon-mini-arrow-down"></i>
+</a>
+<div class="menu-item-drop">
+  <% if @context && (acct = account_context(@context)) %>
     <table cellspacing="0">
       <tr>
         <td class="menu-item-drop-column">
@@ -12,12 +12,12 @@
               <li class="customListItem" >
                 <a target="_blank" href="<%= url %>"><%= title %></a>
               </li>
-             <% end %>
+            <% end %>
           </ul>
-          </td>
+        </td>
       </tr>
     </table>
-    <% end %>
-  </div>
+  <% end %>
+</div>
 
 

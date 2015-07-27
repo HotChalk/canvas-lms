@@ -21,9 +21,10 @@
 <div id="resources_container">
   <%= form_tag context_url(@context, :context_resources_url), :id => 'resources', :method => :put do %>
       <div style="margin-bottom: 15px; margin-top: -10px;">
-        <%= check_box_tag :enable_resources_link, @resources[:enable_resources_link], :class => "disabled_checkbox" %>
+        <%= check_box_tag :enable_resources_link, :enable_resources_link, @resources[:enable_resources_link], {:class => "disabled_checkbox"} %>
         <%= label_tag :enable_resources_link, :en => "Enable" %>
       </div>
+      <div id="resources_links_container" style="<%= 'display:none;' unless !!@resources[:enable_resources_link]  %>">
       <fieldset>
         <table class="formtable">
           <thead>
@@ -54,6 +55,7 @@
         </table>
         <a href="#" class="icon-add add_resource_link" style="font-size: 0.9em;"><%= t(:add_resource_link, "Add another link") %></a>
       </fieldset>
+      </div>
       <div class='button-container'>
         <button type="submit" class="btn save_button"><%= t '#buttons.save', "Save" %></button>
       </div>

@@ -11,7 +11,7 @@ define([
 ], function(I18n, $) {
 
   $(document).ready(function() {
-    $("#resources").submit(function() {
+    $("#resources").submit(function(event) {
       var $this = $(this);
       $(".resource_link .url").each(function() {
         $(this).removeAttr('name');
@@ -40,6 +40,9 @@ define([
         title: I18n.t('titles.resources', "Resources"),
         width: 400
       });
+    });
+    $("#enable_resources_link").change(function(event) {
+      $("#resources_links_container").toggle();
     });
   });
 
