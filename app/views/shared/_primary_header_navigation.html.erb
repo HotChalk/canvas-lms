@@ -28,9 +28,9 @@
         <% if k12? or use_new_styles? %></div><% end %>
       </a>
     </li>
-    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:show_resources_link] %>
+    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
       <li id="resources_menu_item" class="menu-item">
-        <a href="<%= acct[:settings][:show_resources_link] %>" class="menu-item-no-drop" target="_blank"><%= t('menu.resources', 'Resources') %></a>
+        <%= render(:partial => 'shared/resources_menu') %>
       </li>
     <% end %>
     <%# Inbox menu item currently only for K-12 and new styles %>

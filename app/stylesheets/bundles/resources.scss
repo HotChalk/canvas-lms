@@ -1,0 +1,13 @@
+@import "base/environment";
+
+#resources_links{
+  td{
+  	vertical-align: baseline;
+  }
+}
+
+#resources_links {
+  td:first-child {
+    padding-top: 0;
+  }
+}
