@@ -1959,6 +1959,17 @@ define([
       $form.attr('action', $question.find(".update_question_url").attr('href'))
         .attr('method', 'POST')
         .find('.submit_button').text(I18n.t('buttons.update_question', 'Update Question'));
+      $form.find('.submit_button').click(function(event){
+        var text = $formQuestion.find(".question_content").editorBox('get_code');
+        var editorContainer = $form.find('textarea.question_content').next();
+        if(text.length < 16384) {
+          editorContainer.hideErrors();
+          $form.submit();
+        } else {
+          var offset = editorContainer.errorBox(I18n.t('errors.max_length_exceeded', "This field exceeds its maximum length")).offset();
+          $('html,body').scrollTo({top: offset.top, left:0});
+        }
+      });
       $form.find(":input:visible:first").focus().select();
       $("html,body").scrollTo({top: $form.offset().top - 10, left: 0});
       setTimeout(function() {
