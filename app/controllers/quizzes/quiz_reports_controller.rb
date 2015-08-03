@@ -118,8 +118,7 @@ class Quizzes::QuizReportsController < ApplicationController
           includes_all_versions: all_versions
         })
       end
-
-      expose stats, %w[ file progress ]
+      expose stats
     end
   end
 
@@ -169,7 +168,12 @@ class Quizzes::QuizReportsController < ApplicationController
     end
 
     statistics.abort_csv_generation if statistics.csv_generation_failed?
-    statistics.generate_csv_in_background
+    if @current_user.account_admin?(@context)
+      statistics.generate_csv_in_background
+    else
+       sections = @context.sections_visible_to(@current_user).collect(&:id)
+       statistics.generate_csv_in_background({section_ids: sections})
+    end
 
     expose statistics, backward_compatible_includes
   end

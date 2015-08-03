@@ -34,8 +34,8 @@ class Quizzes::QuizStatistics::ItemAnalysis < Quizzes::QuizStatistics::Report
 
   MIN_STATS_FOR_ALPHA = 15
 
-  def generate(legacy=true)
-    stats = summary_stats_for_quiz
+  def generate(legacy=true, options = {})
+    stats = summary_stats_for_quiz(options)
     stats.map do |item|
       question_item_analysis = {
         question_id: item.question[:id],
@@ -71,10 +71,10 @@ class Quizzes::QuizStatistics::ItemAnalysis < Quizzes::QuizStatistics::Report
     end
   end
 
-  def to_csv
+  def to_csv(options = {})
     @csv ||=
       CSV.generate do |csv|
-      stats = summary_stats_for_quiz
+      stats = summary_stats_for_quiz(options)
       headers = [
         I18n.t('csv.question.id', 'Question Id'),
         I18n.t('csv.question.title', 'Question Title'),
@@ -133,7 +133,7 @@ class Quizzes::QuizStatistics::ItemAnalysis < Quizzes::QuizStatistics::Report
 
   private
 
-  def summary_stats_for_quiz
-    @summary_stats ||= Quizzes::QuizStatistics::ItemAnalysis::Summary.new(quiz)
+  def summary_stats_for_quiz( options = {})
+    @summary_stats ||= Quizzes::QuizStatistics::ItemAnalysis::Summary.new(quiz, options)
   end
 end
