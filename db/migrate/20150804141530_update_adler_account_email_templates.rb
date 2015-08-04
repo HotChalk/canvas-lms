@@ -22,7 +22,7 @@ class UpdateAdlerAccountEmailTemplates < ActiveRecord::Migration
 
 <%= t :body, "Hello %{name},", :name => p.user.name %>
 
-Welcome the HotChalk Ember Learning Management System for Adler University.
+Welcome to the HotChalk Ember Learning Management System for Adler University.
 
 To access HotChalk Ember:
 
@@ -49,7 +49,7 @@ The Ember Support Team
 
 <p><%= t :body, "Hello %{name},", :name => p.user.name %></p>
 
-<p>Welcome the HotChalk Ember Learning Management System for Adler University.</p>
+<p>Welcome to the HotChalk Ember Learning Management System for Adler University.</p>
 
 <p>To access HotChalk Ember:</p>
 
