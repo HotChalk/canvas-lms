@@ -357,9 +357,12 @@ define([
     }
     files.each(function() {
       var $newFile = $(this).clone(true);
+      $(this).after('<span>' + $(this).val() + '</span>');
       $(this).after($newFile);
       $newForm.append($(this));
       $(this).removeAttr('id');
+      $(this).hide();
+      $newFile.hide();
     });
     $("body").append($newForm.hide());
     $newForm.formSubmit({
