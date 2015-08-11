@@ -2283,7 +2283,7 @@ class CoursesController < ApplicationController
       @fake_student.quiz_submissions.destroy_all
 
       flash[:notice] = t('notices.reset_test_student', "The test student has been reset successfully.")
-      enter_student_view
+      leave_student_view
     end
   end
 
