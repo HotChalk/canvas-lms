@@ -194,7 +194,10 @@
     transform: scale(0) translate3d(0,50%,0);
 
     display: block;
-    background: $ic-brand-secondary;
+    background-color: $ic-brand-secondary;
+    background-image: url("/images/ember-lms-min.png");
+    background-repeat: no-repeat;
+    background-position:center;
     width: 72px; height: 72px;
     border-radius: 100%;
     position: absolute;
@@ -208,16 +211,6 @@
     &.ic-wizard-box__message-icon--is-fired {
       opacity: 1;
       transform: scale(1) translate3d(0,0,0);
-    }
-
-    i[class*=icon-], i[class^=icon-] {
-      width: auto; height: auto;
-      color: $ic-color-light;
-      line-height: 1;
-      &:before {
-        font-size: $ic-sp*3;
-        top: 0;
-      }
     }
     
   }
