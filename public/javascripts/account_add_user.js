@@ -51,6 +51,7 @@ require([
 
         var messages = {
           too_long: I18n.t("Login is too long"),
+          taken: I18n.t("This email is already used by another account."),
           invalid: I18n.t("Login is invalid: must be alphanumeric or an email address")
         };
         var errors = _.uniq(_.map(data.pseudonym.unique_id, function(i){ return i.message; }));
