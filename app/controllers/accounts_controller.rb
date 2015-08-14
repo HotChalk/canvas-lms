@@ -495,9 +495,6 @@ class AccountsController < ApplicationController
             :enable_eportfolios,
             :enable_profiles,
             :show_scheduler,
-            :enable_resources_link,
-            :show_resources_link,
-            :syllabus_rename,
             :global_includes,
             :gmail_domain
           ] + Account::BRANDING_SETTINGS).each do |key|
