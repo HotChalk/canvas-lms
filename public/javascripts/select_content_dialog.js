@@ -133,9 +133,9 @@ $(document).ready(function() {
     $(this).parents(".ui-dialog").find(".add_item_button").last().click();
   });
   $("#select_context_content_dialog .add_item_button").click(function() {
+    $dialog.find('.alert').remove();
     var submit = function(item_data) {
       $dialog.dialog('close');
-      $dialog.find('.alert').remove();
       var submitted = $dialog.data('submitted_function');
       if(submitted && $.isFunction(submitted)) {
         submitted(item_data);
@@ -152,7 +152,13 @@ $(document).ready(function() {
       }
       item_data['item[url]'] = $("#content_tag_create_url").val();
       item_data['item[title]'] = $("#content_tag_create_title").val();
-      submit(item_data);
+      if (item_data['item[title]'] === '') {
+        var $errorBox = $('<div />', { 'class': 'alert alert-error', role: 'alert' }).css({marginTop: 8 });
+        $errorBox.text(I18n.t('errors.external_url', "Please enter a page name for the external url"));
+        $dialog.prepend($errorBox);
+      } else {
+        submit(item_data);
+      }
 
     } else if(item_type == 'context_external_tool') {
 
@@ -184,7 +190,13 @@ $(document).ready(function() {
         'item[indent]': $("#content_tag_indent").val()
       }
       item_data['item[title]'] = $("#sub_header_title").val();
-      submit(item_data);
+      if (item_data['item[title]'] === '') {
+        var $errorBox = $('<div />', { 'class': 'alert alert-error', role: 'alert' }).css({marginTop: 8 });
+        $errorBox.text(I18n.t('errors.external_url', "Please enter a title for the header"));
+        $dialog.prepend($errorBox);
+      } else {
+        submit(item_data);
+      }
 
     } else {
 
@@ -198,58 +210,65 @@ $(document).ready(function() {
           'item[indent]': $("#content_tag_indent").val()
         }
         if(item_data['item[id]'] == 'new') {
-          $("#select_context_content_dialog").loadingImage();
           var url = $("#select_context_content_dialog .module_item_option:visible:first .new .add_item_url").attr('href');
           var data = $("#select_context_content_dialog .module_item_option:visible:first").getFormData();
-          var callback = function(data) {
-            var obj;
-
-            // discussion_topics will come from real api v1 and so wont be nested behind a `discussion_topic` or 'wiki_page' root object
-            if (item_data['item[type]'] === 'discussion_topic' || item_data['item[type]'] === 'wiki_page') {
-              obj = data;
-            } else {
-              obj = data[item_data['item[type]']]; // e.g. data['wiki_page'] for wiki pages
-            }
-
-            $("#select_context_content_dialog").loadingImage('remove');
-            if (item_data['item[type]'] === 'wiki_page') {
-              item_data['item[id]'] = obj.page_id;
-            } else {
-              item_data['item[id]'] = obj.id;
-            }
-            if (item_data['item[type]'] === 'attachment') {
-              // some browsers return a fake path in the file input value, so use the name returned by the server
-              item_data['item[title]'] = obj.display_name;
-            } else {
-              item_data['item[title]'] = $("#select_context_content_dialog .module_item_option:visible:first .item_title").val();
-              item_data['item[title]'] = item_data['item[title]'] || obj.display_name;
-            }
-            var $option = $(document.createElement('option'));
-            $option.val(obj.id).text(item_data['item[title]']);
-            $("#" + item_data['item[type]'] + "s_select").find(".module_item_select option:last").after($option);
-            submit(item_data);
-          };
-
-          if(item_data['item[type]'] == 'attachment') {
-            $.ajaxJSONFiles(url, 'POST', data, $("#module_attachment_uploaded_data"), function(data) {
-              callback(data);
-            }, function(data) {
-              $("#select_context_content_dialog").loadingImage('remove');
-              $("#select_context_content_dialog").errorBox(I18n.t('errors.failed_to_create_item', 'Failed to Create new Item'));
-            });
+          var titleKey = item_type + '[title]'
+          if (data[titleKey] === '' || ( item_data['item[type]'] === 'discussion_topic' && data['title'] === '') ) {
+            var $errorBox = $('<div />', { 'class': 'alert alert-error', role: 'alert' }).css({marginTop: 8 });
+            $errorBox.text(I18n.t('errors.external_url', "Please enter a name"));
+            $dialog.prepend($errorBox);
           } else {
-            $.ajaxJSON(url, 'POST', data, function(data) {
-              callback(data);
-            }, function(data) {
-              $("#select_context_content_dialog").loadingImage('remove');
-              if (data && data.errors && data.errors.title[0] && data.errors.title[0].message && data.errors.title[0].message === "blank") {
-                $("#select_context_content_dialog").errorBox(I18n.t('errors.assignment_name_blank', 'Assignment name cannot be blank.'));
-                $('.item_title').focus();
+              $("#select_context_content_dialog").loadingImage();
+              var callback = function(data) {
+              var obj;
+
+              // discussion_topics will come from real api v1 and so wont be nested behind a `discussion_topic` or 'wiki_page' root object
+              if (item_data['item[type]'] === 'discussion_topic' || item_data['item[type]'] === 'wiki_page') {
+                obj = data;
               } else {
-                $("#select_context_content_dialog").errorBox(I18n.t('errors.failed_to_create_item', 'Failed to Create new Item'));
+                obj = data[item_data['item[type]']]; // e.g. data['wiki_page'] for wiki pages
               }
 
-            });
+              $("#select_context_content_dialog").loadingImage('remove');
+              if (item_data['item[type]'] === 'wiki_page') {
+                item_data['item[id]'] = obj.page_id;
+              } else {
+                item_data['item[id]'] = obj.id;
+              }
+              if (item_data['item[type]'] === 'attachment') {
+                // some browsers return a fake path in the file input value, so use the name returned by the server
+                item_data['item[title]'] = obj.display_name;
+              } else {
+                item_data['item[title]'] = $("#select_context_content_dialog .module_item_option:visible:first .item_title").val();
+                item_data['item[title]'] = item_data['item[title]'] || obj.display_name;
+              }
+              var $option = $(document.createElement('option'));
+              $option.val(obj.id).text(item_data['item[title]']);
+              $("#" + item_data['item[type]'] + "s_select").find(".module_item_select option:last").after($option);
+              submit(item_data);
+            };
+
+            if(item_data['item[type]'] == 'attachment') {
+              $.ajaxJSONFiles(url, 'POST', data, $("#module_attachment_uploaded_data"), function(data) {
+                callback(data);
+              }, function(data) {
+                $("#select_context_content_dialog").loadingImage('remove');
+                $("#select_context_content_dialog").errorBox(I18n.t('errors.failed_to_create_item', 'Failed to Create new Item'));
+              });
+            } else {
+              $.ajaxJSON(url, 'POST', data, function(data) {
+                callback(data);
+              }, function(data) {
+                $("#select_context_content_dialog").loadingImage('remove');
+                if (data && data.errors && data.errors.title[0] && data.errors.title[0].message && data.errors.title[0].message === "blank") {
+                  $("#select_context_content_dialog").errorBox(I18n.t('errors.assignment_name_blank', 'Assignment name cannot be blank.'));
+                  $('.item_title').focus();
+                } else {
+                  $("#select_context_content_dialog").errorBox(I18n.t('errors.failed_to_create_item', 'Failed to Create new Item'));
+                }
+
+              });
+            }
           }
         } else {
           submit(item_data);
