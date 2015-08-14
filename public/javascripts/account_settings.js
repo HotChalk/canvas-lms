@@ -216,9 +216,12 @@ define([
     $(".open_report_description_link").click(function(event) {
       event.preventDefault();
       var title = $(this).parents(".title").find("span.title").text();
-      $(this).parent(".reports").find(".report_description").dialog({
+      $(this).parent(".reports").find(".report_description").clone().dialog({
         title: title,
-        width: 800
+        width: 800,
+        close: function(event, ui) {
+          $(this).remove();
+        }
       });
     });
 
