@@ -9,8 +9,8 @@ define [
   'compiled/views/wiki/WikiPageReloadView'
   'i18n!pages'
   'compiled/views/editor/KeyboardShortcuts'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'compiled/tinymce'
+  'tinymce.editor_box'
 ], ($, _, Backbone, wikiSidebar, template, ValidatedFormView, WikiPageDeleteDialog, WikiPageReloadView, I18n, KeyboardShortcuts) ->
 
   class WikiPageEditView extends ValidatedFormView

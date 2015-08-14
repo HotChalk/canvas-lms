@@ -63,6 +63,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   after_save :context_module_action
   before_create :assign_validation_token
 
+  has_many :enrollments, :primary_key => :user_id, :foreign_key => :user_id
+  
   has_many :attachments, :as => :context, :dependent => :destroy
   has_many :events, class_name: 'Quizzes::QuizSubmissionEvent', dependent: :destroy
 
@@ -773,6 +775,12 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
 
   # Excludes teacher preview and Student View submissions.
   scope :for_students, ->(quiz) { not_preview.for_user_ids(quiz.context.all_real_student_ids) }
+  scope :for_sections, lambda { |section_ids|
+    joins(:user).
+    joins(:enrollments).
+    where(:enrollments => { :course_section_id => section_ids})
+  }
+
 
   has_a_broadcast_policy
 

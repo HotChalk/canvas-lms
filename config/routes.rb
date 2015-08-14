@@ -376,6 +376,7 @@ CanvasRails::Application.routes.draw do
     get 'content_migrations' => 'content_migrations#index'
   end
 
+  get "courses/:course_id/rubrics/:rubric_id/copy", controller: 'rubrics', action: 'copy', as: :rubric_copy
   get 'quiz_statistics/:quiz_statistics_id/files/:file_id/download' => 'files#show', as: :quiz_statistics_download, download: '1'
 
   resources :page_views, only: :update
@@ -509,6 +510,8 @@ CanvasRails::Application.routes.draw do
 
     resources :terms, except: [:show, :new, :edit]
     resources :sub_accounts
+    get 'resources' => 'resources#index', as: :resources_links_index
+    put 'resources' => 'resources#update'
 
     get :avatars
     get :sis_import

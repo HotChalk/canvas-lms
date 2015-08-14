@@ -128,7 +128,6 @@ define([
                 <div className="ic-wizard-box__message">
                   <div className="ic-wizard-box__message-layout">
                     <div ref="messageIcon" className="ic-wizard-box__message-icon ic-wizard-box__message-icon--is-fired">
-                      <i className={this.state.itemShown.iconClass}></i>
                     </div>
                     <div ref="messageBox" tabIndex="-1" className="ic-wizard-box__message-inner ic-wizard-box__message-inner--is-fired">
                       <p className="ic-wizard-box__message-text">

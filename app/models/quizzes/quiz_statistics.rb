@@ -62,29 +62,37 @@ class Quizzes::QuizStatistics < ActiveRecord::Base
   end
 
   # Generates or returns the previously generated CSV version of this report.
-  def generate_csv
-    self.csv_attachment ||= begin
-      options = {}
-      options[:filename] = "quiz_#{report_type}_report.csv"
-      options[:uploaded_data] = StringIO.new(report.to_csv)
-      options[:display_name] = t('#quizzes.quiz_statistics.statistics_filename',
+  def generate_csv(options = {})
+    options[:filename] = "quiz_#{report_type}_report.csv"
+    options[:content_type] = 'text/csv'
+    options[:uploaded_data] = StringIO.new(report.to_csv(options))
+    options[:display_name] = t('#quizzes.quiz_statistics.statistics_filename',
         "%{quiz_title} %{quiz_type} %{report_type} Report", {
           quiz_title: quiz.title,
           quiz_type: quiz.readable_type,
           report_type: readable_type
-        }) + ".csv"
+      }) + ".csv"
 
-      build_csv_attachment(options).tap do |attachment|
-        attachment.content_type = 'text/csv'
-        attachment.save!
+    if self.csv_attachment
+      self.csv_attachment.uploaded_data = options[:uploaded_data]
+      self.csv_attachment.filename = options[:filename]
+      self.csv_attachment.display_name = options[:display_name]
+      self.csv_attachment.content_type = options[:content_type]
+      self.csv_attachment.save
+    else
+      self.csv_attachment ||= begin
+        build_csv_attachment(options).tap do |attachment|
+          attachment.content_type = options[:content_type]
+          attachment.save!
+        end
       end
     end
   end
 
   # Queues a job for generating the CSV version of this report unless a job has
   # already been queued, or the attachment had been generated previously.
-  def generate_csv_in_background
-    return if csv_attachment.present? || progress.present?
+  def generate_csv_in_background(options = {})
+    return if generating_csv?
 
     build_progress
 
@@ -92,14 +100,11 @@ class Quizzes::QuizStatistics < ActiveRecord::Base
     progress.completion = 0
     progress.workflow_state = 'queued'
     progress.save!
-
-    progress.process_job(self, :__process_csv_job, {
-      strand: csv_job_strand_id
-    })
+    progress.process_job(self, :__process_csv_job, {strand: csv_job_strand_id}, options)
   end
 
-  def __process_csv_job(progress)
-    generate_csv
+  def __process_csv_job(progress, options)
+    generate_csv(options)
   end
 
   # Whether the CSV attachment is currently being generated, or is about to be.

@@ -197,13 +197,14 @@ class Quizzes::QuizzesController < ApplicationController
         events_url = api_v1_course_quiz_submission_events_url(@context, @quiz, @submission)
         js_env QUIZ_SUBMISSION_EVENTS_URL: events_url unless @js_env[:QUIZ_SUBMISSION_EVENTS_URL]
       end
-
+      preview = params[:preview] && @quiz.grants_right?(@current_user, session, :update) ?  true : false
       setup_attachments
       submission_counts if @quiz.grants_right?(@current_user, session, :grade) || @quiz.grants_right?(@current_user, session, :read_statistics)
       @stored_params = (@submission.temporary_data rescue nil) if params[:take] && @submission && (@submission.untaken? || @submission.preview?)
       @stored_params ||= {}
       hash = { :QUIZZES_URL => course_quizzes_url(@context),
              :IS_SURVEY => @quiz.survey?,
+             :IS_PREVIEW => preview,
              :QUIZ => quiz_json(@quiz,@context,@current_user,session),
              :COURSE_ID => @context.id,
              :LOCKDOWN_BROWSER => @quiz.require_lockdown_browser?,

@@ -53,8 +53,8 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
   #   :submission_correct_count_average=>1,
   #   :questions=>
   #     [output of stats_for_question for every question in submission_data]
-  def generate(legacy=true)
-    submissions = submissions_for_statistics
+  def generate(legacy=true, options = {})
+    submissions = submissions_for_statistics(options)
     # questions: questions from quiz#quiz_data
     #{1022=>
     # {"id"=>1022,
@@ -183,7 +183,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
     end
   end
 
-  def to_csv
+  def to_csv(options = {})
     include_root_accounts = quiz.context.root_account.trust_exists?
     csv = CSV.generate do |csv|
       context = quiz.context
@@ -200,7 +200,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       columns << I18n.t('statistics.csv_columns.submitted', 'submitted')
       columns << I18n.t('statistics.csv_columns.attempt', 'attempt') if includes_all_versions?
       first_question_index = columns.length
-      submissions = submissions_for_statistics
+      submissions = submissions_for_statistics(options)
       preload_attachments(submissions)
       found_question_ids = {}
       quiz_datas = [quiz.quiz_data] + submissions.map(&:quiz_data)
@@ -310,9 +310,14 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
 
   private
 
-  def submissions_for_statistics
+  def submissions_for_statistics(options = {})
     Shackles.activate(:slave) do
-      scope = quiz.quiz_submissions.for_students(quiz)
+      if options[:section_ids]
+        scope = quiz.quiz_submissions.for_students(quiz).for_sections(options[:section_ids])
+      else
+        scope = quiz.quiz_submissions.for_students(quiz)
+      end
+
       logged_out = quiz.quiz_submissions.logged_out
 
       all_submissions = []

@@ -102,6 +102,36 @@ class RubricsController < ApplicationController
     end
   end
 
+  def copy
+      if authorized_action(@context, @current_user, :manage_rubrics)
+        source_rubric = @context.rubrics.where(id: params[:rubric_id]).first if params[:rubric_id].present?
+        if source_rubric
+          rubric_copy = @context.rubrics.build
+          rubric_copy.user = @current_user
+          rubric_copy.data = source_rubric.data.clone
+          rubric_copy.points_possible = source_rubric.points_possible 
+          rubric_copy.title = source_rubric.title
+          rubric_copy.description = source_rubric.description
+          rubric_copy.reusable = source_rubric.reusable
+          rubric_copy.public = source_rubric.public
+          rubric_copy.read_only = source_rubric.read_only
+          rubric_copy.free_form_criterion_comments = source_rubric.free_form_criterion_comments
+          rubric_copy.hide_score_total = source_rubric.hide_score_total
+          rubric_copy.save!
+          rubric_copy.associate_with(@context, @context)
+          respond_to do |format|
+            format.html { redirect_to context_url(@context, :context_rubric_url, rubric_copy.id) }
+            format.json { render :json => source_rubric }
+          end
+        else
+          respond_to do |format|
+            format.html { render :index }
+            format.json { render :json => { :message => 'No source rubric specified' }, :status => :bad_request }
+          end
+        end
+      end
+  end
+
   # Internal: Find and format the given context's root outcome group.
   #
   # Returns a JSON outcome object or nil.

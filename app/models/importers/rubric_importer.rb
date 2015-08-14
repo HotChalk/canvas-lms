@@ -35,7 +35,8 @@ module Importers
         item = rubric
       else
         item ||= Rubric.where(context_id: context, context_type: context.class.to_s, id: hash[:id]).first
-        item ||= Rubric.where(context_id: context, context_type: context.class.to_s, migration_id: hash[:migration_id]).first if hash[:migration_id]
+        # Per LMS-1330, course copy imports should duplicate existing rubrics that have already been imported
+        #item ||= Rubric.where(context_id: context, context_type: context.class.to_s, migration_id: hash[:migration_id]).first if hash[:migration_id]
         item ||= Rubric.new(:context => context)
         item.migration_id = hash[:migration_id]
         item.workflow_state = 'active' if item.deleted?

@@ -1607,7 +1607,7 @@ class CoursesController < ApplicationController
         add_crumb(t('#crumbs.modules', "Modules"))
         load_modules
       when 'syllabus'
-        add_crumb(t('#crumbs.syllabus', "Syllabus"))
+        add_crumb(context_syllabus_name(@context) || t('#crumbs.syllabus', "Syllabus"))
         @syllabus_body = api_user_content(@context.syllabus_body, @context)
         @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).all
         @events = @context.calendar_events.active.to_a
@@ -2283,7 +2283,7 @@ class CoursesController < ApplicationController
       @fake_student.quiz_submissions.destroy_all
 
       flash[:notice] = t('notices.reset_test_student', "The test student has been reset successfully.")
-      enter_student_view
+      leave_student_view
     end
   end
 

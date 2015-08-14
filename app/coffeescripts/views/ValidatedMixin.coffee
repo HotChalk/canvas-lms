@@ -32,20 +32,20 @@ define [
     fieldSelectors: null
 
     ##
-    # For a given dom element, retrieve the sibling CKEditor wrapper.
+    # For a given dom element, retrieve the sibling tinymce wrapper.
     #
     # @param {jQuery Object} the textarea for whom we wish to get the
-    #   related CK editor area
-    # @return {jQuery Object} the relevant div that wraps the CKEditor
+    #   related tinymce editor area
+    # @return {jQuery Object} the relevant div that wraps the tinymce
     #   iframe related to this textarea
-    findSiblingCk: ($el)->
-      $el.siblings('.cke').find('.cke_wysiwyg_frame')
+    findSiblingTinymce: ($el)->
+      $el.siblings('.mce-tinymce').find(".mce-edit-area")
 
     findField: (field) ->
       selector = @fieldSelectors?[field] or "[name='#{field}']"
       $el = @$(selector)
       if $el.data('rich_text')
-        $el = @findSiblingCk($el)
+        $el = @findSiblingTinymce($el)
       $el
 
     ##

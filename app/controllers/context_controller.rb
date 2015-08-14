@@ -228,7 +228,9 @@ class ContextController < ApplicationController
       @users         = @context.participating_users.order_by_sortable_name.uniq
       @primary_users = { t('roster.group_members', 'Group Members') => @users }
       if course = @context.context.try(:is_a?, Course) && @context.context
-        @secondary_users = { t('roster.teachers_and_tas', 'Teachers & TAs') => course.instructors.order_by_sortable_name.uniq }
+        section_ids = course.sections_visible_to(@current_user).collect{|s| s.id}
+        section_instructors = course.participating_instructors.restrict_to_sections(section_ids).order_by_sortable_name.uniq
+        @secondary_users = { t('roster.teachers_and_tas', 'Teachers & TAs') => section_instructors }
       end
     end
 

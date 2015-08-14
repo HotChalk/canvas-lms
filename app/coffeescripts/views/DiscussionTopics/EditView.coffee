@@ -18,8 +18,8 @@ define [
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/editor/KeyboardShortcuts'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'compiled/tinymce'
+  'tinymce.editor_box'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,

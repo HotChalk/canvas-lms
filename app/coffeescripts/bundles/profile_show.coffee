@@ -22,9 +22,9 @@ require [
   'jquery'
   'str/htmlEscape'
   'compiled/util/AvatarWidget'
+  'compiled/tinymce'
   'jquery.instructure_forms'
-  'ckeditor.editor_box'
-  'ckeditor-all'
+  'tinymce.editor_box'
 ], (I18n, {View}, $, htmlEscape, AvatarWidget) ->
 
   class ProfileShow extends View

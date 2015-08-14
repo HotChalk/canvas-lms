@@ -2,7 +2,7 @@
   @active_tab = "settings"
   add_crumb t(:settings_crumb, "Settings")
   js_bundle :account_settings
-  jammit_css :account_settings, :reports
+  jammit_css :account_settings, :reports, :tinymce
   content_for :page_title, t(:page_title, "Account Settings")
   if can_do(@context, @current_user, :manage_storage_quotas)
     js_env :ACCOUNT => {
@@ -407,7 +407,7 @@ as needed)") %>
 
         <% unless @account.site_admin? %>
             <fieldset>
-                <legend><%= t(:account_programs, "Programs")%>
+                <legend><%= t(:account_programs, "Programs")%></legend>
                 <table class="formtable">
                   <tbody id="programs">
                     <tr class="program blank" style="display: none;'">
@@ -433,6 +433,19 @@ as needed)") %>
                     </tbody>
                 </table>
                 <a href="#" class="icon-add add_program_link" style="font-size: 0.9em;"><%= t(:add_program_link, "Add another program") %></a>
+            </fieldset>
+            <fieldset>
+              <legend><%= t(:syllabus_rename, "Syllabus Rename")%></legend>
+              <table class="formtable">
+                <tbody id="syllabus_rename">
+                  <tr>
+                    <td><%= before_label(t("Name")) %></td>
+                    <td>
+                      <input type="text" name="account[settings][syllabus_rename]" class="name" value="<%= @account.settings[:syllabus_rename] %>"/>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </fieldset>
         <% end %>
 

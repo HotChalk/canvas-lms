@@ -953,4 +953,7 @@ module ApplicationHelper
     @external_web_tools_config['enable_qa_header']
   end
 
+  def context_syllabus_name(context)
+    context.try(:syllabus_label) if context
+  end
 end

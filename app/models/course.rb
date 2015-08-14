@@ -495,6 +495,11 @@ class Course < ActiveRecord::Base
   scope :recently_ended, -> { where(:conclude_at => 1.month.ago..Time.zone.now).order("start_at DESC").limit(10) }
   scope :recently_created, -> { where("created_at>?", 1.month.ago).order("created_at DESC").limit(50).includes(:teachers) }
   scope :for_term, lambda {|term| term ? where(:enrollment_term_id => term) : scoped }
+  scope :for_account_id, lambda {|department_id| department_id ? where(:account_id => department_id) : scoped }
+  scope :for_program_id, lambda {|program_id| program_id ? where(:account_program_id => program_id) : scoped }
+  scope :for_workflow_states, lambda {|states| states ? where(:workflow_state => states) : scoped }
+  scope :between_start_dates, lambda {|from, to| where(:start_at => from..to)}
+  scope :between_concluded_dates, lambda {|from, to| where(:conclude_at => from..to)}
   scope :active_first, -> { order("CASE WHEN courses.workflow_state='available' THEN 0 ELSE 1 END, #{best_unicode_collation_key('name')}") }
   scope :name_like, lambda {|name| where(coalesced_wildcard('courses.name', 'courses.sis_source_id', 'courses.course_code', name)) }
   scope :needs_account, lambda { |account, limit| where(:account_id => nil, :root_account_id => account).limit(limit) }
@@ -2499,6 +2504,9 @@ class Course < ActiveRecord::Base
       # Uncommenting these lines will always put hidden links after visible links
       # tabs.each_with_index{|t, i| t[:sort_index] = i }
       # tabs = tabs.sort_by{|t| [t[:hidden_unused] || t[:hidden] ? 1 : 0, t[:sort_index]] } if !self.tab_configuration || self.tab_configuration.empty?
+
+      # Check for renamed Syllabus tab
+      tabs.detect { |t| t[:id] == TAB_SYLLABUS }[:label] = self.syllabus_label || t('#tabs.syllabus', "Syllabus")
       tabs
     end
   end
@@ -2923,5 +2931,13 @@ class Course < ActiveRecord::Base
     self.current_enrollments.each do |e|
       Enrollment.limit_privileges_to_course_section!(self, e.user, self.limit_section_visibility)
     end
+  end
+
+  def syllabus_label
+    if self.account
+      acc = self.account_chain.find {|a| a.settings[:syllabus_rename]}
+      return acc && acc.settings[:syllabus_rename]
+    end
+    nil
   end
 end

@@ -38,8 +38,8 @@ define([
   'jquery.instructure_misc_plugins' /* confirmDelete, showIf */,
   'jquery.loadingImg' /* loadingImage */,
   'jquery.templateData' /* fillTemplateData, getTemplateData */,
-  'ckeditor.editor_box' /* editorBox */,
-  'ckeditor-all',
+  'compiled/tinymce',
+  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/progressbar' /* /\.progressbar/ */,
   'jqueryui/sortable' /* /\.sortable/ */
@@ -147,8 +147,8 @@ define([
           $edit.find(".edit_section").val(sectionData.section_content);
         } else if(edit_type == "edit_rich_text_content") {
           $edit.find(".edit_section").attr('id', 'edit_' + $section.attr('id'));
-          $edit.find(".edit_section").val(sectionData.section_content);
-          $edit.find(".edit_section").editorBox();
+          $edit.find(".edit_section").editorBox()
+            .editorBox('set_code', sectionData.section_content);
         }
       });
       $("#edit_page_form :text:first").focus().select();

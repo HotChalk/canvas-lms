@@ -28,6 +28,19 @@
 {{/ifEqual}}
 {{/unless}}
 
+{{#if sections.length}}
+  <div class="control-group">
+    <label class="control-label" for="section_select">{{#t "section"}}Section{{/t}}</label>
+    <div class="controls">
+      <select name="course_section_id">
+        {{#each sections}}
+          <option value="{{this.id}}">{{this.name}}</option>
+        {{/each}}
+      </select>
+    </div>
+  </div>
+{{/if}}
+
 <div class="form-controls">
   <button class="btn dialog_closer" type="button"
           data-dismiss='modal'>{{#t "cancel"}}Cancel{{/t}}</button>

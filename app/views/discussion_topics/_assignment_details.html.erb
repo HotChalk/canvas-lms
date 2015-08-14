@@ -38,7 +38,7 @@
     </div>
 
     <div class="span1 right-align">
-      <% if @current_user.present? %>
+      <% if @current_user.present?  && ( presenter.can_grade?(@current_user) || presenter.should_show_rubric?(@current_user) )%>
         <div class="admin-links">
           <a class="al-trigger detail btn" href="#" aria-label="<%= t :manage_discussion, 'Manage Discussion' %>">
               <i class="icon-settings"></i><i class="icon-mini-arrow-down"></i>

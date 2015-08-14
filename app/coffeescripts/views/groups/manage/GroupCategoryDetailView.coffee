@@ -64,6 +64,7 @@ define [
       e.preventDefault()
       @createView ?= new GroupCreateView
         groupCategory: @model
+        sections: ENV.sections
         trigger: @$addGroupButton
       newGroup = new Group({group_category_id: @model.id}, {newAndEmpty: true})
       newGroup.once 'sync', =>

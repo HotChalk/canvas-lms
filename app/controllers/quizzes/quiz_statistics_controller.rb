@@ -267,6 +267,12 @@ class Quizzes::QuizStatisticsController < ApplicationController
         json = Rails.cache.fetch(cache_key) do
           all_versions = value_to_boolean(params[:all_versions])
           statistics = @service.generate_aggregate_statistics(all_versions)
+          if @current_user.account_admin?(@context)
+            statistics = @service.generate_aggregate_statistics(all_versions)
+          else
+             sections = @context.sections_visible_to(@current_user).collect(&:id)
+             statistics = @service.generate_aggregate_statistics(all_versions, {section_ids: sections})
+          end
           serialize(statistics)
         end
 

@@ -143,6 +143,8 @@
 <%
   jammit_css :dashboard
   case @course_home_view
+  when 'wiki'
+    jammit_css :tinymce
   when 'modules'
     js_bundle :context_modules
     jammit_css :context_modules2
@@ -150,6 +152,7 @@
     js_bundle :assignments
   when 'syllabus'
     js_bundle :syllabus
+    jammit_css :tinymce
   else
     js_bundle :dashboard
   end
@@ -206,7 +209,7 @@
       </div>
       <div class="form_group"><label class="radio"><input type="radio" name="course[default_view]" value="modules" <%= 'checked' if @context.default_view == 'modules' %>><%= t('draft_state.options.modules', %{Course Modules}) %></label></div>
       <div class="form_group"><label class="radio"><input type="radio" name="course[default_view]" value="assignments" <%= 'checked' if @context.default_view == 'assignments' %>><%= t('draft_state.options.assignments', %{Assignments List}) %></label></div>
-      <div class="form_group"><label class="radio"><input type="radio" name="course[default_view]" value="syllabus" <%= 'checked' if @context.default_view == 'syllabus' %>><%= t('draft_state.options.syllabus', %{Syllabus}) %></label></div>
+      <div class="form_group"><label class="radio"><input type="radio" name="course[default_view]" value="syllabus" <%= 'checked' if @context.default_view == 'syllabus' %>><%= context_syllabus_name(@context) || t('draft_state.options.syllabus', %{Syllabus}) %></label></div>
 
       <div class="button-container">
         <a type="button" class="btn button-secondary dialog_closer"><%= t('draft_state.buttons.cancel', %{Cancel}) %></a>

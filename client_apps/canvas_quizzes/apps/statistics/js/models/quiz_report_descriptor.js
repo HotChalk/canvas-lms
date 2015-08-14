@@ -79,7 +79,7 @@ define(function(require) {
           label = I18n.t('generation_almost_done', 'Almost done.');
         }
       } else {
-        label = I18n.t('generatable', 'Report has never been generated.');
+        label = I18n.t('generatable', 'Report has not been generated.');
       }
 
       return label;

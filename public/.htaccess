@@ -11,9 +11,3 @@
   RewriteRule ^login/hmac     login/hmac?account_id=1 [QSA]
   RewriteRule ^login2     login/canvas?direct=1 [QSA]
 </IfModule>
-
-#<IfModule mod_rewrite.c>
-#  RewriteEngine On
-#  RewriteCond %{HTTP_USER_AGENT} "android|blackberry|googlebot-mobile|iemobile|ipad|iphone|ipod|opera mobile|palmos|webos" [NC]
-#  RewriteRule ^$ /mobile/index.html [R,L]
-#</IfModule>

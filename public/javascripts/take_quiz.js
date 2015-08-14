@@ -34,8 +34,8 @@ define([
   'jqueryui/dialog',
   'jquery.instructure_misc_helpers' /* scrollSidebar */,
   'compiled/jquery.rails_flash_notifications',
-  'ckeditor.editor_box' /* editorBox */,
-  'ckeditor-all',
+  'compiled/tinymce',
+  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'compiled/behaviors/quiz_selectmenu'
 ], function(FileUploadQuestionView, File, I18n, $, autoBlurActiveInput, _,
@@ -219,7 +219,7 @@ define([
           var s = new Date((quizSubmission.countDown - now.getTime())).getUTCSeconds();
           if(now.getTime() < quizSubmission.countDown) { $countdownSeconds.text(s); }
 
-          if(s <= 0 && !quizSubmission.submitting) {
+          if(s <= 0 && !quizSubmission.submitting && !ENV.IS_PREVIEW) {
             quizSubmission.submitting = true;
             quizSubmission.submitQuiz();
           }
@@ -288,7 +288,7 @@ define([
             opacity: 0.7
           },
           close: function() {
-            if(!quizSubmission.submitting) {
+            if(!quizSubmission.submitting && !ENV.IS_PREVIEW) {
               quizSubmission.submitting = true;
               quizSubmission.submitQuiz();
             }

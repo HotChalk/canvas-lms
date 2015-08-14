@@ -21,6 +21,7 @@ require 'securerandom'
 
 class EportfoliosController < ApplicationController
   include EportfolioPage
+  before_filter :load_root_account
   before_filter :require_user, :only => [:index, :user_index]
   before_filter :reject_student_view_student
   
@@ -208,6 +209,14 @@ class EportfoliosController < ApplicationController
       end
     else
       authorized_action(nil, nil, :bad_permission)
+    end
+  end
+
+  def load_root_account
+    return if @current_user
+    @portfolio = Eportfolio.active.find(params[:id])
+    if @portfolio && @portfolio.user && (pseudonym = @portfolio.user.active_pseudonyms.first)
+      @domain_root_account = pseudonym.account.root_account || pseudonym.account
     end
   end
 end

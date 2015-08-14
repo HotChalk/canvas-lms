@@ -2,7 +2,7 @@ module UserSearch
 
   def self.for_user_in_context(search_term, context, searcher, session=nil, options = {})
     search_term = search_term.to_s
-    base_scope = scope_for(context, searcher, options.slice(:enrollment_type, :enrollment_role, :enrollment_role_id, :exclude_groups, :enrollment_state))
+    base_scope = scope_for(context, searcher, options.slice(:enrollment_type, :enrollment_role, :enrollment_role_id, :exclude_groups, :enrollment_state, :section_id))
     if search_term.to_s =~ Api::ID_REGEX
       db_id = Shard.relative_id_for(search_term, Shard.current, Shard.current)
       user = base_scope.where(id: db_id).first
@@ -48,6 +48,7 @@ module UserSearch
     enrollment_states = Array(options[:enrollment_state]) if options[:enrollment_state]
     include_prior_enrollments = !options[:enrollment_state].nil?
     exclude_groups = Array(options[:exclude_groups]) if options[:exclude_groups]
+    course_section_ids = Array(options[:section_id]) if options[:section_id]
 
     users = if context.is_a?(Account)
               User.of_account(context).active.select("users.id, users.name, users.short_name, users.sortable_name")
@@ -57,6 +58,10 @@ module UserSearch
               context.users_visible_to(searcher).uniq
             end
     users = users.order_by_sortable_name
+
+    if course_section_ids
+      users = users.restrict_to_sections(course_section_ids)
+    end
 
     if enrollment_role_ids || enrollment_roles
       if enrollment_role_ids
@@ -84,7 +89,6 @@ module UserSearch
     if exclude_groups
       users = users.where(Group.not_in_group_sql_fragment(exclude_groups))
     end
-
     users
   end
 

@@ -186,6 +186,8 @@ class Account < ActiveRecord::Base
   add_setting :enable_profiles, :boolean => true, :root_only => true, :default => false
   add_setting :enable_resources_link, :boolean => true, :root_only => true, :default => false
   add_setting :show_resources_link, :condition => :enable_resources_link
+  add_setting :resources_links, :condition => :enable_resources_link
+  add_setting :syllabus_rename
   add_setting :enable_manage_groups2, :boolean => true, :root_only => true, :default => true
   add_setting :mfa_settings, :root_only => true
   add_setting :canvas_authentication, :boolean => true, :root_only => true
@@ -451,9 +453,36 @@ class Account < ActiveRecord::Base
     associated_courses.limit(opts[:limit]).active_first.select(columns).all
   end
 
+  def fast_course_filters(opts)
+    columns = "courses.id, courses.name, courses.workflow_state, courses.course_code, courses.sis_source_id, courses.enrollment_term_id, courses.settings"
+    associated_courses = self.associated_courses.for_workflow_states(opts[:states]) if opts[:states].present?
+    #Check dates
+    if opts[:from_date].present? && opts[:to_date].present? && opts[:date_type].present?
+      if opts[:date_type] == 'start_date'
+        associated_courses = associated_courses.between_start_dates(opts[:from_date], opts[:to_date])
+      elsif opts[:date_type] == 'end_date'
+        associated_courses = associated_courses.between_concluded_dates(opts[:from_date], opts[:to_date])
+      end
+    end
+    associated_courses = associated_courses.with_enrollments if opts[:hide_enrollmentless_courses]
+    associated_courses = associated_courses.for_term(opts[:term]) if opts[:term].present?
+    associated_courses = associated_courses.for_account_id(opts[:department_id]) if opts[:department_id].present?
+    associated_courses = associated_courses.for_program_id(opts[:program_id]) if opts[:program_id].present?
+    associated_courses = yield associated_courses if block_given?
+    result = associated_courses.limit(opts[:limit]).active_first.select(columns).all
+    if opts[:course_format].present?
+      filtered = []
+      result.each do |course|
+        filtered << course if course.settings[:course_format] == opts[:course_format]
+      end
+      result = filtered
+    end
+    result
+  end
+
   def fast_all_courses(opts={})
     @cached_fast_all_courses ||= {}
-    @cached_fast_all_courses[opts] ||= self.fast_course_base(opts)
+    @cached_fast_all_courses[opts] ||= self.fast_course_filters(opts)
   end
 
   def all_users(limit=250)
@@ -477,6 +506,7 @@ class Account < ActiveRecord::Base
 
   def courses_name_like(query="", opts={})
     opts[:limit] ||= 200
+    opts[:course_format] = nil
     @cached_courses_name_like ||= {}
     @cached_courses_name_like[[query, opts]] ||= self.fast_course_base(opts) {|q| q.name_like(query)}
   end
@@ -1239,6 +1269,7 @@ class Account < ActiveRecord::Base
   TAB_JOBS = 15
   TAB_DEVELOPER_KEYS = 16
   TAB_ADMIN_TOOLS = 17
+  TAB_RESOURCES = 18
 
   def external_tool_tabs(opts)
     tools = ContextExternalTool.active.find_all_for(self, :account_navigation)
@@ -1279,6 +1310,7 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
+      tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
       tabs << { :id => TAB_TERMS, :label => t('#account.tab_terms', "Terms"), :css_class => 'terms', :href => :account_terms_path } if self.root_account? && manage_settings
       tabs << { :id => TAB_AUTHENTICATION, :label => t('#account.tab_authentication', "Authentication"), :css_class => 'authentication', :href => :account_account_authorization_configs_path } if self.root_account? && manage_settings
