@@ -227,6 +227,16 @@ define([
 
     $(".run_report_link").click(function(event) {
       event.preventDefault();
+      $start_at = $(this).parent("form").find("[name='parameters[start_at]']")
+      $end_at = $(this).parent("form").find("[name='parameters[end_at]']")
+      if($start_at.length === 1 && $end_at.length === 1){
+        var start_date = new Date($start_at.val()).getTime();
+        var end_date = new Date($end_at.val()).getTime();
+        if(  !isNaN(start_date) && !isNaN(end_date) && start_date > end_date ){
+          alert('Please select an end date after the start date.');
+          return;
+        }
+      }
       $(this).parent("form").submit();
     });
 
