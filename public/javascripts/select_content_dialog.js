@@ -192,7 +192,7 @@ $(document).ready(function() {
       item_data['item[title]'] = $("#sub_header_title").val();
       if (item_data['item[title]'] === '') {
         var $errorBox = $('<div />', { 'class': 'alert alert-error', role: 'alert' }).css({marginTop: 8 });
-        $errorBox.text(I18n.t('errors.external_url', "Please enter a title for the header"));
+        $errorBox.text(I18n.t('errors.header_name', "Please enter a title for the header"));
         $dialog.prepend($errorBox);
       } else {
         submit(item_data);
@@ -215,7 +215,7 @@ $(document).ready(function() {
           var titleKey = item_type + '[title]'
           if (data[titleKey] === '' || ( item_data['item[type]'] === 'discussion_topic' && data['title'] === '') ) {
             var $errorBox = $('<div />', { 'class': 'alert alert-error', role: 'alert' }).css({marginTop: 8 });
-            $errorBox.text(I18n.t('errors.external_url', "Please enter a name"));
+            $errorBox.text(I18n.t('errors.module_name', "Please enter a name"));
             $dialog.prepend($errorBox);
           } else {
               $("#select_context_content_dialog").loadingImage();
