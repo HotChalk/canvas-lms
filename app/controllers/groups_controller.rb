@@ -237,12 +237,14 @@ class GroupsController < ApplicationController
     @groups      = all_groups = @context.groups.active
                                   .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
                                   .includes(:group_category)
-    
-    if @current_user.account_admin?(@context) 
-      @sections = @context.course_sections.active
-    else 
-      @sections = @context.sections_visible_to(@current_user)
+    if @context.is_a?(Course)
+      if @current_user.account_admin?(@context)
+        @sections = @context.course_sections.active
+      else
+        @sections = @context.sections_visible_to(@current_user)
+      end
     end
+    @sections ||= []
 
     unless api_request?
       if @context.is_a?(Account)

@@ -2506,7 +2506,9 @@ class Course < ActiveRecord::Base
       # tabs = tabs.sort_by{|t| [t[:hidden_unused] || t[:hidden] ? 1 : 0, t[:sort_index]] } if !self.tab_configuration || self.tab_configuration.empty?
 
       # Check for renamed Syllabus tab
-      tabs.detect { |t| t[:id] == TAB_SYLLABUS }[:label] = self.syllabus_label || t('#tabs.syllabus', "Syllabus")
+      if (syllabus_tab = tabs.detect { |t| t[:id] == TAB_SYLLABUS })
+        syllabus_tab[:label] = self.syllabus_label || t('#tabs.syllabus', "Syllabus")
+      end
       tabs
     end
   end
