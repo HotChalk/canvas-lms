@@ -303,7 +303,7 @@ class GroupCategoriesController < ApplicationController
       section_id = params[:section_id]
       if section_id
         @groups = @group_category.groups.active.where(course_section_id: section_id)
-      elsif  @current_user.account_admin?(@context) 
+      elsif @context.is_a?(Account) || @current_user.account_admin?(@context)
         @groups = @group_category.groups.active.by_name
       else 
         sections = @context.sections_visible_to(@current_user)
