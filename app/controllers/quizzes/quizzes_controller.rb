@@ -862,6 +862,7 @@ class Quizzes::QuizzesController < ApplicationController
   end
 
   def can_take_quiz?
+    return true if @current_user.account_admin?(@context)
     return false if @locked
     return false unless authorized_action(@quiz, @current_user, :submit)
     return false if @quiz.require_lockdown_browser? && !check_lockdown_browser(:highest, named_context_url(@context, 'context_quiz_take_url', @quiz.id))
