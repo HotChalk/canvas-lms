@@ -144,7 +144,7 @@ class GroupsController < ApplicationController
 
   SETTABLE_GROUP_ATTRIBUTES = %w(
     name description join_level is_public group_category avatar_attachment course_section
-    storage_quota_mb max_membership leader
+    storage_quota_mb max_membership leader default_view
   ).freeze
 
   include TextHelper
@@ -381,7 +381,29 @@ class GroupsController < ApplicationController
         end
         if authorized_action(@group, @current_user, :read)
           set_badge_counts_for(@group, @current_user)
-          @home_page = @group.wiki.front_page
+          @group_home_view = (params[:view] == "feed" && 'feed') || @group.default_view || 'feed'
+
+          # make sure the wiki front page exists
+          if @group_home_view == 'wiki'
+            @group_home_view = 'feed' if @group.wiki.front_page.nil?
+          end
+
+          if  @group_home_view == 'wiki'
+            @wiki = @group.wiki
+            @page = @wiki.front_page
+            set_js_rights [:wiki, :page]
+            set_js_wiki_data :course_home => true
+            @padless = true
+          elsif @group_home_view == 'announcements'
+            add_crumb(t(:announcements_crumb, "Announcements"))
+            can_create = @group.announcements.scoped.new.grants_right?(@current_user, session, :create)
+            js_env :permissions => {
+              :create => can_create,
+              :moderate => can_create
+            }
+            js_env :is_showing_announcements => true
+            js_env :no_external_feeds => true
+          end
         end
       end
       format.json do

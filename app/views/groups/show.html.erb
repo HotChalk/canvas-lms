@@ -14,6 +14,12 @@
 
   <% if can_do(@context, @current_user, :update) %>
     <div>
+      <a class="btn button-sidebar-wide element_toggler choose_group_home_page_link" aria-controls="edit_group_home_content_form" href="#">
+            <i class="icon-target"></i>
+            <%= t('links.choose_group_home_page', %{Choose Home Page}) %>
+          </a>
+    </div>
+    <div>
       <a href="#" id="edit_group">
         <i class="icon-edit"></i>
         <%= t 'edit_group',"Edit Group" %>
@@ -31,12 +37,52 @@
   <% else %>
     <%= render :partial => "shared/event_list", :object => [], :locals => locals %>
   <% end %>
+
+  <% has_front_page = @group.wiki && @group.wiki.front_page %>
+  <div id="edit_group_home_content" style="display: none;">
+    <h2><%= t('draft_state.headings.set_layout', %{Set Home Page Layout}) %></h2>
+    <%= form_for :group, :url => context_url(@context, :context_url), :html => {:tabindex=>"0", :'data-turn-into-dialog'=>'{"height": 300, "width":500,"modal":true}', :title=>t('headings.choose_home_page_title', %{Group Home Page}), :style => "display:none", :id => "edit_group_home_content_form", :method => :put} do |f| %>
+      <label for="edit_group_home_content_select"><%= t('draft_state.labels.select_content', %{Select what you'd like to display on the home page.}) %></label>
+
+      <div class="form_group"><label class="radio"><input type="radio" name="group[default_view]" value="feed" <%= 'checked' if @context.default_view == 'feed' || (!has_front_page && @context.default_view == 'wiki') %>><%= t('draft_state.options.group_activity_stream', %{Group Activity Stream}) %></label></div>
+      <div class="form_group">
+        <label class="radio"><input type="radio" name="group[default_view]" value="wiki" <%= 'checked' if has_front_page && @context.default_view == 'wiki' %><%= 'disabled' unless has_front_page %>>
+          <span class="<%= 'ui-state-disabled' unless has_front_page %>"><%= t('draft_state.options.custom_page', %{Pages Front Page}) %></span></label>
+        <% if has_front_page %>
+          <small>&emsp;<%= @context.wiki.front_page.title %>&emsp;[ <%= link_to t('change_home_page', 'Change'), polymorphic_url([@context, :wiki_pages]) %> ]</small>
+        <% else %>
+          <small>&emsp;[ <%= link_to t('front_page_not_set', 'Front page must be set first'), polymorphic_url([@context, :wiki_pages]) %> ]</small>
+        <% end %>
+      </div>
+      <div class="form_group"><label class="radio"><input type="radio" name="group[default_view]" value="announcements" <%= 'checked' if @context.default_view == 'announcements' %>><%= t('draft_state.options.announcements', %{Announcements}) %></label></div>
+      <div class="button-container">
+        <a type="button" class="btn button-secondary dialog_closer"><%= t('draft_state.buttons.cancel', %{Cancel}) %></a>
+        <button type="submit" class="btn btn-primary"><%= t('draft_state.buttons.update_layout', %{Save}) %></button>
+      </div>
+    <% end %>
+  </div>
+
+
 <% end %>
 
-<div id="group_messages">
-  <%= render :partial => 'shared/dashboard_messages' %>
-  <%= render :partial => 'shared/recent_activity' %>
-</div>
+<% if @group_home_view == 'wiki' %>
+    <% js_bundle :wiki_page_show %>
+    <div id="wiki_page_show"></div>
+<% elsif @group_home_view == 'announcements' %>
+  <div id="announcements_show">
+  <%
+    @body_classes << 'hide-content-while-scripts-not-loaded'
+    feed_code = @context.available? && @context.feed_code
+    js_bundle :announcements_index
+    jammit_css :discussions_list
+  %>
+  </div>
+<% else %>
+  <div id="group_messages">
+    <%= render :partial => 'shared/dashboard_messages' %>
+    <%= render :partial => 'shared/recent_activity' %>
+  </div>
+<% end %>
 
 <% js_bundle :student_group_dialog %>
 <% js_env({
