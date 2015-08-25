@@ -85,6 +85,9 @@ class Quizzes::QuizzesController < ApplicationController
       quizzes.map(&:id), # invalidate on add/delete of quizzes
       quizzes.map(&:updated_at).sort.last # invalidate on modifications
     ].cache_key) do
+      if can_manage
+        Quizzes::Quiz.preload_can_unpublish(quizzes)
+      end
       quizzes.each_with_object({}) do |quiz, quiz_user_permissions|
         quiz_user_permissions[quiz.id] = {
           can_update: can_manage,
@@ -148,7 +151,7 @@ class Quizzes::QuizzesController < ApplicationController
           flash[:notice] = t 'notices.submission_doesnt_count', "This quiz will no longer count towards your grade."
         else
           respond_to do |format|
-            flash[:error] = t 'notices.quiz_not_availible', "You do not have access to the requested quiz."
+            flash[:error] = t "You do not have access to the requested quiz."
             format.html { redirect_to named_context_url(@context, :context_quizzes_url) }
           end
           return
@@ -186,7 +189,9 @@ class Quizzes::QuizzesController < ApplicationController
 
       @just_graded = false
       if @submission && @submission.needs_grading?(!!params[:take])
-        Quizzes::SubmissionGrader.new(@submission).grade_submission(:finished_at => @submission.end_at)
+        Quizzes::SubmissionGrader.new(@submission).grade_submission(
+          finished_at: @submission.finished_at_fallback
+        )
         @submission.reload
         @just_graded = true
       end
@@ -194,8 +199,10 @@ class Quizzes::QuizzesController < ApplicationController
         upload_url = api_v1_quiz_submission_files_path(:course_id => @context.id, :quiz_id => @quiz.id)
         js_env :UPLOAD_URL => upload_url
         js_env :SUBMISSION_VERSIONS_URL => course_quiz_submission_versions_url(@context, @quiz) unless @quiz.muted?
-        events_url = api_v1_course_quiz_submission_events_url(@context, @quiz, @submission)
-        js_env QUIZ_SUBMISSION_EVENTS_URL: events_url unless @js_env[:QUIZ_SUBMISSION_EVENTS_URL]
+        if !@submission.preview? && !@js_env[:QUIZ_SUBMISSION_EVENTS_URL]
+          events_url = api_v1_course_quiz_submission_events_url(@context, @quiz, @submission)
+          js_env QUIZ_SUBMISSION_EVENTS_URL: events_url
+        end
       end
       preview = params[:preview] && @quiz.grants_right?(@current_user, session, :update) ?  true : false
       setup_attachments
@@ -327,7 +334,7 @@ class Quizzes::QuizzesController < ApplicationController
         params[:quiz][:assignment_id] = nil unless @assignment
         params[:quiz][:title] = @assignment.title if @assignment
       end
-      if params[:assignment].present? && @context.feature_enabled?(:post_grades) && @quiz.assignment
+      if params[:assignment].present? && Assignment.sis_grade_export_enabled?(@context) && @quiz.assignment
         @quiz.assignment.post_to_sis = params[:assignment][:post_to_sis]
         @quiz.assignment.save
       end
@@ -383,7 +390,7 @@ class Quizzes::QuizzesController < ApplicationController
             old_assignment = @quiz.assignment.clone
             old_assignment.id = @quiz.assignment.id
 
-            if params[:assignment] && @context.feature_enabled?(:post_grades)
+            if params[:assignment] && Assignment.sis_grade_export_enabled?(@context)
               @quiz.assignment.post_to_sis = params[:assignment][:post_to_sis]
               @quiz.assignment.save
             end
@@ -606,7 +613,9 @@ class Quizzes::QuizzesController < ApplicationController
       @submission = nil if @submission && @submission.settings_only?
       @user = @submission && @submission.user
       if @submission && @submission.needs_grading?
-        Quizzes::SubmissionGrader.new(@submission).grade_submission(:finished_at => @submission.end_at)
+        Quizzes::SubmissionGrader.new(@submission).grade_submission(
+          finished_at: @submission.finished_at_fallback
+        )
         @submission.reload
       end
       setup_attachments
@@ -850,8 +859,12 @@ class Quizzes::QuizzesController < ApplicationController
       redirect_to course_quiz_url(@context, @quiz) and return
     end
 
-    events_url = api_v1_course_quiz_submission_events_url(@context, @quiz, @submission)
-    js_env QUIZ_SUBMISSION_EVENTS_URL: events_url unless @js_env[:QUIZ_SUBMISSION_EVENTS_URL]
+    if !@submission.preview? && !@js_env[:QUIZ_SUBMISSION_EVENTS_URL]
+      events_url = api_v1_course_quiz_submission_events_url(@context, @quiz, @submission)
+      js_env QUIZ_SUBMISSION_EVENTS_URL: events_url
+    end
+
+    js_env IS_PREVIEW: true if @submission.preview?
 
     @quiz_presenter = Quizzes::TakeQuizPresenter.new(@quiz, @submission, params)
     render :take_quiz

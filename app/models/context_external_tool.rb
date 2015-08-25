@@ -22,7 +22,7 @@ class ContextExternalTool < ActiveRecord::Base
   validates_presence_of :config_xml, :if => lambda { |t| t.config_type == "by_xml" }
   validates_length_of :domain, :maximum => 253, :allow_blank => true
   validate :url_or_domain_is_set
-  serialize :settings
+  serialize_utf8_safe :settings
   attr_accessor :config_type, :config_url, :config_xml
 
   before_save :infer_defaults, :validate_vendor_help_link
@@ -47,7 +47,7 @@ class ContextExternalTool < ActiveRecord::Base
     :editor_button, :homework_submission, :migration_selection, :course_home_sub_navigation,
     :course_settings_sub_navigation, :global_navigation,
     :assignment_menu, :file_menu, :discussion_topic_menu, :module_menu, :quiz_menu, :wiki_page_menu,
-    :tool_configuration, :link_selection, :assignment_selection
+    :tool_configuration, :link_selection, :assignment_selection, :post_grades
   ].freeze
 
   CUSTOM_EXTENSION_KEYS = {:file_menu => [:accept_media_types].freeze}.freeze
@@ -133,6 +133,7 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   def label_for(key, lang=nil)
+    lang = lang.to_s if lang
     labels = settings[key] && settings[key][:labels]
     labels2 = settings[:labels]
     (labels && labels[lang]) ||
@@ -548,10 +549,10 @@ class ContextExternalTool < ActiveRecord::Base
                         else
                           ''
                         end
-      where(default_placement_sql + 'EXISTS (
-              SELECT * FROM context_external_tool_placements
-              WHERE context_external_tools.id = context_external_tool_placements.context_external_tool_id
-              AND context_external_tool_placements.placement_type IN (?) )', placements || [])
+      return none unless placements
+      where(default_placement_sql + 'EXISTS (?)',
+            ContextExternalToolPlacement.where(placement_type: placements).
+        where("context_external_tools.id = context_external_tool_placements.context_external_tool_id"))
     else
       scoped
     end

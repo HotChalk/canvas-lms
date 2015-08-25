@@ -82,7 +82,7 @@ module AuthenticationMethods
       @access_token.used!
 
       RequestContextGenerator.add_meta_header('at', @access_token.global_id)
-      RequestContextGenerator.add_meta_header('dk', @access_token.developer_key.global_id) if @access_token.developer_key
+      RequestContextGenerator.add_meta_header('dk', @access_token.global_developer_key_id) if @access_token.developer_key_id
     end
   end
 
@@ -277,9 +277,7 @@ module AuthenticationMethods
       format.html {
         store_location
         flash[:warning] = I18n.t('lib.auth.errors.not_authenticated', "You must be logged in to access this page") unless request.path == '/'
-        opts = {}
-        opts[:canvas_login] = 1 if params[:canvas_login]
-        redirect_to login_url(opts)
+        redirect_to login_url(params.slice(:canvas_login, :authentication_provider))
       }
       format.json { render_json_unauthorized }
     end
@@ -321,4 +319,5 @@ module AuthenticationMethods
   def delegated_auth_redirect_uri(uri)
     uri
   end
+
 end

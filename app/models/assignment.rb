@@ -490,7 +490,8 @@ class Assignment < ActiveRecord::Base
     tags_to_update.each { |tag| tag.context_module_action(user, action, points) }
   end
 
-  def context_module_tag_info(user)
+  def context_module_tag_info(user, context)
+    self.association(:context).target ||= context
     tag_info = {:points_possible => self.points_possible}
     submission = Submission.find_by_user_id_and_assignment_id(user.id, self.id)
     if submission
@@ -662,11 +663,7 @@ class Assignment < ActiveRecord::Base
   protected :process_if_quiz
 
   def grading_scheme
-    if self.grading_standard
-      self.grading_standard.grading_scheme
-    else
-      GradingStandard.default_grading_scheme
-    end
+    grading_standard_or_default.grading_scheme
   end
 
   def infer_grading_type
@@ -685,7 +682,9 @@ class Assignment < ActiveRecord::Base
   end
 
   def grading_standard_or_default
-    grading_standard || GradingStandard.default_instance
+    grading_standard ||
+      context.default_grading_standard ||
+      GradingStandard.default_instance
   end
 
   def score_to_grade(score=0.0, given_grade=nil)
@@ -895,7 +894,8 @@ class Assignment < ActiveRecord::Base
       (submittable_type? || submission_types == "discussion_topic") &&
       context.grants_right?(user, session, :participate_as_student) &&
       !locked_for?(user) &&
-      visible_to_user?(user)
+      visible_to_user?(user) &&
+      !excused_for?(user)
     }
     can :submit and can :attach_submission_comment_files
 
@@ -990,7 +990,7 @@ class Assignment < ActiveRecord::Base
     students = [student]
     if has_group_category? && group = group_category.group_for(student)
       students = group.users
-        .joins("INNER JOIN enrollments ON enrollments.user_id=users.id")
+        .joins(:enrollments)
         .where(:enrollments => { :course_id => self.context})
         .where(Course.reflections[:student_enrollments].options[:conditions])
         .order("users.id") # this helps with preventing deadlock with other things that touch lots of users
@@ -1017,11 +1017,20 @@ class Assignment < ActiveRecord::Base
     raise GradeError.new("Student is required") unless original_student
     raise GradeError.new("Student must be enrolled in the course as a student to be graded") unless context.includes_student?(original_student)
     raise GradeError.new("Grader must be enrolled as a course admin") if opts[:grader] && !self.context.grants_right?(opts[:grader], :manage_grades)
+
+    if opts.key? :excuse
+      opts[:excused] = Canvas::Plugin.value_to_boolean(opts.delete(:excuse))
+    end
+    raise GradeError.new("Cannot simultaneously grade and excuse an assignment") if opts[:excused] && opts[:grade]
+
+
     opts.delete(:id)
     dont_overwrite_grade = opts.delete(:dont_overwrite_grade)
     group_comment = Canvas::Plugin.value_to_boolean(opts.delete(:group_comment))
     group, students = group_students(original_student)
     grader = opts.delete :grader
+    grade = opts.delete :grade
+    score = opts.delete :score
     comment = {
       :comment => (opts.delete :comment),
       :attachments => (opts.delete :comment_attachments),
@@ -1032,22 +1041,34 @@ class Assignment < ActiveRecord::Base
     }
     comment[:group_comment_id] = CanvasSlug.generate_securish_uuid if group_comment && group
     submissions = []
+
+
+    grade_group_students = !(grade_group_students_individually || opts[:excused])
+
     find_or_create_submissions(students) do |submission|
       submission_updated = false
       submission.skip_grade_calc = opts[:skip_grade_calc]
       student = submission.user
-      if student == original_student || !grade_group_students_individually
-        previously_graded = submission.grade.present?
+      if student == original_student || grade_group_students
+        previously_graded = submission.grade.present? || submission.excused?
         next if previously_graded && dont_overwrite_grade
+        next if student != original_student && submission.excused?
+
+        did_grade = false
         submission.attributes = opts
         submission.assignment_id = self.id
         submission.user_id = student.id
         submission.grader_id = grader.try(:id)
-        if !opts[:grade] || opts[:grade] == ""
-          submission.score = nil
+
+        if grade.present? || score.present?
+          submission.grade = grade
+          submission.score = score
+          submission.excused = false
+        else
+         submission.score = nil
           submission.grade = nil
         end
-        did_grade = false
+
         if submission.grade
           did_grade = true
           submission.score = self.grade_to_score(submission.grade)
@@ -1056,8 +1077,18 @@ class Assignment < ActiveRecord::Base
           did_grade = true
           submission.grade = self.score_to_grade(submission.score, submission.grade)
         end
+
+        if submission.excused?
+          did_grade = true
+        end
+
         submission.grade_matches_current_submission = true if did_grade
-        submission_updated = true if !(submission.changes.keys - ['user_id', 'assignment_id']).empty?
+
+        if submission.changes.except(*%w{user_id assignment_id}).values.flatten.any?(&:present?)
+          # changing turnitin_data from nil to {} doesn't count
+          submission_updated = true
+        end
+
         submission.workflow_state = "graded" if submission.score_changed? || submission.grade_matches_current_submission
         submission.group = group
         submission.graded_at = Time.zone.now if did_grade
@@ -1279,7 +1310,7 @@ class Assignment < ActiveRecord::Base
     submission_fields = [ :user_id, :id, :submitted_at, :workflow_state,
                           :grade, :grade_matches_current_submission,
                           :graded_at, :turnitin_data, :submission_type, :score,
-                          :assignment_id, :submission_comments ]
+                          :assignment_id, :submission_comments, :excused ]
 
     comment_fields = [:comment, :id, :author_name, :created_at, :author_id,
                       :media_comment_type, :media_comment_id,
@@ -1434,22 +1465,24 @@ class Assignment < ActiveRecord::Base
   # name.  for non-group assignments this just returns all visible users
   def representatives(user)
     if grade_as_group?
-      submissions = self.submissions.includes(:user)
-      users_with_submissions = submissions
-                               .select(&:has_submission?)
-                               .map(&:user)
+      submissions = self.submissions.includes(:user).all
+      users_with_submissions = submissions.select(&:has_submission?).map(&:user)
       users_with_turnitin_data = if turnitin_enabled?
                                    submissions
-                                   .where("turnitin_data IS NOT NULL AND turnitin_data <> ?", {}.to_yaml)
+                                   .reject { |s| s.turnitin_data.blank? }
                                    .map(&:user)
                                  else
                                    []
                                  end
+      users_who_arent_excused = submissions.reject(&:excused?).map(&:user)
       reps_and_others = groups_and_ungrouped(user).map { |group_name, group_students|
         visible_group_students = group_students & visible_students_for_speed_grader(user)
-        representative   = (visible_group_students & users_with_turnitin_data).first
-        representative ||= (visible_group_students & users_with_submissions).first
-        representative ||= visible_group_students.first
+        candidate_students = visible_group_students & users_who_arent_excused
+        candidate_students = visible_group_students if candidate_students.empty?
+
+        representative   = (candidate_students & users_with_turnitin_data).first
+        representative ||= (candidate_students & users_with_submissions).first
+        representative ||= candidate_students.first
         others = visible_group_students - [representative]
         next unless representative
 
@@ -1474,7 +1507,7 @@ class Assignment < ActiveRecord::Base
 
   def groups_and_ungrouped(user)
     groups_and_users = group_category.
-      groups.includes(:group_memberships => :user).
+      groups.active.includes(:group_memberships => :user).
       map { |g| [g.name, g.users] }
     users_in_group = groups_and_users.flat_map { |_,users| users }
     groupless_users = visible_students_for_speed_grader(user) - users_in_group
@@ -1722,8 +1755,10 @@ class Assignment < ActiveRecord::Base
   }
 
   scope :not_ignored_by, lambda { |user, purpose|
-    where("NOT EXISTS (SELECT * FROM ignores WHERE asset_type='Assignment' AND asset_id=assignments.id AND user_id=? AND purpose=?)",
-          user, purpose)
+    where("NOT EXISTS (?)",
+          Ignore.where(asset_type: 'Assignment',
+                       user_id: user,
+                       purpose: purpose).where('asset_id=assignments.id'))
   }
 
   # the map on the API_NEEDED_FIELDS here is because PostgreSQL will see the
@@ -1970,7 +2005,7 @@ class Assignment < ActiveRecord::Base
   end
 
   def self.with_student_submission_count
-    joins("LEFT OUTER JOIN submissions s ON
+    joins("LEFT OUTER JOIN #{Submission.quoted_table_name} s ON
            s.assignment_id = assignments.id AND
            s.submission_type IS NOT NULL AND
            s.user_id IS NOT NULL")
@@ -1980,7 +2015,19 @@ class Assignment < ActiveRecord::Base
 
   def can_unpublish?
     return true if new_record?
-    !has_student_submissions?
+    return @can_unpublish unless @can_unpublish.nil?
+    @can_unpublish = !has_student_submissions?
+  end
+  attr_writer :can_unpublish
+
+  def self.preload_can_unpublish(assignments, assmnt_ids_with_subs=nil)
+    return unless assignments.any?
+    assmnt_ids_with_subs ||= assignment_ids_with_submissions(assignments.map(&:id))
+    assignments.each{|a| a.can_unpublish = !(assmnt_ids_with_subs.include?(a.id)) }
+  end
+
+  def self.assignment_ids_with_submissions(assignment_ids)
+    Submission.having_submission.where(:assignment_id => assignment_ids).uniq.pluck(:assignment_id)
   end
 
   # override so validations are called
@@ -1993,6 +2040,11 @@ class Assignment < ActiveRecord::Base
   def unpublish
     self.workflow_state = 'unpublished'
     self.save
+  end
+
+  def excused_for?(user)
+    s = submissions.where(user_id: user.id).first_or_initialize
+    s.excused?
   end
 
   # simply versioned models are always marked new_record, but for our purposes
@@ -2014,5 +2066,11 @@ class Assignment < ActiveRecord::Base
 
   def quiz?
     self.submission_types == 'online_quiz' && self.quiz.present?
+  end
+
+  def self.sis_grade_export_enabled?(context)
+    context.feature_enabled?(:post_grades) ||
+      context.root_account.feature_enabled?(:bulk_sis_grade_export) ||
+      Lti::AppLaunchCollator.any?(context, [:post_grades])
   end
 end

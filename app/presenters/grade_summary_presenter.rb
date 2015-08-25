@@ -35,6 +35,10 @@ class GradeSummaryPresenter
     user_has_elevated_permissions? && !@id_param
   end
 
+  def user_an_observer_of_student?
+    observed_students.key? student
+  end
+
   def student_is_user?
     student == @current_user
   end
@@ -176,6 +180,7 @@ class GradeSummaryPresenter
       # require score then add a filter when the DA feature is on
       chain.joins(:submissions)
         .where("submissions.user_id in (?)", real_and_active_student_ids)
+        .where("NOT submissions.excused OR submissions.excused IS NULL")
         .group("assignments.id")
         .select("assignments.id, max(score) max, min(score) min, avg(score) avg")
         .index_by(&:id)
@@ -199,7 +204,7 @@ class GradeSummaryPresenter
 
   def courses_with_grades
     @courses_with_grades ||= begin
-      if student_is_user?
+      if student_is_user? || user_an_observer_of_student?
         student.courses_with_grades
       else
         nil

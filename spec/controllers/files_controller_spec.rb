@@ -19,6 +19,23 @@
 require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper.rb')
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 
+def new_valid_tool(course)
+  tool = course.context_external_tools.new(
+      name: "bob",
+      consumer_key: "bob",
+      shared_secret: "bob",
+      tool_id: 'some_tool',
+      privacy_level: 'public'
+  )
+  tool.url = "http://www.example.com/basic_lti"
+  tool.resource_selection = {
+      :url => "http://#{HostUrl.default_host}/selection_test",
+      :selection_width => 400,
+      :selection_height => 400}
+  tool.save!
+  tool
+end
+
 describe FilesController do
   def course_folder
     @folder = @course.folders.create!(:name => "a folder", :workflow_state => "visible")
@@ -164,6 +181,15 @@ describe FilesController do
       group_with_user_logged_in(:group_context => Account.default)
       get 'index', :group_id => @group.id
       expect(response).to be_success
+    end
+
+    it "should not show external tools in a group context" do
+      group_with_user_logged_in(:group_context => Account.default)
+      new_valid_tool(@course)
+      user_file
+      @file.context = @group
+      get 'index', :group_id => @group.id
+      expect(assigns[:js_env]['FILES_CONTEXTS'][0]['file_menu_tools']).to eq []
     end
 
     describe 'across shards' do
@@ -367,6 +393,14 @@ describe FilesController do
         expect(@module.evaluate_for(@student).state).to eql(:completed)
       end
 
+      it "should mark media files viewed when rendering html with file_preview" do
+        @file = attachment_model(:context => @course, :uploaded_data => stub_file_data('test.m4v', 'asdf', 'video/mp4'))
+        file_in_a_module
+        get 'show', :course_id => @course.id, :id => @file.id, :format => :html
+        @module.reload
+        expect(@module.evaluate_for(@student).state).to eql(:completed)
+      end
+
       it "should redirect to the user's files URL when browsing to an attachment with the same path as a deleted attachment" do
         owned_file = course_file
         owned_file.display_name = 'holla'
@@ -389,12 +423,24 @@ describe FilesController do
         expect(assigns(:attachment)).to eq new_file
       end
 
-      it "doesnt leak the name of unowned deleted files" do
+      it "does not leak the name of unowned deleted files" do
         unowned_file = @file
         unowned_file.display_name = 'holla'
         unowned_file.save
         unowned_file.destroy
 
+        get 'show', :course_id => @course.id, :id => unowned_file.id
+        expect(response.status).to eq(404)
+        expect(assigns(:not_found_message)).to eq("This file has been deleted")
+      end
+
+      it "does not blow up for logged out users" do
+        unowned_file = @file
+        unowned_file.display_name = 'holla'
+        unowned_file.save
+        unowned_file.destroy
+
+        remove_user_session
         get 'show', :course_id => @course.id, :id => unowned_file.id
         expect(response.status).to eq(404)
         expect(assigns(:not_found_message)).to eq("This file has been deleted")

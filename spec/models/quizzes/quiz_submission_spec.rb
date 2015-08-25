@@ -85,6 +85,29 @@ describe Quizzes::QuizSubmission do
     end
   end
 
+  describe '#finished_at_fallback' do
+    it "should select the earlier time" do
+      Timecop.freeze(5.minutes.ago) do
+        now = Time.zone.now
+        later = now + 5.minutes
+        earlier = now - 5.minutes
+
+        subject.end_at = earlier
+        expect(subject.finished_at_fallback).to eq(earlier)
+
+        subject.end_at = later
+        expect(subject.finished_at_fallback).to eq(now)
+      end
+    end
+    it "should work with no end_at time" do
+      Timecop.freeze(5.minutes.ago) do
+        now = Time.zone.now
+        subject.end_at = nil
+        expect(subject.finished_at_fallback).to eq(now)
+      end
+    end
+  end
+
   it "should copy the quiz's points_possible whenever it's saved" do
     Quizzes::Quiz.where(:id => @quiz).update_all(:points_possible => 1.1)
     q = @quiz.quiz_submissions.create!
@@ -1135,6 +1158,22 @@ describe Quizzes::QuizSubmission do
     end
   end
 
+  describe "set_final_score" do
+    it "marks a quiz_submission as complete" do
+      quiz_with_graded_submission([
+        {:question_data => {
+          :name => 'question 1',
+          :points_possible => 1,
+          'question_type' => 'essay_question'
+          }
+        }
+      ])
+      @quiz_submission.set_final_score(2)
+      @quiz_submission.reload
+      expect(@quiz_submission.workflow_state).to eq("complete")
+    end
+  end
+
   describe "#needs_grading?" do
     before :once do
       student_in_course
@@ -1255,6 +1294,34 @@ describe Quizzes::QuizSubmission do
 
   end
 
+  describe "quiz_question_ids" do
+    before do
+      @quiz = @course.quizzes.create! title: 'Test Quiz'
+      @submission = @quiz.quiz_submissions.build
+    end
+    it "takes ids from questions_as_object" do
+      @submission.stubs(:questions_as_object).returns [{"id" => 2}, {"id" => 3}]
+
+      expect(@submission.quiz_question_ids).to eq [2, 3]
+    end
+  end
+
+  describe "quiz_questions" do
+    before do
+      @quiz = @course.quizzes.create! title: 'Test Quiz'
+      @submission = @quiz.quiz_submissions.build
+    end
+    it "fetches questions based on quiz_question_ids" do
+      @submission.stubs(:quiz_question_ids).returns [2, 3]
+      Quizzes::QuizQuestion.expects(:where)
+        .with(id: [2, 3])
+        .returns(User.where(id: [2, 3]))
+        .at_least_once
+
+      @submission.quiz_questions
+    end
+  end
+
   it "does not put a graded survey submission in teacher's todos" do
     questions = [
       { question_data: { name: 'question 1', question_type: 'essay_question' } }
@@ -1318,6 +1385,38 @@ describe Quizzes::QuizSubmission do
       expect(@submission.reload.messages_sent.keys).not_to include 'Submission Needs Grading'
     end
   end
+
+  describe 'submission creation event' do
+    before(:once) do
+      student_in_course(course: @course)
+    end
+
+    it 'should create quiz submission event on new quiz submission' do
+      quiz_submission = @quiz.generate_submission(@student)
+      event = quiz_submission.events.last
+      expect(event.event_type).to eq('submission_created')
+    end
+
+    it 'should not create quiz submission event on preview quiz submission' do
+      quiz_submission = @quiz.generate_submission(@student, true)
+      event = quiz_submission.events.last
+      expect(event).to be_nil
+    end
+
+    it 'should be able to record quiz submission creation event' do
+      quiz_submission = @quiz.quiz_submissions.create!
+      quiz_submission.attempt  = 1
+      quiz_submission.quiz_version = 1
+      quiz_submission.quiz_data = {}
+      quiz_submission.record_creation_event
+      event = quiz_submission.events.last
+      expect(event.event_type).to eq('submission_created')
+      expect(event.event_data["quiz_version"]).to eq quiz_submission.quiz_version
+      expect(event.event_data["quiz_data"]).to eq quiz_submission.quiz_data
+      expect(event.attempt).to eq quiz_submission.attempt
+    end
+  end
+
   end
 
   describe "#time_spent" do

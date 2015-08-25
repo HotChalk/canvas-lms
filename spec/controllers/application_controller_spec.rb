@@ -23,7 +23,7 @@ describe ApplicationController do
   before :each do
     controller.stubs(:request).returns(stub(:host_with_port => "www.example.com",
                                             :host => "www.example.com",
-                                            :headers => {}))
+                                            :headers => {}, :format => stub(:html? => true)))
   end
 
   describe "#twitter_connection" do
@@ -197,6 +197,14 @@ describe ApplicationController do
 
     end
 
+    let(:empty_client_secrets) do
+      {
+        client_id: nil,
+        client_secret: nil,
+        redirect_uri: nil
+      }.with_indifferent_access
+    end
+
     it "uses @real_current_user first" do
       mock_real_current_user = mock()
       mock_current_user = mock()
@@ -204,7 +212,7 @@ describe ApplicationController do
       controller.instance_variable_set(:@current_user, mock_current_user)
 
       Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_real_current_user].cache_key).returns(["real_current_user_refresh_token", "real_current_user_access_token"])
-      GoogleDrive::Client.expects(:create).with({},"real_current_user_refresh_token", "real_current_user_access_token")
+      GoogleDrive::Client.expects(:create).with(empty_client_secrets,"real_current_user_refresh_token", "real_current_user_access_token")
       controller.send(:google_drive_user_client)
     end
 
@@ -213,7 +221,7 @@ describe ApplicationController do
       controller.instance_variable_set(:@real_current_user, nil)
       controller.instance_variable_set(:@current_user, mock_current_user)
       Rails.cache.expects(:fetch).with(['google_drive_tokens', mock_current_user].cache_key).returns(["current_user_refresh_token", "current_user_access_token"])
-      GoogleDrive::Client.expects(:create).with({},"current_user_refresh_token", "current_user_access_token")
+      GoogleDrive::Client.expects(:create).with(empty_client_secrets,"current_user_refresh_token", "current_user_access_token")
       controller.send(:google_drive_user_client)
     end
 
@@ -228,7 +236,7 @@ describe ApplicationController do
       service_mock.stubs(first: mock(token: "user_refresh_token", access_token: "user_access_token"))
       mock_user_services.expects(:where).with(service: "google_drive").returns(service_mock)
 
-      GoogleDrive::Client.expects(:create).with({}, "user_refresh_token", "user_access_token")
+      GoogleDrive::Client.expects(:create).with(empty_client_secrets, "user_refresh_token", "user_access_token")
 
       controller.send(:google_drive_user_client)
     end
@@ -239,7 +247,7 @@ describe ApplicationController do
       session[:oauth_gdrive_access_token] = "access_token"
       session[:oauth_gdrive_refresh_token] = "refresh_token"
 
-      GoogleDrive::Client.expects(:create).with({}, "refresh_token", "access_token")
+      GoogleDrive::Client.expects(:create).with(empty_client_secrets, "refresh_token", "access_token")
       controller.send(:google_drive_user_client)
     end
   end
@@ -443,6 +451,7 @@ describe ApplicationController do
 
       req.stubs(:host).returns('www.example.com')
       req.stubs(:headers).returns({})
+      req.stubs(:format).returns(stub(:html? => true))
       controller.stubs(:request).returns(req)
       controller.send(:assign_localizer)
       I18n.set_locale_with_localizer # this is what t() triggers
@@ -457,6 +466,24 @@ describe ApplicationController do
       expect(controller.instance_variable_get(:@context)).to eq @course
       I18n.set_locale_with_localizer # this is what t() triggers
       expect(I18n.locale.to_s).to eq "ru"
+    end
+  end
+
+  context 'require_context' do
+    it "properly requires account context" do
+      controller.instance_variable_set(:@context, Account.default)
+      expect(controller.send(:require_account_context)).to be_truthy
+      course_model
+      controller.instance_variable_set(:@context, @course)
+      expect{controller.send(:require_account_context)}.to raise_error
+    end
+
+    it "properly requires course context" do
+      course_model
+      controller.instance_variable_set(:@context, @course)
+      expect(controller.send(:require_course_context)).to be_truthy
+      controller.instance_variable_set(:@context, Account.default)
+      expect{controller.send(:require_course_context)}.to raise_error
     end
   end
 
@@ -504,6 +531,40 @@ describe ApplicationController do
       controller.stubs(:redirect_to)
       controller.send(:content_tag_redirect, Account.default, tag, nil)
     end
+
+    context 'ContextExternalTool' do
+
+      let(:course){ course_model }
+
+      let(:tool) do
+        tool = course.context_external_tools.new(
+          name: "bob",
+          consumer_key: "bob",
+          shared_secret: "bob",
+          tool_id: 'some_tool',
+          privacy_level: 'public'
+        )
+        tool.url = "http://www.example.com/basic_lti"
+        tool.resource_selection = {
+          :url => "http://#{HostUrl.default_host}/selection_test",
+          :selection_width => 400,
+          :selection_height => 400}
+        tool.save!
+        tool
+      end
+
+      let(:content_tag) { ContentTag.create(content: tool, url: tool.url)}
+
+      it 'returns the full path for the redirect url' do
+        controller.expects(:named_context_url).with(course, :context_url, {:include_host => true})
+        controller.expects(:named_context_url).with(course, :context_external_content_success_url, 'external_tool_redirect', {:include_host => true}).returns('wrong_url')
+        controller.stubs(:render)
+        controller.stubs(js_env:[])
+        controller.instance_variable_set(:"@context", course)
+        controller.send(:content_tag_redirect, course, content_tag, nil)
+      end
+    end
+
   end
 
   describe 'external_tools_display_hashes' do

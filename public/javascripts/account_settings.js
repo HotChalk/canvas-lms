@@ -45,7 +45,7 @@ define([
     $("#add_notification_form .datetime_field").bind('blur change', function() {
       var date = Date.parse($(this).val());
       if(date) {
-        date = date.toString($.datetime.defaultFormat);
+        date = $.datetimeString(date, {localized: false});
       }
       $(this).val(date);
     });
@@ -323,11 +323,6 @@ define([
     $("#account_settings_enable_resources_link").change(function() {
       $("#show_resources_link_input").toggle(!!$("#account_settings_enable_resources_link").attr('checked'));
     }).trigger('change');
-
-
-    $('.branding_section_toggler').on('change', function(){
-      $(this).prevAll('.branding_section').last().toggle(!this.checked)
-    })
 
   });
 

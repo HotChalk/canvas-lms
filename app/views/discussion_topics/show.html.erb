@@ -30,7 +30,7 @@
 <% end %>
 <%
   js_bundle :discussion
-  jammit_css :tinymce, :discussions, :learning_outcomes
+  css_bundle :tinymce, :discussions, :learning_outcomes
 %>
 
 <% if @unlock_at && @unlock_at > Time.now && !can_do(@context, @current_user, :moderate_forum) && @topic.user != @current_user %>
@@ -91,7 +91,7 @@
                   <li><a href="#" class="mark_all_as_unread"><%#= <i class="icon-mark-as-unread" aria-hidden="hidden"></i> %> <%= t :mark_all_as_unread, 'Mark All as Unread' %></a></li>
                 <% end %>
 
-                <% if can_do(@topic, @current_user, :delete) %>
+                <% if can_do(@topic, @current_user, :delete)%>
                   <li><a href="<%= context_url(@context, :context_discussion_topic_url, @topic.id) %>" class="delete_discussion" data-method="delete" rel="nofollow" data-confirm="<%= t :confirm_delete_discussion, 'Are you sure you want to delete this discussion?' %>"><i class="icon-trash"></i> <%= t :delete, 'Delete' %></a></li>
                 <% end %>
 
@@ -148,7 +148,7 @@
                   <% (@discussion_topic_menu_tools || []).each do |tool_hash| %>
                     <li>
                       <a class="menu_tool_link" href="<%= tool_hash[:base_url] %>&discussion_topics[]=<%= @topic.id %>" tabindex="-1" role="menuitem">
-                        <% if tool_hash[:icon_url] %><img class="icon" src="<%= tool_hash[:icon_url] %>" /><% end %>
+                        <% if tool_hash[:icon_url] %><img class="icon" alt="" src="<%= tool_hash[:icon_url] %>" /><% end %>
                         <%= tool_hash[:title] %>
                       </a>
                     </li>

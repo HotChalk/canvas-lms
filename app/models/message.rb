@@ -64,6 +64,7 @@ class Message < ActiveRecord::Base
   validates_length_of :transmission_errors, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :to, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :from, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
+  validates_length_of :url, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
 
   # Stream policy
   on_create_send_to_streams do
@@ -259,7 +260,7 @@ class Message < ActiveRecord::Base
       context = context.account if context.respond_to?(:account)
       context = context.root_account if context.respond_to?(:root_account)
       if context
-        p = user.sis_pseudonym_for(context)
+        p = SisPseudonym.for(user, context)
         p ||= user.find_pseudonym_for_account(context, true)
         context = p.account if p
       else
@@ -326,6 +327,7 @@ class Message < ActiveRecord::Base
   class UnescapedBuffer < String # acts like safe buffer except for the actually being safe part
     alias :append= :<<
     alias :safe_concat :concat
+    alias :safe_append= :concat
   end
 
   # Public: Store content in a message_content_... instance variable.

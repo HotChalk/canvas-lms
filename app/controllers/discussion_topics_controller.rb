@@ -1,6 +1,8 @@
 #
 # Copyright (C) 2012 Instructure, Inc.
 #
+# This file is part of Canvas.
+#
 # Canvas is free software: you can redistribute it and/or modify it under
 # the terms of the GNU Affero General Public License as published by the Free
 # Software Foundation, version 3 of the License.
@@ -341,9 +343,7 @@ class DiscussionTopicsController < ApplicationController
         }
         append_sis_data(hash)
 
-        js_env(hash.merge(
-          POST_GRADES: @context.feature_enabled?(:post_grades)
-        ))
+        js_env(hash.merge(POST_GRADES: Assignment.sis_grade_export_enabled?(@context)))
         if user_can_edit_course_settings?
           js_env(SETTINGS_URL: named_context_url(@context, :api_v1_context_settings_url))
         end
@@ -442,7 +442,7 @@ class DiscussionTopicsController < ApplicationController
                      map { |category| { id: category.id, name: category.name } },
                  CONTEXT_ID: @context.id,
                  CONTEXT_ACTION_SOURCE: :discussion_topic,
-                 POST_GRADES: @context.feature_enabled?(:post_grades),
+                 POST_GRADES: Assignment.sis_grade_export_enabled?(@context),
                  LIMIT_PRIVILEGES_TO_COURSE_SECTION: (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section]),
                  CANCEL_TO: named_context_url(@context, (@topic.is_a?(Announcement) ? :context_announcements_url : :context_discussion_topics_url)),
                  DIFFERENTIATED_ASSIGNMENTS_ENABLED: @context.feature_enabled?(:differentiated_assignments)}
@@ -484,9 +484,9 @@ class DiscussionTopicsController < ApplicationController
     end
 
     if authorized_action(@topic, @current_user, :read)
-      if (@current_user && @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user)) || ((!@current_user.account_admin?(@context) && @context.respond_to?(:sections_visible_to)) && @topic.course_section_id != nil && !@context.sections_visible_to(@current_user).map(&:id).include?(@topic.course_section_id))
+      if @current_user && @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user)
         respond_to do |format|
-          flash[:error] = t 'notices.discussion_not_availible', "You do not have access to the requested discussion."
+          flash[:error] = t "You do not have access to the requested discussion."
           format.html { redirect_to named_context_url(@context, :context_discussion_topics_url) }
         end
         return
@@ -1044,7 +1044,10 @@ class DiscussionTopicsController < ApplicationController
              @assignment.grants_right?(@current_user, session, :update)
         params[:assignment][:group_category_id] = nil unless @topic.group_category_id || @assignment.has_submitted_submissions?
         params[:assignment][:published] = @topic.published?
-        update_api_assignment(@assignment, params[:assignment].merge(@topic.attributes.slice('title')), @current_user)
+        params[:assignment][:name] = @topic.title
+
+        assignment_params = params[:assignment].except('anonymous_peer_reviews')
+        update_api_assignment(@assignment, assignment_params, @current_user)
         @assignment.submission_types = 'discussion_topic'
         @assignment.saved_by = :discussion_topic
         @assignment.course_section = @topic.course_section

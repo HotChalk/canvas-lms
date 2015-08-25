@@ -118,14 +118,12 @@ END
     },
     'use_new_styles' =>
     {
-      display_name: -> { I18n.t('features.new_styles', 'Use New Styles') },
-      description: -> { I18n.t('new_styles_description', <<-END) },
-We are working on a UI facelift to HotChalk Ember. Turn this on to opt-in to seeing the
-updated, simplified look and feel of the HotChalk Ember interface. This is a very "Work in progress"
-feature and should not be turned on in production for actual users yet.
+      display_name: -> { I18n.t('New UI') },
+      description: -> { I18n.t(<<END) },
+This enables an updated navigation, new dashboard and a simpler, more modern look and feel.
 END
       applies_to: 'RootAccount',
-      state: 'hidden',
+      state: 'allowed',
       root_opt_in: true,
       beta: true
     },
@@ -272,13 +270,12 @@ END
       cutoff dates. Assignments can be filtered by these grading periods in the gradebook.
 END
       applies_to: 'Course',
-      state: 'hidden_in_prod',
-      development: true,
+      state: 'allowed',
       root_opt_in: true
     },
     'course_catalog' =>
     {
-      display_name: -> { I18n.t('features.course_catalog', "Course Catalog") },
+      display_name: -> { I18n.t("Public Course Index") },
       description:  -> { I18n.t('display_course_catalog', <<-END) },
 Show a searchable list of courses in this root account with the "Include this course in the public course index" flag enabled.
 END
@@ -320,7 +317,43 @@ END
         state: 'hidden',
         beta: true,
         root_opt_in: true
-      }
+      },
+    'disable_lti_post_only' =>
+      {
+        display_name: -> { I18n.t('Don\'t move LTI query params to POST body') },
+        description: -> { I18n.t('If enabled, query parameters will not be copied to the POST body during an LTI launch.') },
+        applies_to: 'RootAccount',
+        state: 'hidden',
+        beta: true,
+        root_opt_in: true
+      },
+    'bulk_sis_grade_export' =>
+      {
+          display_name: -> { I18n.t('Allow Bulk Grade Export to SIS') },
+          description:  -> { I18n.t('Allows teachers to mark grade data to be exported in bulk to SIS integrations.') },
+          applies_to: 'RootAccount',
+          state: 'hidden',
+          root_opt_in: true,
+          beta: true
+      },
+    'nc_or' =>
+        {
+            display_name: -> { I18n.t('Enable "OR" Condition for Modules') },
+            description:  -> { I18n.t('If enabled, modules will have the option to be marked as complete when only one of the requirements is met.') },
+            applies_to: 'Course',
+            state: 'hidden',
+            development: true,
+            root_opt_in: true
+        },
+    'use_new_tree' =>
+    {
+      display_name: -> { I18n.t('Use new folder tree in Files')},
+      description: -> {I18n.t('Replaces the current folder tree with a new accessible and more feature rich folder tree.')},
+      applies_to: 'Course',
+      state: 'hidden',
+      development: true,
+      root_opt_in: true
+    }
   )
 
   def self.definitions

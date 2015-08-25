@@ -280,6 +280,8 @@ class CalendarEventsApiController < ApplicationController
   #   no course/group events). Limited to 10 context codes, additional ones are 
   #   ignored. The format of this field is the context type, followed by an 
   #   underscore, followed by the context id. For example: course_42
+  # @argument excludes[] [Array]
+  #   Array of attributes to exclude. Possible values are "description", "child_events" and "assignment"
   #
   # @returns [CalendarEvent]
   def index
@@ -311,19 +313,18 @@ class CalendarEventsApiController < ApplicationController
       calendar_events = Api.paginate(events_scope, self, api_v1_calendar_events_url)
       ActiveRecord::Associations::Preloader.new(calendar_events, :child_events).run
       assignment_events = apply_assignment_overrides(assignments_events)
-      hash = calendar_events.map { |event| event_json(event, @current_user, session) }
-      hash += assignment_events.map { |event| event_json(event, @current_user, session) }
+      mark_submitted_assignments(@current_user, assignments_events)
+      events = calendar_events + assignment_events
     else
       scope = @type == :assignment ? assignment_scope : calendar_event_scope
       events = Api.paginate(scope, self, api_v1_calendar_events_url)
       ActiveRecord::Associations::Preloader.new(events, :child_events).run if @type == :event
       events = apply_assignment_overrides(events) if @type == :assignment
       mark_submitted_assignments(@current_user, events) if @type == :assignment
-      hash = events.map { |event| event_json(event, @current_user, session) }
     end
 
     if @errors.empty?
-      render :json => hash
+      render :json => events.map { |event| event_json(event, @current_user, session, {:excludes => params[:excludes]}) }
     else
       render json: {errors: @errors.as_json}, status: :bad_request
     end
@@ -669,7 +670,6 @@ class CalendarEventsApiController < ApplicationController
       @end_date = @start_date.end_of_day if @end_date < @start_date
     end
 
-    # @type ||= params[:type] == 'assignment' || params[:type] == 'assignment' ? :assignment : :event
     @type ||= case params[:type]
     when 'assignment'
       :assignment
@@ -680,14 +680,11 @@ class CalendarEventsApiController < ApplicationController
     end
 
     @context ||= @current_user
-    # refactor opportunity: get_all_pertinent_contexts expects the list of
-    # unenrolled contexts to be in the include_contexts parameter, rather than
-    # a function parameter
-    params[:include_contexts] = codes.join(",") if codes
 
     # only get pertinent contexts if there is a user
     if @current_user
-      get_all_pertinent_contexts(include_groups: true)
+      joined_codes = codes && codes.join(",")
+      get_all_pertinent_contexts(include_groups: true, only_contexts: joined_codes, include_contexts: joined_codes)
     end
 
     if codes
@@ -712,7 +709,7 @@ class CalendarEventsApiController < ApplicationController
     if @current_user
       @section_codes = selected_contexts.inject([]) { |ary, context|
         next ary unless context.is_a?(Course)
-        ary + (@current_user.account_admin?(context) ? context.course_sections : context.sections_visible_to(@current_user)).map(&:asset_string)
+        ary + context.sections_visible_to(@current_user).map(&:asset_string)
       }
     end
 
@@ -791,13 +788,6 @@ class CalendarEventsApiController < ApplicationController
 
     # in courses with diff assignments on, only show the visible assignments
     scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id))
-
-    # filter out assignments assigned to a different section, if applicable
-    unless contexts.any? { |context| @current_user.account_admin?(context) }
-      section_ids = contexts.select { |context| context.is_a?(Course) }.collect { |context| context.sections_visible_to(@current_user).map(&:id) }.flatten.uniq
-      scope = scope.visible_to_sections(section_ids)
-    end
-
     scope
   end
 
@@ -818,6 +808,9 @@ class CalendarEventsApiController < ApplicationController
   end
 
   def apply_assignment_overrides(events)
+    ActiveRecord::Associations::Preloader.new(events, [:context, :assignment_overrides]).run
+
+    TempCache.enable do
     events = events.inject([]) do |assignments, assignment|
 
       if assignment.context.user_has_been_student?(@current_user)
@@ -838,7 +831,7 @@ class CalendarEventsApiController < ApplicationController
         end
 
         if original_dates.present?
-          if (assignment.context.user_has_been_observer?(@current_user) && assignments.empty?) || (assignment.context.course_sections.active.count != overridden_dates.size)
+          if (assignment.context.user_has_been_observer?(@current_user) && assignments.empty?) || (assignment.context.active_section_count != overridden_dates.size)
             assignments << assignment
           end
         end
@@ -853,6 +846,7 @@ class CalendarEventsApiController < ApplicationController
         due_at = assignment.due_at
         due_at && (due_at > @end_date || due_at < @start_date)
       end
+    end
     end
 
     events

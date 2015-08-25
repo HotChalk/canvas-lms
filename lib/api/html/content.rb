@@ -79,6 +79,10 @@ module Api
           apply_user_content_attributes(node, uc)
         end
 
+        UserContent.find_equation_images(parsed_html) do |node|
+          apply_mathml(node)
+        end
+
         UrlAttributes.each do |tag, attributes|
           parsed_html.css(tag).each do |element|
             url_helper.rewrite_api_urls(element, attributes)
@@ -114,6 +118,19 @@ module Api
         node['data-uc_height'] = user_content.height
         node['data-uc_snippet'] = user_content.node_string
         node['data-uc_sig'] = user_content.node_hmac
+      end
+
+      def apply_mathml(node)
+        self.class.apply_mathml(node)
+      end
+
+      def self.apply_mathml(node)
+        mathml = UserContent.latex_to_mathml(node['alt'])
+        return if mathml.blank?
+
+        # replace alt attribute with mathml
+        node.delete('alt')
+        node['data-mathml'] = mathml
       end
     end
   end

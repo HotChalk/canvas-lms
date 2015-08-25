@@ -27,6 +27,7 @@ require [
   'compiled/behaviors/tooltip'
   'compiled/behaviors/instructure_inline_media_comment'
   'compiled/behaviors/ping'
+  'LtiThumbnailLauncher'
 
   # other stuff several bundles use
   'media_comments'
@@ -34,6 +35,7 @@ require [
   'jqueryui/progressbar'
   'jqueryui/tabs'
   'compiled/registration/incompleteRegistrationWarning'
+  'moment'
 
   # random modules required by the js_blocks, put them all in here
   # so RequireJS doesn't try to load them before common is loaded
@@ -57,6 +59,13 @@ require [
   $logo = $('#header-logo')
   if $logo.length > 0 and $logo.css('background-image').match(/\/canvas\/header_canvas_logo\.png/)
     $logo.addClass('original')
+
+  # new styles only - show and hide the courses vertical menu when the user clicks the hamburger button
+  # This was in the courses bundle, but it sometimes needs to work in places that don't
+  # load that bundle.
+  $("body").on('click', '#courseMenuToggle', ->
+    $("body").toggleClass("course-menu-expanded")
+  )
 
   ##
   # Backbone routes

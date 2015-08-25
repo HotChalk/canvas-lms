@@ -4,7 +4,7 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/context_modules_comm
 describe "context modules" do
   include_examples "in-process server selenium tests"
 
-  context "as a student", :priority => "1" do
+  context "as a student", priority: "1" do
     before(:each) do
       @locked_text = 'locked'
       @completed_text = 'completed'
@@ -37,7 +37,6 @@ describe "context modules" do
 
     it "should validate that course modules show up correctly" do
       go_to_modules
-
       # shouldn't show the teacher's "show student progression" button
       expect(ff('.module_progressions_link')).not_to be_present
 
@@ -47,8 +46,8 @@ describe "context modules" do
       validate_context_module_status_text(1, @locked_text)
       validate_context_module_status_text(2, @locked_text)
 
-      expect(context_modules[1].find_element(:css, '.context_module_criterion')).to include_text(@module_1.name)
-      expect(context_modules[2].find_element(:css, '.context_module_criterion')).to include_text(@module_2.name)
+      expect(context_modules[1].find_element(:css, '.prerequisites_message')).to include_text(@module_1.name)
+      expect(context_modules[2].find_element(:css, '.prerequisites_message')).to include_text(@module_2.name)
     end
 
     it "should not lock modules for observers" do
@@ -233,7 +232,7 @@ describe "context modules" do
       validate_context_module_status_text(2, @completed_text)
     end
 
-    context "next and previous buttons", :priority => "2" do
+    context "next and previous buttons", priority: "2" do
 
       def verify_next_and_previous_buttons_display
         wait_for_ajaximations
@@ -379,6 +378,39 @@ describe "context modules" do
 
         nxt = f('.module-sequence-footer a.pull-right')
         expect(URI.parse(nxt.attribute('href')).path).to eq "/courses/#{@course.id}/modules/items/#{i3.id}"
+      end
+    end
+
+    context 'mark as done' do
+      def setup
+        @mark_done_module = create_context_module('Mark Done Module')
+        page = @course.wiki.wiki_pages.create!(:title => "The page", :body => 'hi')
+        @tag = @mark_done_module.add_item({:id => page.id, :type => 'wiki_page'})
+        @mark_done_module.completion_requirements = {@tag.id => {:type => 'must_mark_done'}}
+        @mark_done_module.save!
+      end
+
+      def navigate_to_wikipage(title)
+        els = ff('.context_module_item')
+        el = els.find {|e| e.text =~ /#{title}/}
+        el.find_element(:css, 'a').click
+        wait_for_ajaximations
+      end
+
+      it "On the modules page: the user sees an incomplete module with a 'mark as done' requirement. The user clicks on the module item, marks it as done, and back on the modules page can now see that the module is completed" do
+        setup
+        go_to_modules
+        expect(f('.progression_state').text).to eq "in progress"
+        navigate_to_wikipage 'The page'
+        el = f '#mark-as-done-checkbox'
+        expect(el).to_not be_nil
+        expect(el).to_not be_selected
+        el.click
+        go_to_modules
+        el = f "#context_modules .context_module[data-module-id='#{@mark_done_module.id}']"
+        expect(f('.progression_state', el).text).to eq "completed"
+        expect(f("#context_module_item_#{@tag.id} .requirement-description .must_mark_done_requirement .fulfilled")).to be_displayed
+        expect(f("#context_module_item_#{@tag.id} .requirement-description .must_mark_done_requirement .unfulfilled")).to_not be_displayed
       end
     end
   end

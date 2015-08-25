@@ -19,7 +19,8 @@
 class ContextModule < ActiveRecord::Base
   include Workflow
   include SearchTermHelper
-  attr_accessible :context, :name, :unlock_at, :require_sequential_progress, :completion_requirements, :prerequisites, :publish_final_grade
+  attr_accessible :context, :name, :unlock_at, :require_sequential_progress, 
+                  :completion_requirements, :prerequisites, :publish_final_grade, :requirement_count
   belongs_to :context, :polymorphic => true
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course']
   has_many :context_module_progressions, :dependent => :destroy
@@ -27,11 +28,12 @@ class ContextModule < ActiveRecord::Base
   acts_as_list scope: { context: self, workflow_state: ['active', 'unpublished'] }
 
   EXPORTABLE_ATTRIBUTES = [
-    :id, :context_id, :context_type, :name, :position, :prerequisites, :completion_requirements, :created_at, :updated_at, :workflow_state, :deleted_at,
-    :unlock_at, :start_at, :end_at, :require_sequential_progress, :cloned_item_id, :completion_events
-  ]
+    :id, :context_id, :context_type, :name, :position, :prerequisites, :completion_requirements, :created_at,
+    :updated_at, :workflow_state, :deleted_at, :unlock_at, :start_at, :end_at, :require_sequential_progress,
+    :cloned_item_id, :completion_events, :requirement_count
+  ].freeze
 
-  EXPORTABLE_ASSOCIATIONS = [:context, :context_module_prograssions, :content_tags]
+  EXPORTABLE_ASSOCIATIONS = [:context, :context_module_progressions, :content_tags].freeze
 
   serialize :prerequisites
   serialize :completion_requirements
@@ -63,6 +65,10 @@ class ContextModule < ActiveRecord::Base
       if self.prerequisites_changed?
         # ditto with removing a prerequisite
         @relock_warning = true if (self.prerequisites.to_a - self.prerequisites_was.to_a).present?
+      end
+      if self.unlock_at_changed?
+        # adding a unlock_at date should trigger
+        @relock_warning = true if self.unlock_at.present? && self.unlock_at_was.blank?
       end
     end
   end
@@ -213,6 +219,9 @@ class ContextModule < ActiveRecord::Base
     given {|user, session| self.context.grants_right?(user, session, :read_as_admin) }
     can :read_as_admin
 
+    given {|user, session| self.context.grants_right?(user, session, :view_unpublished_items) }
+    can :view_unpublished_items
+
     given {|user, session| self.context.grants_right?(user, session, :read) && self.active? }
     can :read
   end
@@ -327,8 +336,8 @@ class ContextModule < ActiveRecord::Base
 
     tags = self.content_tags.not_deleted.index_by(&:id)
     requirements.select do |req|
-      if req[:id] && tag = tags[req[:id]]
-        if %w(must_view must_contribute).include?(req[:type])
+      if req[:id] && (tag = tags[req[:id]])
+        if %w(must_view must_mark_done must_contribute).include?(req[:type])
           true
         elsif %w(must_submit min_score max_score).include?(req[:type])
           true if tag.scoreable?
@@ -349,12 +358,23 @@ class ContextModule < ActiveRecord::Base
       tags = is_teacher ? cached_not_deleted_tags : cached_active_tags
 
       if !is_teacher && differentiated_assignments_enabled? && user
-        opts[:is_teacher]= false
+        opts[:is_teacher] = false
         tags = filter_tags_for_da(tags, user, opts)
       end
 
-      tags
+      # always return an array now because filter_tags_for_da *might* return one
+      tags.to_a
     end
+  end
+
+  def visibility_for_user(user)
+    opts = {}
+    opts[:can_read] = self.context.grants_right?(user, :read)
+    if opts[:can_read]
+      opts[:can_read_as_admin] = self.context.grants_right?(user, :read_as_admin)
+      opts[:differentiated_assignments] = !opts[:can_read_as_admin] && self.differentiated_assignments_enabled?
+    end
+    opts
   end
 
   def filter_tags_for_da(tags, user, opts={})
@@ -390,16 +410,31 @@ class ContextModule < ActiveRecord::Base
   end
 
   def cached_active_tags
-    @cached_active_tags ||= self.content_tags.active.reload
+    @cached_active_tags ||= begin
+      if self.content_tags.loaded?
+        # don't reload the preloaded content
+        self.content_tags.select{|tag| tag.active?}
+      else
+        self.content_tags.active.to_a
+      end
+    end
   end
 
   def cached_not_deleted_tags
-    @cached_not_deleted_tags ||= self.content_tags.not_deleted.reload
+    @cached_not_deleted_tags ||= begin
+      if self.content_tags.loaded?
+        # don't reload the preloaded content
+        self.content_tags.select{|tag| !tag.deleted?}
+      else
+        self.content_tags.not_deleted.to_a
+      end
+    end
   end
 
   def add_item(params, added_item=nil, opts={})
     params[:type] = params[:type].underscore if params[:type]
     position = opts[:position] || (self.content_tags.not_deleted.maximum(:position) || 0) + 1
+    position = [position, params[:position].to_i].max if params[:position]
     if params[:type] == "wiki_page" || params[:type] == "page"
       item = opts[:wiki_page] || self.context.wiki.wiki_pages.where(id: params[:id]).first
     elsif params[:type] == "attachment" || params[:type] == "file"
@@ -491,26 +526,19 @@ class ContextModule < ActiveRecord::Base
 
   def update_for(user, action, tag, points=nil)
     retry_count = 0
-    begin
-      return nil unless self.context.users.include?(user)
-      return nil unless ContextModuleProgression.prerequisites_satisfied?(user, self)
-      return nil unless progression = self.find_or_create_progression(user)
+    return nil unless self.context.users.include?(user)
+    return nil unless ContextModuleProgression.prerequisites_satisfied?(user, self)
+    return nil unless progression = self.find_or_create_progression(user)
 
-      progression.requirements_met ||= []
-      if progression.update_requirement_met(action, tag, points)
-        # not sure if this save is necessary
-        # leaving it for now as it saves the default requirements_met (set above)
-        progression.save!
-        progression.send_later_if_production(:evaluate)
-      end
-
-      progression
-
-    rescue ActiveRecord::StaleObjectError
-      raise if retry_count > 10
-      retry_count += 1
-      retry
+    progression.requirements_met ||= []
+    if progression.update_requirement_met(action, tag, points)
+      # not sure if this save is necessary
+      # leaving it for now as it saves the default requirements_met (set above)
+      progression.save!
+      progression.send_later_if_production(:evaluate!)
     end
+
+    progression
   end
 
   def completion_requirement_for(action, tag)
@@ -520,6 +548,8 @@ class ContextModule < ActiveRecord::Base
       case requirement[:type]
       when 'must_view'
         action == :read || action == :contributed
+      when 'must_mark_done'
+        action == :done
       when 'must_contribute'
         action == :contributed
       when 'must_submit'
@@ -538,6 +568,8 @@ class ContextModule < ActiveRecord::Base
     case req[:type]
     when 'must_view'
       t('requirements.must_view', "must view the page")
+    when 'must_mark_done'
+      t("must mark as done")
     when 'must_contribute'
       t('requirements.must_contribute', "must contribute to the page")
     when 'must_submit'

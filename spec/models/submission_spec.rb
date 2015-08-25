@@ -602,6 +602,7 @@ describe Submission do
 
         @submission.score = 1
         @submission.grade_it!
+        AdheresToPolicy::Cache.clear
 
         expect(@submission).to be_grants_right(@user, nil, :view_turnitin_report)
         expect(@submission.turnitin_report_url("submission_#{@submission.id}", @user)).not_to be_nil
@@ -618,6 +619,7 @@ describe Submission do
         @assignment.turnitin_settings[:originality_report_visibility] = 'immediate'
         @assignment.save
         @submission.reload
+        AdheresToPolicy::Cache.clear
 
         expect(@submission).to be_grants_right(@user, nil, :view_turnitin_report)
         expect(@submission.turnitin_report_url("submission_#{@submission.id}", @user)).not_to be_nil
@@ -635,6 +637,7 @@ describe Submission do
         @assignment.due_at = Time.now - 1.day
         @assignment.save
         @submission.reload
+        AdheresToPolicy::Cache.clear
 
         expect(@submission).to be_grants_right(@user, nil, :view_turnitin_report)
         expect(@submission.turnitin_report_url("submission_#{@submission.id}", @user)).not_to be_nil
@@ -807,6 +810,24 @@ describe Submission do
       submission.stubs(:has_submission?).returns false
       submission.stubs(:graded?).returns false
       expect(submission.without_graded_submission?).to eq true
+    end
+  end
+
+  describe "graded?" do
+    it "is false before graded" do
+      s, _ = @assignment.find_or_create_submission(@user)
+      expect(s.graded?).to eql false
+    end
+
+    it "is true for graded assignments" do
+      s, _ = @assignment.grade_student(@user, grade: 1)
+      expect(s.graded?).to eql true
+    end
+
+    it "is also true for excused assignments" do
+      s, _ = @assignment.find_or_create_submission(@user)
+      s.excused = true
+      expect(s.graded?).to eql true
     end
   end
 

@@ -158,6 +158,8 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def schedule_delayed_transitions
+    return if self.saved_by == :migration
+
     self.send_at(self.delayed_post_at, :update_based_on_date) if @should_schedule_delayed_post
     self.send_at(self.lock_at, :update_based_on_date) if @should_schedule_lock_at
     # need to clear these in case we do a save whilst saving (e.g.
@@ -658,14 +660,38 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def can_unpublish?(opts={})
-    if self.assignment
-      !self.assignment.has_student_submissions?
-    else
-      student_ids = opts[:student_ids] || self.context.all_real_students.pluck(:id)
-      if self.for_group_discussion?
-        !(self.child_topics.any? { |child| child.discussion_entries.active.where(:user_id => student_ids).exists? })
+    return @can_unpublish unless @can_unpublish.nil?
+
+    @can_unpublish = begin
+      if self.assignment
+        !self.assignment.has_student_submissions?
       else
-        !self.discussion_entries.active.where(:user_id => student_ids).exists?
+        student_ids = opts[:student_ids] || self.context.all_real_students.pluck(:id)
+        if self.for_group_discussion?
+          !(self.child_topics.any? { |child| child.discussion_entries.active.where(:user_id => student_ids).exists? })
+        else
+          !self.discussion_entries.active.where(:user_id => student_ids).exists?
+        end
+      end
+    end
+  end
+  attr_writer :can_unpublish
+
+  def self.preload_can_unpublish(context, topics, assmnt_ids_with_subs=nil)
+    return unless topics.any?
+    assmnt_ids_with_subs ||= Assignment.assignment_ids_with_submissions(topics.map(&:assignment_id).compact)
+
+    student_ids = context.all_real_students.pluck(:id)
+    topic_ids_with_entries = DiscussionEntry.active.where(:discussion_topic_id => topics.map(&:id)).
+      where(:user_id => student_ids).uniq.pluck(:discussion_topic_id)
+    topic_ids_with_entries += DiscussionTopic.where("root_topic_id IS NOT NULL").
+      where(:id => topic_ids_with_entries).uniq.pluck(:root_topic_id)
+
+    topics.each do |topic|
+      if topic.assignment_id
+        topic.can_unpublish = !(assmnt_ids_with_subs.include?(topic.assignment_id))
+      else
+        topic.can_unpublish = !(topic_ids_with_entries.include?(topic.id))
       end
     end
   end
@@ -697,7 +723,9 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   on_update_send_to_streams do
-    if should_send_to_stream && (@content_changed || changed_state(:active, !is_announcement ? :unpublished : :post_delayed))
+    check_state = !is_announcement ? 'unpublished' : 'post_delayed'
+    became_active = workflow_state_was == check_state && workflow_state == 'active'
+    if should_send_to_stream && (@content_changed || became_active)
       self.active_participants
     end
   end
@@ -825,10 +853,10 @@ class DiscussionTopic < ActiveRecord::Base
     given { |user| self.user && self.user == user && self.visible_for?(user) && !self.locked_for?(user, :check_policies => true) }
     can :reply
 
-    given { |user| self.user && self.user == user && self.available_for?(user) && context.user_can_manage_own_discussion_posts?(user) }
+    given { |user| self.user && self.user == user && self.available_for?(user) && context.user_can_manage_own_discussion_posts?(user) && context.grants_right?(user, :participate_as_student) }
     can :update
 
-    given { |user| self.user && self.user == user and self.discussion_entries.active.empty? && self.available_for?(user) && !self.root_topic_id && context.user_can_manage_own_discussion_posts?(user) }
+    given { |user| self.user && self.user == user and self.discussion_entries.active.empty? && self.available_for?(user) && !self.root_topic_id && context.user_can_manage_own_discussion_posts?(user) && context.grants_right?(user, :participate_as_student) }
     can :delete
 
     given { |user, session| self.active? && self.context.grants_right?(user, session, :read_forum) }

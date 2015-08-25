@@ -115,10 +115,16 @@ module Canvas
               deps: ['react'],
               exports: 'ReactRouter'
             },
+            'bower/react-tray/dist/react-tray': {
+              deps: ['react']
+            },
             'bower/react-modal/dist/react-modal': {
               deps: ['react']
             },
             'bower/react-tokeninput/dist/react-tokeninput': {
+              deps: ['react'],
+            },
+            'bower/react-select-box/dist/react-select-box': {
               deps: ['react'],
             },
             'bower/ember/ember': {

@@ -23,42 +23,23 @@ module Api::V1::Submission
   include Api::V1::DiscussionTopics
   include Api::V1::Course
   include Api::V1::User
+  include Api::V1::SubmissionComment
 
   def submission_json(submission, assignment, user, session, context = nil, includes = [])
     context ||= assignment.context
-    hash = submission_attempt_json(submission, assignment, user, session, nil, context)
+    hash = submission_attempt_json(submission, assignment, user, session, context)
 
     if includes.include?("submission_history")
       hash['submission_history'] = []
-      submission.submission_history.each_with_index do |ver, idx|
+      submission.submission_history.each do |ver|
         ver.without_versioned_attachments do
-          hash['submission_history'] << submission_attempt_json(ver, assignment, user, session, idx, context)
+          hash['submission_history'] << submission_attempt_json(ver, assignment, user, session, context)
         end
       end
     end
 
     if includes.include?("submission_comments")
-      hash['submission_comments'] = submission.comments_for(@current_user).map do |sc|
-        sc_hash = sc.as_json(
-          :include_root => false,
-          :only => %w(id author_id author_name created_at comment))
-        if sc.media_comment?
-          sc_hash['media_comment'] = media_comment_json(:media_id => sc.media_comment_id, :media_type => sc.media_comment_type)
-        end
-        sc_hash['attachments'] = sc.attachments.map do |a|
-          attachment_json(a, user)
-        end unless sc.attachments.blank?
-        if sc.grants_right?(@current_user, :read_author)
-          sc_hash['author'] = user_display_json(sc.author, sc.context)
-        else
-          sc_hash.merge!({
-            author: {},
-            author_id: nil,
-            author_name: I18n.t("Anonymous User")
-          })
-        end
-        sc_hash
-      end
+      hash['submission_comments'] = submission_comments_json(submission.comments_for(@current_user), user)
     end
 
     if includes.include?("rubric_assessment") && submission.rubric_assessment && submission.grants_right?(user, :read_grade)
@@ -90,11 +71,11 @@ module Api::V1::Submission
     hash
   end
 
-  SUBMISSION_JSON_FIELDS = %w(id user_id url score grade attempt submission_type submitted_at body assignment_id graded_at grade_matches_current_submission grader_id workflow_state).freeze
+  SUBMISSION_JSON_FIELDS = %w(id user_id url score grade excused attempt submission_type submitted_at body assignment_id graded_at grade_matches_current_submission grader_id workflow_state).freeze
   SUBMISSION_JSON_METHODS = %w(late).freeze
-  SUBMISSION_OTHER_FIELDS = %w(attachments discussion_entries)
+  SUBMISSION_OTHER_FIELDS = %w(attachments discussion_entries).freeze
 
-  def submission_attempt_json(attempt, assignment, user, session, version_idx = nil, context = nil)
+  def submission_attempt_json(attempt, assignment, user, session, context = nil)
     context ||= assignment.context
 
     json_fields = SUBMISSION_JSON_FIELDS
@@ -118,7 +99,7 @@ module Api::V1::Submission
     end
 
     preview_args = { 'preview' => '1' }
-    preview_args['version'] = version_idx if version_idx
+    preview_args['version'] = attempt.version_number
     hash['preview_url'] = course_assignment_submission_url(
       context, assignment, attempt[:user_id], preview_args)
 

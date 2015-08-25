@@ -38,7 +38,16 @@ describe UsersController do
      tool.resource_selection = {
          :url => "http://#{HostUrl.default_host}/selection_test",
          :selection_width => 400,
-         :selection_height => 400}
+         :selection_height => 400
+     }
+     user_navigation = {
+         :text => 'example',
+         :labels => {
+             'en' => 'English Label',
+             'sp' => 'Spanish Label'
+         }
+     }
+     tool.settings[:user_navigation] = user_navigation
      tool.save!
      tool
    end
@@ -68,6 +77,15 @@ describe UsersController do
 
      get :external_tool, {id:tool.id, user_id:u.id}
      expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti?first=john&last=smith'
+   end
+
+   it "uses localized labels" do
+     u = user(:active_all => true)
+     account.account_users.create!(user: u)
+     user_session(@user)
+
+     get :external_tool, {id:tool.id, user_id:u.id}
+     expect(tool.label_for(:user_navigation, :en)).to eq 'English Label'
    end
  end
 
@@ -507,8 +525,17 @@ describe UsersController do
         expect(json["errors"]["user"]["terms_of_use"]).to be_present
       end
 
-      it "should not validate acceptance of the terms if not required" do
+      it "should not validate acceptance of the terms if not required by system" do
         Setting.set('terms_required', 'false')
+        post 'create', :pseudonym => { :unique_id => 'jacob@instructure.com' }, :user => { :name => 'Jacob Fugal' }
+        expect(response).to be_success
+      end
+
+      it "should not validate acceptance of the terms if not required by account" do
+        default_account = Account.default
+        default_account.settings[:account_terms_required] = false
+        default_account.save!
+
         post 'create', :pseudonym => { :unique_id => 'jacob@instructure.com' }, :user => { :name => 'Jacob Fugal' }
         expect(response).to be_success
       end
@@ -1118,6 +1145,22 @@ describe UsersController do
       get 'teacher_activity', user_id: @teacher.id, course_id: @course.id
 
       expect(assigns[:courses][@course][0]['last_interaction']).not_to be_nil
+    end
+  end
+
+  describe '#toggle_recent_activity_dashboard' do
+    it 'updates user preference based on value provided' do
+      course
+      user(active_all: true)
+      user_session(@user)
+
+      expect(@user.preferences[:recent_activity_dashboard]).to be_falsy
+
+      post :toggle_recent_activity_dashboard
+
+      expect(@user.reload.preferences[:recent_activity_dashboard]).to be_truthy
+      expect(response).to be_success
+      expect(JSON.parse(response.body)).to be_empty
     end
   end
 end

@@ -190,9 +190,9 @@ class AppointmentGroup < ActiveRecord::Base
       codes[:primary] &= restrict_to_codes
     end
     uniq.
-        joins("JOIN appointment_group_contexts agc " \
+        joins("JOIN #{AppointmentGroupContext.quoted_table_name} agc " \
               "ON appointment_groups.id = agc.appointment_group_id " \
-              "LEFT JOIN appointment_group_sub_contexts sc " \
+              "LEFT JOIN #{AppointmentGroupSubContext.quoted_table_name} sc " \
               "ON appointment_groups.id = sc.appointment_group_id").
         where(<<-COND, codes[:primary], codes[:secondary])
         workflow_state = 'active'
@@ -214,9 +214,9 @@ class AppointmentGroup < ActiveRecord::Base
       codes[:limited] &= restrict_to_codes
     end
     uniq.
-        joins("JOIN appointment_group_contexts agc " \
+        joins("JOIN #{AppointmentGroupContext.quoted_table_name} agc " \
               "ON appointment_groups.id = agc.appointment_group_id " \
-              "LEFT JOIN appointment_group_sub_contexts sc " \
+              "LEFT JOIN #{AppointmentGroupSubContext.quoted_table_name} sc " \
               "ON appointment_groups.id = sc.appointment_group_id").
         where(<<-COND, codes[:full] + codes[:limited], codes[:full], codes[:secondary])
         workflow_state <> 'deleted'
@@ -271,7 +271,7 @@ class AppointmentGroup < ActiveRecord::Base
 
     dispatch :appointment_group_deleted
     to       { possible_users }
-    whenever { contexts.any?(&:available?) && deleted? && workflow_state_changed? }
+    whenever { contexts.any?(&:available?) && changed_state(:deleted, :active) }
     data     { {:cancel_reason => @cancel_reason} }
   end
 

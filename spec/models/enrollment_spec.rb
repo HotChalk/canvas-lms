@@ -245,6 +245,38 @@ describe Enrollment do
       expect(e.messages_sent).to be_include("Enrollment Registration")
     end
 
+    it "should not send out invitations to an observer if the student doesn't receive an invitation (e.g. sis import)" do
+      Notification.create!(:name => "Enrollment Registration", :category => "Registration")
+
+      course_with_teacher(:active_all => true)
+      student = user_with_pseudonym
+      observer = user_with_pseudonym
+      observer.observed_users << student
+
+      @course.enroll_student(student, :no_notify => true)
+      expect(student.messages).to be_empty
+      expect(observer.messages).to be_empty
+
+      course_with_teacher(:active_all => true)
+      @course.enroll_student(student)
+      student.reload
+      observer.reload
+      expect(student.messages).to_not be_empty
+      expect(observer.messages).to_not be_empty
+    end
+
+    it "should not send out invitations to an observer if the course is not published" do
+      Notification.create!(:name => "Enrollment Registration", :category => "Registration")
+
+      course_with_teacher
+      student = user_with_pseudonym
+      observer = user_with_pseudonym
+      observer.observed_users << student
+
+      @course.enroll_student(student)
+      expect(observer.messages).to be_empty
+    end
+
     it "should not send out invitations if the course is not yet published" do
       Notification.create!(:name => "Enrollment Registration")
       course_with_teacher
@@ -300,6 +332,7 @@ describe Enrollment do
       expect(@enrollment.grants_right?(@new_user, :read_grades)).to be_falsey
       @course.enroll_teacher(@new_user)
       @enrollment.reload
+      AdheresToPolicy::Cache.clear
       expect(@enrollment.grants_right?(@user, :read_grades)).to be_truthy
     end
 
@@ -449,6 +482,14 @@ describe Enrollment do
         expect(@enrollment.state).to eql(:invited)
         expect(@enrollment.state_based_on_date).to eql(:invited)
         expect(@enrollment.accept).to be_truthy
+
+        @course.complete!
+        expect(@enrollment.reload.state).to eql(:completed)
+        expect(@enrollment.state_based_on_date).to eql(:completed)
+
+        @enrollment.workflow_state = 'active'
+        @enrollment.save!
+        expect(@enrollment.state_based_on_date).to eql(:completed)
       end
 
       def enrollment_term_availability_test
@@ -526,7 +567,7 @@ describe Enrollment do
         @override.save!
         @term.start_at = 2.days.from_now
         @term.end_at = 4.days.from_now
-        @term.save!        
+        @term.save!
         expected = @enrollment.admin? ? :active : :inactive
         expect(@enrollment.reload.state_based_on_date).to eql(expected)
       end
@@ -1085,7 +1126,7 @@ describe Enrollment do
     end
 
     it "should ungroup the user from all groups, restricted and unrestricted when completely unenrolling from the course" do
-      user1 = user_model :name => "Andy"  
+      user1 = user_model :name => "Andy"
       user2 = user_model :name => "Bruce"
 
       section1 = @course.course_sections.create :name => "Section 1"
@@ -1133,21 +1174,21 @@ describe Enrollment do
 
       # we should have more than one student enrolled in section to exercise common_to_section check.
       @course.enroll_user(user1, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)
-      @course.enroll_user(user2, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)      
+      @course.enroll_user(user2, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)
       # enroll user2 in a second section
-      @course.enroll_user(user2, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)  
+      @course.enroll_user(user2, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)
 
       # set up a group category for restricted groups
       # and put both users in one of its groups
       category = group_category :name => "restricted category"
       category.configure_self_signup(true, true)
       category.save
-      
+
       # restricted group
       group = category.groups.create(:name => "restricted group", :context => @course)
       group.add_user(user1)
       group.add_user(user2)
-      
+
       # remove user2 from the section (effectively unenrolled from a section of the course)
       user2.enrollments.where(:course_section_id => section1.id).first.destroy
       group.reload
@@ -1167,20 +1208,20 @@ describe Enrollment do
 
       # we should have more than one student enrolled in section to exercise common_to_section check.
       @course.enroll_user(user1, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)
-      @course.enroll_user(user2, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)      
+      @course.enroll_user(user2, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)
       # enroll user2 in a second section
-      @course.enroll_user(user2, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)  
+      @course.enroll_user(user2, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)
 
       # set up a group category for unrestricted groups
-      unrestricted_category = group_category :name => "unrestricted category" 
+      unrestricted_category = group_category :name => "unrestricted category"
       unrestricted_category.configure_self_signup(true, false)
       unrestricted_category.save
-      
+
       # unrestricted group
       group = unrestricted_category.groups.create(:name => "unrestricted group", :context => @course)
       group.add_user(user1)
       group.add_user(user2)
-      
+
       # remove user2 from the section (effectively unenrolled from a section of the course)
       user2.enrollments.where(:course_section_id => section1.id).first.destroy
       group.reload
@@ -1199,17 +1240,17 @@ describe Enrollment do
 
       # enroll user in two sections
       @course.enroll_user(user1, 'StudentEnrollment', :section => section1, :enrollment_state => 'active', :allow_multiple_enrollments => true)
-      @course.enroll_user(user1, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)  
+      @course.enroll_user(user1, 'StudentEnrollment', :section => section2, :enrollment_state => 'active', :allow_multiple_enrollments => true)
 
       # set up a group category for restricted groups
-      restricted_category = group_category :name => "restricted category" 
+      restricted_category = group_category :name => "restricted category"
       restricted_category.configure_self_signup(true, true)
       restricted_category.save
-      
+
       # restricted group
       group = restricted_category.groups.create(:name => "restricted group", :context => @course)
       group.add_user(user1)
-      
+
       # remove user from the section (effectively unenrolled from a section of the course)
       user1.enrollments.where(:course_section_id => section1.id).first.destroy
       group.reload
@@ -1469,9 +1510,13 @@ describe Enrollment do
 
     it "should delete its grading period grades" do
       course_with_teacher
-      grading_period_group = Account.default.grading_period_groups.create
-      grading_period = grading_period_group.grading_periods.create(start_date: Time.zone.now, end_date: 30.days.from_now)
-      grading_period_grade = @enrollment.grading_period_grades.create(grading_period_id: grading_period.id)
+      grading_period_group = Account.default.grading_period_groups.create!
+      grading_period = grading_period_group.grading_periods.create!(
+        title: 'a period',
+        start_date: Time.zone.now,
+        end_date: 30.days.from_now
+      )
+      grading_period_grade = @enrollment.grading_period_grades.create!(grading_period_id: grading_period.id)
       expect(grading_period_grade.workflow_state).to eq('active')
       @enrollment.destroy
       expect(grading_period_grade.workflow_state).to eq('deleted')

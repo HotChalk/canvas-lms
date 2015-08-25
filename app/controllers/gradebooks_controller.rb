@@ -33,6 +33,8 @@ class GradebooksController < ApplicationController
   add_crumb(proc { t '#crumbs.grades', "Grades" }) { |c| c.send :named_context_url, c.instance_variable_get("@context"), :context_grades_url }
   before_filter { |c| c.active_tab = "grades" }
 
+  MAX_POST_GRADES_TOOLS = 10
+
   def grade_summary
     @presenter = GradeSummaryPresenter.new(@context, @current_user, params[:id])
     # do this as the very first thing, if the current user is a teacher in the course and they are not trying to view another user's grades, redirect them to the gradebook
@@ -182,6 +184,7 @@ class GradebooksController < ApplicationController
       @last_exported_gradebook_csv = @context.gradebook_csvs.where(user_id: @current_user).first
       set_current_grading_period if multiple_grading_periods?
       set_js_env
+      @post_grades_tools = post_grades_tools
       case @current_user.preferred_gradebook_version
       when "2"
         render :gradebook2
@@ -195,6 +198,59 @@ class GradebooksController < ApplicationController
 
   def gradebook2
     redirect_to action: :show
+  end
+
+  def published_assignments?
+    context.assignments.published.where(post_to_sis: true).exists?
+  end
+
+  def post_grades_tools
+    return [] unless published_assignments?
+    tools = []
+    tool_limit = @context.feature_enabled?(:post_grades) ? MAX_POST_GRADES_TOOLS - 1 : MAX_POST_GRADES_TOOLS
+    external_tools[0...tool_limit].each do |tool|
+      tools.push(
+        data_url: tool[:placements][:post_grades][:canvas_launch_url],
+        name: tool[:name],
+        type: :lti
+      )
+    end
+    tools.push(type: :post_grades) if @context.feature_enabled?(:post_grades)
+    tools.push(type: :ellip) if external_tools.length > tool_limit
+    tools
+  end
+
+  def external_tools
+    bookmarked_collection = Lti::AppLaunchCollator.bookmarked_collection(@context, [:post_grades])
+    tools = bookmarked_collection.paginate(per_page: MAX_POST_GRADES_TOOLS + 1).to_a
+    launch_definitions = Lti::AppLaunchCollator.launch_definitions(tools, [:post_grades])
+    launch_definitions.each do |launch_definition|
+      case launch_definition[:definition_type]
+      when 'ContextExternalTool'
+        url = external_tool_url_for_lti1(launch_definition)
+      when 'MessageHandler'
+        url = external_tool_url_for_lti2(launch_definition)
+      end
+      launch_definition[:placements][:post_grades][:canvas_launch_url] = url
+    end
+    launch_definitions
+  end
+
+  def external_tool_url_for_lti1(launch_definition)
+    polymorphic_url(
+      [@context, :external_tool],
+      id: launch_definition[:definition_id],
+      display: 'borderless',
+      launch_type: 'post_grades',
+    )
+  end
+
+  def external_tool_url_for_lti2(launch_definition)
+    polymorphic_url(
+      [@context, :basic_lti_launch_request],
+      message_handler_id: launch_definition[:definition_id],
+      display: 'borderless',
+    )
   end
 
   def set_current_grading_period
@@ -268,8 +324,8 @@ class GradebooksController < ApplicationController
       :attachment => @last_exported_gradebook_csv.try(:attachment),
       :sis_app_url => Setting.get('sis_app_url', nil),
       :sis_app_token => Setting.get('sis_app_token', nil),
-      :post_grades_feature_enabled => @context.feature_enabled?(:post_grades),
-      :list_students_by_sortable_name_enabled => @context.feature_enabled?(:gradebook_list_students_by_sortable_name),
+      :post_grades_feature_enabled => Assignment.sis_grade_export_enabled?(@context),
+      :list_students_by_sortable_name_enabled => @context.list_students_by_sortable_name?,
       :gradebook_column_size_settings => @current_user.preferences[:gradebook_column_size],
       :gradebook_column_size_settings_url => change_gradebook_column_size_course_gradebook_url,
       :gradebook_column_order_settings => @current_user.preferences[:gradebook_column_order].try(:[], @context.id),
@@ -298,6 +354,7 @@ class GradebooksController < ApplicationController
     end
   end
 
+  # TODO: stop using this for speedgrader
   def update_submission
     if authorized_action(@context, @current_user, :manage_grades)
       if params[:submissions].blank? && params[:submission].blank?
