@@ -589,6 +589,26 @@ class GroupsController < ApplicationController
     end
   end
 
+  def settings
+    find_group
+    if authorized_action(@group, @current_user, :update)
+      add_crumb(t('#crumbs.settings', "Settings"), named_context_url(@context, :context_settings_url))
+    end
+  end
+
+  def update_nav
+    find_group
+    if authorized_action(@group, @current_user, :update)
+      @group.tab_configuration = JSON.parse(params[:tabs_json])
+      @group.dynamic_tab_configuration = JSON.parse(params[:dynamic_tabs_json])
+      @group.save
+      respond_to do |format|
+        format.html { redirect_to named_context_url(@context, :context_settings_url) }
+        format.json { render :json => {:update_nav => true} }
+      end
+    end
+  end
+
   # @API Delete a group
   #
   # Deletes a group and removes all members.

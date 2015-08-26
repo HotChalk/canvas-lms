@@ -62,6 +62,8 @@ stylesheets:
     - public/stylesheets/compiled/bundles/agenda_view.css
   course_settings:
     - public/stylesheets/compiled/bundles/course_settings.css
+  group_settings:
+    - public/stylesheets/compiled/bundles/group_settings.css
   discussions:
     - public/stylesheets/compiled/bundles/discussions.css
   discussions_list:
