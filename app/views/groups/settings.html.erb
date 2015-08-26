@@ -89,8 +89,8 @@
           </li>
         <% end %>
       </ul>
-      <% tabs = [] #dynamic_tabs %>
-      <% #render :partial => "shared/link_content_dialog", :only => [:assignments, :discussion_topics, :wiki_pages] %>
+      <% tabs = dynamic_tabs %>
+      <%= render :partial => "shared/link_content_dialog", :locals => { :only => [:attachments, :discussion_topics, :wiki_pages] }%>
       <p style="margin-bottom: 4px; padding-top: 10px">
         Add extra navigation links for items in this group.
       </p>

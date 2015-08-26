@@ -597,6 +597,19 @@ class Group < ActiveRecord::Base
     super.map {|h| h.with_indifferent_access } rescue []
   end
 
+  def dynamic_tab_url(context_type, context_id)
+    base_path = "/groups/#{self.id}"
+    case context_type
+      when 'discussion_topic'
+        return "#{base_path}/discussion_topics/#{context_id}"
+      when 'wiki_page'
+        wiki_page = self.wiki.wiki_pages.find_by_id(context_id)
+        return "#{base_path}/wiki/#{wiki_page.url}"
+      else
+        return nil
+    end
+  end
+
   TAB_HOME, TAB_PAGES, TAB_PEOPLE, TAB_DISCUSSIONS, TAB_FILES,
     TAB_CONFERENCES, TAB_ANNOUNCEMENTS, TAB_PROFILE, TAB_SETTINGS, TAB_COLLABORATIONS = *1..20
 
@@ -614,18 +627,21 @@ class Group < ActiveRecord::Base
       { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :group_settings_path }
     ]
   end
-   # if root_account.try :canvas_network_enabled?
-   #   available_tabs << {:id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path}
-   # end
-   # available_tabs << { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path } if user && self.grants_right?(user, :read)
-   # available_tabs << { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path } if user && self.grants_right?(user, :read)
-    #available_tabs << { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :group_settings_path }
-   # available_tabs
-
 
   def tab_hidden?(id)
     tab = self.tab_configuration.find{|t| t[:id] == id}
     return tab && tab[:hidden]
+  end
+
+  def dynamic_tabs()
+    self.dynamic_tab_configuration.map do |link|
+      {
+        :context_type => link[:context_type],
+        :context_id => link[:context_id],
+        :label => link[:label],
+        :href => dynamic_tab_url(link[:context_type], link[:context_id])
+      }
+    end
   end
 
   def tabs_available(user=nil, opts={})
