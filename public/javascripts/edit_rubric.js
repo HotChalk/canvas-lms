@@ -91,7 +91,7 @@ define([
       return false;
     },
     onFindOutcome: function(outcome) {
-      var $rubric = $('.rubric table.rubric_table:visible:first'),
+      var $rubric = $('.rubric table.rubric_table:visible:last'),
           $criterion;
 
       $rubric.find(".criterion.learning_outcome_" + outcome.id).find(".delete_criterion_link").click();
