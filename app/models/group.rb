@@ -30,6 +30,8 @@ class Group < ActiveRecord::Base
   # use to skip queries in can_participate?, called by policy block
   attr_accessor :can_participate
 
+  serialize :tab_configuration
+  serialize :dynamic_tab_configuration
   has_many :group_memberships, :dependent => :destroy, :conditions => ['group_memberships.workflow_state != ?', 'deleted']
   has_many :users, :through => :group_memberships, :conditions => ['users.workflow_state != ?', 'deleted']
   has_many :participating_group_memberships, :class_name => "GroupMembership", :conditions => ['group_memberships.workflow_state = ?', 'accepted']
@@ -72,7 +74,7 @@ class Group < ActiveRecord::Base
   EXPORTABLE_ATTRIBUTES = [
     :id, :name, :workflow_state, :created_at, :updated_at, :context_id, :context_type, :category, :max_membership, :hashtag, :show_public_context_messages, :is_public,
     :account_id, :default_wiki_editing_roles, :wiki_id, :deleted_at, :join_level, :default_view, :storage_quota, :uuid, :root_account_id, :sis_source_id, :sis_batch_id,
-    :group_category_id, :description, :avatar_attachment_id
+    :group_category_id, :description, :avatar_attachment_id, :tab_configuration, :dynamic_tab_configuration
   ]
 
   EXPORTABLE_ASSOCIATIONS = [
@@ -587,27 +589,86 @@ class Group < ActiveRecord::Base
     self.storage_quota = val.try(:to_i).try(:megabytes)
   end
 
+  def tab_configuration
+    super.map {|h| h.with_indifferent_access } rescue []
+  end
+
+  def dynamic_tab_configuration
+    super.map {|h| h.with_indifferent_access } rescue []
+  end
+
   TAB_HOME, TAB_PAGES, TAB_PEOPLE, TAB_DISCUSSIONS, TAB_FILES,
     TAB_CONFERENCES, TAB_ANNOUNCEMENTS, TAB_PROFILE, TAB_SETTINGS, TAB_COLLABORATIONS = *1..20
-  def tabs_available(user=nil, opts={})
-    available_tabs = [
+
+  def self.default_tabs
+    [
       { :id => TAB_HOME,          :label => t("#group.tabs.home", "Home"), :css_class => 'home', :href => :group_path },
       { :id => TAB_ANNOUNCEMENTS, :label => t('#tabs.announcements', "Announcements"), :css_class => 'announcements', :href => :group_announcements_path },
       { :id => TAB_PAGES,         :label => t("#group.tabs.pages", "Pages"), :css_class => 'pages', :href => :group_wiki_path },
       { :id => TAB_PEOPLE,        :label => t("#group.tabs.people", "People"), :css_class => 'people', :href => :group_users_path },
       { :id => TAB_DISCUSSIONS,   :label => t("#group.tabs.discussions", "Discussions"), :css_class => 'discussions', :href => :group_discussion_topics_path },
       { :id => TAB_FILES,         :label => t("#group.tabs.files", "Files"), :css_class => 'files', :href => :group_files_path },
+      #{ :id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path},
+      { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path },
+      { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path },
+      { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :group_settings_path }
     ]
+  end
+   # if root_account.try :canvas_network_enabled?
+   #   available_tabs << {:id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path}
+   # end
+   # available_tabs << { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path } if user && self.grants_right?(user, :read)
+   # available_tabs << { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path } if user && self.grants_right?(user, :read)
+    #available_tabs << { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :group_settings_path }
+   # available_tabs
 
-    if root_account.try :canvas_network_enabled?
-      available_tabs << {:id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path}
+
+  def tab_hidden?(id)
+    tab = self.tab_configuration.find{|t| t[:id] == id}
+    return tab && tab[:hidden]
+  end
+
+  def tabs_available(user=nil, opts={})
+    default_tabs = Group.default_tabs
+    # We will by default show everything in default_tabs, unless the group was configured otherwise.
+    tabs = self.tab_configuration.compact
+    settings_tab = default_tabs[-1]
+    
+    tabs = tabs.map do |tab|
+      default_tab = default_tabs.find {|t| t[:id] == tab[:id]}
+      if default_tab
+        tab[:label] = default_tab[:label]
+        tab[:href] = default_tab[:href]
+        tab[:css_class] = default_tab[:css_class]
+        tab[:args] = default_tab[:args]
+        tab[:visibility] = default_tab[:visibility]
+        tab[:external] = default_tab[:external]
+        default_tabs.delete_if {|t| t[:id] == tab[:id] }
+        tab
+      else
+        # Remove any tabs we don't know about in default_tabs
+        nil
+      end
     end
-    available_tabs << { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path } if user && self.grants_right?(user, :read)
-    available_tabs << { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path } if user && self.grants_right?(user, :read)
-    if root_account.try(:canvas_network_enabled?) && user && grants_right?(user, :manage)
-      available_tabs << { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :edit_group_path }
+    tabs.compact!
+    tabs += default_tabs
+    # Ensure that Settings is always at the bottom, if user can manage group
+    tabs.delete_if {|t| t[:id] == TAB_SETTINGS }
+    if self.grants_right?(user, opts[:session], :update)
+      tabs << settings_tab
     end
-    available_tabs
+
+    tabs.each do |tab|
+      #tab[:hidden_unused] = true if tab[:id] == TAB_PROFILE && root_account.try(:canvas_network_enabled?)
+      tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS && user && self.grants_right?(user, :read)
+      tab[:hidden_unused] = true if tab[:id] == TAB_CONFERENCES && user && self.grants_right?(user, :read)
+    end
+  
+    unless self.grants_right?(user, opts[:session], :update)
+      tabs.delete_if {|t| (t[:hidden] || t[:hidden_unused] ) }
+    end
+
+    tabs
   end
 
   def self.serialization_excludes; [:uuid]; end

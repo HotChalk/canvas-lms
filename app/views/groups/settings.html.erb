@@ -1,0 +1,132 @@
+<%
+  content_for :page_title, join_title(t(:page_title, "Group Settings"), @context.name)
+  jammit_css :group_settings
+  js_bundle :group_navigation_settings
+%>
+
+<h1 class="screenreader-only"><%= t 'group_settings_title', "Group Settings" %></h1>
+  <% if can_do @context, @current_user, :update %>
+  <div id="tab-navigation">
+    <h2 ><%= t('headings.navigation', %{Group Navigation}) %></h2>
+    <div class="screenreader-only drag_and_drop_warning" tabindex="0">
+      <%= t('nav_items_keyboard_drag_and_drop',
+      'Warning: For improved accessibility in reordering Group Navigation elements, please use the Move To Dialog option found in the menu.') %>
+    </div>
+
+    <% keyboard_navigation([
+         {:key => t('keycodes.next_navigation_link', 'Up'), :description => t('keycode_descriptions.next_navigation_link', 'Select next navigation link')},
+         {:key => t('keycodes.previous_navigation_link', 'Down'), :description => t('keycode_descriptions.previous_navigation_link', 'Select previous navigation link')},
+         {:key => t('keycodes.toggle_navigation_dragging', 'Space'), :description => t('keycode_descriptions.toggle_navigation_dragging', 'Select link to begin dragging, or drop previously selected link')}
+     ]) %>
+
+    <%= form_tag context_url(@context, :context_update_nav_url), {:id => "nav_form", :title => t('titles.edit_navigation', "Edit Group Navigation") } do %>
+      <input type="hidden" name="tabs_json" id="tabs_json" value="[]" />
+      <input type="hidden" name="dynamic_tabs_json" id="dynamic_tabs_json" value="[]" />
+      <% tabs = sortable_tabs %>
+      <p style="margin-bottom: 4px; padding-top: 10px">
+        <%= t('help.edit_navigation', %{Drag and drop items to reorder them in the group navigation.}) %>
+      </p>
+      <ul id="nav_enabled_list" aria-label="Enabled Links" class="nav_list connectedSortable">
+        <% tabs.select {|t| !t[:hidden] }.each do |tab|  %>
+          <li aria-label="<%= tab[:label] %>" class="navitem <%= 'enabled' if tab[:id] != Group::TAB_HOME %> <%= tab[:label].downcase %>"
+              id="nav_edit_tab_id_<%= tab[:id] %>"
+              tabindex="0"
+          >
+            <%= tab[:label] %>
+            <div class="admin-links">
+              <a class="al-trigger al-trigger-gray" role="button" href="#">
+                <i class="icon-settings"></i>
+                <i class="icon-mini-arrow-down"></i>
+                <span class="screenreader-only">Settings</span>
+              </a>
+
+              <ul id="content-1" class="al-options" role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" aria-activedescendant="content-2">
+                <li role="presentation">
+                  <a href="#" class="icon-x disable_nav_item_link" id="disable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Disable this item">Disable</a>
+                </li>
+                <li role="presentation">
+                  <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item">Move</a>
+                </li>
+              </ul>
+            </div>
+          </li>
+
+        <% end %>
+      </ul>
+
+      <ul id="nav_disabled_list" aria-label="Disabled Links" class="nav_list connectedSortable">
+        <li class="disabled">
+          <%= t('drag_to_hide', %{Drag items here to hide them from students.}) %>
+          <div style="font-size: 0.8em;">
+            <%= t('drag_details', %{Disabling most pages will cause students who visit those pages to be redirected to the group home page.}) %>
+          </div>
+        </li>
+        <% tabs.select {|t| t[:hidden] }.each do |tab|  %>
+          <li aria-label="<%= tab[:label] %>"
+              class="navitem enabled"
+              id="nav_edit_tab_id_<%= tab[:id] %>"
+              tabindex="0"
+          >
+            <%= tab[:label] %>
+            <div class="admin-links">
+                <a class="al-trigger al-trigger-gray" role="button" href="#">
+                  <i class="icon-settings"></i>
+                  <i class="icon-mini-arrow-down"></i>
+                  <span class="screenreader-only">Settings</span>
+                </a>
+
+                <ul id="content-2" class="al-options" role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" aria-activedescendant="content-3">
+                  <li role="presentation">
+                    <a href="#" class="icon-plus enable_nav_item_link" id="enable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Enable this item">Enable</a>
+                  </li>
+                  <li role="presentation">
+                    <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item">Move</a>
+                  </li>
+                </ul>
+              </div>
+              <span class="disabled_message"><%= tab[:disabled_message] %></span>
+
+          </li>
+        <% end %>
+      </ul>
+      <% tabs = [] #dynamic_tabs %>
+      <% #render :partial => "shared/link_content_dialog", :only => [:assignments, :discussion_topics, :wiki_pages] %>
+      <p style="margin-bottom: 4px; padding-top: 10px">
+        Add extra navigation links for items in this group.
+      </p>
+      <button class="btn btn-small add_page_link">Add Navigation Link</button>
+      <ul id="nav_dynamic_list" aria-label="Dynamic Links" class="nav_list connectedSortable">
+        <% tabs.each do |tab|  %>
+          <li aria-label="<%= tab[:label] %>" class="navitem enabled links" id="nav_dynamic_tab_id_<%= tab[:context_type] %>_<%= tab[:context_id] %>" tabindex="0"><%= tab[:label] %>
+            <div class='links'>
+              <a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screen-reader-text'>Delete</span></a>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+      <p>
+        <button type="submit" class="btn btn-primary"><%= t('#buttons.save', %{Save}) %></button>
+      </p>
+
+    <% end %>
+    <form id="move_nav_item_form" style="display:none" class="form-dialog" title="Move Navigation Item">
+      <div class="form-dialog-content">
+        <h2><%= t('move_module.place', "Place ") %> <span id="move_nav_item_name"> </span></h2>
+        <div class="move-nav-item-before-after-container">
+          <input type="radio" name="move_location" value="before" id="move_location_before" class="move-nav-item-label-spacer" /><label class="move-nav-item-label-width" for="move_location_before"><%= t('move_nav_item.before', "Before") %></label>
+            <strong class="move-nav-item-or"><%= t('move_nav_item.or', "OR") %></strong>
+          <input type="radio" name="move_location" value="after" id="move_location_after" class="move-nav-item-label-spacer" /><label class="move-nav-item-label-width" for="move_location_after"><%= t('move_nav_item.after', "After") %></label>
+        </div>
+        <div class="move-nav-item-select-spacer">
+          <select name="move_nav_item_select" id="move_nav_item_select"></select>
+        </div>
+
+      </div>
+      <div class="form-controls">
+        <button type="button" id="move_nav_item_cancel_btn" class="btn cancel_move_dialog">Cancel</button>
+        <button type="submit" class="btn btn-primary">Move</button>
+      </div>
+    </form>
+  </div>
+  <% end %>
+

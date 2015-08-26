@@ -449,6 +449,8 @@ CanvasRails::Application.routes.draw do
 
   resources :groups do
     concerns :users
+    get :settings
+    post :update_nav
     delete 'remove_user/:user_id' => 'groups#remove_user', as: :remove_user
     post :add_user
     get 'accept_invitation/:uuid' => 'groups#accept_invitation', as: :accept_invitation
