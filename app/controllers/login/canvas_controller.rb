@@ -146,7 +146,7 @@ class Login::CanvasController < ApplicationController
 
     # check authentication type for the pseudonym's root account
     root_account = Account.find(pseudonym.root_account_id)
-    aac = root_account.account_authorization_config
+    aac = root_account.authentication_providers.active.first
     response = {:account_id => pseudonym.root_account_id}
     if aac.nil?
       response[:auth_type] = 'canvas'
