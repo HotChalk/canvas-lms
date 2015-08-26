@@ -757,11 +757,16 @@ class DiscussionTopicsController < ApplicationController
   def destroy
     @topic = @context.all_discussion_topics.find(params[:id] || params[:topic_id])
     if authorized_action(@topic, @current_user, :delete)
+      was_announcement = @topic.is_a? Announcement
       @topic.destroy
       respond_to do |format|
         format.html {
           flash[:notice] = t :topic_deleted_notice, "%{topic_title} deleted successfully", :topic_title => @topic.title
-          redirect_to named_context_url(@context, :context_discussion_topics_url)
+          if was_announcement
+            redirect_to named_context_url(@context, :context_announcements_url)
+          else
+            redirect_to named_context_url(@context, :context_discussion_topics_url)
+          end
         }
         format.json  { render :json => @topic.as_json(:include => {:user => {:only => :name} } ), :status => :ok }
       end
