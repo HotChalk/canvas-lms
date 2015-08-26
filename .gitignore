@@ -66,8 +66,3 @@ npm-debug.log
 # canvas-gems
 /gems/*/coverage
 /gems/*/tmp
-
-# Hotchalk
-/.vagrant/
-.ruby-version
-/vendor/plugins/*/public/javascripts/compiled/
