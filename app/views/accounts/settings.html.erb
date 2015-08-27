@@ -372,14 +372,6 @@ TEXT
                   <%= settings.check_box :enable_profiles, :checked => @account.settings[:enable_profiles] %>
                   <%= settings.label :enable_profiles, :en => "Enable Profiles" %>
                 </div>
-                <div>
-                  <%= settings.check_box :enable_resources_link, :checked => @account.settings[:enable_resources_link] %>
-                  <%= settings.label :enable_resources_link, :en => "Enable Resources Link" %>
-                </div>
-                <div id="show_resources_link_input">
-                  <%= settings.label :show_resources_link, :en => "Resources Link URL:" %>
-                  <input id="account_settings_show_resources_link" name="account[settings][show_resources_link]" type="text" value="<%= @account.settings[:show_resources_link] %>">
-                </div>
                 <% if @account.non_canvas_auth_configured? %>
                   <div>
                     <%= settings.check_box :canvas_authentication, :checked => @account.canvas_authentication? %>
