@@ -2480,34 +2480,58 @@ class Course < ActiveRecord::Base
     end
   end
 
-  def dynamic_tab_url(context_type, context_id)
-    base_path = "/courses/#{self.id}"
-    case context_type
+  def dynamic_tab_hash(tab)
+    hash = {:label => tab[:label]}
+    case tab[:context_type]
       when 'assignment'
-        return "#{base_path}/assignments/#{context_id}"
-      when 'quiz'
-        return "#{base_path}/quizzes/#{context_id}"
+        hash.merge!({
+          :css_class => 'assignments',
+          :href => :course_assignment_path,
+          :icon => 'icon-assignment',
+          :args => [self.id, tab[:context_id]]
+        })
+      when 'attachment'
+        hash.merge!({
+          :css_class => 'files',
+          :href => :course_file_download_path,
+          :icon => 'icon-folder',
+          :args => [self.id, tab[:context_id]]
+        })
       when 'discussion_topic'
-        return "#{base_path}/discussion_topics/#{context_id}"
-      when 'wiki_page'
-        wiki_page = self.wiki.wiki_pages.find_by_id(context_id)
-        return "#{base_path}/wiki/#{wiki_page.url}"
+        hash.merge!({
+          :css_class => 'discussions',
+          :href => :course_discussion_topic_path,
+          :icon => 'icon-discussion',
+          :args => [self.id, tab[:context_id]]
+        })
       when 'module_item'
-        return "#{base_path}/modules/items/#{context_id}"
-      else
-        return nil
+        hash.merge!({
+          :css_class => 'modules',
+          :href => :course_context_modules_item_redirect_path,
+          :args => [self.id, tab[:context_id]]
+        })
+      when 'quiz'
+        hash.merge!({
+          :css_class => 'quizzes',
+          :href => :course_quiz_path,
+          :icon => 'icon-quiz',
+          :args => [self.id, tab[:context_id]]
+        })
+      when 'wiki_page'
+        wiki_page = self.wiki.wiki_pages.find_by_id(tab[:context_id])
+        hash.merge!({
+          :css_class => 'pages',
+          :href => :course_wiki_page_path,
+          :args => [self.id, wiki_page.url]
+        })
     end
+    hash
   end
 
+
   def dynamic_tabs()
-    self.dynamic_tab_configuration.map do |link|
-      {
-        :context_type => link[:context_type],
-        :context_id => link[:context_id],
-        :label => link[:label],
-        :href => dynamic_tab_url(link[:context_type], link[:context_id])
-      }
-    end
+    id = 10000   # start here to ensure unique IDs
+    self.dynamic_tab_configuration.map { |link| id += 1; dynamic_tab_hash(link).merge!({:id => id}) }
   end
 
   def tabs_available(user=nil, opts={})
@@ -2631,6 +2655,10 @@ class Course < ActiveRecord::Base
       if (syllabus_tab = tabs.detect { |t| t[:id] == TAB_SYLLABUS })
         syllabus_tab[:label] = self.syllabus_label || t('#tabs.syllabus', "Syllabus")
       end
+
+      # Add dynamic tabs
+      tabs += dynamic_tabs
+
       tabs
     end
   end
