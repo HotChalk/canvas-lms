@@ -1,5 +1,5 @@
 <% js_bundle :link_content_dialog %>
-<% jammit_css :select_content_dialog %>
+<% css_bundle :select_content_dialog %>
 <% only ||= nil # only is an optimization, so that tabs that aren't going to be used won't have their data loaded %>
 <% course_section_ids = nil %>
 <% unless @current_user.account_admin?(@context) %>
