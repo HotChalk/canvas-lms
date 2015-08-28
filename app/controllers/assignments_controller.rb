@@ -118,8 +118,11 @@ class AssignmentsController < ApplicationController
       if request.format.html?
         if @assignment.submission_types == 'online_quiz' && @assignment.quiz
           return redirect_to named_context_url(@context, :context_quiz_url, @assignment.quiz.id)
-        elsif @assignment.submission_types == 'discussion_topic' && @assignment.discussion_topic && @assignment.discussion_topic.grants_right?(@current_user, session, :read)
-          return redirect_to named_context_url(@context, :context_discussion_topic_url, @assignment.discussion_topic.id)
+        elsif @assignment.submission_types == 'discussion_topic'
+          discussion_topic = @assignment.discussion_topic || DiscussionTopic.find_by_reply_assignment_id(@assignment.id)
+          if discussion_topic && discussion_topic.grants_right?(@current_user, session, :read)
+            return redirect_to named_context_url(@context, :context_discussion_topic_url, discussion_topic.id)
+          end
         elsif @assignment.submission_types == 'attendance'
           return redirect_to named_context_url(@context, :context_attendance_url, :anchor => "assignment/#{@assignment.id}")
         elsif @assignment.submission_types == 'external_tool' && @assignment.external_tool_tag && @unlocked
