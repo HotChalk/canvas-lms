@@ -1,28 +1,12 @@
-<%= fields_for(:account_authorization_config, aac) do |f| %>
-  <%= f.hidden_field :auth_type, value: 'hmac' %>
-  <%= f.hidden_field :id %>
-  <table class="formtable" style="margin-left: 20px;">
-    <%= render partial: "form_header",
-               locals: { auth_type: t("HMAC"), presenter: presenter, aac: aac } %>
-    <tr>
-      <td><%= f.blabel :shared_secret, en: "Shared Secret" %></td>
-      <td class="nobr">
-        <%= f.text_field :hmac_shared_secret, class: "auth_form" %>
-      </td>
-    </tr>
-    <tr>
-      <td><%= f.blabel :timestamp_range, en: "Timestamp Range" %></td>
-      <td class="nobr">
-        <%= f.text_field :hmac_timestamp_range, class: "auth_form" %>
-      </td>
-    </tr>
-    <tr>
-      <td><%= f.blabel :log_in_url, en: "Login URL" %></td>
-      <td class="nobr">
-        <%= f.text_field :log_in_url, class: "auth_form" %>
-      </td>
-    </tr>
-    <%= render partial: "form_footer",
-               locals: { presenter: presenter, account: account, aac: aac, f: f } %>
-  </table>
-<% end %>
+<div class="ic-Form-control">
+  <%= f.label :shared_secret, t('Shared Secret'), class: 'ic-Label' %>
+  <%= f.text_field :hmac_shared_secret, class: 'ic-Input' %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :timestamp_range, t('Timestamp Range'), class: 'ic-Label' %>
+  <%= f.text_field :hmac_timestamp_range, class: 'ic-Input' %>
+</div>
+<div class="ic-Form-control">
+  <%= f.label :log_in_url, t('Login URL'), class: 'ic-Label' %>
+  <%= f.text_field :log_in_url, class: 'ic-Input' %>
+</div>
