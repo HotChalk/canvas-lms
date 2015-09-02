@@ -234,9 +234,6 @@ class GroupsController < ApplicationController
   # @returns [Group]
   def context_index
     return unless authorized_action(@context, @current_user, :read_roster)
-    @groups      = all_groups = @context.groups.active
-                                  .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
-                                  .includes(:group_category)
     if @context.is_a?(Course)
       if @current_user.account_admin?(@context)
         @sections = @context.course_sections.active
@@ -245,6 +242,10 @@ class GroupsController < ApplicationController
       end
     end
     @sections ||= []
+
+    @groups   = all_groups = @context.groups.active.where(course_section_id: @sections)
+                                  .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
+                                  .includes(:group_category)
 
     unless api_request?
       if @context.is_a?(Account)
