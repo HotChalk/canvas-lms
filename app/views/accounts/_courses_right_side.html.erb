@@ -1,7 +1,32 @@
 <% if can_do @account, @current_user, :read_course_list %>
   <% term_count =  @root_account.enrollment_terms.active.count %>
   <% if term_count > 1 || @associated_courses_count > 0  %>
+     <% if @associated_courses_count > 0 %>
+      <h2 id="course_name_label"><%= t(:filter_label, "Find a Course") %></h2>
+      <div class="rs-margin-lr rs-margin-bottom">
+        <%= form_for :course, :url => account_courses_path(@account), :html => {:id => "new_course", :class => "ic-Form-control", :method => :get} do |f| -%>
+          <div class="ic-Input-group">
+            <input id="course_name"
+                   type="text"
+                   name="course[name]"
+                   class="ic-Input"
+                   value="<%= @query %>"
+                   data-autocomplete-source="<%= account_courses_path(@account) %>"
+                   aria-labelledby="course_name_label"
+            />
+            <button class='Button'><%= t(:go_button, "Go") %></button>
+          </div>
+        <%- end -%>
+      </div>
+    <% end %>
+    <% js_bundle :account_show %>
+
+    <%= render :partial => 'shared/accounts_right_side_shared' %>
+    <%= render :partial => 'add_course_or_user' %>
+
+    <br/>
     <h2><%= t(:course_filtering, "Course Filtering")%></h2>
+    <% js_bundle :course_filters %>
     <div class="rs-margin-lr rs-margin-bottom">
       <form method="get">
         
@@ -11,7 +36,16 @@
         <input value="completed" id="completed" name="states[]" type="checkbox" <%= 'checked' if @states.include? 'completed' %>><label for="completed">Completed</label><br />
         <br />
 
-        <label for="date_type"><%= t(:hide_enrollmentless_courses, "Dates Active:") %></label><br />
+        <label for="date_type"><%= t(:hide_enrollmentless_courses, "Dates in:") %></label><br />
+
+        <span id="course_section_toggle" class="ui-buttonset">
+          <input id="course_date_in" name="item_type" value="course" type="radio" <%= 'checked' if @item_type == 'course' %> class="ui-helper-hidden-accessible">
+          <label aria-hidden="true" for="course_date_in" class="course-toggle <%= 'ui-state-active' if @item_type == 'course' %> ui-button ui-widget ui-state-default ui-button-text-only ui-corner-left">Courses</label>
+
+          <input id="section_date_in" name="item_type" value="section" type="radio" <%= 'checked' if @item_type == 'section' %> class="ui-helper-hidden-accessible">
+          <label aria-hidden="true" for="section_date_in" class="section-toggle <%= 'ui-state-active' if @item_type == 'section' %> ui-button ui-widget ui-state-default ui-button-text-only ui-corner-right">Sections</label>
+        </span><br/>
+
         <input type="radio" name="date_type" value="start_date" id="start_date" <%= 'checked' if @date_type == 'start_date' %>/><label for="start_date"><%= t(:start_date, "Started") %></label>
         <input type="radio" name="date_type" value="end_date" id="end_date" <%= 'checked' if @date_type == 'end_date' %>/><label for="end_date"><%= t(:end_date, "Ended") %></label>
         <br/>
@@ -100,27 +134,7 @@
       </form>
     </div>
 
-    <% if @associated_courses_count > 0 %>
-      <h2 id="course_name_label"><%= t(:filter_label, "Find a Course") %></h2>
-      <div class="rs-margin-lr rs-margin-bottom">
-        <%= form_for :course, :url => account_courses_path(@account), :html => {:id => "new_course", :class => "ic-Form-control", :method => :get} do |f| -%>
-          <div class="ic-Input-group">
-            <input id="course_name"
-                   type="text"
-                   name="course[name]"
-                   class="ic-Input"
-                   value="<%= @query %>"
-                   data-autocomplete-source="<%= account_courses_path(@account) %>"
-                   aria-labelledby="course_name_label"
-            />
-            <button class='Button'><%= t(:go_button, "Go") %></button>
-          </div>
-        <%- end -%>
-      </div>
-    <% end %>
+   
   <% end %>
 <% end %>
-<% js_bundle :account_show %>
 
-<%= render :partial => 'shared/accounts_right_side_shared' %>
-<%= render :partial => 'add_course_or_user' %>
