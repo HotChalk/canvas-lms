@@ -1,6 +1,6 @@
-# Keep this class in sync with QuizUserVisibility
+# Keep this class in sync with QuizStudentVisibility
 
-class Quizzes::QuizStudentVisibility < ActiveRecord::Base
+class Quizzes::QuizUserVisibility < ActiveRecord::Base
   # necessary for general_model_spec
   attr_protected :user, :quiz, :course
 

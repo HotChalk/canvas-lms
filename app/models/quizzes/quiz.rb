@@ -50,6 +50,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   has_many :attachments, :as => :context, :dependent => :destroy
   has_many :quiz_regrades, class_name: 'Quizzes::QuizRegrade'
   has_many :quiz_student_visibilities
+  has_many :quiz_user_visibilities
   belongs_to :context, :polymorphic => true
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course']
   belongs_to :assignment
@@ -1045,12 +1046,10 @@ class Quizzes::Quiz < ActiveRecord::Base
   scope :available, -> { where("quizzes.workflow_state = 'available'") }
 
   # NOTE: only use for courses with differentiated assignments on
-  scope :visible_to_students_in_course_with_da, lambda {|student_ids, course_ids|
-    joins(:quiz_student_visibilities).
-    where(:quiz_student_visibilities => { :user_id => student_ids, :course_id => course_ids })
+  scope :visible_to_users_in_course_with_da, lambda {|user_ids, course_ids|
+    joins(:quiz_user_visibilities).
+    where(:quiz_user_visibilities => { :user_id => user_ids, :course_id => course_ids })
   }
-
-  scope :visible_to_sections, lambda { |section_ids| where("course_section_id IS NULL OR course_section_id IN (?)", section_ids) }
 
   def teachers
     context.teacher_enrollments.map(&:user)

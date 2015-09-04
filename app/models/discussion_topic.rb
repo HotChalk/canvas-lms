@@ -29,7 +29,6 @@ class DiscussionTopic < ActiveRecord::Base
   include HtmlTextHelper
   include ContextModuleItem
   include SearchTermHelper
-  include SectionAssignment
 
   attr_accessible(
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
@@ -534,8 +533,6 @@ class DiscussionTopic < ActiveRecord::Base
         )
     SQL
   }
-
-  scope :visible_to_sections, lambda { |section_ids| where("course_section_id IS NULL OR course_section_id IN (?)", section_ids) }
 
   alias_attribute :available_from, :delayed_post_at
   alias_attribute :unlock_at, :delayed_post_at

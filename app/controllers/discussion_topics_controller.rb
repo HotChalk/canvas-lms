@@ -307,8 +307,6 @@ class DiscussionTopicsController < ApplicationController
       scope = scope_for_differentiated_assignments(scope)
     end
 
-    scope = scope.visible_to_sections(@context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context) || !@context.respond_to?(:sections_visible_to)
-
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
     if states.present?
@@ -426,17 +424,10 @@ class DiscussionTopicsController < ApplicationController
         hash[:ATTRIBUTES][:assignment][:has_student_submissions] = @topic.assignment.has_student_submissions?
       end
 
-      if @current_user.account_admin?(@context)
-        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
-      else
-        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
-      end
-      user_sections = sections.map { |section| { id: section.id, name: section.name } }
-      user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
+      sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
 
       js_hash = {DISCUSSION_TOPIC: hash,
                  SECTION_LIST: sections.map { |section| { id: section.id, name: section.name } },
-                 USER_SECTION_LIST: user_sections,
                  GROUP_CATEGORIES: categories.
                      reject { |category| category.student_organized? }.
                      map { |category| { id: category.id, name: category.name } },
@@ -837,7 +828,7 @@ class DiscussionTopicsController < ApplicationController
 
   API_ALLOWED_TOPIC_FIELDS = %w(title message discussion_type delayed_post_at lock_at podcast_enabled
                                 podcast_has_student_posts require_initial_post is_announcement pinned
-                                group_category_id course_section_id allow_rating only_graders_can_rate sort_by_rating).freeze
+                                group_category_id allow_rating only_graders_can_rate sort_by_rating).freeze
 
   def process_discussion_topic(is_new = false)
     @errors = {}
@@ -1050,7 +1041,6 @@ class DiscussionTopicsController < ApplicationController
         update_api_assignment(@assignment, assignment_params, @current_user)
         @assignment.submission_types = 'discussion_topic'
         @assignment.saved_by = :discussion_topic
-        @assignment.course_section = @topic.course_section
         @topic.assignment = @assignment
         @topic.save!
       end
@@ -1070,7 +1060,6 @@ class DiscussionTopicsController < ApplicationController
         update_api_assignment(@reply_assignment, params[:reply_assignment], @current_user)
         @reply_assignment.submission_types = 'discussion_topic'
         @reply_assignment.saved_by = :discussion_topic
-        @reply_assignment.course_section = @topic.course_section
         @topic.reply_assignment = @reply_assignment
         @topic.grade_replies_separately = true
         @topic.save!

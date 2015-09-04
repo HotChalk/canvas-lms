@@ -1,6 +1,6 @@
-# Keep this class in sync with AssignmentUserVisibility
+# Keep this class in sync with AssignmentStudentVisibility
 
-class AssignmentStudentVisibility < ActiveRecord::Base
+class AssignmentUserVisibility < ActiveRecord::Base
   # necessary for general_model_spec
   attr_protected :user, :assignment, :course
 

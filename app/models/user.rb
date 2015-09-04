@@ -1412,12 +1412,13 @@ class User < ActiveRecord::Base
   end
 
   def assignments_visible_in_course(course)
-    return course.active_assignments if course.grants_any_right?(self, :read_as_admin, :manage_grades, :manage_assignments)
-    published_visible_assignments = course.active_assignments.published
+    return course.active_assignments if account_admin?(course)
+    user_is_instructor = course.user_is_instructor?(self)
+    visible_assignments = user_is_instructor ? course.active_assignments : course.active_assignments.published
     if course.feature_enabled?(:differentiated_assignments)
-      published_visible_assignments = DifferentiableAssignment.scope_filter(published_visible_assignments,self,course, is_teacher: false)
+      visible_assignments = DifferentiableAssignment.scope_filter(visible_assignments,self,course, is_teacher: user_is_instructor)
     end
-    published_visible_assignments
+    visible_assignments
   end
 
   def assignments_needing_submitting(opts={})
@@ -1441,9 +1442,7 @@ class User < ActiveRecord::Base
           result = Shard.partition_by_shard(course_ids) do |shard_course_ids|
             courses = Course.find(shard_course_ids)
             courses_with_da = courses.select{|c| c.feature_enabled?(:differentiated_assignments)}
-            sections = courses.collect {|c| c.sections_visible_to(self)}.flatten.map(&:id)
             assignments = Assignment.for_course(shard_course_ids).
-              visible_to_sections(sections).
               filter_by_visibilities_in_given_courses(self.id, courses_with_da.map(&:id)).
               published.
               due_between_with_overrides(due_after,1.week.from_now).
@@ -1479,10 +1478,7 @@ class User < ActiveRecord::Base
           limit = opts[:limit]
 
           result = Shard.partition_by_shard(course_ids) do |shard_course_ids|
-            courses = Course.find(shard_course_ids)
-            sections = courses.collect {|c| c.sections_visible_to(self)}.flatten.map(&:id)
             as = Assignment.for_course(shard_course_ids).active.
-              visible_to_sections(sections).
               expecting_submission.
               not_ignored_by(self, 'grading').
               need_grading_info(limit)
@@ -1894,25 +1890,6 @@ class User < ActiveRecord::Base
           next unless si.present?
           next if si.asset_type == 'Submission'
           next if si.context_type == "Course" && (si.context.concluded? || si.context.enrollments.for_user(self).active.none?(&:participating?))
-
-          # filter out specific items not visible to the user's current section
-          if si.context_type == "Course"
-            # do not display discussion topic / announcement stream items that belong to a section that a user cannot see
-            visible_sections = si.context.sections_visible_to(self).map(&:id)
-            next if si.data[:course_section_id].present? && !visible_sections.include?(si.data[:course_section_id])
-
-            # do not display assignment stream items that belong to a section that a user cannot see
-            data_context_id = si.data[:context_id]
-            data_context_type = si.data[:context_type]
-            next if data_context_type == "Assignment" && (data_assignment = Assignment.find(data_context_id) || nil).present? &&
-                data_assignment.course_section_id.present? && !visible_sections.include?(data_assignment.course_section_id)
-          elsif si.context_type == "AssignmentOverride"
-            assignment_override = AssignmentOverride.find(si.context_id)
-            if assignment_override && assignment_override.set_type == 'CourseSection'
-              next unless assignment_override.set.users.include?(self)
-            end
-          end
-
           si.unread = sii.unread?
           si
         end.compact

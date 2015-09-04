@@ -70,8 +70,6 @@ class Quizzes::QuizzesController < ApplicationController
       scope = DifferentiableAssignment.scope_filter(scope, @current_user, @context)
     end
 
-    scope = scope.visible_to_sections(@context.sections_visible_to(@current_user).map(&:id)) unless @current_user.account_admin?(@context)
-
     quizzes = scope.sort_by do |quiz|
       due_date = quiz.assignment ? quiz.assignment.due_at : quiz.lock_at
       [
@@ -146,7 +144,7 @@ class Quizzes::QuizzesController < ApplicationController
       # optionally force auth even for public courses
       return if value_to_boolean(params[:force_user]) && !force_user
 
-      if (@current_user && !@quiz.visible_to_user?(@current_user)) || ((!@current_user.account_admin?(@context) && @context.respond_to?(:sections_visible_to)) && @quiz.course_section_id != nil && !@context.sections_visible_to(@current_user).map(&:id).include?(@quiz.course_section_id))
+      if @current_user && !@quiz.visible_to_user?(@current_user)
         if @current_user.quiz_submissions.where(quiz_id: @quiz).any?
           flash[:notice] = t 'notices.submission_doesnt_count', "This quiz will no longer count towards your grade."
         else
@@ -270,14 +268,6 @@ class Quizzes::QuizzesController < ApplicationController
         flash[:notice] = t('notices.has_submissions_already', "Keep in mind, some students have already taken or started taking this quiz")
       end
 
-      if @current_user.account_admin?(@context)
-        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
-      else
-        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
-      end
-      @user_sections = sections.map { |section| { id: section.id, name: section.name } }
-      @user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
-
       regrade_options = Hash[@quiz.current_quiz_question_regrades.map do |qqr|
         [qqr.quiz_question_id, qqr.regrade_option]
       end]
@@ -288,7 +278,7 @@ class Quizzes::QuizzesController < ApplicationController
         :ASSIGNMENT_OVERRIDES => assignment_overrides_json(@quiz.overrides_for(@current_user)),
         :DIFFERENTIATED_ASSIGNMENTS_ENABLED => @context.feature_enabled?(:differentiated_assignments),
         :QUIZ => quiz_json(@quiz, @context, @current_user, session),
-        :SECTION_LIST => @context.sections_visible_to(@current_user).map { |section|
+        :SECTION_LIST => @context.sections_visible_to(@current_user).active.map { |section|
           {
             :id => section.id,
             :name => section.name,
@@ -323,7 +313,7 @@ class Quizzes::QuizzesController < ApplicationController
           @assignment_group = @context.assignment_groups.active.where(id: assignment_group_id).first
         end
         if @assignment_group
-          @assignment = @context.assignments.build(:title => params[:quiz][:title], :due_at => params[:quiz][:lock_at], :submission_types => 'online_quiz', :course_section_id => params[:quiz][:course_section_id])
+          @assignment = @context.assignments.build(:title => params[:quiz][:title], :due_at => params[:quiz][:lock_at], :submission_types => 'online_quiz')
           @assignment.assignment_group = @assignment_group
           @assignment.saved_by = :quiz
           @assignment.workflow_state = 'unpublished'
@@ -393,11 +383,6 @@ class Quizzes::QuizzesController < ApplicationController
               @quiz.assignment.post_to_sis = params[:assignment][:post_to_sis]
               @quiz.assignment.save
             end
-          end
-
-          if @quiz.assignment.present?
-            @quiz.assignment.course_section_id = params[:quiz][:course_section_id]
-            @quiz.assignment.save
           end
 
           auto_publish = @quiz.published?

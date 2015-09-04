@@ -435,7 +435,7 @@ class ContentTag < ActiveRecord::Base
 
   # Scopes For Differentiated Assignment Filtering:
 
-  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
+  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
     for_non_differentiable_classes(user_ids, course_ids).union(
     for_non_differentiable_discussions(user_ids, course_ids),
     for_differentiable_assignments(user_ids, course_ids),

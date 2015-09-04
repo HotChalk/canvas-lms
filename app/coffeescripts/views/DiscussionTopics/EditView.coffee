@@ -6,7 +6,6 @@ define [
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
   'compiled/views/assignments/PostToSisSelector'
-  'compiled/views/assignments/SectionSelector'
   'underscore'
   'jst/DiscussionTopics/EditView'
   'wikiSidebar'
@@ -23,7 +22,7 @@ define [
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
-GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, SectionSelector, _, template, wikiSidebar,
+GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
 htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
@@ -128,7 +127,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
       _.defer(@renderPostToSisOptions) if ENV.POST_GRADES
-      _.defer(@renderSectionOptions)
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
 
@@ -196,13 +194,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         nested: true
 
       @postToSisSelector.render()
-
-    renderSectionOptions: =>
-      @sectionSelector = new SectionSelector
-        el: '#section_selector'
-        parentModel: @model
-
-      @sectionSelector.render()
 
     getFormData: ->
       data = super

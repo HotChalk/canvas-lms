@@ -82,6 +82,7 @@ class GradeCalculator
         for_user(@user_ids).
         select("submissions.id, user_id, assignment_id, score")
     submissions_by_user = @submissions.group_by(&:user_id)
+    load_assignment_visibilities_for_users(@user_ids)
     @user_ids.map do |user_id|
       user_submissions = submissions_by_user[user_id] || []
       current, current_groups = calculate_current_score(user_id, user_submissions)

@@ -401,20 +401,12 @@ class AssignmentsController < ApplicationController
         assignment_group_json(group, @current_user, session, [], {stringify_json_ids: true})
       end
 
-      if @current_user.account_admin?(@context)
-        sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
-      else
-        sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user) : []
-      end
-      user_sections = sections.map { |section| { id: section.id, name: section.name } }
-      user_sections.unshift({ :id => '', :name => 'Everybody' }) if @current_user.account_admin?(@context)
-
       hash = {
         :ASSIGNMENT_GROUPS => json_for_assignment_groups,
         :GROUP_CATEGORIES => group_categories,
         :KALTURA_ENABLED => !!feature_enabled?(:kaltura),
         :POST_TO_SIS => Assignment.sis_grade_export_enabled?(@context),
-        :SECTION_LIST => (@context.sections_visible_to(@current_user).map { |section|
+        :SECTION_LIST => (@context.sections_visible_to(@current_user).active.map { |section|
           {
             :id => section.id,
             :name => section.name,
@@ -423,7 +415,6 @@ class AssignmentsController < ApplicationController
             :override_course_and_term_dates => section.restrict_enrollments_to_section_dates
           }
         }),
-        :USER_SECTION_LIST => user_sections,
         :ASSIGNMENT_OVERRIDES =>
           (assignment_overrides_json(
             @assignment.overrides_for(@current_user)
