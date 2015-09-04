@@ -162,6 +162,7 @@ class Account < ActiveRecord::Base
   add_setting :sub_account_includes, :condition => :allow_global_includes, :boolean => true, :default => false
   add_setting :error_reporting, :hash => true, :values => [:action, :email, :url, :subject_param, :body_param], :root_only => true
   add_setting :custom_help_links, :root_only => true
+  add_setting :disable_course_setup_checklist_access, :boolean => true
   add_setting :prevent_course_renaming_by_teachers, :boolean => true, :root_only => true
   add_setting :login_handle_name, root_only: true
   add_setting :change_password_url, root_only: true
