@@ -2732,15 +2732,33 @@ class User < ActiveRecord::Base
 
   def account_admin?(context)
     return false if context.nil?
-    account = if context.is_a?(Course)
+    root_account = if context.is_a?(Course)
                 context.root_account
               elsif context.is_a?(Account)
                 context.root_account? ? context : context.root_account
               else
                 nil
               end
+    account = if context.is_a?(Course)
+                context.account
+              elsif context.is_a?(Account)
+                context
+              else
+                nil
+              end
+
+    root_admin_roles = root_account && root_account.available_account_roles
     admin_roles = account && account.available_account_roles
-    return false unless admin_roles && account
-    account.account_users.for_user(self).where(role_id: admin_roles.map(&:id)).first.present?
+    return false unless root_admin_roles && root_account && admin_roles && account
+    
+    root_admin = root_account.account_users.for_user(self).where(role_id: root_admin_roles.map(&:id)).first.present?
+    if root_account == account
+      return root_admin
+    else
+      account_admin = account.account_users.for_user(self).where(role_id: admin_roles.map(&:id)).first.present?
+      root_admin || account_admin
+    end
   end
+
+
 end
