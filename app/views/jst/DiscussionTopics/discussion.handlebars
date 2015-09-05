@@ -26,7 +26,7 @@
         <small {{ contextSensitiveDatetimeTitle last_reply_at }}>{{#t "last_post_date"}}Last post {{display_last_reply_at}}{{/t}}</small>
       {{/if}}
       {{#ifEqual context_type 'Course'}}
-        <small>- {{#if course_section}}{{course_section}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</small>
+        <small>- {{#if course_sections}}{{join course_sections ','}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</small>
       {{/ifEqual}}
     </div>
 

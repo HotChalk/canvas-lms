@@ -27,7 +27,7 @@ module Api::V1::DiscussionTopics
   ALLOWED_TOPIC_FIELDS  = %w{
     id title assignment_id delayed_post_at lock_at
     last_reply_at posted_at root_topic_id podcast_has_student_posts
-    discussion_type position allow_rating only_graders_can_rate sort_by_rating
+    discussion_type position course_sections allow_rating only_graders_can_rate sort_by_rating
   }.freeze
 
   # Public: DiscussionTopic methods to serialize.
@@ -117,6 +117,7 @@ module Api::V1::DiscussionTopics
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
       group_category_id: topic.group_category_id, can_group: topic.can_group?,
+      course_sections: (topic.sections_with_visibility(user) || []).map(&:name).sort!,
       context_type: topic.context_type }
   end
 

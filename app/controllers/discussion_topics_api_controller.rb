@@ -112,11 +112,18 @@ class DiscussionTopicsApiController < ApplicationController
         if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
           visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
           entries = JSON.parse(structure)
-          entries.reject! {|e| !visible_user_ids.include?(e['user_id'].to_i) }
-          entries.each do |entry|
-            entry['replies'].reject! {|r| !visible_user_ids.include?(r['user_id'].to_i) } unless entry['replies'].nil?
+          rejected_entries = entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
+          entries -= rejected_entries
+          entries.select {|e| e['replies'].present?}.each do |entry|
+            rejected_replies = entry['replies'].select {|r| !visible_user_ids.include?(r['user_id'].to_i) }
+            rejected_entries += rejected_replies
+            entry['replies'] -= rejected_replies
           end
           structure = entries.to_json
+          rejected_entries += new_entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
+          new_entries -= rejected_entries
+          participant_ids.reject! {|id| !visible_user_ids.include?(id) }
+          entry_ids -= rejected_entries.map {|r| r['id']}.uniq
         end
       end
 

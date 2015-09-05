@@ -514,22 +514,22 @@ class DiscussionTopic < ActiveRecord::Base
     SQL
   }
 
-  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
-    without_assignment_in_course(course_ids).union(joins_assignment_student_visibilities(user_ids, course_ids))
+  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
+    without_assignment_in_course(course_ids).union(joins_assignment_user_visibilities(user_ids, course_ids))
   }
 
   scope :without_assignment_in_course, lambda { |course_ids|
     where(context_id: course_ids, context_type: "Course").where("discussion_topics.assignment_id IS NULL")
   }
 
-  scope :joins_assignment_student_visibilities, lambda { |user_ids, course_ids|
+  scope :joins_assignment_user_visibilities, lambda { |user_ids, course_ids|
     user_ids = Array.wrap(user_ids).join(',')
     course_ids = Array.wrap(course_ids).join(',')
     joins(sanitize_sql([<<-SQL, user_ids, course_ids]))
-      JOIN assignment_student_visibilities
-        ON (assignment_student_visibilities.assignment_id = discussion_topics.assignment_id
-          AND assignment_student_visibilities.user_id IN (%s)
-          AND assignment_student_visibilities.course_id IN (%s)
+      JOIN assignment_user_visibilities
+        ON (assignment_user_visibilities.assignment_id = discussion_topics.assignment_id
+          AND assignment_user_visibilities.user_id IN (%s)
+          AND assignment_user_visibilities.course_id IN (%s)
         )
     SQL
   }
@@ -557,8 +557,8 @@ class DiscussionTopic < ActiveRecord::Base
     # once on Rails 4 change this to a multi-column pluck
     # and clean up reformatting in visible_ids_by_user
     connection.select_all(
-      self.joins_assignment_student_visibilities(opts[:user_id],opts[:course_id]).
-        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_student_visibilities.user_id"])
+      self.joins_assignment_user_visibilities(opts[:user_id],opts[:course_id]).
+        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_user_visibilities.user_id"])
     )
   end
 
@@ -978,23 +978,16 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participants(include_observers=false)
     participants = [ self.user ]
-    if !self.assigned_to_section?
-      participants += context.participants(include_observers)
-    else
-      participants += self.course_section.admins
-      participants += self.course_section.students
-      participants += self.course_section.observers if include_observers
-    end
+    participants += context.participants(include_observers)
     participants.compact.uniq
   end
 
   def active_participants(include_observers=false)
-    result = if self.context.respond_to?(:available?) && !self.context.available? && self.context.respond_to?(:participating_admins)
+    if self.context.respond_to?(:available?) && !self.context.available? && self.context.respond_to?(:participating_admins)
       self.context.participating_admins
     else
       self.participants(include_observers)
     end
-    result - excluded_participants
   end
 
   def course
@@ -1003,7 +996,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   def active_participants_with_visibility
     return active_participants if !self.for_assignment? || !course.feature_enabled?(:differentiated_assignments)
-    users_with_visibility = AssignmentStudentVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id)
+    users_with_visibility = AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id)
 
     admin_ids = course.participating_admins.pluck(:id)
     users_with_visibility.concat(admin_ids)
@@ -1014,12 +1007,6 @@ class DiscussionTopic < ActiveRecord::Base
 
   def participating_users(user_ids)
     context.respond_to?(:participating_users) ? context.participating_users(user_ids) : User.find(user_ids)
-  end
-
-  def excluded_participants
-    # returns a list of participants that are excluded from this assignment based on section visibility restrictions
-    return [] unless assigned_to_section?
-    context.current_enrollments.excluding_section(self.course_section_id).map(&:user)
   end
 
   def subscribers
@@ -1034,7 +1021,7 @@ class DiscussionTopic < ActiveRecord::Base
     subscribed_users = participating_users(sub_ids)
 
     if course.feature_enabled?(:differentiated_assignments) && self.for_assignment?
-      students_with_visibility = AssignmentStudentVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id)
+      students_with_visibility = AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id)
 
       admin_ids = course.participating_admins.pluck(:id)
       observer_ids = course.participating_observers.pluck(:id)
@@ -1263,8 +1250,6 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
   def discussion_subentry_count_for_enrollment(enrollment = nil)
-    return discussion_subentry_count if self.assigned_to_section?
-
     # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
       visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
@@ -1275,8 +1260,6 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count unread discussion_entries for a given enrollment, considering section visibility restrictions
   def unread_count_for_enrollment(enrollment = nil, user = nil)
-    return unread_count(user) if self.assigned_to_section?
-
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
       Shackles.activate(:slave) do
         visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
@@ -1286,5 +1269,13 @@ class DiscussionTopic < ActiveRecord::Base
     else
       unread_count(user)
     end
+  end
+
+  def sections_with_visibility(user)
+    if self.context.is_a?(Course) && self.assignment
+      sections = self.assignment.sections_with_visibility(user)
+      return (self.context.course_sections.active.length == sections.length) ? nil : sections
+    end
+    nil
   end
 end
