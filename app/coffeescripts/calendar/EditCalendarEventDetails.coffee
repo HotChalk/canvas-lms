@@ -15,9 +15,10 @@ define [
   class EditCalendarEventDetails
     constructor: (selector, @event, @contextChangeCB, @closeCB) ->
       @currentContextInfo = null
+
       @$form = $(editCalendarEventTemplate({
         title: @event.title
-        contexts: @event.possibleContexts()
+        contexts: @filterExpiredContexts(@event.possibleContexts())
         lockedTitle: @event.lockedTitle
         location_name: @event.location_name
         isEditing: !!@event.id
@@ -88,6 +89,17 @@ define [
 
     setContext: (newContext) =>
       @$form.find("select.context_id").val(newContext).triggerHandler('change', false)
+
+    filterExpiredContexts: (contexts) =>
+      filtered = []
+      for c in contexts
+        if  c.type == 'course' 
+          if c.conclude_at == null || new Date(c.conclude_at) > Date.now()
+            filtered.push(c)
+        else
+          filtered.push(c)
+      filtered
+
 
     contextChange: (jsEvent, propagate) =>
       context = $(jsEvent.target).val()
