@@ -853,7 +853,7 @@ class AccountsController < ApplicationController
   end
 
   def build_course_stats
-    teachers = TeacherEnrollment.for_courses_with_user_name(@courses).admin.active
+    teachers = TeacherEnrollment.for_courses_with_user_name(@courses).admin.of_base_teacher_type.active
     course_to_student_counts = StudentEnrollment.student_in_claimed_or_available.where(:course_id => @courses).group(:course_id).count(:user_id, :distinct => true)
     courses_to_teachers = teachers.inject({}) do |result, teacher|
       result[teacher.course_id] ||= []
