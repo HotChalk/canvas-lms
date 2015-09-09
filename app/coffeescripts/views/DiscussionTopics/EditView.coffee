@@ -228,10 +228,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
 
-      if !!data.attachment
-        data.delayed_post_at = Date.parse(data.delayed_post_at).toString() if data.delayed_post_at
-        data.lock_at = Date.parse(data.lock_at).toString() if data.lock_at
-
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
 
@@ -308,13 +304,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      if data.delayed_post_at && data.lock_at
-        start_date = new Date(data.delayed_post_at);
-        end_date = new Date(data.lock_at);
-        if end_date < start_date
-          errors["delayed_post_at"] = [
-            message: I18n.t 'from_date_greater_than_until_date', 'Until date must be after the from date'
-          ]
+      if data.set_assignment is '0'
+        data2 =
+          assignment_overrides: @discussionDueDateOverrideView.getAllDates()
+        errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)

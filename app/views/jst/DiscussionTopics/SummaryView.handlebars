@@ -89,7 +89,7 @@
       <a class="discussion-author" href="{{author.html_url}}">{{author.display_name}}</a>
     {{/if}}
     {{#ifEqual context_type 'Course'}}
-    <span class="discussion-section">{{#if author}} - {{/if}}{{#if course_section}}{{course_section}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</span>
+    <span class="discussion-section">{{#if author}} - {{/if}}{{#if course_sections}}{{join course_sections ','}}{{else}}{{#t "all_sections"}}All Sections{{/t}}{{/if}}</span>
     {{/ifEqual}}
     <div class="discussion-summary ellipsis">{{summary}}</div>
   </div>

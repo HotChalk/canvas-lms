@@ -58,6 +58,9 @@ define [
       reply_assign_attributes.turnitin_settings or= {}
       json.reply_assignment = @createAssignment(reply_assign_attributes)
 
+      json.assignment_overrides or= []
+      json.all_dates or= []
+
       json
 
     createAssignment: (attributes) ->
@@ -205,3 +208,7 @@ define [
 
     differentiatedAssignmentsEnabled: ->
       ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED || false
+
+    isOnlyVisibleToOverrides: (override_flag) ->
+      return @get('only_visible_to_overrides') || false unless arguments.length > 0
+      @set 'only_visible_to_overrides', override_flag

@@ -23,10 +23,7 @@ splitAssetString) ->
   sectionList = new SectionCollection ENV.SECTION_LIST
   dueDateList = new DueDateList assignment.get('assignment_overrides'), sectionList, assignment
 
-  dummyAssignment = new Assignment()
-  dummyAssignment.alreadyScoped = true
-  dummyAssignment.isOnlyVisibleToOverrides(true)
-  discussionDueDateList = new DueDateList model.get('assignment_overrides'), sectionList, dummyAssignment
+  discussionDueDateList = new DueDateList model.get('assignment_overrides'), sectionList, model
   discussionDueDateList.showDueDate = false
 
   [contextType, contextId] = splitAssetString ENV.context_asset_string
