@@ -36,6 +36,8 @@ define [
 
     defaultDueDateSectionId: Section.defaultDueDateSectionID
 
+    showDueDate: true
+
     # --- private helpers ---
 
     _overrideSectionIDs: => @overrides.courseSectionIDs()

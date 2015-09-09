@@ -64,6 +64,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       @assignment = @model.get("assignment")
       @replyAssignment = @model.get("reply_assignment")
       @initialPointsPossible = @assignment.pointsPossible()
+      @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', =>
         @unwatchUnload()

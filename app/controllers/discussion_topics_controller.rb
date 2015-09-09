@@ -403,7 +403,7 @@ class DiscussionTopicsController < ApplicationController
         add_discussion_or_announcement_crumb
         add_crumb(@topic.title, named_context_url(@context, :context_discussion_topic_url, @topic.id))
         add_crumb t :edit_crumb, "Edit"
-        hash[:ATTRIBUTES] = discussion_topic_api_json(@topic, @context, @current_user, session, override_dates: false)
+        hash[:ATTRIBUTES] = discussion_topic_api_json(@topic, @context, @current_user, session, override_dates: false, include_overrides: true)
       end
       (hash[:ATTRIBUTES] ||= {})[:is_announcement] = @topic.is_announcement
       hash[:ATTRIBUTES][:can_group] = @topic.can_group?
@@ -873,6 +873,7 @@ class DiscussionTopicsController < ApplicationController
         apply_attachment_parameters
         apply_assignment_parameters
         apply_reply_assignment_parameters
+        apply_override_parameters
         render :json => discussion_topic_api_json(@topic.reload, @context, @current_user, session)
       else
         errors = @topic.errors.as_json[:errors]
@@ -1063,6 +1064,21 @@ class DiscussionTopicsController < ApplicationController
         @topic.reply_assignment = @reply_assignment
         @topic.grade_replies_separately = true
         @topic.save!
+      end
+    end
+  end
+
+  def apply_override_parameters
+    if !params[:assignment] && !params[:assignment_id] && params[:assignment_overrides]
+      overrides = deserialize_overrides(params[:assignment_overrides])
+      overrides = [] if !overrides && params.has_key?(:assignment_overrides)
+      params.delete(:assignment_overrides)
+      return if overrides && !overrides.is_a?(Array)
+      if overrides
+        @topic.transaction do
+          @topic.save_without_broadcasting!
+          batch_update_assignment_overrides(@topic, overrides)
+        end
       end
     end
   end

@@ -154,7 +154,7 @@
           {{checkbox "assignment.set_assignment"
             id="use_for_grading"
             class="element_toggler"
-            aria-controls="assignment_options assignment_overrides"
+            aria-controls="assignment_options"
             checked=set_assignment}}
           {{#t "use_for_grading"}}Graded{{/t}}
         </label>
@@ -199,51 +199,11 @@
 
   {{#if contextIsCourse}}
     <div id="availability_options" style="{{hiddenIf set_assignment}}">
-      <fieldset>
-        <div class="control-group">
-          <label class="control-label" for="delayed_post_at">
-            {{#t "available_from"}}Available From{{/t}}
-          </label>
-          <label class="screenreader-only" id="discussion_topic_available_from_accessible_label">
-            {{#t}}Discussion Topic will be available starting at{{/t}}
-            {{datepickerScreenreaderPrompt}}
-          </label>
-          <div class="controls">
-            <input type="text"
-                   class="datetime_field input-medium"
-                   name="delayed_post_at"
-                   id="delayed_post_at"
-                   aria-labelledby="discussion_topic_available_from_accessible_label"
-                   {{! TODO: what would be the best way to get this formatted right? }}
-                   value="{{datetimeFormatted delayed_post_at false}}"
-                   data-tooltip='{"position":"top","force_position":"true"}'
-                   title="{{accessibleDateFormat}}"/>
-          </div>
-        </div>
-      </fieldset>
-
-      {{#if isTopic}}
-        <fieldset>
-          <div class="control-group">
-            <label class="control-label" for="lock_at">{{#t "until"}}Until{{/t}}</label>
-            <label class="screenreader-only" id="discussion_topic_available_until_accessible_label">
-              {{#t}}Discussion Topic will be available until{{/t}}
-              {{datepickerScreenreaderPrompt}}
-            </label>
-            <div class="controls">
-              <input type="text"
-                     class="datetime_field input-medium"
-                     name="lock_at"
-                     id="lock_at"
-                     aria-labelledby="discussion_topic_available_until_accessible_label"
-                     {{! TODO: what would be the best way to get this formatted right? }}
-                     value="{{datetimeFormatted lock_at false}}"
-                     data-tooltip='{"position":"top","force_position":"true"}'
-                     title="{{accessibleDateFormat}}"/>
-            </div>
-          </div>
-        </fieldset>
-      {{/if}}
+      <div class="form-column-left">
+          {{#t}}Assign{{/t}}
+      </div>
+      <div class="overrides-column-right js-overrides overrideFormFlex">
+      </div>
     </div>
   {{/if}}
 {{/if}}

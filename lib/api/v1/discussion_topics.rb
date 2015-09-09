@@ -62,6 +62,7 @@ module Api::V1::DiscussionTopics
   # Returns a hash.
   def discussion_topic_api_json(topic, context, user, session, opts = {})
     opts.reverse_merge!(
+      include_overrides: false,
       include_assignment: true,
       override_dates: true
     )
@@ -82,6 +83,13 @@ module Api::V1::DiscussionTopics
     if opts[:include_assignment] && topic.reply_assignment
       json[:reply_assignment] = assignment_json(topic.reply_assignment, user, session,
         include_discussion_topic: false, override_dates: opts[:override_dates])
+    end
+    if opts[:include_overrides]
+      active_overrides = topic.assignment_overrides.active
+      json[:assignment_overrides] = assignment_overrides_json(active_overrides)
+    end
+    if opts[:include_all_dates] && topic.assignment_overrides
+      json[:all_dates] = topic.dates_hash_visible_to(user)
     end
 
     json
@@ -117,7 +125,7 @@ module Api::V1::DiscussionTopics
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
       group_category_id: topic.group_category_id, can_group: topic.can_group?,
-      course_sections: (topic.sections_with_visibility(user) || []).map(&:name).sort!,
+      course_sections: topic.course_section_names(context, user),
       context_type: topic.context_type }
   end
 

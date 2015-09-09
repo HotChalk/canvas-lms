@@ -3,6 +3,7 @@ require [
   'compiled/models/DiscussionTopic'
   'compiled/models/Announcement'
   'compiled/models/DueDateList'
+  'compiled/models/Assignment'
   'compiled/views/DiscussionTopics/EditView'
   'compiled/views/assignments/DueDateOverride'
   'compiled/collections/AssignmentGroupCollection'
@@ -10,7 +11,7 @@ require [
   'compiled/str/splitAssetString'
   'grading_standards'
   'manage_groups'
-], ($, DiscussionTopic, Announcement, DueDateList, EditView,
+], ($, DiscussionTopic, Announcement, DueDateList, Assignment, EditView,
 OverrideView, AssignmentGroupCollection, SectionCollection,
 splitAssetString) ->
 
@@ -22,12 +23,21 @@ splitAssetString) ->
   sectionList = new SectionCollection ENV.SECTION_LIST
   dueDateList = new DueDateList assignment.get('assignment_overrides'), sectionList, assignment
 
+  dummyAssignment = new Assignment()
+  dummyAssignment.alreadyScoped = true
+  dummyAssignment.isOnlyVisibleToOverrides(true)
+  discussionDueDateList = new DueDateList model.get('assignment_overrides'), sectionList, dummyAssignment
+  discussionDueDateList.showDueDate = false
+
   [contextType, contextId] = splitAssetString ENV.context_asset_string
   view = new EditView
     model: model
     permissions: ENV.DISCUSSION_TOPIC.PERMISSIONS
     contextType: contextType
     views:
+      'js-overrides': new OverrideView
+        model: discussionDueDateList
+        views: {}
       'js-assignment-overrides': new OverrideView
         model: dueDateList
         views: {}

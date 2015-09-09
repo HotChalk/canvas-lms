@@ -191,7 +191,7 @@
               <h1 class="discussion-title"><%= @topic.title %></h1>
               <% if @context.is_a?(Course) %>
                 <div class="discussion-subtitle">
-                  <%= @topic.course_section ? @topic.course_section.name : t(:all_sections, "All Sections") %>
+                  <%= (section_names = @topic.course_section_names(@context, @current_user)).present? ? section_names.join(',') : t(:all_sections, "All Sections") %>
                 </div>
               <% end %>
               <div class="discussion-subtitle">

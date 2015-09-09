@@ -29,6 +29,7 @@ class DiscussionTopic < ActiveRecord::Base
   include HtmlTextHelper
   include ContextModuleItem
   include SearchTermHelper
+  include DatesOverridable
 
   attr_accessible(
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
@@ -68,6 +69,7 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :discussion_entry_participants, :through => :discussion_entries
   belongs_to :user
   belongs_to :course_section
+  has_many :discussion_topic_user_visibilities
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :title, :message, :context_id, :context_type, :type, :user_id, :workflow_state, :last_reply_at, :created_at, :updated_at, :delayed_post_at, :posted_at, :assignment_id,
@@ -515,11 +517,12 @@ class DiscussionTopic < ActiveRecord::Base
   }
 
   scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
-    without_assignment_in_course(course_ids).union(joins_assignment_user_visibilities(user_ids, course_ids))
+    with_discussion_topic_overrides(user_ids, course_ids).union(joins_assignment_user_visibilities(user_ids, course_ids))
   }
 
-  scope :without_assignment_in_course, lambda { |course_ids|
-    where(context_id: course_ids, context_type: "Course").where("discussion_topics.assignment_id IS NULL")
+  scope :with_discussion_topic_overrides, lambda { |user_ids, course_ids|
+    joins(:discussion_topic_user_visibilities).
+      where(:discussion_topic_user_visibilities => { :user_id => user_ids, :course_id => course_ids })
   }
 
   scope :joins_assignment_user_visibilities, lambda { |user_ids, course_ids|
@@ -541,13 +544,11 @@ class DiscussionTopic < ActiveRecord::Base
   def self.visible_ids_by_user(opts)
     # pluck id, assignment_id, and user_id from discussions joined with the SQL view
     plucked_visibilities = pluck_discussion_visibilities(opts).group_by{|r| r["user_id"]}
-    # discussions without an assignment are visible to all, so add them into every students hash at the end
-    ids_of_discussions_visible_to_all = self.without_assignment_in_course(opts[:course_id]).pluck(:id)
     # format to be hash of user_id's with array of discussion_ids: {1 => [2,3,4], 2 => [2,4]}
     opts[:user_id].reduce({}) do |vis_hash, student_id|
       vis_hash[student_id] = begin
         ids_from_pluck = (plucked_visibilities[student_id.to_s] || []).map{|r| r["id"]}
-        ids_from_pluck.concat(ids_of_discussions_visible_to_all).map(&:to_i)
+        ids_from_pluck.map(&:to_i)
       end
       vis_hash
     end
@@ -558,7 +559,9 @@ class DiscussionTopic < ActiveRecord::Base
     # and clean up reformatting in visible_ids_by_user
     connection.select_all(
       self.joins_assignment_user_visibilities(opts[:user_id],opts[:course_id]).
-        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_user_visibilities.user_id"])
+        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_user_visibilities.user_id"]).
+        union(self.with_discussion_topic_overrides(opts[:user_id],opts[:course_id]).
+        select(["discussion_topics.id", "NULL", "discussion_topic_user_visibilities.user_id"]))
     )
   end
 
@@ -995,11 +998,13 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def active_participants_with_visibility
-    return active_participants if !self.for_assignment? || !course.feature_enabled?(:differentiated_assignments)
-    users_with_visibility = AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id)
+    return active_participants if !course.feature_enabled?(:differentiated_assignments)
+    users_with_visibility = self.for_assignment? ?
+      AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id) :
+      DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id)
 
-    admin_ids = course.participating_admins.pluck(:id)
-    users_with_visibility.concat(admin_ids)
+    # admin_ids = course.participating_admins.pluck(:id)
+    # users_with_visibility.concat(admin_ids)
 
     # observers will not be returned, which is okay for the functions current use cases (but potentially not others)
     active_participants.select{|p| users_with_visibility.include?(p.id)}
@@ -1020,17 +1025,19 @@ class DiscussionTopic < ActiveRecord::Base
 
     subscribed_users = participating_users(sub_ids)
 
-    if course.feature_enabled?(:differentiated_assignments) && self.for_assignment?
-      students_with_visibility = AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id)
+    if course.feature_enabled?(:differentiated_assignments)
+      users_with_visibility = self.for_assignment? ?
+        AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id) :
+        DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id)
 
-      admin_ids = course.participating_admins.pluck(:id)
+      # admin_ids = course.participating_admins.pluck(:id)
       observer_ids = course.participating_observers.pluck(:id)
       observed_students = ObserverEnrollment.observed_student_ids_by_observer_id(course, observer_ids)
 
       subscribed_users.select!{ |user|
-        students_with_visibility.include?(user.id) || admin_ids.include?(user.id) ||
+        users_with_visibility.include?(user.id) ||
         # an observer with no students or one with students who have visibility
-        (observed_students[user.id] && (observed_students[user.id] == [] || (observed_students[user.id] & students_with_visibility).any?))
+        (observed_students[user.id] && (observed_students[user.id] == [] || (observed_students[user.id] & users_with_visibility).any?))
       }
     end
 
@@ -1072,6 +1079,11 @@ class DiscussionTopic < ActiveRecord::Base
     # user is an admin in the context (teacher/ta/designer) OR
     # user is an account admin with appropriate permission
     return true if context.grants_any_right?(user, :manage, :read_course_content)
+
+    # discussion has no assignment and isn't assigned to user (differentiated assignments)
+    if !for_assignment? && !self.visible_to_user?(user)
+      return false
+    end
 
     # assignment exists and isnt assigned to user (differentiated assignments)
     if for_assignment? && !self.assignment.visible_to_user?(user)
@@ -1272,10 +1284,16 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def sections_with_visibility(user)
-    if self.context.is_a?(Course) && self.assignment
-      sections = self.assignment.sections_with_visibility(user)
-      return (self.context.course_sections.active.length == sections.length) ? nil : sections
-    end
-    nil
+    return nil unless context.is_a?(Course)
+    return self.assignment.sections_with_visibility(user) if self.assignment
+    user_scope = context.current_users.able_to_see_discussion_topic_in_course_with_da(self.id, context.id).pluck(:id).uniq
+    visible_user_ids = user_scope.to_a
+    context.active_course_sections.joins(:student_enrollments).where(:enrollments => {:user_id => visible_user_ids}).uniq
+  end
+
+  def course_section_names(context, user)
+    return nil unless context.is_a?(Course)
+    visible_sections = self.sections_with_visibility(user) || []
+    visible_sections.length == context.active_course_sections.length ? nil : visible_sections.map(&:name).sort!
   end
 end

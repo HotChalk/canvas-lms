@@ -25,15 +25,16 @@ class AssignmentOverride < ActiveRecord::Base
   attr_accessible
   EXPORTABLE_ATTRIBUTES = [
     :id, :created_at, :updated_at, :assignment_id, :assignment_version, :set_type, :set_id, :title, :workflow_state, :due_at_overridden, :due_at, :all_day,
-    :all_day_date, :unlock_at_overridden, :unlock_at, :lock_at_overridden, :lock_at, :quiz_id, :quiz_version
+    :all_day_date, :unlock_at_overridden, :unlock_at, :lock_at_overridden, :lock_at, :quiz_id, :quiz_version, :discussion_topic_id
   ]
 
-  EXPORTABLE_ASSOCIATIONS = [:assignment, :quiz, :assignment_override_students]
+  EXPORTABLE_ASSOCIATIONS = [:assignment, :quiz, :discussion_topic, :assignment_override_students]
 
   attr_accessor :dont_touch_assignment
 
   belongs_to :assignment
   belongs_to :quiz, class_name: 'Quizzes::Quiz'
+  belongs_to :discussion_topic
   belongs_to :set, :polymorphic => true
   has_many :assignment_override_students, :dependent => :destroy
 
@@ -49,6 +50,8 @@ class AssignmentOverride < ActiveRecord::Base
     :if => lambda{ |override| override.assignment? && override.active? && concrete_set.call(override) }
   validates_uniqueness_of :set_id, :scope => [:quiz_id, :set_type, :workflow_state],
     :if => lambda{ |override| override.quiz? && override.active? && concrete_set.call(override) }
+  validates_uniqueness_of :set_id, :scope => [:discussion_topic_id, :set_type, :workflow_state],
+    :if => lambda{ |override| override.discussion_topic? && override.active? && concrete_set.call(override) }
   validate :if => concrete_set do |record|
     if record.set && record.assignment && record.active?
       case record.set
@@ -67,8 +70,8 @@ class AssignmentOverride < ActiveRecord::Base
   end
 
   validate do |record|
-    if [record.assignment, record.quiz].all?(&:nil?)
-      record.errors.add :base, "assignment or quiz required"
+    if [record.assignment, record.quiz, record.discussion_topic].all?(&:nil?)
+      record.errors.add :base, "assignment, quiz or discussion topic required"
     end
   end
 
@@ -93,6 +96,8 @@ class AssignmentOverride < ActiveRecord::Base
   def assignment?; !!assignment_id; end
 
   def quiz?; !!quiz_id; end
+
+  def discussion_topic?; !!discussion_topic_id; end
 
   workflow do
     state :active

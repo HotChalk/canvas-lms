@@ -289,10 +289,6 @@ define [
       else
         return @dueAt()
 
-    courseSectionId: (id) =>
-      return @get('course_section_id') unless arguments.length > 0
-      @set 'course_section_id', id
-
     toView: =>
       fields = [
         'name', 'dueAt','description','pointsPossible', 'lockAt', 'unlockAt',
@@ -307,7 +303,7 @@ define [
         'frozenAttributes', 'freezeOnCopy', 'canFreeze', 'isSimple',
         'gradingStandardId', 'isLetterGraded', 'isGpaScaled', 'assignmentGroupId', 'iconType',
         'published', 'htmlUrl', 'htmlEditUrl', 'labelId', 'position', 'postToSIS',
-        'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate', 'courseSectionId'
+        'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate'
       ]
       if ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         fields.push 'isOnlyVisibleToOverrides'

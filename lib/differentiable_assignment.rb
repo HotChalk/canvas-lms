@@ -4,6 +4,8 @@ module DifferentiableAssignment
 
     if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name)
       self.only_visible_to_overrides
+    elsif self.is_a?(DiscussionTopic)
+      true
     elsif self.assignment
       self.assignment.only_visible_to_overrides
     else
@@ -27,11 +29,23 @@ module DifferentiableAssignment
   end
 
   def visibility_view
-    self.is_a?(Assignment) ? AssignmentUserVisibility : Quizzes::QuizUserVisibility
+    if self.is_a?(Assignment)
+      AssignmentUserVisibility
+    elsif self.is_a?(DiscussionTopic)
+      DiscussionTopicUserVisibility
+    else
+      QuizQuizzes::QuizUserVisibility
+    end
   end
 
   def column_name
-    self.is_a?(Assignment) ? :assignment_id : :quiz_id
+    if self.is_a?(Assignment)
+      :assignment_id
+    elsif self.is_a?(DiscussionTopic)
+      :discussion_topic_id
+    else
+      :quiz_id
+    end
   end
 
   # will not filter the collection for admins, will for non-observer students and teachers
