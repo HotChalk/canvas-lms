@@ -381,7 +381,8 @@ define([
         $link.text(I18n.t('errors.invitation', "Invitation Failed.  Please try again."));
       });
     });
-    $(".date_entry").datetime_field({alwaysShowTime: true});
+    $(".start_date_entry").datetime_field({alwaysShowTime: true, datepicker:{hour: '12', min: '00', ampm: 'am'}});
+    $(".end_date_entry").datetime_field({alwaysShowTime: true, datepicker:{hour: '11', min: '59', ampm: 'pm'}});
 
     $().data('current_default_wiki_editing_roles', $("#course_default_wiki_editing_roles").val());
     $("#course_default_wiki_editing_roles").change(function() {

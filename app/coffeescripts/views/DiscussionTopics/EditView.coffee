@@ -134,7 +134,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
 
-      @$(".datetime_field").datetime_field()
+      @$(".datetime_field").datetime_field({alwaysShowTime: true, datepicker:{hour: '12', min: '00', ampm: 'am'}})
 
       this
 
