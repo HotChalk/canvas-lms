@@ -1,11 +1,8 @@
 <% js_bundle :link_content_dialog %>
 <% css_bundle :select_content_dialog %>
 <% only ||= nil # only is an optimization, so that tabs that aren't going to be used won't have their data loaded %>
-<% course_section_ids = nil %>
-<% unless @current_user.account_admin?(@context) %>
-  <% course_section_ids = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).map(&:id).sort : [] %>
-<% end %>
-<% cache([@context, course_section_ids, 'link_context_content_dialog', only].cache_key) do %>
+<% is_admin = @current_user.account_admin?(@context) %>
+<% cache([@context, @current_user, 'link_context_content_dialog', only].cache_key) do %>
   <div id="link_context_content_dialog" style="display: none;">
     <div style="<%= hidden if only && only.size == 1 %>">
       <a href="<%= context_url(@context, :context_external_tool_resource_selection_url, "{{ id }}") %>" id="select_content_resource_selection_url" style="display: none;">&nbsp;</a>
@@ -82,8 +79,8 @@
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
           <% quizzes = @context.quizzes.active.limit(400) %>
-          <% unless course_section_ids.nil? %>
-              <% quizzes = quizzes.visible_to_sections(course_section_ids) %>
+          <% unless is_admin %>
+              <% quizzes = DifferentiableAssignment.scope_filter(quizzes, @current_user, @context) %>
           <% end %>
           <% quizzes.each do |quiz| %>
             <option value="<%= quiz.id %>"><%= quiz.title %></option>
@@ -103,8 +100,8 @@
           <% @context.assignment_groups.active.include_active_assignments.each do |group| %>
             <optgroup label="<%= group.name %>">
             <% assignments = group.active_assignments.no_graded_quizzes_or_topics.limit(200) %>
-            <% unless course_section_ids.nil? %>
-              <% assignments = assignments.visible_to_sections(course_section_ids) %>
+            <% unless is_admin %>
+              <% assignments = DifferentiableAssignment.scope_filter(assignments, @current_user, @context) %>
             <% end %>
             <% assignments.each do |assignment| %>
               <option value="<%= assignment.id %>"><%= assignment.title %></option>
@@ -147,8 +144,8 @@
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
           <% discussion_topics = @context.discussion_topics.active.only_discussion_topics.scoped({:limit => 200}) %>
-          <% unless course_section_ids.nil? %>
-            <% discussion_topics = discussion_topics.visible_to_sections(course_section_ids) %>
+          <% unless is_admin %>
+            <% discussion_topics = DifferentiableAssignment.scope_filter(discussion_topics, @current_user, @context) %>
           <% end %>
           <% discussion_topics.each do |topic| %>
             <option value="<%= topic.id %>"><%= topic.title %></option>
