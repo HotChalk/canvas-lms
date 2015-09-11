@@ -41,6 +41,7 @@ describe Pseudonym do
   end
 
   it "should validate the presence of user and infer default account" do
+    Account.default
     u = User.create!
     p = Pseudonym.new(:unique_id => 'cody@instructure.com')
     expect(p.save).to be_falsey
@@ -143,7 +144,7 @@ describe Pseudonym do
     user_with_pseudonym(:active_all => true)
     @pseudonym.sis_user_id = 'something_cool'
     @pseudonym.save!
-    @pseudonym.account.account_authorization_configs.create!(:auth_type => 'ldap')
+    @pseudonym.account.authentication_providers.create!(:auth_type => 'ldap')
     expect(@pseudonym.destroy).to eql(true)
     expect(@pseudonym).to be_deleted
   end
@@ -161,7 +162,7 @@ describe Pseudonym do
     before :once do
       require 'net/ldap'
       user_with_pseudonym(:active_all => true)
-      @aac = @pseudonym.account.account_authorization_configs.create!(
+      @aac = @pseudonym.account.authentication_providers.create!(
         :auth_type      => 'ldap',
         :auth_base      => "ou=people,dc=example,dc=com",
         :auth_host      => "ldap.example.com",
@@ -246,10 +247,10 @@ describe Pseudonym do
 
   it "should determine if the password is managed" do
     u = User.create!
-    p = Pseudonym.create!(:unique_id => 'jt@instructure.com', :user => u)
+    p = Pseudonym.create!(unique_id: 'jt@instructure.com', user: u)
     p.sis_user_id = 'jt'
     expect(p).not_to be_managed_password
-    p.account.account_authorization_configs.create!(:auth_type => 'ldap')
+    p.account.authentication_providers.create!(auth_type: 'ldap')
     expect(p).to be_managed_password
     p.sis_user_id = nil
     expect(p).not_to be_managed_password
@@ -258,27 +259,27 @@ describe Pseudonym do
   context "login assertions" do
     it "should create a CC if LDAP gave an e-mail we don't have" do
       account = Account.create!
-      account.account_authorization_configs.create!(:auth_type => 'ldap')
+      account.authentication_providers.create!(:auth_type => 'ldap')
       u = User.create!
       u.register
-      p = u.pseudonyms.create!(:unique_id => 'jt', :account => account) { |p| p.sis_user_id = 'jt' }
-      p.instance_variable_set(:@ldap_result, {:mail => ['jt@instructure.com']})
+      pseudonym = u.pseudonyms.create!(unique_id: 'jt', account: account) { |p| p.sis_user_id = 'jt' }
+      pseudonym.instance_variable_set(:@ldap_result, {:mail => ['jt@instructure.com']})
 
-      p.add_ldap_channel
+      pseudonym.add_ldap_channel
       u.reload
       expect(u.communication_channels.length).to eq 1
       expect(u.email_channel.path).to eq 'jt@instructure.com'
       expect(u.email_channel).to be_active
       u.email_channel.destroy
 
-      p.add_ldap_channel
+      pseudonym.add_ldap_channel
       u.reload
       expect(u.communication_channels.length).to eq 1
       expect(u.email_channel.path).to eq 'jt@instructure.com'
       expect(u.email_channel).to be_active
       u.email_channel.update_attribute(:workflow_state, 'unconfirmed')
 
-      p.add_ldap_channel
+      pseudonym.add_ldap_channel
       u.reload
       expect(u.communication_channels.length).to eq 1
       expect(u.email_channel.path).to eq 'jt@instructure.com'
@@ -292,7 +293,7 @@ describe Pseudonym do
       expect(@pseudonym.valid_arbitrary_credentials?('qwerty')).to be_truthy
 
       Account.default.settings = { :canvas_authentication => false }
-      Account.default.account_authorization_configs.create!(:auth_type => 'ldap')
+      Account.default.authentication_providers.create!(:auth_type => 'ldap')
       Account.default.save!
       @pseudonym.reload
 
@@ -626,6 +627,57 @@ describe Pseudonym do
         end
       end
     end
+  end
+
+  describe ".for_auth_configuration" do
+    let!(:bob){ user_model }
+    let!(:new_pseud) { Account.default.pseudonyms.create!(user: bob, unique_id: "BobbyRicky") }
+
+    context "with legacy auth types" do
+      let!(:aac){ Account.default.authentication_providers.create!(auth_type: 'ldap') }
+
+      it "filters down by unique ID" do
+        pseud = Account.default.pseudonyms.for_auth_configuration("BobbyRicky", aac)
+        expect(pseud).to eq(new_pseud)
+      end
+
+      it "excludes inactive pseudonyms" do
+        new_pseud.destroy
+        pseud = Account.default.pseudonyms.for_auth_configuration("BobbyRicky", aac)
+        expect(pseud).to be_nil
+      end
+    end
+
+    context "with contemporary auth types" do
+
+      let!(:aac){ Account.default.authentication_providers.create!(auth_type: 'facebook') }
+
+      before do
+        new_pseud.authentication_provider_id = aac.id
+        new_pseud.save!
+      end
+
+      it "finds the first related pseudonym" do
+        pseud = Account.default.pseudonyms.for_auth_configuration("BobbyRicky", aac)
+        expect(pseud).to eq(new_pseud)
+      end
+
+      it "will not load an AAC related pseudonym if you don't provide an AAC" do
+        pseud = Account.default.pseudonyms.for_auth_configuration("BobbyRicky", nil)
+        expect(pseud).to be_nil
+      end
+    end
+
+  end
+
+  it "allows duplicate unique_ids, in different providers" do
+    u = User.create!
+    aac = Account.default.account_authorization_configs.create!(auth_type: 'facebook')
+    u.pseudonyms.create!(unique_id: 'a', account: Account.default)
+    p2 = u.pseudonyms.new(unique_id: 'a', account: Account.default)
+    expect(p2).to_not be_valid
+    p2.authentication_provider = aac
+    expect(p2).to be_valid
   end
 end
 

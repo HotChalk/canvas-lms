@@ -20,12 +20,20 @@ define [
         content: -> $($(@).data('tooltipSelector')).html()
 
     toJSON: ->
-      assignment = @model.get('assignment')
-      group = assignment.defaultDates()
+      if @model.get('assignment_id')
+        assignment = @model.get('assignment')
+        group = assignment.defaultDates()
 
-      data = assignment.toView()
-      data.defaultDates = group.toJSON()
-      data.selector     = assignment.get("id") + "_lock"
-      data.linkHref     = assignment.htmlUrl()
-      data.allDates     = assignment.allDates()
-      data
+        data = assignment.toView()
+        data.defaultDates = group.toJSON()
+        data.selector     = assignment.get("id") + "_lock"
+        data.linkHref     = assignment.htmlUrl()
+        data.allDates     = assignment.allDates()
+        data
+      else
+        data = @model.toJSON()
+        data.defaultDates = @model.defaultDates().toJSON()
+        data.selector     = @model.get("id") + "_lock"
+        data.linkHref     = @model.get('html_url')
+        data.allDates     = @model.allDates()
+        data

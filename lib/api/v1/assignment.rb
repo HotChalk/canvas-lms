@@ -43,7 +43,6 @@ module Api::V1::Assignment
       grade_group_students_individually
       group_category_id
       grading_standard_id
-      course_section_id
     )
   }.freeze
 
@@ -53,7 +52,6 @@ module Api::V1::Assignment
       due_at
       assignment_group_id
       post_to_sis
-      course_section_id
     )
   }.freeze
 
@@ -217,7 +215,9 @@ module Api::V1::Assignment
     end
 
     hash['published'] = ! assignment.unpublished?
-    hash['unpublishable'] = assignment.can_unpublish?
+    if assignment.grants_right?(user, :update)
+      hash['unpublishable'] = assignment.can_unpublish?
+    end
 
     if opts[:differentiated_assignments_enabled] || (opts[:differentiated_assignments_enabled] != false && assignment.context.feature_enabled?(:differentiated_assignments))
       hash['only_visible_to_overrides'] = value_to_boolean(assignment.only_visible_to_overrides)
@@ -303,7 +303,6 @@ module Api::V1::Assignment
     notify_of_update
     integration_id
     integration_data
-    course_section_id
   )
 
   API_ALLOWED_TURNITIN_SETTINGS = %w(
@@ -428,7 +427,12 @@ module Api::V1::Assignment
     end
 
     if assignment_params.key? "muted"
-      assignment.muted = value_to_boolean(assignment_params.delete("muted"))
+      muted = value_to_boolean(assignment_params.delete("muted"))
+      if muted
+        assignment.mute!
+      else
+        assignment.unmute!
+      end
     end
 
     if assignment.context.grants_right?(user, :manage_sis)
@@ -479,11 +483,11 @@ module Api::V1::Assignment
       end
     end
 
-    if assignment.context.feature_enabled?(:post_grades)
-      if assignment_params.has_key? "post_to_sis"
-        assignment.post_to_sis = value_to_boolean(assignment_params['post_to_sis'])
-      end
+    post_to_sis = assignment_params.key?('post_to_sis') ? value_to_boolean(assignment_params['post_to_sis']) : nil
+    unless post_to_sis.nil? || !Assignment.sis_grade_export_enabled?(assignment.context)
+      assignment.post_to_sis = post_to_sis
     end
+
     assignment.updating_user = user
     assignment.attributes = update_params
     assignment.infer_times

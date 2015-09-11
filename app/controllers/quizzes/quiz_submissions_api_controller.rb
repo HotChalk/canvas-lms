@@ -130,6 +130,11 @@
 #           "description": "The current state of the quiz submission. Possible values: ['untaken'|'pending_review'|'complete'|'settings_only'|'preview'].",
 #           "example": "untaken",
 #           "type": "string"
+#         },
+#         "overdue_and_needs_submission": {
+#           "description": "Indicates whether the quiz submission is overdue and needs submission",
+#           "example": "false",
+#           "type": "boolean"
 #         }
 #       }
 #     }
@@ -160,25 +165,33 @@ class Quizzes::QuizSubmissionsApiController < ApplicationController
   #    "quiz_submissions": [QuizSubmission]
   #  }
   def index
-    t = Time.now
     quiz_submissions = if @context.grants_any_right?(@current_user, session, :manage_grades, :view_all_grades)
       # teachers have access to all student submissions
       Api.paginate @quiz.quiz_submissions.where(:user_id => visible_user_ids),
         self,
         api_v1_course_quiz_submissions_url(@context, @quiz)
     elsif @quiz.grants_right?(@current_user, session, :submit)
-      # students have access only to their own
-      @quiz.quiz_submissions.where(:user_id => @current_user)
+      # students have access only to their own submissions, both in progress, or completed`
+      submission = @quiz.quiz_submissions.where(:user_id => @current_user).first
+      if submission
+        if submission.workflow_state == "untaken"
+          [submission]
+        else
+          submission.submitted_attempts
+        end
+      else
+        []
+      end
     end
 
-    if !quiz_submissions
-      render_unauthorized_action
-    else
+    if quiz_submissions
+      # trigger delayed grading job for all submission id's which needs grading
+      quiz_submissions_ids = quiz_submissions.map(&:id).uniq
+      Quizzes::OutstandingQuizSubmissionManager.new(@quiz).send_later_if_production(:grade_by_ids, quiz_submissions_ids)
       serialize_and_render quiz_submissions
+    else
+      render_unauthorized_action
     end
-    Rails.logger.info "QS_API -- url: #{@_request.original_url}"
-    Rails.logger.info "QS_API -- filtered_params: #{@_request.filtered_parameters}"
-    Rails.logger.info "QS_API -- timer: #{Time.now-t} seconds"
   end
 
   # @API Get a single quiz submission.

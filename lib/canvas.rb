@@ -1,13 +1,10 @@
+require_dependency 'canvas/draft_state_validations'
+
 module Canvas
   # defines the behavior when a protected attribute is assigned to in mass
   # assignment. The default, and Rails' normal behavior, is to just :log. Set
   # this to :raise to raise an exception.
   mattr_accessor :protected_attribute_error
-
-  # defines extensions that could possibly be used, so that specs can move them to the
-  # correct schemas for sharding
-  mattr_accessor :possible_postgres_extensions
-  self.possible_postgres_extensions = [:pg_collkey, :pg_trgm]
 
   def self.active_record_foreign_key_check(name, type, options)
     if name.to_s =~ /_id\z/ && type.to_s == 'integer' && options[:limit].to_i < 8
@@ -188,16 +185,14 @@ module Canvas
     return nil
   end
 
-  def self.short_circuit_timeout(redis, redis_key, timeout, cutoff, error_ttl)
+  def self.short_circuit_timeout(redis, redis_key, timeout, cutoff, error_ttl, &block)
     error_count = redis.get(redis_key)
     if error_count.to_i >= cutoff
       raise TimeoutCutoff.new(error_count)
     end
 
     begin
-      Timeout.timeout(timeout) do
-        yield
-      end
+      Timeout.timeout(timeout, &block)
     rescue Timeout::Error => e
       redis.incrby(redis_key, 1)
       redis.expire(redis_key, error_ttl)

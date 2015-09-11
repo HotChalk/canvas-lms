@@ -6,7 +6,6 @@ define [
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
   'compiled/views/assignments/PostToSisSelector'
-  'compiled/views/assignments/SectionSelector'
   'underscore'
   'jst/DiscussionTopics/EditView'
   'wikiSidebar'
@@ -23,7 +22,7 @@ define [
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
-GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, SectionSelector, _, template, wikiSidebar,
+GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
 htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
@@ -65,6 +64,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       @assignment = @model.get("assignment")
       @replyAssignment = @model.get("reply_assignment")
       @initialPointsPossible = @assignment.pointsPossible()
+      @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', =>
         @unwatchUnload()
@@ -128,7 +128,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
       _.defer(@renderPostToSisOptions) if ENV.POST_GRADES
-      _.defer(@renderSectionOptions)
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
 
@@ -185,6 +184,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         el: '#peer_review_options'
         parentModel: @assignment
         nested: true
+        hideAnonymousPeerReview: true
 
 #      @peerReviewSelector.render()
 
@@ -195,13 +195,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         nested: true
 
       @postToSisSelector.render()
-
-    renderSectionOptions: =>
-      @sectionSelector = new SectionSelector
-        el: '#section_selector'
-        parentModel: @model
-
-      @sectionSelector.render()
 
     getFormData: ->
       data = super
@@ -234,10 +227,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
-
-      if !!data.attachment
-        data.delayed_post_at = Date.parse(data.delayed_post_at).toString() if data.delayed_post_at
-        data.lock_at = Date.parse(data.lock_at).toString() if data.lock_at
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
@@ -315,13 +304,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      if data.delayed_post_at && data.lock_at
-        start_date = new Date(data.delayed_post_at);
-        end_date = new Date(data.lock_at);
-        if end_date < start_date
-          errors["delayed_post_at"] = [
-            message: I18n.t 'from_date_greater_than_until_date', 'Until date must be after the from date'
-          ]
+      if data.set_assignment is '0'
+        data2 =
+          assignment_overrides: @discussionDueDateOverrideView.getAllDates()
+        errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)

@@ -130,6 +130,11 @@ require 'securerandom'
 #           "example": 34,
 #           "type": "integer"
 #         },
+#         "grading_standard_id": {
+#            "description": "the grading standard associated with the course",
+#            "example": 25,
+#            "type": "integer"
+#         },
 #         "start_at": {
 #           "description": "the start date for the course, if applicable",
 #           "example": "2012-06-01T00:00:00-06:00",
@@ -307,7 +312,7 @@ class CoursesController < ApplicationController
   #   'StudentEnrollment', 'TeacherEnrollment', 'TaEnrollment', 'ObserverEnrollment',
   #   or 'DesignerEnrollment'.
   #
-  # @argument include[] [String, "needs_grading_count"|"syllabus_body"|"total_scores"|"term"|"course_progress"|"sections"|"storage_quota_used_mb"|"total_students"]
+  # @argument include[] [String, "needs_grading_count"|"syllabus_body"|"total_scores"|"term"|"course_progress"|"sections"|"storage_quota_used_mb"|"total_students"|"favorites"]
   #   - "needs_grading_count": Optional information to include with each Course.
   #     When needs_grading_count is given, and the current user has grading
   #     rights, the total number of submissions needing grading for all
@@ -349,6 +354,8 @@ class CoursesController < ApplicationController
   #   - "total_students": Optional information to include with each Course.
   #     Returns an integer for the total amount of active and invited students.
   #   - "passback_status": Include the grade passback_status
+  #   - "favorites": Optional information to include with each Course.
+  #     Indicates if the user has marked the course as a favorite course.
   #
   # @argument state[] [String, "unpublished"|"available"|"completed"|"deleted"]
   #   If set, only return courses that are in the given state(s).
@@ -359,7 +366,7 @@ class CoursesController < ApplicationController
   def index
     respond_to do |format|
       format.html {
-        all_enrollments = @current_user.enrollments.with_each_shard { |scope| scope.not_deleted }
+        all_enrollments = @current_user.enrollments.not_deleted.shard(@current_user).to_a
         @past_enrollments = []
         @current_enrollments = []
         @future_enrollments  = []
@@ -1092,7 +1099,7 @@ class CoursesController < ApplicationController
       })
 
       @course_settings_sub_navigation_tools = ContextExternalTool.all_tools_for(@context, :type => :course_settings_sub_navigation, :root_account => @domain_root_account, :current_user => @current_user)
-      unless @context.grants_right?(@current_user, session, :manage_content)
+      unless @context.grants_right?(@current_user, session, :read_as_admin)
         @course_settings_sub_navigation_tools.reject! { |tool| tool.course_settings_sub_navigation(:visibility) == 'admins' }
       end
     end
@@ -1489,7 +1496,7 @@ class CoursesController < ApplicationController
 
       if params[:account_id]
         @account = api_find(Account.active, params[:account_id])
-        scope = @account.root_account? ? @account.all_courses : @account.associated_courses
+        scope = @account.associated_courses
       else
         scope = Course
       end

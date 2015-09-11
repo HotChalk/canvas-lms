@@ -206,19 +206,15 @@ class AssignmentGroup < ActiveRecord::Base
   end
 
   def self.visible_assignments(user, context, assignment_groups, includes = [])
-    if context.grants_any_right?(user, :manage_grades, :read_as_admin, :manage_assignments)
+    if user && user.account_admin?(context)
       scope = context.active_assignments.where(:assignment_group_id => assignment_groups)
     elsif user.nil?
       scope = context.active_assignments.published.where(:assignment_group_id => assignment_groups)
+    elsif context.user_is_instructor?(user)
+      scope = user.assignments_visible_in_course(context).where(:assignment_group_id => assignment_groups)
     else
-      scope = user.assignments_visibile_in_course(context).
+      scope = user.assignments_visible_in_course(context).
               where(:assignment_group_id => assignment_groups).published
-    end
-
-    # if necessary, filter out assignments that do not belong to the current user's sections
-    unless user.account_admin?(context)
-      visible_sections = context.respond_to?(:sections_visible_to) ? context.sections_visible_to(user).map(&:id) : []
-      scope = scope.visible_to_sections(visible_sections)
     end
 
     includes.any? ? scope.preload(includes) : scope

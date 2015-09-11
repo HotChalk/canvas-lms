@@ -16,6 +16,8 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
+require 'casclient'
+
 class Login::CasController < ApplicationController
   include Login::Shared
 
@@ -39,7 +41,7 @@ class Login::CasController < ApplicationController
     load_root_account(params[:account_id])
     reset_session_for_login
 
-    logger.info "Attempting CAS login with ticket #{params[:ticket]} in @domain_root_ #{@domain_root_account.id}"
+    logger.info "Attempting CAS login with ticket #{params[:ticket]} in account #{@domain_root_account.id}"
     st = CASClient::ServiceTicket.new(params[:ticket], cas_login_url)
     begin
       default_timeout = Setting.get('cas_timelimit', 5.seconds.to_s).to_f
@@ -57,7 +59,7 @@ class Login::CasController < ApplicationController
     end
 
     if st.is_valid?
-      pseudonym = @domain_root_account.pseudonyms.active.by_unique_id(st.user).first
+      pseudonym = @domain_root_account.pseudonyms.for_auth_configuration(st.user, aac)
       if pseudonym
         # Successful login and we have a user
         @domain_root_account.pseudonym_sessions.create!(pseudonym, false)
@@ -67,7 +69,7 @@ class Login::CasController < ApplicationController
 
         successful_login(pseudonym.user, pseudonym)
       else
-        unknown_user_url = aac.unknown_user_url.presence || login_url
+        unknown_user_url = @domain_root_account.unknown_user_url.presence || login_url
         logger.warn "Received CAS login for unknown user: #{st.user}, redirecting to: #{unknown_user_url}."
         flash[:delegated_message] = t "HotChalk Ember doesn't have an account for user: %{user}", :user => st.user
         redirect_to unknown_user_url
@@ -99,7 +101,7 @@ class Login::CasController < ApplicationController
 
   def aac
     @aac ||= begin
-      scope = @domain_root_account.account_authorization_configs.where(auth_type: 'cas')
+      scope = @domain_root_account.authentication_providers.active.where(auth_type: 'cas')
       params[:id] ? scope.find(params[:id]) : scope.first!
     end
   end

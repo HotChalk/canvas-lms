@@ -82,8 +82,8 @@ class Submission < ActiveRecord::Base
     select("assignments.id, assignments.title, assignments.points_possible, assignments.due_at,
             submissions.grade, submissions.score, submissions.graded_at, assignments.grading_type,
             assignments.context_id, assignments.context_type, courses.name AS context_name").
-    joins("JOIN assignments ON assignments.id=submissions.assignment_id
-           JOIN courses ON courses.id=assignments.context_id").
+    joins(:assignment).
+    joins("JOIN #{Course.quoted_table_name} ON courses.id=assignments.context_id").
     where("graded_at>? AND user_id=? AND muted=?", date, user_id, false).
     order("graded_at DESC").
     limit(limit)
@@ -155,16 +155,16 @@ class Submission < ActiveRecord::Base
 
   def adjust_needs_grading_count(mode = :increment)
     amount = mode == :increment ? 1 : -1
-    connection.execute sanitize_sql([<<-SQL, {amount: amount, now: Time.now.utc, assignment_id: assignment_id, user_id: user_id}])
-      UPDATE assignments
-      SET needs_grading_count = needs_grading_count + :amount, updated_at = :now
-      WHERE id = :assignment_id
-      AND context_type = 'Course'
-      AND EXISTS (SELECT 1 FROM enrollments WHERE #{Enrollment.active_student_conditions} AND user_id = :user_id AND course_id = assignments.context_id)
-      SQL
+    Assignment.
+      where(id: assignment_id, context_type: 'Course').
+      where("EXISTS (?)",
+        Enrollment.where(Enrollment.active_student_conditions).
+        where(user_id: user_id).
+        where("course_id=assignments.context_id")).
+      update_all(["needs_grading_count=needs_grading_count+?, updated_at=?", amount, Time.now.utc])
     # TODO: add this to the SQL above when DA is on for everybody
     # and remove NeedsGradingCountQuery#manual_count
-    # AND EXISTS(SELECT assignment_student_visibilities.* WHERE assignment_student_visibilities.user_id = NEW.user_id AND assignment_student_visibilities.assignment_id = NEW.assignment_id);
+    # AND EXISTS (SELECT assignment_student_visibilities.* WHERE assignment_student_visibilities.user_id = NEW.user_id AND assignment_student_visibilities.assignment_id = NEW.assignment_id);
   end
 
   after_create :update_needs_grading_count, if: :needs_grading?
@@ -246,7 +246,7 @@ class Submission < ActiveRecord::Base
   end
 
   def update_final_score
-    if score_changed?
+    if score_changed? || excused_changed?
       if skip_grade_calc
         Rails.logger.info "GRADES: NOT recomputing scores for submission #{global_id} because skip_grade_calc was set"
       else
@@ -1030,8 +1030,15 @@ class Submission < ActiveRecord::Base
     end
     alias_method :missing, :missing?
 
+    # QUESTIONS ABOUT EXCUSED:
+    #   * what happens for group assignments? excuse individually
+    #     * can't excuse for group assignments in speedgrader 1.0
+    #     * TODO make sure Assignment#representatives is updated accordingly
+    #
+    # QUESTIONS FOR ME:
+    #   * are we messing up graded / not graded counts???
     def graded?
-      !!self.score && self.workflow_state == 'graded'
+      excused? || (!!score && workflow_state == 'graded')
     end
   end
   include Tardiness
@@ -1127,6 +1134,16 @@ class Submission < ActiveRecord::Base
     self.save!
   end
 
+  def excused=(excused)
+    if excused
+      self[:excused] = true
+      self.grade = nil
+      self.score = nil
+    else
+      self[:excused] = false
+    end
+  end
+
   def comments_for(user)
     grants_right?(user, :read_grade)? submission_comments : visible_submission_comments
   end
@@ -1145,7 +1162,7 @@ class Submission < ActiveRecord::Base
     return if assignment.deleted? || assignment.muted?
     return unless self.user_id
 
-    if score_changed? || grade_changed?
+    if score_changed? || grade_changed? || excused_changed?
       ContentParticipation.create_or_update({
         :content => self,
         :user => self.user,
@@ -1251,9 +1268,10 @@ class Submission < ActiveRecord::Base
             next
           end
 
-          if grade = user_data[:posted_grade]
+          if user_data[:posted_grade] || user_data.key?(:excuse)
             submissions = assignment.grade_student(user, :grader => grader,
-                                                   :grade => grade,
+                                                   :grade => user_data[:posted_grade],
+                                                   :excuse => Canvas::Plugin.value_to_boolean(user_data[:excuse]),
                                                    :skip_grade_calc => true)
             submissions.each { |s| graded_user_ids << s.user_id }
             submission = submissions.first

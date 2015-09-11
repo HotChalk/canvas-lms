@@ -298,7 +298,7 @@ describe ExternalToolsController do
         lti_launch = assigns[:lti_launch]
         expect(lti_launch.params['accept_copy_advice']).to eq nil
         expect(lti_launch.params['accept_presentation_document_targets']).to eq 'frame,window'
-        expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.lti.v1.launch+json'
+        expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.lti.v1.ltilink'
       end
 
       it "sets proper return data for homework_submission" do
@@ -334,9 +334,18 @@ describe ExternalToolsController do
         lti_launch = assigns[:lti_launch]
         expect(lti_launch.params['accept_copy_advice']).to eq nil
         expect(lti_launch.params['accept_presentation_document_targets']).to eq 'embed,frame,iframe,window'
-        expect(lti_launch.params['accept_media_types']).to eq 'image/*,text/html,application/vnd.ims.lti.v1.launch+json,*/*'
+        expect(lti_launch.params['accept_media_types']).to eq 'image/*,text/html,application/vnd.ims.lti.v1.ltilink,*/*'
       end
 
+      it "does not copy query params to POST if disable_lti_post_only feature flag is set" do
+        user_session(@teacher)
+        @course.root_account.enable_feature!(:disable_lti_post_only)
+        @tool.url = 'http://www.instructure.com/test?first=rory&last=williams'
+        @tool.save!
+
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'migration_selection'
+        expect(assigns[:lti_launch].resource_url).to eq 'http://www.instructure.com/test?first=rory&last=williams'
+      end
     end
   end
 

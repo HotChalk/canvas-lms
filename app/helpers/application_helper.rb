@@ -119,6 +119,9 @@ module ApplicationHelper
 
   def message_user_path(user, context = nil)
     context = context || @context
+    # If context is a group that belongs to a course, use the course as the context instead
+    context = context.context if context.is_a?(Group) && context.context.is_a?(Course)
+    # Then weed out everything else
     context = nil unless context.is_a?(Course)
     conversations_path(user_id: user.id, user_name: user.name,
                        context_id: context.try(:asset_string))
@@ -219,7 +222,6 @@ module ApplicationHelper
   def use_optimized_js?
     if ENV['USE_OPTIMIZED_JS'] == 'true'
       # allows overriding by adding ?debug_assets=1 or ?debug_js=1 to the url
-      # (debug_assets is also used by jammit => you'll get unpackaged css AND js)
       !(params[:debug_assets] || params[:debug_js])
     else
       # allows overriding by adding ?optimized_js=1 to the url
@@ -244,7 +246,7 @@ module ApplicationHelper
   # Returns a <script> tag for each registered js_bundle
   def include_js_bundles
     paths = js_bundles.inject([]) do |ary, (bundle, plugin)|
-      base_url = js_base_url
+      base_url = "#{js_base_url}"
       base_url += "/plugins/#{plugin}" if plugin
       ary.concat(Canvas::RequireJs.extensions_for(bundle, 'plugins/')) unless use_optimized_js?
       ary << "#{base_url}/compiled/bundles/#{bundle}.js"
@@ -253,97 +255,48 @@ module ApplicationHelper
   end
 
   def include_css_bundles
-    unless jammit_css_bundles.empty?
-      bundles = jammit_css_bundles.map do |(bundle,plugin)|
-        bundle = variant_name_for(bundle)
-        plugin ? "plugins_#{plugin}_#{bundle}" : bundle
+    unless css_bundles.empty?
+      bundles = css_bundles.map do |(bundle,plugin)|
+        css_url_for(bundle, plugin)
       end
       bundles << {:media => 'all'}
-      include_stylesheets(*bundles)
+      stylesheet_link_tag(*bundles)
     end
   end
 
-  def variant_name_for(bundle_name)
-    if k12?
-      variant = '_k12'
-    elsif use_new_styles?
-      variant = '_new_styles'
+  def css_variant
+    if use_new_styles?
+      variant = 'new_styles'
     else
-      variant = '_legacy'
+      variant = 'legacy'
     end
-
     use_high_contrast = @current_user && @current_user.prefers_high_contrast?
-    variant += use_high_contrast ? '_high_contrast' : '_normal_contrast'
-    "#{bundle_name}#{variant}"
+    variant + (use_high_contrast ? '_high_contrast' : '_normal_contrast')
+  end
+
+  def css_url_for(bundle_name, plugin=false)
+    bundle_path = "#{plugin ? "plugins/#{plugin}" : 'bundles'}/#{bundle_name}"
+    content_md5 = BrandableCSS.fingerprint_for(bundle_path, css_variant)
+    File.join('/dist', 'brandable_css', active_brand_config.try(:md5).to_s,
+              css_variant, "#{bundle_path}-#{content_md5}.css")
+  end
+
+  def brand_variable(variable_name)
+    BrandableCSS.brand_variable_value(variable_name, active_brand_config)
+  end
+
+  def favicon
+    possibly_customized_favicon = brand_variable('ic-brand-favicon')
+    default_favicon = BrandableCSS.brand_variable_value('ic-brand-favicon')
+    if possibly_customized_favicon == default_favicon
+      return "favicon-green.ico" if Rails.env.development?
+      return "favicon-yellow.ico" if Rails.env.test?
+    end
+    possibly_customized_favicon
   end
 
   def include_common_stylesheets
-    include_stylesheets variant_name_for(:vendor), variant_name_for(:common), media: "all"
-  end
-
-  def section_tabs
-    @section_tabs ||= begin
-      if @context
-        html = []
-        tabs = Rails.cache.fetch([@context, @current_user, @domain_root_account, Lti::NavigationCache.new(@domain_root_account),  "section_tabs_hash", I18n.locale].cache_key, expires_in: 1.hour) do
-          if @context.respond_to?(:tabs_available) && !(tabs = @context.tabs_available(@current_user, :session => session, :root_account => @domain_root_account)).empty?
-            tabs.select do |tab|
-              if (tab[:id] == @context.class::TAB_COLLABORATIONS rescue false)
-                tab[:href] && tab[:label] && Collaboration.any_collaborations_configured?
-              elsif (tab[:id] == @context.class::TAB_CONFERENCES rescue false)
-                tab[:href] && tab[:label] && feature_enabled?(:web_conferences)
-              else
-                tab[:href] && tab[:label]
-              end
-            end
-          else
-            []
-          end
-        end
-        return '' if tabs.empty?
-
-        inactive_element = "<span id='inactive_nav_link' class='screenreader-only'>#{I18n.t('* No content has been added')}</span>"
-
-        html << '<nav role="navigation" aria-label="context"><ul id="section-tabs">'
-        tabs.each do |tab|
-          path = nil
-          if tab[:args]
-            path = tab[:args].instance_of?(Array) ? send(tab[:href], *tab[:args]) : send(tab[:href], tab[:args])
-          elsif tab[:no_args]
-            path = send(tab[:href])
-          else
-            path = send(tab[:href], @context)
-          end
-          hide = tab[:hidden] || tab[:hidden_unused]
-          class_name = tab[:css_class].downcase.replace_whitespace("-")
-          class_name += ' active' if @active_tab == tab[:css_class]
-
-          if hide
-            tab[:label] += inactive_element
-          end
-
-          if tab[:screenreader]
-            link = "<a href='#{path}' class='#{class_name}' aria-label='#{tab[:screenreader]}'>#{tab[:label]}</a>"
-          else
-            link = "<a href='#{path}' class='#{class_name}'>#{tab[:label]}</a>"
-          end
-
-          html << "<li class='section #{"section-tab-hidden" if hide }'>" + link + "</li>" if tab[:href]
-        end
-        html << '</ul>'
-        tabs = []
-        if @context.respond_to?(:dynamic_tabs)
-          tabs = @context.dynamic_tabs() || []
-        end
-        html << '<ul id="dynamic-tabs">'
-        tabs.each do |tab|
-          html << "<li class='section'>" + link_to(tab[:label], tab[:href]) + "</li>" if tab[:href]
-        end
-        html << "</ul></nav>"
-        html.join("")
-      end
-    end
-    raw(@section_tabs)
+    stylesheet_link_tag css_url_for(:common), media: "all"
   end
 
   def sortable_tabs
@@ -506,7 +459,7 @@ module ApplicationHelper
           having_setting('editor_button').polymorphic_where(context: contexts)
       tools.sort_by(&:id).map do |tool|
         {
-          :name => tool.label_for(:editor_button, nil),
+          :name => tool.label_for(:editor_button, I18n.locale),
           :id => tool.id,
           :url => tool.editor_button(:url),
           :icon_url => tool.editor_button(:icon_url),
@@ -606,23 +559,11 @@ module ApplicationHelper
     super
   end
 
-  def map_courses_for_menu(courses)
+  def map_courses_for_menu(courses, opts={})
     mapped = courses.map do |course|
-      term = course.enrollment_term.name if !course.enrollment_term.default_term?
-      role = Role.get_role_by_id(course.primary_enrollment_role_id) || Enrollment.get_built_in_role_for_type(course.primary_enrollment_type)
-      subtitle = (course.primary_enrollment_state == 'invited' ?
-                  before_label('#shared.menu_enrollment.labels.invited_as', 'Invited as') :
-                  before_label('#shared.menu_enrollment.labels.enrolled_as', "Enrolled as")
-                 ) + " " + role.label
-      {
-        :longName => "#{course.name} - #{course.short_name}",
-        :shortName => course.name,
-        :courseCode => course.course_code,
-        :href => course_path(course, :invitation => course.read_attribute(:invitation)),
-        :term => term || nil,
-        :subtitle => subtitle,
-        :id => course.id
-      }
+      tabs = opts[:include_section_tabs] && available_section_tabs(course)
+      presenter = CourseForMenuPresenter.new(course, tabs)
+      presenter.to_h
     end
 
     mapped
@@ -631,6 +572,7 @@ module ApplicationHelper
   def menu_courses_locals
     courses = @current_user.menu_courses
     all_courses_count = @current_user.courses_with_primary_enrollment.size
+
     {
       :collection             => map_courses_for_menu(courses),
       :collection_size        => all_courses_count,
@@ -679,8 +621,16 @@ module ApplicationHelper
     css_classes = []
     css_classes << "support_url" if url
     css_classes << "help_dialog_trigger" if show_feedback_link
+    css_classes << 'ic-app-header__menu-list-link' if use_new_styles?
     if url || show_feedback_link
-      link_to t('#links.help', "Help"), url || '#',
+      link_content = if use_new_styles?
+                        '<div class="menu-item-icon-container" role="presentation">' +
+                        render(:partial => "shared/svg/svg_icon_help.svg") +
+                        '</div><div class="menu-item__text">' + t('Help') + '</div>'
+                     else
+                        t('Help')
+                     end
+      link_to link_content.html_safe, url || '#',
         :class => css_classes.join(" "),
         'data-track-category' => "help system",
         'data-track-label' => 'help button'
@@ -725,8 +675,13 @@ module ApplicationHelper
 
   def include_account_js(options = {})
     return if params[:global_includes] == '0'
-    includes = get_global_includes.map do |global_include|
-      global_include[:js] if global_include[:js].present?
+    if use_new_styles? 
+      includes = []
+      includes << brand_config_includes[:js] if brand_config_includes[:js].present?
+    else
+      includes = get_global_includes.map do |global_include|
+        global_include[:js] if global_include[:js].present?
+      end
     end
     includes.compact!
     if includes.length > 0
@@ -756,14 +711,19 @@ module ApplicationHelper
   end
 
   def include_account_css
-    return if params[:global_includes] == '0' || @domain_root_account.try(:feature_enabled?, :use_new_styles)
-    includes = get_global_includes.inject([]) do |css_includes, global_include|
-      css_includes << global_include[:css] if global_include[:css].present?
-      css_includes
+    return if params[:global_includes] == '0'
+    if use_new_styles? 
+      includes = [] 
+      includes << brand_config_includes[:css] if  brand_config_includes[:css].present? 
+    else
+      includes = get_global_includes.inject([]) do |css_includes, global_include|
+        css_includes << global_include[:css] if global_include[:css].present?
+        css_includes
+      end
     end
     if includes.length > 0
       includes << { :media => 'all' }
-      stylesheet_link_tag *includes
+      stylesheet_link_tag(*includes)
     end
   end
 
@@ -802,17 +762,28 @@ module ApplicationHelper
   # used for generating a
   # prompt for use with date pickers
   # so it doesn't need to be declared all over the place
-  def datepicker_screenreader_prompt
+  def datepicker_screenreader_prompt(format_input="datetime")
     prompt_text = I18n.t("#helpers.accessible_date_prompt", "Format Like")
-    format = accessible_date_format
+    format = accessible_date_format(format_input)
     "#{prompt_text} #{format}"
   end
 
+  ACCEPTABLE_FORMAT_TYPES = ['date', 'time', 'datetime'].freeze
   # useful for presenting a consistent
   # date format to screenreader users across the app
   # when telling them how to fill in a datetime field
-  def accessible_date_format
-    I18n.t("#helpers.accessible_date_format", "YYYY-MM-DD hh:mm")
+  def accessible_date_format(format='datetime')
+    if !ACCEPTABLE_FORMAT_TYPES.include?(format)
+      raise ArgumentError, "format must be one of #{ACCEPTABLE_FORMAT_TYPES.join(",")}"
+    end
+
+    if format == 'date'
+      I18n.t("#helpers.accessible_date_only_format", "YYYY-MM-DD")
+    elsif format == 'time'
+      I18n.t("#helpers.accessible_time_only_format", "hh:mm")
+    else
+      I18n.t("#helpers.accessible_date_format", "YYYY-MM-DD hh:mm")
+    end
   end
 
   # render a link with a tooltip containing a summary of due dates
@@ -891,6 +862,30 @@ module ApplicationHelper
         join("\n").
         html_safe
     end
+  end
+
+  # Returns true if the given value is in the current path.
+  def active_path?(to_test)
+    # Make sure to not include account external tools
+    if account_external_tool_path?(request.fullpath)
+      false
+    else
+      request.fullpath.include?(to_test)
+    end
+  end
+
+  # Returns true if the active path is an account external tool (like Commons)
+  def account_external_tool_path?(to_test)
+    ext_tools_regex = /^\/accounts\/[^\/]*\/(external_tools)/
+    first_match_location = ext_tools_regex =~ to_test
+    !first_match_location.nil?
+  end
+
+  def link_to_parent_signup(auth_type)
+    template = auth_type.present? ? "#{auth_type.downcase}Dialog" : "parentDialog"
+    path = auth_type.present? ? external_auth_validation_path : users_path
+    link_to(t("Parents sign up here"), '#', id: "signup_parent", class: "signup_link",
+            data: {template: template, path: path}, title: t("Parent Signup"))
   end
 
   def include_google_analytics

@@ -4,6 +4,8 @@ module DifferentiableAssignment
 
     if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name)
       self.only_visible_to_overrides
+    elsif self.is_a?(DiscussionTopic)
+      true
     elsif self.assignment
       self.assignment.only_visible_to_overrides
     else
@@ -27,17 +29,29 @@ module DifferentiableAssignment
   end
 
   def visibility_view
-    self.is_a?(Assignment) ? AssignmentStudentVisibility : Quizzes::QuizStudentVisibility
+    if self.is_a?(Assignment)
+      AssignmentUserVisibility
+    elsif self.is_a?(DiscussionTopic)
+      DiscussionTopicUserVisibility
+    else
+      Quizzes::QuizUserVisibility
+    end
   end
 
   def column_name
-    self.is_a?(Assignment) ? :assignment_id : :quiz_id
+    if self.is_a?(Assignment)
+      :assignment_id
+    elsif self.is_a?(DiscussionTopic)
+      :discussion_topic_id
+    else
+      :quiz_id
+    end
   end
 
-  # will not filter the collection for teachers, will for non-observer students
+  # will not filter the collection for admins, will for non-observer students and teachers
   # will filter for observers with observed students but not for observers without observed students
   def self.filter(collection, user, context, opts={}, &filter_block)
-    return collection if teacher_or_public_user?(user, context, opts)
+    return collection if user.account_admin?(context)
 
     return filter_block.call(collection, [user.id]) if user_not_observer?(user, context, opts)
 
@@ -52,7 +66,7 @@ module DifferentiableAssignment
   # can filter scope of Assignments, DiscussionTopics, Quizzes, or ContentTags
   def self.scope_filter(scope, user, context, opts={})
     self.filter(scope, user, context, opts) do |scope, user_ids|
-      scope.visible_to_students_in_course_with_da(user_ids, context.id)
+      scope.visible_to_users_in_course_with_da(user_ids, context.id)
     end
   end
 

@@ -13,7 +13,6 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
-  'compiled/views/assignments/SectionSelector'
   'compiled/jquery/toggleAccessibly'
   'compiled/views/editor/KeyboardShortcuts'
   'compiled/tinymce'
@@ -23,7 +22,7 @@ define [
   'compiled/jquery.rails_flash_notifications'
 ], (INST, I18n, ValidatedFormView, _, $, wikiSidebar, template,
 userSettings, TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
-AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibly, RCEKeyboardShortcuts) ->
+AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
 
@@ -51,7 +50,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     EXTERNAL_TOOLS_CONTENT_TYPE = '#assignment_external_tool_tag_attributes_content_type'
     EXTERNAL_TOOLS_CONTENT_ID = '#assignment_external_tool_tag_attributes_content_id'
     EXTERNAL_TOOLS_NEW_TAB = '#assignment_external_tool_tag_attributes_new_tab'
-    SECTION_SELECTOR = '#section_selector'
     ASSIGNMENT_POINTS_POSSIBLE = '#assignment_points_possible'
     ASSIGNMENT_POINTS_CHANGE_WARN = '#point_change_warning'
 
@@ -78,7 +76,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       els["#{EXTERNAL_TOOLS_NEW_TAB}"] = '$externalToolsNewTab'
       els["#{EXTERNAL_TOOLS_CONTENT_TYPE}"] = '$externalToolsContentType'
       els["#{EXTERNAL_TOOLS_CONTENT_ID}"] = '$externalToolsContentId'
-      els["#{SECTION_SELECTOR}"] = '$sectionSelector'
       els["#{ASSIGNMENT_POINTS_POSSIBLE}"] = '$assignmentPointsPossible'
       els["#{ASSIGNMENT_POINTS_CHANGE_WARN}"] = '$pointsChangeWarning'
       els
@@ -103,7 +100,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     @child 'gradingTypeSelector', "#{GRADING_TYPE_SELECTOR}"
     @child 'groupCategorySelector', "#{GROUP_CATEGORY_SELECTOR}"
     @child 'peerReviewsSelector', "#{PEER_REVIEWS_FIELDS}"
-    @child 'sectionSelector', "#{SECTION_SELECTOR}"
 
     initialize: (options) ->
       super
@@ -112,7 +108,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', -> window.location = @get 'html_url'
       @gradingTypeSelector.on 'change:gradingType', @handleGradingTypeChange
-      @sectionSelector.parentModel = @model
 
     handleCancel: (ev) =>
       ev.preventDefault()
@@ -122,7 +117,7 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       ["assignment_group_id","grading_type","submission_type","submission_types",
        "points_possible","allowed_extensions","peer_reviews","peer_review_count",
        "automatic_peer_reviews","group_category_id","grade_group_students_individually",
-       "turnitin_enabled","course_section_id"]
+       "turnitin_enabled"]
 
     handlePointsChange:(ev) =>
       ev.preventDefault()

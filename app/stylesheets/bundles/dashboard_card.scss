@@ -1,0 +1,130 @@
+// Styles for Dashboard Card Component
+
+@import "base/environment";
+
+$ic-DashboardCard-border: $ic-border-light;
+$ic-DashboardCard-icon-color: $ic-icon-link-color;
+$ic-DashboardCard-font-color: $ic-color-light;
+$ic-DashboardCard-action-bgd: $ic-color-light;
+$ic-DashboardCard-action-hover-bgd: $ic-brand-primary;
+$ic-DashboardCard-action-hover-font-color: $ic-color-light;
+$ic-DashboardCard-action--active: $ic-brand-primary;
+
+// Optional parent container padding
+.ic-DashboardCard_Box { padding: $ic-sp 0 0; }
+
+.ic-DashboardCard {
+  box-sizing: border-box;
+  border: 1px solid $ic-DashboardCard-border;
+  width: 100%;
+  margin-bottom: $ic-sp*2;
+}
+
+.ic-DashboardCard__background {
+  position: relative;
+}
+
+.ic-DashboardCard__link {
+  transition: background 0.2s;
+  box-sizing: border-box;
+  color: $ic-DashboardCard-font-color;
+  display: flex;
+  align-items: flex-end;
+  height: $ic-sp*14;
+  padding: $ic-sp;
+  @include breakpoint(short) { height: $ic-sp*13; }
+  .no-touch & {
+    &:hover, &:focus {
+      outline: none;
+      color: $ic-DashboardCard-font-color;
+      background: rgba(black, 0.15);
+      .ic-DashboardCard__header-title { transform: translate3d(0,-($ic-sp/2),0); }
+    }
+  }
+  // if NOT high contrast, do not show ugly underline on :hover, but DO show it on :focus
+  @if $use_high_contrast == false {
+    &:hover { text-decoration: none; }
+  }
+}
+
+.ic-DashboardCard__header {
+  // in the very unlikely event that the course name is larger than the card, handle it by cutting off overflow
+  overflow: hidden;
+  box-sizing: border-box;
+  padding-top: $ic-sp;
+  max-height: $ic-sp*10;
+  flex: 1;
+  @include breakpoint(short) { max-height: $ic-sp*9; }
+}
+
+.ic-DashboardCard__header-button {
+  position: absolute;
+  top: $ic-sp/2; right: $ic-sp/2;
+}
+
+.ic-DashboardCard_settings_icon {
+  color: #fff;
+  opacity: 0.6;
+}
+
+.ic-DashboardCard__header-title {
+  transition: all 0.2s ease-out;
+  transform: translate3d(0,0,0);
+  color: $ic-DashboardCard-font-color;
+  padding: 0;
+  margin: 0;
+  line-height: 1.3;
+  font-size: $baseFontSize + 2;
+  font-weight: 500;
+  @include breakpoint(wide) {
+    font-size: $baseFontSize + 3;
+    @include breakpoint(short) { font-size: $baseFontSize + 2; }
+  }
+}
+
+.ic-DashboardCard__header-subtitle {
+  color: $ic-DashboardCard-font-color;
+  line-height: normal;
+  text-transform: uppercase;
+  padding: 0;
+  margin: $ic-sp/2 0 0;
+  font-size: $baseFontSize - 1;
+  @include breakpoint(wide) { font-size: $baseFontSize; }
+}
+
+.ic-DashboardCard__action-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  .ic-DashboardCard__action {
+    transition: background 0.2s, color 0.2s;
+    background-color: $ic-color-light;
+    flex: 1;
+    display: block; // fix for IE10
+    position: relative; // for :after alignment
+    padding: $ic-sp*1.5 0;
+    border-left: 1px solid $ic-DashboardCard-border;
+    text-align: center;
+    color: $ic-DashboardCard-icon-color;
+    &:first-child {
+      border-left: none;
+    }
+    &.ic-DashboardCard__action--active::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: $ic-sp/3;
+      background: $ic-DashboardCard-action--active;
+    }
+    .no-touch & {
+      &:hover, &:focus {
+        outline: none;
+        background: $ic-DashboardCard-action-hover-bgd;
+        border-color: $ic-DashboardCard-action-hover-bgd;
+        color: $ic-DashboardCard-action-hover-font-color;
+      }
+    }
+  }
+}

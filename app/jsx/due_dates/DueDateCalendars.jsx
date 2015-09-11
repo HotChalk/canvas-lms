@@ -16,6 +16,7 @@ define([
       rowKey: React.PropTypes.string.isRequired,
       overrides: React.PropTypes.array.isRequired,
       replaceDate: React.PropTypes.func.isRequired,
+      showDueDate: React.PropTypes.bool.isRequired,
       sections: React.PropTypes.object.isRequired
     },
 
@@ -37,9 +38,9 @@ define([
       )
     },
 
-    render(){
-      return (
-        <div>
+    dueDate(){
+      if (this.props.showDueDate) {
+        return (
           <div className="ic-Form-group">
             <div className="ic-Form-control">
               <label id         = {this.labelledByForType("due_at")}
@@ -50,19 +51,27 @@ define([
               {this.datePicker("due_at")}
             </div>
           </div>
+        )
+      }
+    },
+
+    render(){
+      return (
+        <div>
+          {this.dueDate()}
           <div className="ic-Form-group">
             <div className="ic-Form-control">
               <label id         = {this.labelledByForType("unlock_at")}
                      className  = "Date__label"
-                     title      = {I18n.t('Availible from - Format Like YYYY-MM-DD hh:mm')}>
+                     title      = {I18n.t('Available from - Format Like YYYY-MM-DD hh:mm')}>
                 {I18n.t("Available from")}
               </label>
               <div className="Available-from-to">
                 {this.datePicker("unlock_at")}
                 <span id         = {this.labelledByForType("lock_at")}
                       className  = "Available-from-to__prompt"
-                      title       = {I18n.t('Availible to - Format Like YYYY-MM-DD hh:mm')}>
-                  {I18n.t("to")}
+                      title       = {I18n.t('Available until - Format Like YYYY-MM-DD hh:mm')}>
+                  {I18n.t("until")}
                 </span>
                 {this.datePicker("lock_at")}
               </div>

@@ -122,8 +122,10 @@ module QuizzesHelper
     end
   end
 
-  def render_correct_answer_protection(quiz)
-    return I18n.t('Answers will be shown after your last attempt') if quiz.show_correct_answers_last_attempt
+  def render_correct_answer_protection(quiz, submission)
+    if quiz.show_correct_answers_last_attempt && !submission.last_attempt_completed?
+      return I18n.t('Answers will be shown after your last attempt')
+    end
     show_at = quiz.show_correct_answers_at
     hide_at = quiz.hide_correct_answers_at
     now = Time.now
@@ -402,8 +404,10 @@ module QuizzesHelper
   end
 
   def comment_get(hash, field)
-    if html = hash_get(hash, "#{field}_html".to_sym)
-      raw(html)
+    html = hash_get(hash, "#{field}_html".to_sym)
+
+    if html
+      sanitize(html)
     else
       hash_get(hash, field)
     end

@@ -56,7 +56,7 @@ class GradeCalculator
         except(:order, :select).
         for_user(@user_ids).
         where(assignment_id: @assignments.map(&:id)).
-        select("submissions.id, user_id, assignment_id, score")
+        select("submissions.id, user_id, assignment_id, score, excused")
     submissions_by_user = @submissions.group_by(&:user_id)
 
     scores = []
@@ -82,6 +82,7 @@ class GradeCalculator
         for_user(@user_ids).
         select("submissions.id, user_id, assignment_id, score")
     submissions_by_user = @submissions.group_by(&:user_id)
+    load_assignment_visibilities_for_users(@user_ids)
     @user_ids.map do |user_id|
       user_submissions = submissions_by_user[user_id] || []
       current, current_groups = calculate_current_score(user_id, user_submissions)
@@ -163,13 +164,16 @@ class GradeCalculator
         s = nil if @ignore_muted && a.muted?
 
         {
-          :assignment => a,
-          :submission => s,
-          :score => s && s.score,
-          :total => a.points_possible || 0,
+          assignment: a,
+          submission: s,
+          score: s && s.score,
+          total: a.points_possible || 0,
+          excused: s && s.excused?,
         }
       end
+
       group_submissions.reject! { |s| s[:score].nil? } if ignore_ungraded
+      group_submissions.reject! { |s| s[:excused] }
       group_submissions.each { |s| s[:score] ||= 0 }
 
       logged_submissions = group_submissions.map { |s| loggable_submission(s) }

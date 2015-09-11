@@ -59,6 +59,10 @@ require 'securerandom'
 #         "unlock_at": {
 #           "type": "datetime"
 #         },
+#         "modified_at": {
+#           "example": "2012-07-06T14:58:50Z",
+#           "type": "datetime"
+#         },
 #         "locked": {
 #           "example": false,
 #           "type": "boolean"
@@ -97,7 +101,7 @@ require 'securerandom'
 #
 class FilesController < ApplicationController
   before_filter :require_user, :only => :create_pending
-  before_filter :require_context, :except => [:full_index,:assessment_question_show,:image_thumbnail,:show_thumbnail,:preflight,:create_pending,:s3_success,:show,:api_create,:api_create_success,:api_show,:api_index,:destroy,:api_update,:api_file_status,:public_url]
+  before_filter :require_context, :except => [:assessment_question_show,:image_thumbnail,:show_thumbnail,:preflight,:create_pending,:s3_success,:show,:api_create,:api_create_success,:api_show,:api_index,:destroy,:api_update,:api_file_status,:public_url]
   before_filter :check_file_access_flags, :only => [:show_relative, :show]
   prepend_around_filter :load_pseudonym_from_policy, :only => :create
   skip_before_filter :verify_authenticity_token, :only => [:api_create, :create]
@@ -205,9 +209,7 @@ class FilesController < ApplicationController
         end
       end
     else
-      # to turn :better_file_browsing on for user files, turn it on for the account they are a part of.
-      return react_files if (@context.is_a?(User) ? @domain_root_account : @context).feature_enabled?(:better_file_browsing)
-      full_index
+      return react_files
     end
   end
 
@@ -227,6 +229,11 @@ class FilesController < ApplicationController
   #
   #   "user":: the user who uploaded the file or last edited its content
   #   "usage_rights":: copyright and license information for the file (see UsageRights)
+  #
+  # @argument only[] [Array]
+  #   Array of information to restrict to. Overrides include[]
+  #
+  #   "names":: only returns file name information
   #
   # @argument sort [String, "name"|"size"|"created_at"|"updated_at"|"content_type"|"user"]
   #   Sort results by this field. Defaults to 'name'. Note that `sort=user` implies `include[]=user`.
@@ -253,20 +260,20 @@ class FilesController < ApplicationController
 
     if authorized_action(folder, @current_user, :read_contents)
       @context = folder.context unless context_index
-      can_manage_files = @context.grants_right?(@current_user, session, :manage_files)
+      can_view_hidden_files = can_view_hidden_files?(@context, @current_user, session)
       params[:sort] ||= params[:sort_by] # :sort_by was undocumented; :sort is more consistent with other APIs such as wikis
       params[:include] = Array(params[:include])
       params[:include] << 'user' if params[:sort] == 'user'
 
       if context_index
-        if can_manage_files
+        if can_view_hidden_files
           scope = @context.attachments.not_deleted
         else
           scope = @context.attachments.visible.not_hidden.not_locked.where(
               :folder_id => Folder.all_visible_folder_ids(@context))
         end
       else
-        if can_manage_files
+        if can_view_hidden_files
           scope = folder.active_file_attachments
         else
           scope = folder.visible_file_attachments.not_hidden.not_locked
@@ -288,7 +295,7 @@ class FilesController < ApplicationController
         when 'content_type'
           "attachments.content_type"
         when 'user'
-          scope = scope.joins("LEFT OUTER JOIN users ON attachments.user_id=users.id")
+          scope = scope.joins("LEFT OUTER JOIN #{User.quoted_table_name} ON attachments.user_id=users.id")
           "users.sortable_name IS NULL, #{User.sortable_name_order_by_clause('users')}"
         else
           Attachment.display_name_order_by_clause('attachments')
@@ -302,7 +309,10 @@ class FilesController < ApplicationController
 
       url = context_index ? context_files_url : api_v1_list_files_url(folder)
       @files = Api.paginate(scope, self, url)
-      render :json => attachments_json(@files, @current_user, {}, :can_manage_files => can_manage_files, :include => params[:include], :omit_verifier_in_app => !value_to_boolean(params[:use_verifiers]))
+      render :json => attachments_json(@files, @current_user, {},
+          :can_view_hidden_files => can_view_hidden_files, :include => params[:include],
+          :only => params[:only],
+          :omit_verifier_in_app => !value_to_boolean(params[:use_verifiers]))
     end
   end
 
@@ -335,7 +345,11 @@ class FilesController < ApplicationController
         elsif context.is_a?(Group)
           context.context
         end
-        file_menu_tools = (tool_context ? external_tools_display_hashes(:file_menu, tool_context, [:accept_media_types]) : [])
+
+        has_external_tools = !context.is_a?(Group) && tool_context
+
+        file_menu_tools = (has_external_tools ? external_tools_display_hashes(:file_menu, tool_context, [:accept_media_types]) : [])
+
         {
           asset_string: context.asset_string,
           name: context == @current_user ? t('my_files', 'My Files') : context.name,
@@ -350,53 +364,13 @@ class FilesController < ApplicationController
       @page_title = t('files_page_title', 'Files')
       @body_classes << 'full-width padless-content'
       js_bundle :react_files
-      jammit_css :react_files
+      css_bundle :react_files
       js_env({
-        :FILES_CONTEXTS => files_contexts
+        :FILES_CONTEXTS => files_contexts,
+        :NEW_FOLDER_TREE => @context.feature_enabled?(:use_new_tree)
       })
 
       render :text => "".html_safe, :layout => true
-    end
-  end
-
-
-  def full_index
-    get_context
-    get_quota
-    add_crumb(t('#crumbs.files', "Files"), named_context_url(@context, :context_files_url))
-    @contexts = [@context]
-    if !@context.is_a?(User) || (@context == @current_user && params[:show_all_contexts])
-      get_all_pertinent_contexts(include_groups: true)
-    end
-    @too_many_contexts = @contexts.length > 15
-    @contexts = @contexts[0,15]
-    if @contexts.length <= 1 && !authorized_action(@context.attachments.build, @current_user, :read)
-      return
-    end
-
-    return unless tab_enabled?(@context.class::TAB_FILES)
-    log_asset_access([ "files", @context ], "files", 'other') if @context
-    respond_to do |format|
-      if @contexts.empty?
-        format.html do
-          url = !@context || @context == @current_user ? dashboard_url : named_context_url(@context, :context_url)
-          redirect_to url
-        end
-      else
-        js_env(:contexts =>
-           @contexts.to_json(:permissions =>
-                                 {:user => @current_user,
-                                  :policies =>
-                                      [:manage_files,
-                                       :update,
-                                       :manage_grades,
-                                       :read_roster]
-                                 },
-                             :methods => :asset_string,
-                             :include_root => false))
-        format.html { render :full_index }
-      end
-      format.json { render :json => @file_structures }
     end
   end
 
@@ -496,7 +470,7 @@ class FilesController < ApplicationController
     params[:download] ||= params[:preview]
     add_crumb(t('#crumbs.files', "Files"), named_context_url(@context, :context_files_url)) unless @skip_crumb
     if @attachment.deleted?
-      unless @attachment.user_id == @current_user.id
+      if @current_user.nil? || @attachment.user_id != @current_user.id
         @not_found_message = t('could_not_find_file', "This file has been deleted")
         render status: 404, template: "shared/errors/404_message"
         return
@@ -556,6 +530,9 @@ class FilesController < ApplicationController
         if @files_domain
           @headers = false
           @show_left_side = false
+        end
+        if attachment.content_type && attachment.content_type.match(/\Avideo\/|audio\//)
+          attachment.context_module_action(@current_user, :read)
         end
         format.html { render :show }
       end
@@ -773,6 +750,7 @@ class FilesController < ApplicationController
     @attachment = @context.attachments.build
     permission_object ||= @attachment
     @attachment.user = @current_user
+    @attachment.modified_at = Time.now.utc
     if authorized_action(permission_object, @current_user, permission)
       if @context.respond_to?(:is_a_context?) && @check_quota
         get_quota
@@ -967,7 +945,12 @@ class FilesController < ApplicationController
         # Need to be careful on this one... we can't let students turn in a
         # file and then edit it after the fact...
         params[:attachment].delete(:uploaded_data) if @context.is_a?(User)
-        @attachment.user = @current_user if params[:attachment][:uploaded_data].present?
+
+        if params[:attachment][:uploaded_data].present?
+          @attachment.user = @current_user
+          @attachment.modified_at = Time.now.utc
+        end
+
         @attachment.attributes = params[:attachment]
         if just_hide == '1'
           @attachment.locked = false
@@ -1044,7 +1027,7 @@ class FilesController < ApplicationController
       end
 
       @attachment.attributes = process_attachment_params(params)
-      if !@attachment.locked? && @attachment.locked_changed? && @attachment.usage_rights_id.nil? && @context.respond_to?(:feature_enabled?) && context.feature_enabled?(:better_file_browsing) && @context.feature_enabled?(:usage_rights_required)
+      if !@attachment.locked? && @attachment.locked_changed? && @attachment.usage_rights_id.nil? && @context.respond_to?(:feature_enabled?)  && @context.feature_enabled?(:usage_rights_required)
         return render :json => { :message => I18n.t('This file must have usage_rights set before it can be published.') }, :status => :bad_request
       end
       if (@attachment.folder_id_changed? || @attachment.display_name_changed?) && @attachment.folder.active_file_attachments.where(display_name: @attachment.display_name).where("id<>?", @attachment.id).exists?

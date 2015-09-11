@@ -44,7 +44,7 @@ describe "assignments" do
       end
     end
 
-    it "should edit an assignment" do
+    it "should edit an assignment", priority: "1", test_id: 56012 do
       assignment_name = 'first test assignment'
       due_date = Time.now.utc + 2.days
       group = @course.assignment_groups.create!(:name => "default")
@@ -91,7 +91,7 @@ describe "assignments" do
     end
 
 
-    it "should create an assignment using main add button" do
+    it "should create an assignment using main add button", priority: "1", test_id: 132582 do
       assignment_name = 'first assignment'
       # freeze for a certain time, so we don't get unexpected ui complications
       time = Timecop.freeze(2015,1,7,2,13)
@@ -315,7 +315,7 @@ describe "assignments" do
       end
     end
 
-    context "frozen assignment", :priority => "2" do
+    context "frozen assignment" do
       before do
         stub_freezer_plugin Hash[Assignment::FREEZABLE_ATTRIBUTES.map { |a| [a, "true"] }]
         default_group = @course.assignment_groups.create!(:name => "default")
@@ -411,7 +411,7 @@ describe "assignments" do
         @assignment.unpublish
       end
 
-      it "should allow publishing from the index page", :priority => "2" do
+      it "should allow publishing from the index page", priority: "2" do
         get "/courses/#{@course.id}/assignments"
         wait_for_ajaximations
         f("#assignment_#{@assignment.id} .publish-icon").click
@@ -503,6 +503,55 @@ describe "assignments" do
 
           expect(@assignment.reload.active_assignment_overrides.count).to eq 1
         end
+      end
+    end
+
+    context 'save to sis' do
+      def create_post_grades_tool(opts = {})
+        post_grades_tool = @course.context_external_tools.create!(
+          name: opts[:name] || 'test tool',
+          domain: 'example.com',
+          url: 'http://example.com/lti',
+          consumer_key: 'key',
+          shared_secret: 'secret',
+          settings: {
+            post_grades: {
+              url: 'http://example.com/lti/post_grades'
+            }
+          }
+        )
+        post_grades_tool.context_external_tool_placements.create!(placement_type: 'post_grades')
+        post_grades_tool
+      end
+
+      it 'should not show when no passback configured' do
+        get "/courses/#{@course.id}/assignments/new"
+        wait_for_ajaximations
+        expect(f('#assignment_post_to_sis')).to be_nil
+      end
+
+      it 'should show when powerschool is enabled' do
+        Account.default.set_feature_flag!('post_grades', 'on')
+        @course.sis_source_id = 'xyz'
+        @course.save
+
+        get "/courses/#{@course.id}/assignments/new"
+        wait_for_ajaximations
+        expect(f('#assignment_post_to_sis')).to_not be_nil
+      end
+
+      it 'should show when post_grades lti tool installed' do
+        Account.default.set_feature_flag!('post_grades', 'off')
+
+        get "/courses/#{@course.id}/assignments/new"
+        wait_for_ajaximations
+        expect(f('#assignment_post_to_sis')).to be_nil
+
+        create_post_grades_tool
+
+        get "/courses/#{@course.id}/assignments/new"
+        wait_for_ajaximations
+        expect(f('#assignment_post_to_sis')).to_not be_nil
       end
     end
   end

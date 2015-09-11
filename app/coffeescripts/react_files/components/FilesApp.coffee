@@ -113,11 +113,29 @@ define [
         # Sometimes it worked, others it didn't, this makes it work always
         header {},
           h1 {className: 'screenreader-only'},
-              I18n.t('files_heading', "Files")
-        Breadcrumbs({
-          rootTillCurrentFolder: @state.rootTillCurrentFolder
-          showingSearchResults: @state.showingSearchResults
-        })
+            I18n.t('files_heading', "Files")
+        if ENV.use_new_styles
+          div {className: 'ic-app-nav-toggle-and-crumbs ic-app-nav-toggle-and-crumbs--files'},
+            button {
+              className:'Button Button--link Button--small ic-app-course-nav-toggle',
+              type:'button',
+              id:'courseMenuToggle',
+              title:I18n.t("Show and hide courses menu"),
+              'aria-hidden':'true'
+            },
+              i {
+                className:'icon-hamburger'
+              }
+            div {className:'ic-app-crumbs'},
+              Breadcrumbs({
+                rootTillCurrentFolder: @state.rootTillCurrentFolder
+                showingSearchResults: @state.showingSearchResults
+              })
+        else
+          Breadcrumbs({
+            rootTillCurrentFolder: @state.rootTillCurrentFolder
+            showingSearchResults: @state.showingSearchResults
+          })
         Toolbar({
           currentFolder: @state.currentFolder
           query: @getQuery()
@@ -135,19 +153,22 @@ define [
         })
 
         div className: 'ef-main',
-          aside {
-            className: 'visible-desktop ef-folder-content'
-            role: 'region'
-            'aria-label' : I18n.t('folder_browsing_tree', 'Folder Browsing Tree')
-          },
-            FolderTree({
-              rootTillCurrentFolder: @state.rootTillCurrentFolder
-              rootFoldersToShow: filesEnv.rootFolders
-              dndOptions:
-                onItemDragEnterOrOver: @onItemDragEnterOrOver
-                onItemDragLeaveOrEnd: @onItemDragLeaveOrEnd
-                onItemDrop: @onItemDrop
-            })
+          if(filesEnv.newFolderTree)
+            p {}, "new folder tree goes here"
+          else
+            aside {
+              className: 'visible-desktop ef-folder-content'
+              role: 'region'
+              'aria-label' : I18n.t('folder_browsing_tree', 'Folder Browsing Tree')
+            },
+              FolderTree({
+                rootTillCurrentFolder: @state.rootTillCurrentFolder
+                rootFoldersToShow: filesEnv.rootFolders
+                dndOptions:
+                  onItemDragEnterOrOver: @onItemDragEnterOrOver
+                  onItemDragLeaveOrEnd: @onItemDragLeaveOrEnd
+                  onItemDrop: @onItemDrop
+              })
           div {
             className:'ef-directory'
             role: 'region'
@@ -177,6 +198,7 @@ define [
                 onItemDragEnterOrOver: @onItemDragEnterOrOver
                 onItemDragLeaveOrEnd: @onItemDragLeaveOrEnd
                 onItemDrop: @onItemDrop
+              clearSelectedItems: @clearSelectedItems
 
         div className: 'ef-footer grid-row',
           if userCanManageFilesForContext

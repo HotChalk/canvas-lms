@@ -5,18 +5,19 @@ group :test do
     gem 'docile', '1.1.3', require: false
   gem 'simplecov-rcov', '0.2.3', require: false
   gem 'bluecloth', '2.2.0' # for generating api docs
-    gem 'redcarpet', '3.0.0', require: false
+    gem 'redcarpet', '3.2.3', require: false
     gem 'github-markdown', '0.6.8', require: false
-    gem 'bullet_instructure', '4.14.7', require: 'bullet'
+    gem 'bullet_instructure', '4.14.8', require: 'bullet'
   gem 'mocha', github: 'maneframe/mocha', ref: 'bb8813fbb4cc589d7c58073d93983722d61b6919', require: false
     gem 'metaclass', '0.0.2', require: false
   gem 'thin', '1.6.3'
     gem 'eventmachine', '1.0.4', require: false
 
   gem 'rspec', '3.2.0'
-  gem 'rspec-rails', '3.2.0'
+  gem 'rspec-rails', '3.2.3'
   gem 'rspec-legacy_formatters', '1.0.0'
     gem 'rspec-core', '3.2.0'
+    gem 'rspec-support', '3.2.0'
   gem 'rspec-collection_matchers', '1.1.2'
 
   gem 'rubocop', require: false
@@ -26,9 +27,10 @@ group :test do
   gem 'once-ler', '0.0.15'
 
   gem 'sequel', '4.5.0', require: false
-  gem 'selenium-webdriver', '2.43.0'
+  gem 'selenium-webdriver', '2.46.2'
     gem 'childprocess', '0.5.0', require: false
     gem 'websocket', '1.0.7', require: false
+  gem 'selinimum', '0.0.1', require: false, path: 'gems/selinimum'
   gem 'test_after_commit', '0.4.0'
   gem 'test-unit', '~> 3.0', require: false, platform: :ruby_22
   gem 'webmock', '1.16.1', require: false

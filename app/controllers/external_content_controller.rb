@@ -20,7 +20,6 @@ require 'ims/lti'
 IMS::LTI::Models::ContentItems::ContentItem.add_attribute :canvas_url, json_key: 'canvasURL'
 
 class ExternalContentController < ApplicationController
-  before_filter :require_context, only: :success
   protect_from_forgery :except => [:selection_test, :success]
 
   def success
@@ -35,6 +34,7 @@ class ExternalContentController < ApplicationController
     elsif params[:return_type] == 'oembed'
       js_env(oembed: {endpoint: params[:endpoint], url: params[:url]})
     elsif params[:service] == 'external_tool_dialog'
+      get_context
       @retrieved_data = content_items_for_canvas
     elsif params[:service] == 'external_tool_redirect'
       @hide_message = true if params[:service] == 'external_tool_redirect'
@@ -54,7 +54,7 @@ class ExternalContentController < ApplicationController
       end
     end
     @headers = false
-    js_env(retrieved_data: (@retrieved_data || {}),
+    js_env(retrieved_data: (@retrieved_data || {}), lti_response_messages: lti_response_messages,
            service: params[:service])
   end
 
@@ -103,7 +103,7 @@ class ExternalContentController < ApplicationController
 
   def content_items_for_canvas
     content_item_selection.map do |item|
-      if item.type == IMS::LTI::Models::ContentItems::LtiLink::TYPE
+      if item.type == IMS::LTI::Models::ContentItems::LtiLinkItem::TYPE
         url_gen_params = {url: item.url}
         url_gen_params[:display] = 'borderless' if item.placement_advice.presentation_document_target == 'iframe'
         item.canvas_url = named_context_url(@context, :retrieve_context_external_tools_path, url_gen_params)
@@ -123,4 +123,28 @@ class ExternalContentController < ApplicationController
     end
   end
 
+  def lti_response_messages
+    @lti_response_messages ||= (
+      response_messages = {}
+
+      lti_msg = param_if_set "lti_msg"
+      lti_log = param_if_set "lti_log"
+      lti_errormsg = param_if_set("lti_errormsg") {|error_msg| logger.warn error_msg}
+      lti_errorlog = param_if_set("lti_errorlog") {|error_log| logger.warn error_log}
+
+      response_messages[:lti_msg] = lti_msg if lti_msg
+      response_messages[:lti_log] = lti_log if lti_log
+      response_messages[:lti_errormsg] = lti_errormsg if lti_errormsg
+      response_messages[:lti_errorlog] = lti_errorlog if lti_errorlog
+      response_messages
+    )
+  end
+
+  def param_if_set(param_key)
+    param_value = params[param_key] && !params[param_key].empty? && params[param_key]
+    if param_value && block_given?
+      yield param_value
+    end
+    param_value
+  end
 end

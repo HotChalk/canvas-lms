@@ -2,7 +2,7 @@
   @active_tab = "settings"
   add_crumb t(:settings_crumb, "Settings")
   js_bundle :account_settings
-  jammit_css :account_settings, :reports, :tinymce
+  css_bundle :account_settings, :reports, :tinymce
   content_for :page_title, t(:page_title, "Account Settings")
   if can_do(@context, @current_user, :manage_storage_quotas)
     js_env :ACCOUNT => {
@@ -132,7 +132,7 @@ TEXT
                     </td>
                   </tr>
 
-                  <% unless @account.account_authorization_config
+                  <% unless @account.non_canvas_auth_configured?
                     # if the account has a account_authorization_config,
                     # we'll control this setting from that page
                   %>
@@ -244,134 +244,6 @@ TEXT
         <% end %>
 
         <% unless @account.site_admin? %>
-          <% if @account == @domain_root_account && (use_new_styles? || k12?) %>
-            <%= f.fields_for :settings do |settings| %>
-              <fieldset>
-                <legend>Branding</legend>
-                <table class="formtable Settings__Branding" style="100%">
-                  <tr>
-                    <td>
-                      <%= settings.label :header_image, t('Logo') %>
-                    </td>
-                    <td>
-                      <div class="branding_section">
-                        <%= settings.file_field :header_image, accept: 'image/png,image/gif,image/jpeg,image/svg' %>
-                        <p style="font-size: 0.9em;">
-                          <%= t("The logo image in the top right HotChalk Ember header. 200x200 svg or png") %>
-                        </p>
-                        <% if @account.settings[:header_image] %>
-                          <p><%= t("Current:") %></p>
-                          <p><img src="<%= @account.settings[:header_image] %>" width="200" height="200" /></p>
-                        <% end %>
-                      </div>
-                      <% if @account.settings[:header_image] %>
-                        <%= settings.check_box :header_image_remove, "class" => "branding_section_toggler" %>
-                        <%= settings.label :header_image_remove, :en => "Revert to default" %>
-                      <% end %>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <%= settings.label :favicon, t('Favicon') %>
-                    </td>
-                    <td>
-                      <div class="branding_section">
-                        <%= settings.file_field :favicon, accept: 'image/vnd.microsoft.icon,image/x-icon,image/png,image/gif' %>
-                        <p style="font-size: 0.9em;">
-                          <%= t do %>
-                            Use a <a href="http://realfavicongenerator.net/" target="_blank">single 16x16, 32x32, 48x48 ico file</a>.
-                          <% end %>
-                        </p>
-                        <% if @account.settings[:favicon] %>
-                          <p><%= t("Current:") %></p>
-                          <p><img src="<%= @account.settings[:favicon] %>" width="16" height="16" /></p>
-                        <% end %>
-                      </div>
-                      <% if @account.settings[:favicon] %>
-                        <%= settings.check_box :favicon_remove, "class" => "branding_section_toggler" %>
-                        <%= settings.label :favicon_remove, :en => "Revert to default" %>
-                      <% end %>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <%= settings.label :apple_touch_icon, t('Apple Touch Icon') %>
-                    </td>
-                    <td>
-                      <div class="branding_section">
-                        <%= settings.file_field :apple_touch_icon, accept: 'image/png,image/svg' %>
-                        <p style="font-size: 0.9em;">
-                          <%= t("The shortcut icon for iOS/Android devices. 180x180 png or svg") %>
-                        </p>
-                        <% if @account.settings[:apple_touch_icon] %>
-                          <p><%= t("Current:") %></p>
-                          <p><img src="<%= @account.settings[:apple_touch_icon] %>" width="57" height="57" /></p>
-                        <% end %>
-                      </div>
-                      <% if @account.settings[:apple_touch_icon] %>
-                        <%= settings.check_box :apple_touch_icon_remove, "class" => "branding_section_toggler" %>
-                        <%= settings.label :apple_touch_icon_remove, :en => "Revert to default" %>
-                      <% end %>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><%= settings.label :msapplication_tile_square, t('Windows Square Tile') %></td>
-                    <td>
-                      <div class="branding_section">
-                        <%= settings.file_field :msapplication_tile_square, accept: 'image/png,image/gif,image/jpeg' %>
-                        <p style="font-size: 0.9em;">
-                          <%= t("558x558 png (1.8x the standard tile size, so it can be scaled up or down
-as needed)") %>
-                        </p>
-                        <% if @account.settings[:msapplication_tile_square] %>
-                          <p><%= t("Current:") %></p>
-                          <p><img src="<%= @account.settings[:msapplication_tile_square] %>" width="150" height="150" /></p>
-                        <% end %>
-                      </div>
-                      <% if @account.settings[:msapplication_tile_square] %>
-                        <%= settings.check_box :msapplication_tile_square_remove, "class" => "branding_section_toggler" %>
-                        <%= settings.label :msapplication_tile_square_remove, :en => "Revert to default" %>
-                      <% end %>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><%= settings.label :msapplication_tile_wide, t('Windows Wide Tile') %></td>
-                    <td>
-                      <div class="branding_section">
-                        <%= settings.file_field :msapplication_tile_wide, accept: 'image/png,image/gif,image/jpeg' %>
-                        <p style="font-size: 0.9em;">
-                          <%= t("558x270 png") %>
-                        </p>
-                        <% if @account.settings[:msapplication_tile_wide] %>
-                          <p><%= t("Current:") %></p>
-                          <p><img src="<%= @account.settings[:msapplication_tile_wide] %>" width="150" height="150" /></p>
-                        <% end %>
-                      </div>
-                      <% if @account.settings[:msapplication_tile_wide] %>
-                        <%= settings.check_box :msapplication_tile_wide_remove, "class" => "branding_section_toggler" %>
-                        <%= settings.label :msapplication_tile_wide_remove, :en => "Revert to default" %>
-                      <% end %>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <%= settings.label :msapplication_tile_color, t('Windows Tile Color') %>
-                    </td>
-                    <td>
-                      <%= settings.text_field :msapplication_tile_color, value: @account.settings[:msapplication_tile_color], placeholder: '#0099e0'
-                        # #0099e0 is $canvas-primary from sass. If you change this, make sure to change it in app/views/info/browserconfig.xml.builder too.
-                      %>
-                      <p style="font-size:0.9em">
-                        <a href="http://msdn.microsoft.com/en-us/library/ie/dn455106.aspx" target="_blank">
-                          <%= t("Read more about windows tiles") %>
-                        </a>
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </fieldset>
-            <% end %>
-          <% end %>
           <fieldset>
             <legend><%= t(:quiz_ip_filters_title, "Quiz IP Address Filters")%>
               <%= link_to("<i class='icon-question standalone-icon'></i>".html_safe, '#', :class => 'ip_help_link no-hover', :title => t(:quiz_ip_filters_help_tooltip, "What are Quiz IP Filters?")) %></legend>
@@ -486,7 +358,11 @@ as needed)") %>
                 <% end %>
                 <div>
                   <%= settings.check_box :global_includes, :checked => @account.settings[:global_includes] %>
-                  <%= settings.label :global_includes, :en => "Global CSS/JavaScript includes" %>
+                  <% if use_new_styles? %>
+                    <%= settings.label :global_brand_includes, :en => "Upload global CSS/JavaScript includes in Theme Editor" %>
+                  <% else %>
+                    <%= settings.label :global_includes, :en => "Global CSS/JavaScript includes" %>
+                  <% end %>
                 </div>
                 <div id="show_scheduler_checkbox">
                   <%= settings.check_box :show_scheduler, :checked => @account.settings[:show_scheduler] %>
@@ -496,15 +372,7 @@ as needed)") %>
                   <%= settings.check_box :enable_profiles, :checked => @account.settings[:enable_profiles] %>
                   <%= settings.label :enable_profiles, :en => "Enable Profiles" %>
                 </div>
-                <div>
-                  <%= settings.check_box :enable_resources_link, :checked => @account.settings[:enable_resources_link] %>
-                  <%= settings.label :enable_resources_link, :en => "Enable Resources Link" %>
-                </div>
-                <div id="show_resources_link_input">
-                  <%= settings.label :show_resources_link, :en => "Resources Link URL:" %>
-                  <input id="account_settings_show_resources_link" name="account[settings][show_resources_link]" type="text" value="<%= @account.settings[:show_resources_link] %>">
-                </div>
-                <% if @account.account_authorization_config %>
+                <% if @account.non_canvas_auth_configured? %>
                   <div>
                     <%= settings.check_box :canvas_authentication, :checked => @account.canvas_authentication? %>
                     <%= settings.label :canvas_authentication, :en => "Canvas Authentication" %>
@@ -547,7 +415,7 @@ as needed)") %>
               <% end %>
               <div>
                 <%= settings.check_box :users_can_edit_name, :checked => @account.settings[:users_can_edit_name] != false %>
-                <%= settings.label :users_can_edit_name, :en => "Users can edit display name" %>
+                <%= settings.label :users_can_edit_name, :en => "Users can edit their name" %>
               </div>
 
               <div>
@@ -581,26 +449,28 @@ as needed)") %>
           <% end %>
         </fieldset>
 
-        <fieldset id="account_settings_global_includes_settings" style="<%= hidden unless @account.allow_global_includes? %>">
-          <legend><%= t(:global_js_and_css_includes_title, "Global JavaScript and CSS Includes") %></legend>
-          <p style="font-size: 0.9em;"><%= t(:global_js_and_css_includes_description, "These files will be included on all page loads for your account") %></p>
-          <%= f.fields_for :settings do |settings| %>
-            <table class="formtable">
-              <tr>
-                <td><%= settings.blabel :global_javascript, :en => "Global JavaScript URL" %></td>
-                <td><%= settings.text_field :global_javascript, :value => @account.settings[:global_javascript] %></td>
-              </tr>
-              <tr>
-                <td><%= settings.blabel :global_stylesheet, :en => "Global CSS URL" %></td>
-                <td><%= settings.text_field :global_stylesheet, :value => @account.settings[:global_stylesheet] %></td>
-              </tr>
-            </table>
-            <div>
-              <%= settings.check_box :sub_account_includes, :checked => @account.settings[:sub_account_includes] %>
-              <%= settings.label :sub_account_includes, :en => "Let sub-accounts define additional includes" %>
-            </div>
-          <% end %>
-        </fieldset>
+        <% unless use_new_styles? %>
+          <fieldset id="account_settings_global_includes_settings" style="<%= hidden unless @account.allow_global_includes? %>">
+            <legend><%= t(:global_js_and_css_includes_title, "Global JavaScript and CSS Includes") %></legend>
+            <p style="font-size: 0.9em;"><%= t(:global_js_and_css_includes_description, "These files will be included on all page loads for your account") %></p>
+            <%= f.fields_for :settings do |settings| %>
+              <table class="formtable">
+                <tr>
+                  <td><%= settings.blabel :global_javascript, :en => "Global JavaScript URL" %></td>
+                  <td><%= settings.text_field :global_javascript, :value => @account.settings[:global_javascript] %></td>
+                </tr>
+                <tr>
+                  <td><%= settings.blabel :global_stylesheet, :en => "Global CSS URL" %></td>
+                  <td><%= settings.text_field :global_stylesheet, :value => @account.settings[:global_stylesheet] %></td>
+                </tr>
+              </table>
+              <div>
+                <%= settings.check_box :sub_account_includes, :checked => @account.settings[:sub_account_includes] %>
+                <%= settings.label :sub_account_includes, :en => "Let sub-accounts define additional includes" %>
+              </div>
+            <% end %>
+          </fieldset>
+        <% end %>
 
         <% if !@account.site_admin? &&
                 @account.root_account? &&
@@ -1020,19 +890,54 @@ acknowledge that you have read and agreed to the
         <% end %>
       </ul>
       <% if can_do(@account, @current_user, :manage_alerts) %>
-        <a href="#" class="btn btn-primary element_toggler" role="button" data-hide-while-target-shown="true" aria-controls="add_notification_form"><i class="icon-add"></i> <%= t(:add_announcement_link, "Add a New Announcement") %></a>
-        <%= form_for :account_notification, :url => account_account_notifications_url(@account), :html => {:id => "add_notification_form", :style => 'display: none;', :class => 'well', :role => "region" } do |f| %>
+        <a href="#" class="btn btn-primary element_toggler" role="button" data-hide-while-target-shown="true" aria-controls="add_notification_form">
+          <i class="icon-add"></i> <%= t(:add_announcement_link, "Add a New Announcement") %>
+        </a>
+        <%= form_for :account_notification,
+                     url: account_account_notifications_url(@account),
+                     html: {
+                       id: "add_notification_form",
+                       style: 'display: none;',
+                       class: 'well',
+                       role: "region" } do |f| %>
           <table class="formtable">
             <tr>
-              <td><%= f.blabel :subject, :en => "Subject" %></td>
+              <td><%= f.blabel :subject, en: "Subject" %></td>
               <td><%= f.text_field :subject %></td>
-            </tr><tr>
-              <td><%= f.blabel :start_at, :en => "Starts" %></td>
-              <td><%= f.text_field :start_at, :class => 'datetime_field' %></td>
-            </tr><tr>
-              <td><%= f.blabel :end_at, :en => "Ends" %></td>
-              <td><%= f.text_field :end_at, :class => 'datetime_field' %></td>
-            </tr><tr>
+            </tr>
+            <tr>
+              <td>
+                <%= f.blabel :start_at, en: "Starts" %>
+                <label class="screenreader-only" id="announcment_starts_at_label">
+                  <%= t("Announcement starts at") %>
+                  <%= datepicker_screenreader_prompt %>
+                </label>
+              </td>
+              <td>
+                <%= f.text_field :start_at,
+                                 class: 'datetime_field',
+                                 "aria-labelledby" => "announcement_starts_at_label",
+                                 "data-tooltip" => "",
+                                 title: accessible_date_format %>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <%= f.blabel :end_at, en: "Ends" %>
+                <label class="screenreader-only" id="announcment_ends_at_label">
+                  <%= t("Announcement ends at") %>
+                  <%= datepicker_screenreader_prompt %>
+                </label>
+              </td>
+              <td>
+                <%= f.text_field :end_at,
+                                 class: 'datetime_field',
+                                 "aria-labelledby" => "announcement_ends_at_label",
+                                 "data-tooltip" => "",
+                                 title: accessible_date_format %>
+              </td>
+            </tr>
+            <tr>
               <td><%= f.blabel :account_notification_icon, :en => "Icon" %></td>
               <td>
                 <select id="account_notification_icon" name="account_notification[icon]">

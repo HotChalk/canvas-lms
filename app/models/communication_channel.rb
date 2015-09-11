@@ -23,6 +23,8 @@ class CommunicationChannel < ActiveRecord::Base
 
   attr_accessible :user, :path, :path_type, :build_pseudonym_on_confirm, :pseudonym
 
+  serialize :last_bounce_details
+
   belongs_to :pseudonym
   has_many :pseudonyms
   belongs_to :user
@@ -327,7 +329,10 @@ class CommunicationChannel < ActiveRecord::Base
     end
     
     state :retired do
-      event :re_activate, :transitions_to => :active
+      event :re_activate, :transitions_to => :active do
+        # Reset bounce count when we're being reactivated
+        reset_bounce_count!
+      end
     end
   end
 
@@ -376,6 +381,11 @@ class CommunicationChannel < ActiveRecord::Base
     old_bounce_count >= RETIRE_THRESHOLD
   end
 
+  def reset_bounce_count!
+    self.bounce_count = 0
+    self.save!
+  end
+
   def was_retired?
     old_workflow_state = self.previous_changes[:workflow_state].try(:first)
     old_workflow_state ||= self.workflow_state
@@ -393,10 +403,17 @@ class CommunicationChannel < ActiveRecord::Base
   end
   private :check_if_bouncing_changed
 
-  def self.bounce_for_path(path)
+  def self.bounce_for_path(path:, timestamp:, details:, suppression_bounce:)
     Shard.with_each_shard(CommunicationChannel.associated_shards(path)) do
       CommunicationChannel.unretired.email.by_path(path).each do |channel|
-        channel.update_attribute(:bounce_count, channel.bounce_count + 1)
+        channel.bounce_count = channel.bounce_count + 1
+        if suppression_bounce
+          channel.last_suppression_bounce_at = timestamp
+        else
+          channel.last_bounce_at = timestamp
+          channel.last_bounce_details = details
+        end
+        channel.save!
       end
     end
   end

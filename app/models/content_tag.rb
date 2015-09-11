@@ -22,7 +22,7 @@ class ContentTag < ActiveRecord::Base
       super( 'Link is the last link to an aligned outcome.' +
            'Remove the alignment and then try again')
       @alignment = alignment
-    end 
+    end
   end
   include Workflow
   include SearchTermHelper
@@ -71,7 +71,7 @@ class ContentTag < ActiveRecord::Base
     given {|user, session| self.context && self.context.grants_right?(user, session, :manage_content)}
     can :delete
   end
-  
+
   workflow do
     state :active do
       event :unpublish, :transitions_to => :unpublished
@@ -99,7 +99,7 @@ class ContentTag < ActiveRecord::Base
     }
   end
   private :touch_context_module_after_transaction
-  
+
   def self.touch_context_modules(ids=[])
     if ids.length == 1
       ContextModule.where(id: ids).update_all(updated_at: Time.now.utc)
@@ -113,13 +113,13 @@ class ContentTag < ActiveRecord::Base
     end
     true
   end
-  
+
   def touch_context_if_learning_outcome
     if (self.tag_type == 'learning_outcome_association' || self.tag_type == 'learning_outcome') && skip_touch.blank?
       self.context_type.constantize.where(:id => self.context_id).update_all(:updated_at => Time.now.utc)
     end
   end
-  
+
   def default_values
     self.title ||= self.content.title rescue nil
     self.title ||= self.content.name rescue nil
@@ -130,11 +130,11 @@ class ContentTag < ActiveRecord::Base
     self.context_code = "#{self.context_type.to_s.underscore}_#{self.context_id}"
   end
   protected :default_values
-  
+
   def context_code
     read_attribute(:context_code) || "#{self.context_type.to_s.underscore}_#{self.context_id}" rescue nil
   end
-  
+
   def context_name
     self.context.name rescue ""
   end
@@ -146,7 +146,7 @@ class ContentTag < ActiveRecord::Base
 
   def self.update_could_be_locked(tags=[])
     content_ids = {}
-    tags.each do |t| 
+    tags.each do |t|
       (content_ids[t.content_type] ||= []) << t.content_id if t.content_type && t.content_id
     end
     content_ids.each do |type, ids|
@@ -160,11 +160,11 @@ class ContentTag < ActiveRecord::Base
   def confirm_valid_module_requirements
     self.context_module && self.context_module.confirm_valid_requirements
   end
-  
+
   def scoreable?
     self.content_type_quiz? || self.graded?
   end
-  
+
   def graded?
     return true if self.content_type == 'Assignment'
     return false unless self.content_type.constantize.column_names.include?('assignment_id') #.new.respond_to?(:assignment_id)
@@ -193,20 +193,29 @@ class ContentTag < ActiveRecord::Base
     (self.content_type || "").gsub(/\A[A-Za-z]+::/, '') + '_' + self.content_id.to_s
   end
 
-  def assignment
-    return self.content if self.content_type == 'Assignment'
-    # Ugly hack to support having Reply Assignments show up in the Modules page
-    return self.content.reply_assignment if self.content_type == 'DiscussionTopic' && self.content.grade_replies_separately && self.content.reply_assignment.title == self.title
-    return self.content.assignment if self.content.respond_to?(:assignment)
+  def can_have_assignment?
+    ['Assignment', 'DiscussionTopic', 'Quizzes::Quiz'].include?(self.content_type)
   end
-  
+
+  def assignment
+    if self.content_type == 'Assignment'
+      self.content
+    elsif can_have_assignment?
+      # Ugly hack to support having Reply Assignments show up in the Modules page
+      return self.content.reply_assignment if self.content_type == 'DiscussionTopic' && self.content.grade_replies_separately && self.content.reply_assignment.title == self.title
+      self.content.assignment
+    else
+      nil
+    end
+  end
+
   alias_method :old_content, :content
   def content
     #self.content_type = 'Quizzes::Quiz' if self.content_type == 'Quiz'
     klass = self.content_type.classify.constantize rescue nil
     klass.respond_to?("tableless?") && klass.tableless? ? nil : old_content
   end
-  
+
   def content_or_self
     content || self
   end
@@ -328,11 +337,11 @@ class ContentTag < ActiveRecord::Base
     return unless self.context_module
     self.context_module.locked_for?(user, opts.merge({:tag => self}))
   end
-  
+
   def available_for?(user, opts={})
     self.context_module.available_for?(user, opts.merge({:tag => self}))
   end
-  
+
   def self.update_for(asset)
     tags = ContentTag.where(:content_id => asset, :content_type => asset.class.to_s).not_deleted.select([:id, :tag_type, :content_type, :context_module_id]).all
     module_ids = tags.map(&:context_module_id).compact
@@ -356,7 +365,7 @@ class ContentTag < ActiveRecord::Base
     # update the module timestamp
     ContentTag.touch_context_modules(module_ids)
   end
-  
+
   def sync_title_to_asset_title?
     self.tag_type != "learning_outcome_association" && !['ContextExternalTool', 'Attachment'].member?(self.content_type)
   end
@@ -376,15 +385,19 @@ class ContentTag < ActiveRecord::Base
   def context_module_action(user, action, points=nil)
     self.context_module.update_for(user, action, self, points) if self.context_module
   end
-  
+
+  def progression_for_user(user)
+    context_module.context_module_progressions.where(user_id: user.id).first
+  end
+
   def content_asset_string
     @content_asset_string ||= "#{self.content_type.underscore}_#{self.content_id}"
   end
-  
+
   def associated_asset_string
     @associated_asset_string ||= "#{self.associated_asset_type.underscore}_#{self.associated_asset_id}"
   end
-  
+
   def content_asset_string=(val)
     vals = val.split("_")
     id = vals.pop
@@ -398,19 +411,19 @@ class ContentTag < ActiveRecord::Base
   def has_rubric_association?
     content.respond_to?(:rubric_association) && content.rubric_association
   end
-  
+
   scope :for_tagged_url, lambda { |url, tag| where(:url => url, :tag => tag) }
   scope :for_context, lambda { |context|
     case context
     when Account
       select("content_tags.*").
           joins("INNER JOIN (
-            SELECT DISTINCT ct.id AS content_tag_id FROM content_tags AS ct
-            INNER JOIN course_account_associations AS caa ON caa.course_id = ct.context_id
+            SELECT DISTINCT ct.id AS content_tag_id FROM #{ContentTag.quoted_table_name} AS ct
+            INNER JOIN #{CourseAccountAssociation.quoted_table_name} AS caa ON caa.course_id = ct.context_id
               AND ct.context_type = 'Course'
             WHERE caa.account_id = #{context.id}
           UNION
-            SELECT ct.id AS content_tag_id FROM content_tags AS ct
+            SELECT ct.id AS content_tag_id FROM #{ContentTag.quoted_table_name} AS ct
             WHERE ct.context_id = #{context.id} AND context_type = 'Account')
           AS related_content_tags ON related_content_tags.content_tag_id = content_tags.id")
     else
@@ -422,7 +435,7 @@ class ContentTag < ActiveRecord::Base
 
   # Scopes For Differentiated Assignment Filtering:
 
-  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
+  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
     for_non_differentiable_classes(user_ids, course_ids).union(
     for_non_differentiable_discussions(user_ids, course_ids),
     for_differentiable_assignments(user_ids, course_ids),
@@ -435,14 +448,14 @@ class ContentTag < ActiveRecord::Base
   }
 
   scope :for_non_differentiable_discussions, lambda {|user_ids, course_ids|
-    joins("JOIN discussion_topics as dt ON dt.id = content_tags.content_id").
+    joins("JOIN #{DiscussionTopic.quoted_table_name} as dt ON dt.id = content_tags.content_id").
     where("content_tags.context_id IN (?)
            AND content_tags.content_type = 'DiscussionTopic'
            AND dt.assignment_id IS NULL",course_ids)
   }
 
   scope :for_differentiable_assignments, lambda {|user_ids, course_ids|
-    joins("JOIN quiz_student_visibilities as qsv ON qsv.quiz_id = content_tags.content_id").
+    joins("JOIN #{Quizzes::QuizStudentVisibility.quoted_table_name} as qsv ON qsv.quiz_id = content_tags.content_id").
     where(" content_tags.context_id IN (?)
            AND qsv.course_id IN (?)
            AND content_tags.content_type in ('Quiz', 'Quizzes::Quiz')
@@ -451,7 +464,7 @@ class ContentTag < ActiveRecord::Base
   }
 
   scope :for_differentiable_discussions, lambda {|user_ids, course_ids|
-    joins("JOIN assignment_student_visibilities as asv ON asv.assignment_id = content_tags.content_id").
+    joins("JOIN #{AssignmentStudentVisibility.quoted_table_name} as asv ON asv.assignment_id = content_tags.content_id").
     where("content_tags.context_id IN (?)
            AND asv.course_id IN (?)
            AND content_tags.content_type = 'Assignment'
@@ -460,8 +473,8 @@ class ContentTag < ActiveRecord::Base
   }
 
   scope :for_differentiable_quizzes, lambda {|user_ids, course_ids|
-    joins("JOIN discussion_topics as dt ON dt.id = content_tags.content_id AND content_tags.content_type = 'DiscussionTopic'").
-    joins("JOIN assignment_student_visibilities as asv ON asv.assignment_id = dt.assignment_id").
+    joins("JOIN #{DiscussionTopic.quoted_table_name} as dt ON dt.id = content_tags.content_id AND content_tags.content_type = 'DiscussionTopic'").
+    joins("JOIN #{AssignmentStudentVisibility.quoted_table_name} as asv ON asv.assignment_id = dt.assignment_id").
     where("content_tags.context_id IN (?)
            AND asv.course_id IN (?)
            AND content_tags.content_type = 'DiscussionTopic'
@@ -478,5 +491,22 @@ class ContentTag < ActiveRecord::Base
 
   def self.order_by_outcome_title
     includes(:learning_outcome_content).order(outcome_title_order_by_clause)
+  end
+
+  def visible_to_user?(user, opts=nil)
+    return unless self.context_module
+
+    opts ||= self.context_module.visibility_for_user(user)
+    return false unless opts[:can_read]
+    return false unless self.published? || opts[:can_read_as_admin]
+    return true unless opts[:differentiated_assignments]
+
+    if self.assignment
+      self.assignment.visible_to_user?(user, opts)
+    elsif self.content_type_quiz?
+      self.content.visible_to_user?(user, opts)
+    else
+      true
+    end
   end
 end

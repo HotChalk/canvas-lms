@@ -1,5 +1,5 @@
 <%
-  jammit_css :quizzes, :tinymce
+  css_bundle :quizzes, :tinymce
   js_bundle :quizzes_bundle
   js_env :QUIZZES => {:QUIZ => true}
   content_for :page_title, (@quiz.quiz_title || !@quiz.quiz_title.empty? ? @quiz.quiz_title : t(:default_page_title, 'New Quiz'))
@@ -124,17 +124,6 @@
 
           <fieldset>
             <div class="control-group">
-              <label class="control-label" for="course_section_id"><%= t(:section, "Section") %></label>
-              <div class="controls">
-                <select name="quiz[course_section_id]" id="course_section_id">
-                  <% @user_sections.each do |s| %>
-                      <option value="<%= s[:id] %>" <%= 'selected' if s[:id] == @quiz.course_section_id %>><%= s[:name] %></option>
-                  <% end %>
-                </select>
-              </div>
-            </div>
-
-            <div class="control-group">
               <label class="control-label" for="quiz_assignment_id"><%= t(:quiz_type, "Quiz Type") %></label>
               <div class="controls">
                 <select name="quiz[quiz_type]" id="quiz_assignment_id">
@@ -172,7 +161,7 @@
               <div class="controls">
                 <p class="option-caption"><strong>Options</strong></p>
 
-                <% if @context.feature_enabled?(:post_grades) %>
+                <% if Assignment.sis_grade_export_enabled?(@context) %>
                   <label class="checkbox" id=post_to_sis_option>
                     <%= check_box :assignment, :post_to_sis %>
                     <%= t(:post_to_sis, "Post Grades to SIS") %>
