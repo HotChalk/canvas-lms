@@ -778,7 +778,8 @@ class CalendarEventsApiController < ApplicationController
       end
     end
 
-    courses_to_filter_assignments = other.
+    is_admin = (contexts.any? { |c| @current_user.account_admin?(c) })
+    courses_to_filter_assignments = (is_admin ? [] : contexts).
       # context can sometimes be a user, so must filter those out
       select{|context| context.is_a? Course }.
       reject{|course|
@@ -787,7 +788,7 @@ class CalendarEventsApiController < ApplicationController
       }
 
     # in courses with diff assignments on, only show the visible assignments
-    scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id))
+    scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id), false)
     scope
   end
 

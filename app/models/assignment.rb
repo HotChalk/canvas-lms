@@ -1703,19 +1703,20 @@ class Assignment < ActiveRecord::Base
 
   # course_ids should be courses that restrict visibility based on overrides
   # ie: courses with differentiated assignments on or in which the user is not a teacher
-  scope :filter_by_visibilities_in_given_courses, lambda { |user_ids, course_ids_that_have_da_enabled|
+  scope :filter_by_visibilities_in_given_courses, lambda { |user_ids, course_ids_that_have_da_enabled, only_students = true|
     if course_ids_that_have_da_enabled.nil? || course_ids_that_have_da_enabled.empty?
       active
     else
       user_ids = Array.wrap(user_ids).join(',')
       course_ids = Array.wrap(course_ids_that_have_da_enabled).join(',')
+      view_name = only_students ? 'assignment_student_visibilities' : 'assignment_user_visibilities'
       scope = joins(sanitize_sql([<<-SQL, course_ids, user_ids]))
-        LEFT OUTER JOIN assignment_student_visibilities ON (
-         assignment_student_visibilities.assignment_id = assignments.id
-         AND assignment_student_visibilities.course_id IN (%s)
-         AND assignment_student_visibilities.user_id IN (%s))
+        LEFT OUTER JOIN #{view_name} ON (
+         #{view_name}.assignment_id = assignments.id
+         AND #{view_name}.course_id IN (%s)
+         AND #{view_name}.user_id IN (%s))
       SQL
-      scope.where("(assignments.context_id NOT IN (?) AND assignments.workflow_state<>'deleted') OR (assignment_student_visibilities.assignment_id IS NOT NULL)", course_ids_that_have_da_enabled)
+      scope.where("(assignments.context_id NOT IN (?) AND assignments.workflow_state<>'deleted') OR (#{view_name}.assignment_id IS NOT NULL)", course_ids_that_have_da_enabled)
     end
   }
 
