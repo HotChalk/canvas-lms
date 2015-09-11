@@ -93,11 +93,6 @@
                 <% no_language = t(:no_language_preference, "Not set (defaults to %{language})", :language => available_locales[infer_locale(:context => @context.parent_account)]) %>
                 <%= f.select :default_locale, [[no_language, nil]] + available_locales.invert.sort, {:selected => @context.default_locale}, {:class => 'locale'} %>
                 <%= render :partial => 'shared/locale_warning' %>
-                <p class="unbreakable"><%= mt :transifex_message, <<-TEXT, :transifex_url => "https://www.transifex.com/projects/p/canvas-lms/"
-Join the [Canvas Translation Community](%{transifex_url})
-TEXT
-                %>
-                </p>
                 <p style="font-size: 0.9em;"><%= t(:default_language_description, "This will override any browser/OS language settings. Preferred languages can still be set at the course/user level.") %></p>
               </td>
             </tr>
@@ -159,7 +154,6 @@ TEXT
                       <p style="font-size: 0.9em;"><%= t("This is a comma separated list of URL's to trust.  Trusting any URL's in this list will bypass the CSRF token when logging in to HotChalk Ember.") %></p>
                     </td>
                   </tr>
-
                   <tr>
                     <td colspan="2"><%= settings.check_box :prevent_course_renaming_by_teachers, :checked => @account.settings[:prevent_course_renaming_by_teachers] %>
                     <%= settings.label :prevent_course_renaming_by_teachers, :en => "Don't let teachers rename their courses" %>
@@ -187,6 +181,11 @@ TEXT
             <% end %>
             <% unless @account.site_admin? %>
               <%= f.fields_for :settings do |settings| %>
+                <tr>
+                    <td colspan="2"><%= settings.check_box :disable_course_setup_checklist_access, :checked => @account.settings[:disable_course_setup_checklist_access] %>
+                    <%= settings.label :disable_course_setup_checklist_access, :en => "Disable Course Setup Checklist access" %>
+                    </td>
+                </tr>
                 <%= settings.fields_for :restrict_student_past_view do |r| %>
                   <% hash = @account.restrict_student_past_view %>
                   <% disabled = hash[:locked] && hash[:inherited] %>

@@ -213,6 +213,10 @@ class Enrollment < ActiveRecord::Base
 
   scope :of_content_admins, -> { where(:type => ['TeacherEnrollment', 'DesignerEnrollment']) }
 
+  scope :of_base_teacher_type, -> {
+    joins(:role).where("roles.name = 'TeacherEnrollment'")
+  }
+
   scope :student, -> {
     select(:course_id).
         joins(:course).

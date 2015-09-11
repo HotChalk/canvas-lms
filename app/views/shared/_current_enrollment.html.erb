@@ -49,6 +49,11 @@
         <% unless current_enrollment.course.enrollment_term.default_term? %>
           <span class="subtitle ellipsis course-list-term"><%= current_enrollment.course.enrollment_term.name %></span>
         <% end %>
+        <% if current_enrollment.course.start_at? && current_enrollment.course.conclude_at?  %>
+          <span class="subtitle ellipsis course-list-term"> - <%= friendly_datetime(current_enrollment.course.start_at, context: current_enrollment.course) %>
+             to <%= friendly_datetime(current_enrollment.course.conclude_at, context: current_enrollment.course) %>
+          </span>
+        <% end %>
         <% if show_link %></a><% end %>
       </td>
       <td class="course-list-unpublished-column course-list-no-left-border">

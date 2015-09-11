@@ -1554,6 +1554,8 @@ class CoursesController < ApplicationController
       add_crumb(@context.short_name, url_for(@context), :id => "crumb_#{@context.asset_string}")
       set_badge_counts_for(@context, @current_user, @current_enrollment)
 
+      @disable_checklist = @context.account.settings[:disable_course_setup_checklist_access]
+
       @course_home_view = (params[:view] == "feed" && 'feed') || @context.default_view || 'feed'
 
       # Course Wizard JS Info

@@ -12,6 +12,22 @@
           <br />
           <span class="context_list_label">{{code}}{{#if sections}} - <span class="sections">{{sections}}</span>{{/if}}</span>
         {{/if}}
+        {{#if start_at}}
+          <br/>
+          <span class="context_list_label">Starts: 
+            <span class="sections">{{friendlyDatetime start_at}}</span>
+          </span>
+        {{/if}}
+        {{#if conclude_at}}
+          <br/>
+          <span class="context_list_label"> Concludes: 
+            <span class="sections">{{friendlyDatetime conclude_at}}</span>
+          </span>
+        {{/if}}
+        {{#if term}}
+          <br/>
+          <span class="context_list_label"> {{term}}</span>
+        {{/if}}
       </label>
       <i role="button" tabindex="0" class="ContextList__MoreBtn icon-more">
         <span class="screenreader-only">

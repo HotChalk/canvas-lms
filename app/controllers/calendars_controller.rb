@@ -43,6 +43,7 @@ class CalendarsController < ApplicationController
           ag_permission = {:all_sections => false, :section_ids => section_ids} if section_ids.any?
         end
       end
+
       info = {
         :name => context.name,
         :asset_string => context.asset_string,
@@ -61,6 +62,9 @@ class CalendarsController < ApplicationController
         :can_create_assignments => context.respond_to?("assignments") && Assignment.new.tap{|a| a.context = context}.grants_right?(@current_user, session, :create),
         :assignment_groups => context.respond_to?("assignments") ? context.assignment_groups.active.select([:id, :name]).map {|g| { :id => g.id, :name => g.name } } : [],
         :type => context.class_name.downcase,
+        :start_at => context.respond_to?("start_at") ? context.start_at : '',
+        :conclude_at => context.respond_to?("conclude_at") ? context.conclude_at : '',
+        :term => context.respond_to?("enrollment_term") && context.enrollment_term ? context.enrollment_term.name : '',
         :can_create_appointment_groups => ag_permission
       }
       if context.respond_to?("course_sections")

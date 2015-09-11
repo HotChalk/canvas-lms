@@ -174,6 +174,7 @@ class Account < ActiveRecord::Base
   add_setting :sub_account_includes, :condition => :allow_global_includes, :boolean => true, :default => false
   add_setting :error_reporting, :hash => true, :values => [:action, :email, :url, :subject_param, :body_param], :root_only => true
   add_setting :custom_help_links, :root_only => true
+  add_setting :disable_course_setup_checklist_access, :boolean => true
   add_setting :prevent_course_renaming_by_teachers, :boolean => true, :root_only => true
   add_setting :login_handle_name, root_only: true
   add_setting :change_password_url, root_only: true
@@ -483,9 +484,17 @@ class Account < ActiveRecord::Base
     #Check dates
     if opts[:from_date].present? && opts[:to_date].present? && opts[:date_type].present?
       if opts[:date_type] == 'start_date'
-        associated_courses = associated_courses.between_start_dates(opts[:from_date], opts[:to_date])
+        if opts[:item_type].present? && opts[:item_type] == 'section'
+          associated_courses = associated_courses.between_section_start_dates(opts[:from_date], opts[:to_date])
+        else
+          associated_courses = associated_courses.between_start_dates(opts[:from_date], opts[:to_date])
+        end
       elsif opts[:date_type] == 'end_date'
-        associated_courses = associated_courses.between_concluded_dates(opts[:from_date], opts[:to_date])
+        if opts[:item_type].present? && opts[:item_type] == 'section'
+          associated_courses = associated_courses.between_section_end_dates(opts[:from_date], opts[:to_date])
+        else
+          associated_courses = associated_courses.between_concluded_dates(opts[:from_date], opts[:to_date])
+        end
       end
     end
     associated_courses = associated_courses.with_enrollments if opts[:hide_enrollmentless_courses]
@@ -493,13 +502,21 @@ class Account < ActiveRecord::Base
     associated_courses = associated_courses.for_account_id(opts[:department_id]) if opts[:department_id].present?
     associated_courses = associated_courses.for_program_id(opts[:program_id]) if opts[:program_id].present?
     associated_courses = yield associated_courses if block_given?
-    result = associated_courses.limit(opts[:limit]).active_first.select(columns).all
+    associated_courses = associated_courses.limit(opts[:limit]).active_first.select(columns).all
     if opts[:course_format].present?
       filtered = []
-      result.each do |course|
+      associated_courses.each do |course|
         filtered << course if course.settings[:course_format] == opts[:course_format]
       end
-      result = filtered
+      associated_courses = filtered
+    end
+    #Section dates scope may return duplicates. We cannot resolve this directly with DISTINCT in the query because
+    #it conflicts with the active_first scope applied after. We remove duplicates manually...
+    result = []
+    associated_courses.each do |course|
+      unless result.include? course
+        result << course
+      end
     end
     result
   end
