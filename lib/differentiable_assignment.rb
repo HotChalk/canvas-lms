@@ -34,7 +34,7 @@ module DifferentiableAssignment
     elsif self.is_a?(DiscussionTopic)
       DiscussionTopicUserVisibility
     else
-      QuizQuizzes::QuizUserVisibility
+      Quizzes::QuizUserVisibility
     end
   end
 
