@@ -169,14 +169,16 @@
         <%= t 'teachers_only', "Only teachers can see this course until it is *published*", :wrapper => (can_do(@context, @current_user, :update) ? '<a href="#" class="publish_course_in_wizard_link"><b>\1</b></a>' : '\1') %>
       </span>
     </h2>
-    <div class="body Reminder__course-setup-body">
-      <p>Need help setting up your course?</p>
-      <br/>
-      <a href="#" class="btn btn-primary wizard_popup_link  <%= 'auto_open' if @context.created? || @context.claimed? %>">
-        <%= t("Setup Checklist") %>
-      </a>
-      <!-- <button class="btn btn-primary">Setup Checklist</button> -->
-    </div>
+    <% unless @disable_checklist %>
+      <div class="body Reminder__course-setup-body">
+        <p>Need help setting up your course?</p>
+        <br/>
+        <a href="#" class="btn btn-primary wizard_popup_link  <%= 'auto_open' if @context.created? || @context.claimed? %>">
+          <%= t("Setup Checklist") %>
+        </a>
+        <!-- <button class="btn btn-primary">Setup Checklist</button> -->
+      </div>
+    <% end %>
   </div>
 <% end %>
 <% if @context.has_open_course_imports? %>
