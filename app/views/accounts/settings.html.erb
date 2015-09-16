@@ -159,7 +159,6 @@ TEXT
                       <p style="font-size: 0.9em;"><%= t("This is a comma separated list of URL's to trust.  Trusting any URL's in this list will bypass the CSRF token when logging in to HotChalk Ember.") %></p>
                     </td>
                   </tr>
-
                   <tr>
                     <td colspan="2"><%= settings.check_box :prevent_course_renaming_by_teachers, :checked => @account.settings[:prevent_course_renaming_by_teachers] %>
                     <%= settings.label :prevent_course_renaming_by_teachers, :en => "Don't let teachers rename their courses" %>
@@ -187,6 +186,11 @@ TEXT
             <% end %>
             <% unless @account.site_admin? %>
               <%= f.fields_for :settings do |settings| %>
+                <tr>
+                    <td colspan="2"><%= settings.check_box :disable_course_setup_checklist_access, :checked => @account.settings[:disable_course_setup_checklist_access] %>
+                    <%= settings.label :disable_course_setup_checklist_access, :en => "Disable Course Setup Checklist access" %>
+                    </td>
+                </tr>
                 <%= settings.fields_for :restrict_student_past_view do |r| %>
                   <% hash = @account.restrict_student_past_view %>
                   <% disabled = hash[:locked] && hash[:inherited] %>

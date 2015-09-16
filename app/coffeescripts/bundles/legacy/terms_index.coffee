@@ -1,7 +1,7 @@
 require [
   "i18n!terms.index",
   "jquery",
-  "jquery.instructure_date_and_time", # $.dateString, date_field
+  "jquery.instructure_date_and_time", # $.datetimeString, date_field
   "jquery.instructure_forms",
   "jquery.instructure_misc_helpers",
   "jquery.instructure_misc_plugins",
@@ -12,7 +12,8 @@ require [
       event.preventDefault()
       $(this).parents(".term").addClass "editing_term"
       $(this).parents(".term").find(":text:visible:first").focus().select()
-      $(this).parents(".term").find(".date_field").not(".already_has_date_field").addClass("already_has_date_field").date_field()
+      $(this).parents(".term").find(".start_date_field").not(".already_has_date_field").addClass("already_has_date_field").datetime_field({alwaysShowTime: true, datepicker:{hour: '12', min: '00', ampm: 'am'}})
+      $(this).parents(".term").find(".end_date_field").not(".already_has_date_field").addClass("already_has_date_field").datetime_field({alwaysShowTime: true, datepicker:{hour: '11', min: '59', ampm: 'pm'}})
 
     $(".term .cancel_button").click ->
       $(this).parents(".term").removeClass "editing_term"
@@ -55,12 +56,12 @@ require [
         for idx of term.enrollment_dates_overrides
           override = term.enrollment_dates_overrides[idx].enrollment_dates_override
           type_string = $.underscore(override.enrollment_type)
-          term[type_string + "_start_at"] = $.dateString(override.start_at) or I18n.t("date.term_start", "term start")
-          term[type_string + "_end_at"] = $.dateString(override.end_at) or I18n.t("date.term_end", "term end")
-          term["enrollment_term[overrides][" + type_string + "][start_at]"] = $.dateString(override.start_at)
-          term["enrollment_term[overrides][" + type_string + "][end_at]"] = $.dateString(override.end_at)
-        term.start_at = $.dateString(term.start_at) or I18n.t("date.unspecified", "whenever")
-        term.end_at = $.dateString(term.end_at) or I18n.t("date.unspecified", "whenever")
+          term[type_string + "_start_at"] = $.datetimeString(override.start_at) or I18n.t("date.term_start", "term start")
+          term[type_string + "_end_at"] = $.datetimeString(override.end_at) or I18n.t("date.term_end", "term end")
+          term["enrollment_term[overrides][" + type_string + "][start_at]"] = $.datetimeString(override.start_at)
+          term["enrollment_term[overrides][" + type_string + "][end_at]"] = $.datetimeString(override.end_at)
+        term.start_at = $.datetimeString(term.start_at) or I18n.t("date.unspecified", "whenever")
+        term.end_at = $.datetimeString(term.end_at) or I18n.t("date.unspecified", "whenever")
         $tr.fillTemplateData data: term
         $tr.attr "id", "term_" + term.id
         $tr.fillFormData data,

@@ -247,11 +247,12 @@ var speakMessage = function ($this, message) {
   $.datepicker._generateHTML = function(inst) {
     var html = $.datepicker._generateDatepickerHTML(inst);
     if(inst.settings.timePicker) {
-      var hr = inst.input.data('time-hour') || "";
+      var hr = inst.input.data('time-hour') || inst.settings.hour || "";
+      var min = inst.input.data('time-minute') || inst.settings.min || "";
+      var ampm = inst.input.data('time-ampm') || inst.settings.ampm || "";
+
       hr = hr.replace(/'/g, "");
-      var min = inst.input.data('time-minute') || "";
       min = min.replace(/'/g, "");
-      var ampm = inst.input.data('time-ampm') || "";
       var selectedAM = (ampm == "am") ? "selected" : "";
       var selectedPM = (ampm == "pm") ? "selected" : "";
       html += "<div class='ui-datepicker-time ui-corner-bottom'><label for='ui-datepicker-time-hour'>" + htmlEscape(I18n.beforeLabel(I18n.t('labels.datepicker.time', "Time"))) + "</label> <input id='ui-datepicker-time-hour' type='text' value='" + htmlEscape(hr) + "' title='hr' class='ui-datepicker-time-hour' style='width: 20px;'/>:<input type='text' value='" + htmlEscape(min) + "' title='min' class='ui-datepicker-time-minute' style='width: 20px;'/> <select class='ui-datepicker-time-ampm un-bootrstrapify' title='" + htmlEscape(I18n.t('datepicker.titles.am_pm', "am/pm")) + "'><option value=''>&nbsp;</option><option value='am' " + htmlEscape(selectedAM) + ">" + htmlEscape(I18n.t('#time.am', "am")) + "</option><option value='pm' " + htmlEscape(selectedPM) + ">" + htmlEscape(I18n.t('#time.pm', "pm")) + "</option></select>&nbsp;&nbsp;&nbsp;<button type='button' class='btn btn-mini ui-datepicker-ok'>" + htmlEscape(I18n.t('#buttons.done', "Done")) + "</button></div>";
