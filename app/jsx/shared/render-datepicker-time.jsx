@@ -11,11 +11,14 @@ define(['i18n!instructure', 'timezone', 'react'], function(I18n, tz, React) {
     doneButton: I18n.t('#buttons.done', 'Done')
   };
 
-  return function($input) {
+  return function($input, opts) {
+    if (!opts) {
+      opts = {hour: "", min: "", ampm: ""};
+    }
     var data = {
-      hour:   ($input.data('time-hour')   || "").replace(/'/g, ""),
-      minute: ($input.data('time-minute') || "").replace(/'/g, ""),
-      ampm:   ($input.data('time-ampm')   || ""),
+      hour:   ($input.data('time-hour')   || opts.hour || "").replace(/'/g, ""),
+      minute: ($input.data('time-minute') || opts.min || "").replace(/'/g, ""),
+      ampm:   ($input.data('time-ampm')   || opts.ampm || ""),
     };
 
     var label = (

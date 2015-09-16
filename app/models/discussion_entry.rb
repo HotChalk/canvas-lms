@@ -166,6 +166,10 @@ class DiscussionEntry < ActiveRecord::Base
 
   def subscribers
     subscribed_users = self.discussion_topic.subscribers
+    if (course = self.discussion_topic.course)
+      subscribed_users = subscribed_users & course.users_visible_to(self.user)
+    end
+    subscribed_users
   end
 
   def plaintext_message=(val)

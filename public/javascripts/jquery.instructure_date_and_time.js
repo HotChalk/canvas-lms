@@ -156,7 +156,7 @@ define([
   $.datepicker._generateHTML = function(inst) {
     var html = $.datepicker._generateDatepickerHTML(inst);
     if(inst.settings.timePicker) {
-      html += renderDatepickerTime(inst.input);
+      html += renderDatepickerTime(inst.input, inst.settings);
     }
     return html;
   };
