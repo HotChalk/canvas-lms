@@ -1326,8 +1326,13 @@ class Submission < ActiveRecord::Base
     context.recompute_student_scores(user_ids)
   end
 
-  scope :visible_to_sections, lambda { |section_ids|
-    where("assignments.course_section_id IS NULL OR assignments.course_section_id IN (?)", section_ids)
+  # NOTE: only use for courses with differentiated assignments on
+  scope :visible_to_users_in_course_with_da, lambda { |user_id, course_id|
+    scope = joins(sanitize_sql([<<-SQL, course_id, user_id]))
+      INNER JOIN assignment_user_visibilities ON (
+       assignment_user_visibilities.assignment_id = assignments.id
+       AND assignment_user_visibilities.course_id = %s
+       AND assignment_user_visibilities.user_id = %s)
+    SQL
   }
-
 end

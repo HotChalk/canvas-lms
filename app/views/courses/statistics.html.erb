@@ -19,10 +19,10 @@
   <% course_section_ids = @context.sections_visible_to(@current_user).map(&:id) %>
   <% participating_students_scope = @context.participating_students.enrolled_in_sections(course_section_ids) %>
   <% student_enrollments_scope = @context.student_enrollments.where("enrollments.course_section_id IS NULL OR enrollments.course_section_id IN (?)", course_section_ids) %>
-  <% discussion_topics_scope = @context.discussion_topics.visible_to_sections(course_section_ids) %>
-  <% assignments_scope = @context.assignments.visible_to_sections(course_section_ids) %>
-  <% submissions_scope = @context.submissions.visible_to_sections(course_section_ids) %>
-  <% quizzes_scope = @context.quizzes.visible_to_sections(course_section_ids) %>
+  <% discussion_topics_scope = @context.discussion_topics.visible_to_users_in_course_with_da(@current_user.id, @context.id) %>
+  <% assignments_scope = @context.assignments.visible_to_users_in_course_with_da(@current_user.id, @context.id) %>
+  <% submissions_scope = @context.submissions.visible_to_users_in_course_with_da(@current_user.id, @context.id) %>
+  <% quizzes_scope = @context.quizzes.visible_to_users_in_course_with_da(@current_user.id, @context.id) %>
 <% end %>
 
 <% active_students = participating_students_scope.where("enrollments.type<>'StudentViewEnrollment'").enrolled_before(@range_end).count %>
