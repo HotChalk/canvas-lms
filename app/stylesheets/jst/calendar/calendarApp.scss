@@ -126,6 +126,15 @@
   }
 }
 
+#edit_calendar_event_form{
+  .error-field {
+    border-color: red;
+  }
+  .error-message {
+    color: red;
+  }
+}
+
 .event-details-timestring {
   margin: 5px 0 10px;
   color: #666666;

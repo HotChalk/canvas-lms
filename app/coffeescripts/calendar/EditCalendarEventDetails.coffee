@@ -72,7 +72,10 @@ define [
       params = return_to: window.location.href
 
       data = @getFormData()
-
+      if !data.context_code
+        @$form.find('#calendar_event_context').addClass('error-field')
+        @$form.find('#no_calendar_message').show()
+        return
       # override parsed input with user input (for 'More Options' only)
       data.start_date = @$form.find('input[name=date]').val()
       data.start_time = @$form.find('input[name=start_time]').val()
@@ -105,7 +108,9 @@ define [
     contextChange: (jsEvent, propagate) =>
       context = $(jsEvent.target).val()
       @currentContextInfo = @contextInfoForCode(context)
-
+      @$form.find('#calendar_event_context').removeClass('error-field')
+      @$form.find('#no_calendar_message').hide()
+      
       # section selection code
       context_section = $('.course_section')
       holder = $('.course_section_holder')
