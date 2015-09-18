@@ -123,6 +123,17 @@ module Api::V1::StreamItem
       # Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 100).to_a
       scope
     end
+    # Filter out stream items according to section visibility rules. See also StreamItemsHelper#categorize_stream_items
+    items.select! { |item|
+      stream_item = item.stream_item
+      if stream_item.nil?
+        false
+      elsif ["DiscussionTopic", "Announcement"].include? stream_item.data.class.name
+        stream_item.data.try(:visible_for?, @current_user)
+      else
+        true
+      end
+    }
     json = items.select(&:stream_item).map { |i| stream_item_json(i, i.stream_item, @current_user, session) }
     json.select! {|hash| hash['submission_comments'].present?} if opts[:asset_type] == 'Submission'
     render :json => json
