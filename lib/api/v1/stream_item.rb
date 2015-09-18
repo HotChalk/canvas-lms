@@ -124,16 +124,7 @@ module Api::V1::StreamItem
       scope
     end
     # Filter out stream items according to section visibility rules. See also StreamItemsHelper#categorize_stream_items
-    items.select! { |item|
-      stream_item = item.stream_item
-      if stream_item.nil?
-        false
-      elsif ["DiscussionTopic", "Announcement"].include? stream_item.data.class.name
-        stream_item.data.try(:visible_for?, @current_user)
-      else
-        true
-      end
-    }
+    items = filter_stream_item_instances(items)
     json = items.select(&:stream_item).map { |i| stream_item_json(i, i.stream_item, @current_user, session) }
     json.select! {|hash| hash['submission_comments'].present?} if opts[:asset_type] == 'Submission'
     render :json => json
@@ -145,7 +136,9 @@ module Api::V1::StreamItem
     items = @current_user.shard.activate do
       # not ideal, but 1. we can't aggregate in the db (boo yml) and
       # 2. stream_item_json is where categorizing logic lives :(
-      @current_user.visible_stream_item_instances(opts).includes(:stream_item).map { |i|
+      items = @current_user.visible_stream_item_instances(opts).includes(:stream_item)
+      items = filter_stream_item_instances(items)
+      items.map { |i|
         stream_item_json(i, i.stream_item, @current_user, session)
       }.inject({}) { |result, i|
         key = [i['type'], i['notification_category']]
@@ -156,6 +149,20 @@ module Api::V1::StreamItem
       }.values.sort_by{ |i| i[:type] }
     end
     render :json => items
+  end
+
+  def filter_stream_item_instances(stream_item_instances)
+    # Filter out stream items according to section visibility rules. See also StreamItemsHelper#categorize_stream_items
+    stream_item_instances.select { |item|
+      stream_item = item.stream_item
+      if stream_item.nil?
+        false
+      elsif ["DiscussionTopic", "Announcement"].include? stream_item.data.class.name
+        stream_item.data.try(:visible_for?, @current_user)
+      else
+        true
+      end
+    }
   end
 
   def prepare_user(user)
