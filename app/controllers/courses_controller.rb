@@ -430,6 +430,10 @@ class CoursesController < ApplicationController
         # We only want to return the permissions for single courses and not lists of courses.
         includes.delete 'permissions'
 
+        # Preload date builders for use when populating enrollment status by date
+        includes.add 'state_by_date'
+        Canvas::Builders::EnrollmentDateBuilder.preload(enrollments)
+
         hash = []
         enrollments_by_course = enrollments.group_by(&:course_id).values
         enrollments_by_course = Api.paginate(enrollments_by_course, self, api_v1_courses_url) if api_request?

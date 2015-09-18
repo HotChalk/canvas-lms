@@ -5,7 +5,7 @@ module Api::V1
                          grading_standard_id)
 
     INCLUDE_CHECKERS = { :grading => 'needs_grading_count', :syllabus => 'syllabus_body',
-                         :url => 'html_url', :description => 'public_description', :permissions => "permissions" }
+                         :url => 'html_url', :description => 'public_description', :permissions => "permissions", :state_by_date => "state_by_date" }
 
     OPTIONAL_FIELDS = %w(needs_grading_count public_description enrollments)
 
@@ -96,6 +96,23 @@ module Api::V1
               :computed_final_score => e.computed_final_score,
               :computed_current_grade => e.computed_current_grade,
               :computed_final_grade => e.computed_final_grade)
+          end
+          if include_state_by_date && e.student?
+            state_by_date = 'hidden'
+            state = e.state_based_on_date
+            if [:completed, :rejected].include?(state)
+              state_by_date = 'past' unless e.workflow_state == "invited" || e.restrict_past_view?
+            else
+              start_at, end_at = e.enrollment_dates.first
+              if start_at && start_at > Time.now.utc
+                state_by_date = 'future' unless e.restrict_future_view?
+              elsif state != :inactive
+                state_by_date = 'current'
+              end
+            end
+            h.merge!(
+              :state_by_date => state_by_date
+            )
           end
           h
         end
