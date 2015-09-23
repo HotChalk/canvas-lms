@@ -22,7 +22,11 @@ module Api::V1::Context
     if obj.context_type.present?
       context_type = obj.context_type
       id = obj.context_id
-      name = obj.context.name
+      if(context_type == 'AssignmentOverride')
+        title = obj.context.title
+      else
+        name = obj.context.name
+      end
       if(context_type == 'Course')
         code = (obj.respond_to?(:data) && obj.data.respond_to?(:context_short_name)) ? obj.data.context_short_name : nil
       end
@@ -33,10 +37,11 @@ module Api::V1::Context
     end
     hash = {
       'context_type' => context_type.camelcase,
-      "#{context_type.underscore}_id" => id.to_i,
-      "#{context_type.underscore}_name" => name,
+      "#{context_type.underscore}_id" => id.to_i
     }
+    hash.merge!({ "#{context_type.underscore}_name" => name }) unless (context_type == 'AssignmentOverride')
     hash.merge!({ "#{context_type.underscore}_code" => code }) if(context_type == 'Course')
+    hash.merge!({ "#{context_type.underscore}_title" => title }) if(context_type == 'AssignmentOverride')
     hash
   end
 
