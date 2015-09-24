@@ -457,6 +457,44 @@ class EnrollmentsApiController < ApplicationController
     end
   end
 
+  # @API Enrollment invitation
+  # Accept or reject enrollment invitation. Only the enrolled user can accept or reject its invitation.
+  #
+  # @argument task [String, "accept"|"reject"]
+  #   Accept or reject the invitation
+  #
+  # @example_request
+  #   curl https://<canvas>/api/v1/courses/:course_id/enrollments/:enrollment_id/invitation \
+  #     -X PUT \
+  #     -F 'task=accept'
+  #
+  # @returns Enrollment
+  def enrollment_invitation
+    errors = []
+    @enrollment = @context.enrollments.find(params[:id])
+
+    if params[:task].present? && ['accept','reject'].include?(params[:task])
+      if @current_user && @enrollment.user == @current_user
+        if @enrollment.invited?
+          if params[:task] == 'accept'
+            @enrollment.accept!
+          else
+            @enrollment.reject!
+          end
+        else
+          errors << "enrollment not in invited state. Cannot be accepted or rejected"
+        end
+      else
+        errors << "only the enrolled user can accept or reject the invitation"
+      end
+    else
+      return render(json: {message: "task=[accept|reject] parameter missing"}, status: :bad_request)
+    end
+
+    return render_create_errors(errors) if errors.present?
+    render :json => enrollment_json(@enrollment, @current_user, session)
+  end
+
   # @API Conclude an enrollment
   # Delete or conclude an enrollment.
   #

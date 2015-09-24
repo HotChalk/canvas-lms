@@ -909,6 +909,7 @@ CanvasRails::Application.routes.draw do
 
       post 'courses/:course_id/enrollments', action: :create
       post 'sections/:section_id/enrollments', action: :create
+      put 'courses/:course_id/enrollments/:id/invitation', action: :enrollment_invitation
 
       delete 'courses/:course_id/enrollments/:id', action: :destroy
     end
