@@ -832,7 +832,7 @@ class CalendarEventsApiController < ApplicationController
         end
 
         if original_dates.present?
-          if (assignment.context.user_has_been_observer?(@current_user) && assignments.empty?) || (assignment.context.active_section_count != overridden_dates.size)
+          if (assignment.context.user_has_been_observer?(@current_user) && assignments.empty?) || (assignment.context.active_section_count != overridden_dates.size) || assignment.context.active_section_count == 0
             assignments << assignment
           end
         end
