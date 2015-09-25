@@ -125,6 +125,9 @@
           <div class="content_box">
             <div id="rubric_holder">
               <%= render :partial => "shared/rubric", :object => @assignment.try_rescue(:rubric_association).try_rescue(:rubric), :locals => {:assessing => true, :rubric_association => @assignment.rubric_association } if @assignment.try_rescue(:rubric_association).try_rescue(:rubric) %>
+              <div class="expand-links-container">
+                  <a class="expand-link" href='#'>Expand</a>&nbsp;/&nbsp;<a class="contract-link" href='#'>Contract</a>
+               </div>
               <div class="button-container">
                 <% if @assignment.rubric_association && can_do(@assignment.rubric_association, @current_user, :assess) %>
                   <button type="button" class="save_rubric_button btn"><%= t('buttons.save', "Save") %></button>
@@ -159,6 +162,9 @@
                   <%= before_label(:show_assessment_by, "Show Assessment By") %>
                   <select id="rubric_assessments_select"></select>
                 </span>
+                <div class="expand-links-container">
+                  <a class="expand-link" href='#'>Expand</a>&nbsp;/&nbsp;<a class="contract-link" href='#'>Contract</a>
+               </div>
               </div>
               <div id="rubric_summary_container">
                 <%= render :partial => "shared/rubric_summary", :object => @assignment.try_rescue(:rubric_association).try_rescue(:rubric), :locals => {:assessing => true } if @assignment.try_rescue(:rubric_association).try_rescue(:rubric) %>

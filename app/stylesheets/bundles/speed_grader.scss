@@ -252,6 +252,10 @@ $gradebook_header_height: 52px;
     border-top: 1px solid #aaa;
     overflow: auto;
   }
+  .expand-links-container{
+      float: right;
+      margin-top: 15px;
+  }
   #rubric_assessments_list_and_edit_button_holder {
     .button-container {
       display: inline-block;

@@ -72,6 +72,8 @@ define([
       $resize_overlay = $("#resize_overlay"),
       $right_side = $("#right_side"),
       $width_resizer = $("#width_resizer"),
+      $expand_link = $(".expand-link"),
+      $contract_link = $(".contract-link"),
       $fixed_bottom = $("#fixed_bottom"),
       $gradebook_header = $("#gradebook_header"),
       assignmentUrl = $("#assignment_url").attr('href'),
@@ -852,6 +854,14 @@ define([
       // it should disappear before it's clickable, but just in case...
       $resize_overlay.click(function(event){
         $(this).hide();
+      });
+      $expand_link.click(function(event){
+         $left_side.width("50%");
+         $right_side.width("50%");
+      });
+      $contract_link.click(function(event){
+        $left_side.width("75%");
+         $right_side.width("25%");
       });
       $width_resizer.mousedown(function(event){
         $resize_overlay.show();
