@@ -45,6 +45,44 @@
   <span class="current_user_id" style="display: none;"><%= @current_user.id %></span>
   <a href="<%= context_url(@context, :context_rubrics_url) %>" class="add_rubric_association_url" style="display: none;">&nbsp;</a>
 </div>
+<% if !@rubric_associations.empty? %>
+  <br/>
+  <a href="#" id="view_linked-items_link" class="btn"><%= t('buttons.view_linked_items', 'View Linked Items') %></a>
+  <div id="rubric_associations" class="hidden">
+    <h4> Items linked to this rubric (<%=@rubric_associations.size%>)</h4>
+    <ul class="">
+      <% @rubric_associations.each do |rubric_association| %>
+        <li>
+          <div >
+            <% if rubric_association.assignment.quiz %>
+              <i class="icon-quiz
+            <% elsif rubric_association.assignment.discussion_topic %>
+              <i class="icon-discussion
+            <% else %>
+              <i class="icon-assignment
+            <% end %>
+              <%= 'published' if rubric_association.assignment.workflow_state == 'published' %>"></i>
+            <a class="title" href="<%= context_url(@context, :context_assignment_url, rubric_association.assignment.id) %>"><%= rubric_association.assignment.title %></a>
+            <div class="rubric_option">
+              <input type="checkbox" disabled  id="rubric_custom_rating" <%= 'checked' if rubric_association.rubric.free_form_criterion_comments %> >
+              <label for="rubric_custom_rating">I'll write free-form comments when assessing students</label>
+            </div>
+            <div class="rubric_option">
+              <input type="checkbox" disabled id="grading_rubric" <%= 'checked' if rubric_association.use_for_grading %>>
+              <label for="grading_rubric">Use this rubric for assignment grading</label>
+            </div>
+            <div class="rubric_option" >
+              <input type="checkbox" disabled id="totalling_rubric" <%= 'checked' if rubric_association.hide_score_total %>>
+              <label for="totalling_rubric">Hide score total for assessment results</label>
+            </div>
+            <div class="rubric-association-details"><span>Assignment points: </span><%= rubric_association.assignment.points_possible %></div>
+            <div class="rubric-association-details"><span>Assignment group: </span><%= rubric_association.assignment.assignment_group.name %></div>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
 <%= render :partial => "shared/find_outcome" %>
 <%= render :partial => "shared/rubric", :object => nil %>
 <%= render :partial => "shared/rubric_forms" %>
