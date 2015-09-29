@@ -590,6 +590,12 @@ define([
       });
     });
 
+    $("#view_linked-items_link").bind('click', function(event) {
+      event.preventDefault();
+      $(this).hide();
+      $("#rubric_associations").removeClass('hidden');
+    });
+
     $rubric_long_description_dialog.find(".save_button").click(function() {
       var long_description = $rubric_long_description_dialog.find("textarea.long_description").val(),
           $criterion       = $rubric_long_description_dialog.data('current_criterion');
