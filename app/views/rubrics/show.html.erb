@@ -76,7 +76,7 @@
               <label for="totalling_rubric">Hide score total for assessment results</label>
             </div>
             <div class="rubric-association-details"><span>Assignment points: </span><%= rubric_association.assignment.points_possible %></div>
-            <div class="rubric-association-details"><span>Assignment group: </span><%= rubric_association.assignment.assignment_group.name %></div>
+            <div class="rubric-association-details"><span>Assignment group: </span><%= rubric_association.assignment.assignment_group.name %>&nbsp;(<%= rubric_association.assignment.assignment_group.group_weight %>% of total)</div>
           </div>
         </li>
       <% end %>
