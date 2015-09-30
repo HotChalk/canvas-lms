@@ -64,8 +64,9 @@ module CC::Importer::Canvas
        'allow_student_forum_attachments', 'allow_student_organized_groups', 'lock_all_announcements',
        'show_all_discussion_entries', 'open_enrollment', 'allow_wiki_comments',
        'self_enrollment', 'hide_final_grade', 'grading_standard_enabled',
-       'hide_distribution_graphs', 'allow_student_discussion_topics',
-       'allow_student_discussion_editing'].each do |bool_val|
+       'hide_distribution_graphs', 'allow_student_discussion_topics','allow_student_discussion_editing', 
+       'is_public_to_auth_users', 'restrict_student_past_view', 'restrict_student_future_view', 
+       'limit_section_visibility', 'restrict_enrollments_to_course_dates'].each do |bool_val|
         val = get_bool_val(doc, bool_val)
         course[bool_val] = val unless val.nil?
       end
@@ -88,7 +89,6 @@ module CC::Importer::Canvas
           add_warning(I18n.t('errors.bad_navigation_config', "Invalid course tab configuration"), $!)
         end
       end
-
       course
     end
 

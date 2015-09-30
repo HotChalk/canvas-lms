@@ -2115,7 +2115,9 @@ class Course < ActiveRecord::Base
       :storage_quota, :tab_configuration, :allow_wiki_comments,
       :turnitin_comments, :self_enrollment, :license, :indexed, :locale,
       :hide_final_grade, :hide_distribution_graphs,
-      :allow_student_discussion_topics, :lock_all_announcements, :limit_section_visibility ]
+      :limit_section_visibility, :is_public_to_auth_users, :restrict_enrollments_to_course_dates,
+      :restrict_student_past_view, :restrict_student_future_view,
+      :allow_student_discussion_topics, :allow_student_discussion_editing ]
   end
 
   def set_course_dates_if_blank(shift_options)
