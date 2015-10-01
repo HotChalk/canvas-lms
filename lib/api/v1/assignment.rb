@@ -180,6 +180,7 @@ module Api::V1::Assignment
         if row[:learning_outcome_id] && outcome = LearningOutcome.where(id: row[:learning_outcome_id]).first
           row_hash["outcome_id"] = outcome.id
           row_hash["vendor_guid"] = outcome.vendor_guid
+          row_hash["threshold"] = outcome.rubric_criterion[:mastery_points]
         end
         row_hash
       end
