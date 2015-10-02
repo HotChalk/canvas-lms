@@ -266,6 +266,17 @@
           <div id="reply_grading_type_options" class="control-group"></div>
 
           <div id="reply_assignment_group_options" class="control-group"></div>
+
+          <div id="reply_assignment_due_date_options" class="control-group">
+            <label class="control-label" for="discussion_topic_reply_assignment_due_date">{{#t "due_at"}}Due{{/t}}</label>
+            <div class="controls">
+              <input type="text"
+                     id="discussion_topic_reply_assignment_due_date"
+                     name="reply_assignment[due_at]"
+                     class="datetime_field input-medium"
+                     value="{{datetimeFormatted reply_assignment.dueAt false}}" />
+            </div>
+          </div>
         </fieldset>
       </div>
     {{/if}}

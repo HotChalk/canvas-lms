@@ -239,7 +239,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
       data.unlock_at = defaultDate?.get('unlock_at') or null
-      data.due_at = defaultDate?.get('due_at') or null
+      if !data.due_at
+        data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
