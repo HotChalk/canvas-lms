@@ -199,5 +199,10 @@
   <%= render :partial => 'layouts/foot', :locals => { :include_common_bundle => true } %>
 
 </div> <!-- #application -->
+<% if feedbackify_enabled? %>
+    <div id="feedback">
+      <a href="#" onclick="fby.push(['showForm', '10041']);return false;"><%= t("feedbackify_give_feedback","Give Feedback")%>
+    </div>
+<% end %>
 </body>
 </html>

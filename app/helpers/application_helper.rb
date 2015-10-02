@@ -943,6 +943,24 @@ module ApplicationHelper
     snippet.html_safe
   end
 
+  def feedbackify_enabled?
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    @external_web_tools_config['enable_feedbackify']
+  end
+
+  def include_feedbackify
+    snippet = ""
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    if @external_web_tools_config['enable_feedbackify']
+      snippet = %[
+        <script type="text/javascript">var fby = fby || [];(function () {var f = document.createElement('script');
+        f.type = 'text/javascript'; f.async = true;f.src = '//cdn.feedbackify.com/f.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(f, s);})();</script>
+      ]
+    end
+    snippet.html_safe
+  end
+
   def include_qa_header
     @external_web_tools_config ||= ConfigFile.load('external_web_tools')
     @external_web_tools_config['enable_qa_header']

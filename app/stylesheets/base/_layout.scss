@@ -259,3 +259,30 @@ div.content_notice {
     text-decoration: none;
   }
 }
+
+#feedback{
+  position:fixed;
+  z-index: 99999;
+  display:block;
+  bottom: 0;
+  right:5px;
+  padding:3px 10px ;
+  background-color: #E24731;
+  -webkit-border-top-left-radius: 2px;
+  -webkit-border-top-right-radius: 2px;
+  -moz-border-radius-topleft: 2px;
+  -moz-border-radius-topright: 2px;
+  border-top-left-radius: 2px;
+  border-top-right-radius: 2px;
+}
+
+#feedback a{
+  font-family: Arial, Helvetica, Sans-serif;
+  font-size:11px;
+  color:white;
+  text-decoration: none;
+}
+
+#feedback a:hover{
+  text-decoration: underline;
+}

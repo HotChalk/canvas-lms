@@ -4,15 +4,18 @@ development:
   enable_google_tag_manager: false
   enable_inspectlet: false
   enable_qa_header: false
+  enable_feedbackify: false
 
 test:
   enable_google_analytics: false
   enable_google_tag_manager: false
   enable_inspectlet: false
   enable_qa_header: false
+  enable_feedbackify: false
 
 production:
   enable_google_analytics: false
   enable_google_tag_manager: false
   enable_inspectlet: false
   enable_qa_header: false
+  enable_feedbackify: false
