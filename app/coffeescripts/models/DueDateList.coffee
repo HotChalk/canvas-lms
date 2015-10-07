@@ -51,4 +51,6 @@ define [
         due_at: @assignment.get('due_at')
         lock_at: @assignment.get('lock_at')
         unlock_at: @assignment.get('unlock_at')
+      if ENV.LIMIT_PRIVILEGES_TO_COURSE_SECTION && ENV.SECTION_LIST && ENV.SECTION_LIST.length
+        override.set 'course_section_id', ENV.SECTION_LIST[0].id
       @overrides.add override
