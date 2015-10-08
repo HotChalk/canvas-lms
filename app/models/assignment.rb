@@ -923,7 +923,7 @@ class Assignment < ActiveRecord::Base
   end
 
   def participants_with_visibility(opts={})
-    users = context.participating_admins
+    users = context.participating_admins.able_to_see_assignment_in_course_with_da(self.id, self.context_id)
 
     applicable_students = if opts[:excluded_user_ids]
                             students_with_visibility.reject{|s| opts[:excluded_user_ids].include?(s.id)}
