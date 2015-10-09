@@ -975,6 +975,12 @@ class DiscussionTopic < ActiveRecord::Base
     }
   end
 
+  def do_notifications!(for_new=true)
+    @broadcasted = false
+    self.just_created = for_new
+    broadcast_notifications
+  end
+
   def delay_posting=(val); end
 
   def set_assignment=(val); end

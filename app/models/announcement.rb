@@ -63,7 +63,7 @@ class Announcement < DiscussionTopic
 
   set_broadcast_policy! do
     dispatch :new_announcement
-    to { active_participants(true) - [user] }
+    to { active_participants_with_visibility - [user] }
     whenever { |record|
       record.context.available? and
         !record.context.concluded? and

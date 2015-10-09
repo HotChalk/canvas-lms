@@ -879,6 +879,9 @@ class DiscussionTopicsController < ApplicationController
         apply_assignment_parameters
         apply_reply_assignment_parameters
         apply_override_parameters
+        if is_new
+          @topic.do_notifications!(true)
+        end
         render :json => discussion_topic_api_json(@topic.reload, @context, @current_user, session)
       else
         errors = @topic.errors.as_json[:errors]
