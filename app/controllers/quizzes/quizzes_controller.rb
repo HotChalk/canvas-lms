@@ -287,6 +287,7 @@ class Quizzes::QuizzesController < ApplicationController
             :override_course_and_term_dates => section.restrict_enrollments_to_section_dates
           }
         },
+        :LIMIT_PRIVILEGES_TO_COURSE_SECTION => (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section]),
         :QUIZZES_URL => course_quizzes_url(@context),
         :QUIZ_IP_FILTERS_URL => api_v1_course_quiz_ip_filters_url(@context, @quiz),
         :CONTEXT_ACTION_SOURCE => :quizzes,

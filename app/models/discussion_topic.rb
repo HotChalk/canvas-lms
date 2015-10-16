@@ -1292,9 +1292,8 @@ class DiscussionTopic < ActiveRecord::Base
   def sections_with_visibility(user)
     return nil unless context.is_a?(Course)
     return self.assignment.sections_with_visibility(user) if self.assignment
-    user_scope = context.current_users.able_to_see_discussion_topic_in_course_with_da(self.id, context.id).pluck(:id).uniq
-    visible_user_ids = user_scope.to_a
-    context.active_course_sections.joins(:student_enrollments).where(:enrollments => {:user_id => visible_user_ids}).uniq
+    return context.active_course_sections if self.active_assignment_overrides.empty?
+    self.active_assignment_overrides.select {  |ao| ao.set_type == 'CourseSection' }.map(&:set)
   end
 
   def course_section_names(context, user)
