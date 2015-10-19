@@ -2,10 +2,8 @@ module DifferentiableAssignment
   def differentiated_assignments_applies?
     return false if !context.feature_enabled?(:differentiated_assignments)
 
-    if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name)
+    if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name) || self.is_a?(DiscussionTopic)
       self.only_visible_to_overrides
-    elsif self.is_a?(DiscussionTopic)
-      true
     elsif self.assignment
       self.assignment.only_visible_to_overrides
     else

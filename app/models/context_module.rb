@@ -707,7 +707,7 @@ class ContextModule < ActiveRecord::Base
   def cache_visibilities_for_students(student_ids)
     raise "don't call this method without differentiated_assignments enabled" unless differentiated_assignments_enabled?
     @assignment_visibilities_by_user ||= AssignmentStudentVisibility.visible_assignment_ids_in_course_by_user(user_id: student_ids, course_id: [context.id])
-    @discussion_visibilities_by_user ||= DiscussionTopic.visible_ids_by_user(user_id: student_ids, course_id: [context.id])
+    @discussion_visibilities_by_user ||= DiscussionTopicUserVisibility.visible_discussion_topic_ids_in_course_by_user(user_id: student_ids, course_id: [context.id])
     @quiz_visibilities_by_user ||= Quizzes::QuizStudentVisibility.visible_quiz_ids_in_course_by_user(user_id: student_ids, course_id: [context.id])
   end
 
@@ -719,7 +719,7 @@ class ContextModule < ActiveRecord::Base
   end
 
   def discussion_visibilities_for_users(user_ids)
-    discussion_visibilities_by_user = @discussion_visibilities_by_user || DiscussionTopic.visible_ids_by_user(user_id: user_ids, course_id: [context.id])
+    discussion_visibilities_by_user = @discussion_visibilities_by_user || DiscussionTopicUserVisibility.visible_discussion_topic_ids_in_course_by_user(user_id: user_ids, course_id: [context.id])
     user_ids.flat_map{|id| discussion_visibilities_by_user[id]}
   end
 

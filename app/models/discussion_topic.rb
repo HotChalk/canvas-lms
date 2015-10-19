@@ -35,7 +35,7 @@ class DiscussionTopic < ActiveRecord::Base
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
     :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked,
-    :grade_replies_separately, :reply_assignment, :course_section_id,
+    :grade_replies_separately, :reply_assignment, :course_section_id, :only_visible_to_overrides,
     :group_category, :allow_rating, :only_graders_can_rate, :sort_by_rating
   )
   attr_accessor :user_has_posted, :saved_by
@@ -74,7 +74,7 @@ class DiscussionTopic < ActiveRecord::Base
   EXPORTABLE_ATTRIBUTES = [
     :id, :title, :message, :context_id, :context_type, :type, :user_id, :workflow_state, :last_reply_at, :created_at, :updated_at, :delayed_post_at, :posted_at, :assignment_id,
     :attachment_id, :deleted_at, :root_topic_id, :could_be_locked, :cloned_item_id, :context_code, :position, :subtopics_refreshed_at, :last_assignment_id, :external_feed_id,
-    :editor_id, :podcast_enabled, :podcast_has_student_posts, :require_initial_post, :discussion_type, :lock_at, :pinned, :locked, :course_section_id
+    :editor_id, :podcast_enabled, :podcast_has_student_posts, :require_initial_post, :discussion_type, :lock_at, :pinned, :locked, :course_section_id, :only_visible_to_overrides
   ]
 
   EXPORTABLE_ASSOCIATIONS = [:discussion_entries, :external_feed_entry, :external_feed, :context, :assignment, :attachment, :editor, :root_topic, :child_topics, :discussion_entry_participants, :user, :course_section]
@@ -1301,4 +1301,10 @@ class DiscussionTopic < ActiveRecord::Base
     visible_sections = self.sections_with_visibility(user) || []
     visible_sections.length == context.active_course_sections.length ? nil : visible_sections.map(&:name).sort!
   end
+
+  def due_at
+    self.assignment.try(:due_at) rescue nil
+  end
+
+  def due_at=(val); end
 end

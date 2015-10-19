@@ -227,6 +227,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
+        if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+          data.only_visible_to_overrides = !@discussionDueDateOverrideView.overridesContainDefault()
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true

@@ -1084,6 +1084,11 @@ class DiscussionTopicsController < ApplicationController
       return if overrides && !overrides.is_a?(Array)
       if overrides
         @topic.transaction do
+          if @topic.context.feature_enabled?(:differentiated_assignments)
+            if params.has_key? "only_visible_to_overrides"
+              @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
+            end
+          end
           @topic.save_without_broadcasting!
           batch_update_assignment_overrides(@topic, overrides)
         end
