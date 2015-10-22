@@ -197,7 +197,7 @@ define([
       }
       rubricEditing.updateRubricPoints($criterion.parents(".rubric"));
     },
-    editRating: function($rating) {
+    editRating: function($rating) {      
       if(!$rating.parents(".rubric").hasClass('editing')) { return; }
       if($rating.parents(".criterion").hasClass('learning_outcome_criterion')) { return; }
       rubricEditing.hideEditRating(true);
@@ -205,8 +205,8 @@ define([
       var height = Math.max(40, $rating.find(".rating").height());
       var data = $rating.getTemplateData({textValues: ['description', 'points']});
       var $box = $("#edit_rating");
-      $box.fillFormData(data);
-      $rating.find(".container").hide();
+      $box.fillFormData(data);      
+      $rating.find(".container").hide(); 
       $rating.append($box.show());
       $box.find(":input:first").focus().select();
       $rating.addClass('editing');
@@ -450,6 +450,12 @@ define([
         .find(".ratings").showIf(!rubric.free_form_criterion_comments).end()
         .find(".custom_ratings").showIf(rubric.free_form_criterion_comments);
       $rubric.find('.rubric_title .title').focus();
+    },
+    checkingIsEditingRating: function(){
+      if (($('#edit_rating').length > 0) && ($('#edit_rating').is(':visible')))
+      {
+        $("#edit_rating_form").submit();                
+      }       
     }
   };
   rubricEditing.sizeRatings = _.debounce(rubricEditing.originalSizeRatings, 10);
@@ -745,6 +751,8 @@ define([
         skipPointsUpdate = false;
     $("#edit_rubric_form").formSubmit({
       processData: function(data) {
+        //verifying if is editing the ratings
+        rubricEditing.checkingIsEditingRating();      
         var $rubric = $(this).parents(".rubric");
         if (!$rubric.find(".criterion:not(.blank)").length) return false;
         var data = rubricEditing.rubricData($rubric);
@@ -825,8 +833,10 @@ define([
       }
     });
 
-    $("#edit_rubric_form .cancel_button").click(function() {
-      rubricEditing.hideEditRubric($(this).parents(".rubric"), true);
+    $("#edit_rubric_form .cancel_button").click(function() {      
+      //verifying if is editing the ratings
+      rubricEditing.checkingIsEditingRating();      
+      rubricEditing.hideEditRubric($(this).parents(".rubric"), true);      
     });
 
     $("#rubrics").delegate('.add_criterion_link', 'click', function(event) {
@@ -860,7 +870,7 @@ define([
       });
       $target.focus();
       return false;
-    }).delegate('.rating_description_value,.edit_rating_link', 'click', function(event) {
+    }).delegate('.rating_description_value,.edit_rating_link', 'click', function(event) {      
       rubricEditing.editRating($(this).parents(".rating"));
       return false;
     }).bind('mouseover', function(event) {
