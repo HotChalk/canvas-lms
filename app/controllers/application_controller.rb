@@ -109,7 +109,7 @@ class ApplicationController < ActionController::Base
     unless @js_env
       editor_css = view_context.stylesheet_path(css_url_for('what_gets_loaded_inside_the_tinymce_editor'))
       @js_env = {
-        ASSET_HOST: asset_host,
+        ASSET_HOST: Canvas::Cdn.config.host,
         active_brand_config: active_brand_config.try(:md5),
         url_to_what_gets_loaded_inside_the_tinymce_editor_css: editor_css,
         current_user_id: @current_user.try(:id),
@@ -124,6 +124,14 @@ class ApplicationController < ActionController::Base
           open_registration: @domain_root_account.try(:open_registration?)
         }
       }
+      @js_env[:IS_LARGE_ROSTER] = true if !@js_env[:IS_LARGE_ROSTER] && @context.respond_to?(:large_roster?) && @context.large_roster?
+      @js_env[:context_asset_string] = @context.try(:asset_string) if !@js_env[:context_asset_string]
+      @js_env[:ping_url] = polymorphic_url([:api_v1, @context, :ping]) if @context.is_a?(Course)
+      @js_env[:TIMEZONE] = Time.zone.tzinfo.identifier if !@js_env[:TIMEZONE]
+      @js_env[:CONTEXT_TIMEZONE] = @context.time_zone.tzinfo.identifier if !@js_env[:CONTEXT_TIMEZONE] && @context.respond_to?(:time_zone) && @context.time_zone.present?
+      @js_env[:LOCALE] = I18n.qualified_locale if !@js_env[:LOCALE]
+      @js_env[:TOURS] = tours_to_run
+
       @js_env[:lolcalize] = true if ENV['LOLCALIZE']
     end
 
@@ -134,13 +142,7 @@ class ApplicationController < ActionController::Base
         @js_env[k] = v
       end
     end
-    @js_env[:IS_LARGE_ROSTER] = true if !@js_env[:IS_LARGE_ROSTER] && @context.respond_to?(:large_roster?) && @context.large_roster?
-    @js_env[:context_asset_string] = @context.try(:asset_string) if !@js_env[:context_asset_string]
-    @js_env[:ping_url] = polymorphic_url([:api_v1, @context, :ping]) if @context.is_a?(Course)
-    @js_env[:TIMEZONE] = Time.zone.tzinfo.identifier if !@js_env[:TIMEZONE]
-    @js_env[:CONTEXT_TIMEZONE] = @context.time_zone.tzinfo.identifier if !@js_env[:CONTEXT_TIMEZONE] && @context.respond_to?(:time_zone) && @context.time_zone.present?
-    @js_env[:LOCALE] = I18n.qualified_locale if !@js_env[:LOCALE]
-    @js_env[:TOURS] = tours_to_run
+
     @js_env
   end
   helper_method :js_env
@@ -324,6 +326,8 @@ class ApplicationController < ActionController::Base
 
   def check_pending_otp
     if session[:pending_otp] && params[:controller] != 'login/otp'
+      return render text: "Please finish logging in", status: 403 if request.xhr?
+
       reset_session
       redirect_to login_url
     end
@@ -822,7 +826,11 @@ class ApplicationController < ActionController::Base
   end
 
   def discard_flash_if_xhr
-    flash.discard if request.xhr? || request.format.to_s == 'text/plain'
+    if request.xhr? || request.format.to_s == 'text/plain'
+      flash.discard
+    else
+      flash.keep
+    end
   end
 
   def cancel_cache_buster
@@ -1334,7 +1342,7 @@ class ApplicationController < ActionController::Base
           return unless require_user
           add_crumb(@resource_title)
           @prepend_template = 'assignments/description'
-          @lti_launch.params = adapter.generate_post_payload_for_assignment(@assignment, lti_grade_passback_api_url(@tool), blti_legacy_grade_passback_api_url(@tool))
+          @lti_launch.params = adapter.generate_post_payload_for_assignment(@assignment, lti_grade_passback_api_url(@tool), blti_legacy_grade_passback_api_url(@tool), lti_turnitin_outcomes_placement_url(@tool.id))
         else
           @lti_launch.params = adapter.generate_post_payload
         end
@@ -1520,7 +1528,11 @@ class ApplicationController < ActionController::Base
   end
 
   def require_site_admin_with_permission(permission)
-    unless Account.site_admin.grants_right?(@current_user, permission)
+    require_context_with_permission(Account.site_admin, permission)
+  end
+
+  def require_context_with_permission(context, permission)
+    unless context.grants_right?(@current_user, permission)
       respond_to do |format|
         format.html do
           if @current_user
@@ -1671,32 +1683,33 @@ class ApplicationController < ActionController::Base
     super
   end
 
-  def active_brand_config
+  def active_brand_config(opts={})
     return @active_brand_config if defined? @active_brand_config
     @active_brand_config = begin
       if !use_new_styles? || (@current_user && @current_user.prefers_high_contrast?)
         nil
       elsif session.key?(:brand_config_md5)
         BrandConfig.where(md5: session[:brand_config_md5]).first
-      elsif @domain_root_account.brand_config
-        @domain_root_account.brand_config
-      elsif k12?
-        BrandConfig.where(name: 'K12 Theme', share: true).first
+      else
+        brand_config_for_account(opts)
       end
     end
   end
   helper_method :active_brand_config
 
-  def brand_config_includes
-    return @brand_config_includes if defined? @brand_config_includes
-    includes = {}
-    if @domain_root_account.allow_global_includes? && active_brand_config.present?
-      includes[:js] = active_brand_config[:js_overrides] if active_brand_config[:js_overrides].present?
-      includes[:css] = active_brand_config[:css_overrides] if active_brand_config[:css_overrides].present?
+  def brand_config_for_account(opts)
+    account = @account || Context.get_account(@context, @domain_root_account)
+    if account.brand_config && account.branding_allowed?
+      account.brand_config
+    elsif !opts[:ignore_parents] && account.first_parent_brand_config
+      account.first_parent_brand_config
+    elsif k12?
+      BrandConfig.k12_config
     end
-    includes
   end
-  helper_method :brand_config_includes
+  private :brand_config_for_account
+
+
 
   def css_bundles
     @css_bundles ||= []
@@ -1928,6 +1941,10 @@ class ApplicationController < ActionController::Base
     google_docs
   end
 
+  def self.google_drive_timeout
+    Setting.get('google_drive_timeout', 30).to_i
+  end
+
   def google_drive_connection
     return unless Canvas::Plugin.find(:google_drive).try(:settings)
     ## @real_current_user first ensures that a masquerading user never sees the
@@ -1943,7 +1960,7 @@ class ApplicationController < ActionController::Base
       access_token = session[:oauth_gdrive_access_token]
     end
 
-    GoogleDocs::DriveConnection.new(refresh_token, access_token) if refresh_token && access_token
+    GoogleDocs::DriveConnection.new(refresh_token, access_token, ApplicationController.google_drive_timeout) if refresh_token && access_token
   end
 
   def google_service_connection

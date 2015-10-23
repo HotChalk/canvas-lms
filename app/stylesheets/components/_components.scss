@@ -31,7 +31,7 @@ $ic-brand-course-nav-link--active: $ic-brand-primary;
       margin-top: 0;
       padding: 8px 7px;
       font-weight: bold;
-      color: darken($ic-brand-secondary, 10%);
+      color: $gray-dark;
       // oldskool overrides
       font-size: $baseFontSize;
       margin-bottom: 0;
@@ -44,6 +44,10 @@ $ic-brand-course-nav-link--active: $ic-brand-primary;
     font-size: 11px;
     font-style: italic;
     color: inherit;
+    @if $use_new_styles == false {
+      margin-bottom: $ic-sp/2;
+      padding: 0 $ic-sp*0.75;
+    }
   }
 
   & > *:first-child {

@@ -24,12 +24,16 @@ class ContentTag < ActiveRecord::Base
       @alignment = alignment
     end
   end
+
+  TABLED_CONTENT_TYPES = ['Attachment', 'Assignment', 'WikiPage', 'Quizzes::Quiz', 'LearningOutcome', 'DiscussionTopic',
+    'Rubric', 'ContextExternalTool', 'LearningOutcomeGroup', 'AssessmentQuestionBank', 'LiveAssessments::Assessment', 'Lti::MessageHandler'].freeze
+  TABLELESS_CONTENT_TYPES = ['ContextModuleSubHeader', 'ExternalUrl'].freeze
+  CONTENT_TYPES = (TABLED_CONTENT_TYPES + TABLELESS_CONTENT_TYPES).freeze
+
   include Workflow
   include SearchTermHelper
   belongs_to :content, :polymorphic => true
-  validates_inclusion_of :content_type, :allow_nil => true, :in => ['Attachment', 'Assignment', 'WikiPage',
-    'ContextModuleSubHeader', 'Quizzes::Quiz', 'ExternalUrl', 'LearningOutcome', 'DiscussionTopic',
-    'Rubric', 'ContextExternalTool', 'LearningOutcomeGroup', 'AssessmentQuestionBank', 'LiveAssessments::Assessment', 'Lti::MessageHandler']
+  validates_inclusion_of :content_type, :allow_nil => true, :in => CONTENT_TYPES
   belongs_to :context, :polymorphic => true
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'LearningOutcomeGroup',
     'Assignment', 'Account', 'Quizzes::Quiz']
@@ -167,8 +171,9 @@ class ContentTag < ActiveRecord::Base
 
   def graded?
     return true if self.content_type == 'Assignment'
-    return false unless self.content_type.constantize.column_names.include?('assignment_id') #.new.respond_to?(:assignment_id)
-    return !content.assignment_id.nil? rescue false
+    return false unless self.can_have_assignment?
+
+    return content && !content.assignment_id.nil?
   end
 
   def content_type_class
@@ -211,9 +216,7 @@ class ContentTag < ActiveRecord::Base
 
   alias_method :old_content, :content
   def content
-    #self.content_type = 'Quizzes::Quiz' if self.content_type == 'Quiz'
-    klass = self.content_type.classify.constantize rescue nil
-    klass.respond_to?("tableless?") && klass.tableless? ? nil : old_content
+    TABLELESS_CONTENT_TYPES.include?(self.content_type) ? nil : old_content
   end
 
   def content_or_self
@@ -343,7 +346,7 @@ class ContentTag < ActiveRecord::Base
   end
 
   def self.update_for(asset)
-    tags = ContentTag.where(:content_id => asset, :content_type => asset.class.to_s).not_deleted.select([:id, :tag_type, :content_type, :context_module_id]).all
+    tags = ContentTag.where(:content_id => asset, :content_type => asset.class.to_s).not_deleted.select([:id, :tag_type, :content_type, :context_module_id]).to_a
     module_ids = tags.map(&:context_module_id).compact
 
     # update title
@@ -490,7 +493,7 @@ class ContentTag < ActiveRecord::Base
   end
 
   def self.order_by_outcome_title
-    includes(:learning_outcome_content).order(outcome_title_order_by_clause)
+    eager_load(:learning_outcome_content).order(outcome_title_order_by_clause)
   end
 
   def visible_to_user?(user, opts=nil)

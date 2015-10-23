@@ -19,6 +19,14 @@
 require 'turnitin/response'
 
 module Turnitin
+  def self.state_from_similarity_score(similarity_score)
+    return 'none' if similarity_score == 0
+    return 'acceptable' if similarity_score < 25
+    return 'warning' if similarity_score < 50
+    return 'problem' if similarity_score < 75
+    'failure'
+  end
+
   class Client
     attr_accessor :endpoint, :account_id, :shared_secret, :host, :testing
 
@@ -54,6 +62,8 @@ module Turnitin
     def id(obj)
       if @testing
         "test_#{obj.asset_string}"
+      elsif obj.respond_to?(:turnitin_id)
+        obj.turnitin_asset_string
       else
         "#{account_id}_#{obj.asset_string}"
       end
@@ -64,9 +74,7 @@ module Turnitin
       email = if item.is_a?(User)
                 item.email
               elsif item.respond_to?(:turnitin_id)
-                item.generate_turnitin_id!
-                item_type = item.class.reflection_type_name
-                "#{item_type}_#{item.turnitin_id}@null.instructure.example.com"
+                "#{item.turnitin_asset_string}@null.instructure.example.com"
               end
       email ||= "#{item.asset_string}@null.instructure.example.com"
     end
@@ -318,7 +326,7 @@ module Turnitin
         params[:ctl] = course.name
       end
       if assignment
-        params[:assign] = assignment.title
+        params[:assign] = "#{assignment.title} - #{assignment.id}"
         params[:assignid] = id(assignment)
       end
       params[:diagnostic] = "1" if @testing

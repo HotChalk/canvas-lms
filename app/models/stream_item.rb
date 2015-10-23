@@ -37,6 +37,18 @@ class StreamItem < ActiveRecord::Base
   after_destroy :destroy_stream_item_instances
   attr_accessor :unread, :participant, :invalidate_immediately
 
+  before_save :ensure_notification_category
+
+  def ensure_notification_category
+    if self.asset_type == 'Message'
+      self.notification_category ||= get_notification_category
+    end
+  end
+
+  def get_notification_category
+    self.read_attribute(:data)['notification_category'] || self.data.notification_category
+  end
+
   def self.reconstitute_ar_object(type, data)
     return nil unless data
     data = data.instance_variable_get(:@table) if data.is_a?(OpenObject)
@@ -339,10 +351,10 @@ class StreamItem < ActiveRecord::Base
     scope = where("updated_at<?", before_date).
         preload(:context).
         limit(1000)
-    scope = scope.includes(:stream_item_instances) if touch_users
+    scope = scope.preload(:stream_item_instances) if touch_users
 
     while true
-      batch = scope.reload.all
+      batch = scope.reload.to_a
       batch.each do |item|
         count += 1
         if touch_users

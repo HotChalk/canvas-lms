@@ -22,6 +22,7 @@ rescue LoadError
 end
 
 require 'securerandom'
+require 'test/unit' if RUBY_VERSION >= '2.2.0'
 
 RSpec.configure do |c|
   c.raise_errors_for_deprecations!
@@ -61,6 +62,21 @@ require 'rspec/rails'
 Dir[Rails.root.join("spec/support/**/*.rb")].each { |f| require f }
 
 ActionView::TestCase::TestController.view_paths = ApplicationController.view_paths
+
+unless CANVAS_RAILS3
+  Time.class_eval do
+    def compare_with_round(other)
+      other = Time.at(other.to_i, other.usec) if other.respond_to?(:usec)
+      Time.at(self.to_i, self.usec).compare_without_round(other)
+    end
+    alias_method :compare_without_round, :<=>
+    alias_method :<=>, :compare_with_round
+  end
+
+  # temporary patch to keep things sane
+  # TODO: actually fix the deprecation messages once we're on Rails 4 permanently and remove this
+  ActiveSupport::Deprecation.silenced = true
+end
 
 module RSpec::Rails
   module ViewExampleGroup
@@ -217,6 +233,9 @@ def truncate_table(model)
       begin
         old_proc = model.connection.raw_connection.set_notice_processor {}
         model.connection.execute("TRUNCATE TABLE #{model.connection.quote_table_name(model.table_name)} CASCADE")
+
+        # mobile verify expects specific id seq for developer key, this forces the sequence to always start at 101
+        model.connection.execute("SELECT setval('developer_keys_id_seq', 100);") if model == DeveloperKey
       ensure
         model.connection.raw_connection.set_notice_processor(&old_proc)
       end
@@ -239,6 +258,7 @@ def truncate_all_tables
            SELECT CAST(objid::regclass AS VARCHAR) FROM pg_depend WHERE deptype='e'
          )
       SQL
+      table_names.delete('schema_migrations')
       connection.execute("TRUNCATE TABLE #{table_names.map { |t| connection.quote_table_name(t) }.join(',')}")
     else
       connection.tables.each { |model| truncate_table(model) }
@@ -752,6 +772,10 @@ RSpec.configure do |config|
     send(method, url, query, headers.merge(http_headers))
   end
 
+  def content_type_key
+    CANVAS_RAILS3 ? 'content-type' : 'Content-Type'
+  end
+
   def force_string_encoding(str, encoding = "UTF-8")
     if str.respond_to?(:force_encoding)
       str.force_encoding(encoding)
@@ -886,7 +910,7 @@ RSpec.configure do |config|
       klass.connection.bulk_insert klass.table_name, records
       scope = klass.order("id DESC").limit(records.size)
       return_type == :record ?
-        scope.all.reverse :
+        scope.to_a.reverse :
         scope.pluck(:id).reverse
     end
   end

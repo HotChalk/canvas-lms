@@ -2,7 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../common')
 require File.expand_path(File.dirname(__FILE__) + '/../helpers/calendar2_common')
 
 describe "calendar2" do
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
 
   before (:each) do
     Account.default.tap do |a|
@@ -40,8 +40,8 @@ describe "calendar2" do
         find_middle_day.click
         edit_event_dialog = f('#edit_event_tabs')
         expect(edit_event_dialog).to be_displayed
-        edit_event_form = edit_event_dialog.find_element(:id, 'edit_calendar_event_form')
-        title = edit_event_form.find_element(:id, 'calendar_event_title')
+        edit_event_form = edit_event_dialog.find('#edit_calendar_event_form')
+        title = edit_event_form.find('#calendar_event_title')
         keep_trying_until { title.displayed? }
         replace_content(title, event_title)
         expect_new_page_load { f('.more_options_link').click }

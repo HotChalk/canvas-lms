@@ -403,7 +403,7 @@ class CoursesController < ApplicationController
           conditions = states.map{ |state|
             Enrollment::QueryBuilder.new(nil, course_workflow_state: state, enforce_course_workflow_state: true).conditions
           }.compact.join(" OR ")
-          enrollments = @current_user.enrollments.joins(:course).includes(:course).where(conditions).shard(@current_user)
+          enrollments = @current_user.enrollments.eager_load(:course).where(conditions).shard(@current_user)
         else
           enrollments = @current_user.cached_current_enrollments(preload_courses: true)
         end
@@ -421,7 +421,7 @@ class CoursesController < ApplicationController
         if value_to_boolean(params[:current_domain_only])
           enrollments = enrollments.select { |e| e.root_account_id == @domain_root_account.id }
         elsif params[:root_account_id]
-          root_account = api_find_all(Account, [params[:root_account_id]], { limit: 1 }).first
+          root_account = api_find_all(Account, [params[:root_account_id]]).first
           enrollments = root_account ? enrollments.select { |e| e.root_account_id == root_account.id } : []
         end
 
@@ -761,7 +761,7 @@ class CoursesController < ApplicationController
   # @argument search_term [String]
   #   The partial name or full ID of the users to match and return in the results list.
   #
-  # @argument enrollment_type [String, "teacher"|"student"|"ta"|"observer"|"designer"]
+  # @argument enrollment_type[] [String, "teacher"|"student"|"ta"|"observer"|"designer"]
   #   When set, only return users where the user is enrolled as this type.
   #   This argument is ignored if enrollment_role is given.
   #
@@ -845,14 +845,14 @@ class CoursesController < ApplicationController
         end
       end
       if includes.include?('enrollments')
-        # not_ended_enrollments for enrollment_json
-        # enrollments course for has_grade_permissions?
-        ActiveRecord::Associations::Preloader.new(users,
-                                                  { :not_ended_enrollments => :course },
-                  :conditions => ['enrollments.course_id = ?', @context.id]).run
+        enrollments_by_user = @context.enrollments.
+            active_or_pending.
+            where(user_id: users).
+            preload(:course).
+            group_by(&:user_id)
       end
       render :json => users.map { |u|
-        enrollments = u.not_ended_enrollments if includes.include?('enrollments')
+        enrollments = enrollments_by_user[u.id] if includes.include?('enrollments')
         user_json(u, @current_user, session, includes, @context, enrollments)
       }
     end
@@ -898,9 +898,12 @@ class CoursesController < ApplicationController
       if includes.include?('enrollments')
         # not_ended_enrollments for enrollment_json
         # enrollments course for has_grade_permissions?
-        ActiveRecord::Associations::Preloader.new(users,
-                                                  {:not_ended_enrollments => :course},
-                  :conditions => ['enrollments.course_id = ?', @context.id]).run
+        preload_scope = if CANVAS_RAILS3
+          {:conditions => ['enrollments.course_id = ?', @context.id]}
+        else
+          Enrollment.where(:course_id => @context)
+        end
+        ActiveRecord::Associations::Preloader.new(users, {:not_ended_enrollments => :course}, preload_scope).run
       end
       user = users.first or raise ActiveRecord::RecordNotFound
       enrollments = user.not_ended_enrollments if includes.include?('enrollments')
@@ -1511,7 +1514,7 @@ class CoursesController < ApplicationController
       @course = api_find(scope, params[:id])
 
       if authorized_action(@course, @current_user, :read)
-        enrollments = @course.current_enrollments.where(:user_id => @current_user).all
+        enrollments = @course.current_enrollments.where(:user_id => @current_user).to_a
         includes << :hide_final_grades
         render :json => course_json(@course, @current_user, session, includes, enrollments)
       end
@@ -1529,7 +1532,7 @@ class CoursesController < ApplicationController
     end
 
     if @context && @current_user
-      @context_enrollment = @context.enrollments.where(user_id: @current_user).except(:includes).first
+      @context_enrollment = @context.enrollments.where(user_id: @current_user).except(:preload).first
       if @context_enrollment
         @context_enrollment.course = @context
         @context_enrollment.user = @current_user
@@ -1581,7 +1584,7 @@ class CoursesController < ApplicationController
             :add_students => course_users_path(course_id: @context),
             :add_files => context_url(@context, :context_files_url, :wizard => 1),
             :select_navigation => context_url(@context, :context_details_url),
-            :course_calendar => calendar_path(:wizard => 1),
+            :course_calendar => calendar_path(course_id: @context),
             :add_tas => course_users_path(:course_id => @context),
             :publish_course => course_path(@context)
           },
@@ -1622,7 +1625,7 @@ class CoursesController < ApplicationController
       when 'syllabus'
         add_crumb(context_syllabus_name(@context) || t('#crumbs.syllabus', "Syllabus"))
         @syllabus_body = api_user_content(@context.syllabus_body, @context)
-        @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).all
+        @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).to_a
         @events = @context.calendar_events.active.to_a
         @events.concat @context.assignments.active.to_a
         @undated_events = @events.select {|e| e.start_at == nil}
@@ -1842,8 +1845,8 @@ class CoursesController < ApplicationController
     return unless authorized_action(account, @current_user, [:create_courses, :manage_courses])
 
     # For prepopulating the date fields
-    js_env(:OLD_START_DATE => unlocalized_datetime_string(@context.start_at, :verbose))
-    js_env(:OLD_END_DATE => unlocalized_datetime_string(@context.conclude_at, :verbose))
+    js_env(:OLD_START_DATE => datetime_string(@context.start_at, :verbose))
+    js_env(:OLD_END_DATE => datetime_string(@context.conclude_at, :verbose))
   end
 
   def copy_course
@@ -1863,7 +1866,7 @@ class CoursesController < ApplicationController
         enrollment_term_id = params[:course].delete(:term_id).presence || params[:course].delete(:enrollment_term_id).presence
         args[:enrollment_term] = root_account.enrollment_terms.where(id: enrollment_term_id).first if enrollment_term_id
       end
-      args[:enrollment_term] ||= @context.enrollment_term
+      args[:enrollment_term] ||= @context.enrollment_term if @context.grants_right?(@current_user, session, :manage) # this will be false for teachers in concluded courses
       args[:abstract_course] = @context.abstract_course
       args[:account] = account
       @course = @context.account.courses.new
@@ -2049,20 +2052,22 @@ class CoursesController < ApplicationController
 
       if params[:course].has_key? :grading_standard_id
         standard_id = params[:course].delete :grading_standard_id
-        if @course.grants_right?(@current_user, session, :manage_grades)
+        if authorized_action?(@course, @current_user, :manage_grades)
           if standard_id.present?
             grading_standard = GradingStandard.for(@course).where(id: standard_id).first
             @course.grading_standard = grading_standard if grading_standard
           else
             @course.grading_standard = nil
           end
+        else
+          return
         end
       end
       unless @course.account.grants_right? @current_user, session, :manage_storage_quotas
         params[:course].delete :storage_quota
         params[:course].delete :storage_quota_mb
       end
-      if !@course.account.grants_right?(@current_user, session, :manage_courses)
+      unless @course.account.grants_right?(@current_user, session, :manage_courses)
         if @course.root_account.settings[:prevent_course_renaming_by_teachers]
           params[:course].delete :name
           params[:course].delete :course_code
@@ -2293,6 +2298,7 @@ class CoursesController < ApplicationController
       # destroy these after enrollment so
       # needs_grading_count callbacks work
       @fake_student.submissions.destroy_all
+      @fake_student.quiz_submissions.each{|qs| qs.events.destroy_all}
       @fake_student.quiz_submissions.destroy_all
 
       flash[:notice] = t('notices.reset_test_student', "The test student has been reset successfully.")

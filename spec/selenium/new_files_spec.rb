@@ -1,8 +1,9 @@
 require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/public_courses_context')
 
 describe "better_file_browsing" do
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
   context "As a teacher" do
     before(:each) do
       course_with_teacher_logged_in
@@ -16,7 +17,7 @@ describe "better_file_browsing" do
     end
 
     context "from cog icon" do
-      it "should edit file name", priority: "1", test_id: 133124 do
+      it "should edit file name", priority: "1", test_id: 133127 do
         expect(fln("example.pdf")).to be_present
         file_rename_to = "Example_edited.pdf"
         edit_name_from_cog_icon(file_rename_to)
@@ -39,12 +40,12 @@ describe "better_file_browsing" do
         expect(f('.btn-link.published-status.published')).to be_displayed
         expect(driver.find_element(:class => 'published')).to be_displayed
       end
-      it "should make file available to student with link", priority: "1", test_id: 133102 do
+      it "should make file available to student with link", priority: "1", test_id: 223504 do
         set_item_permissions(:restricted_access, :available_with_link, :cloud_icon)
         expect(f('.btn-link.published-status.hiddenState')).to be_displayed
         expect(driver.find_element(:class => 'hiddenState')).to be_displayed
       end
-      it "should make file available to student within given timeframe", priority: "1", test_id: 193159 do
+      it "should make file available to student within given timeframe", priority: "1", test_id: 223505 do
         set_item_permissions(:restricted_access, :available_with_timeline, :cloud_icon)
         expect(f('.btn-link.published-status.restricted')).to be_displayed
         expect(driver.find_element(:class => 'restricted')).to be_displayed
@@ -56,7 +57,7 @@ describe "better_file_browsing" do
         delete(0, :toolbar_menu)
         expect(get_all_files_folders.count).to eq 0
       end
-      it "should unpublish and publish a file", priority: "1", test_id: 133096 do
+      it "should unpublish and publish a file", priority: "1", test_id: 223503 do
         set_item_permissions(:unpublish, :toolbar_menu)
         expect(f('.btn-link.published-status.unpublished')).to be_displayed
         expect(driver.find_element(:class => 'unpublished')).to be_displayed
@@ -76,7 +77,7 @@ describe "better_file_browsing" do
       end
     end
 
-    context "preview" do
+    context "accessibility tests for preview" do
       before do
         fln("example.pdf").click
       end
@@ -98,13 +99,22 @@ describe "better_file_browsing" do
       end
     end
 
-    context "Toolbar Previews" do
+    context "accessibility tests for Toolbar Previews" do
       it "returns focus to the preview toolbar button when closed", priority: "1", test_id: 193819 do
         ff('.ef-item-row')[0].click
         f('.btn-view').click
         f('.ef-file-preview-header-close').click
         check_element_has_focus(f('.btn-view'))
       end
+    end
+  end
+
+  context "when a public course is accessed" do
+    include_context "public course as a logged out user"
+
+    it "should display course files", priority: "1", test_id: 270032 do
+      get "/courses/#{public_course.id}/files"
+      expect(f('div.ef-main[data-reactid]')).to be_displayed
     end
   end
 
@@ -276,6 +286,23 @@ describe "better_file_browsing" do
         check_element_has_focus(f('.Toolbar__ManageUsageRights'))
         verify_usage_rights_ui_updates
       end
+      it "should set usage rights on a file inside a folder via the toolbar", priority: "1", test_id: 132585 do
+        add_folder
+        move("a_file.txt", 0, :cog_icon)
+        wait_for_ajaximations
+        f('.ef-item-row').click
+        f('.Toolbar__ManageUsageRights').click
+        wait_for_ajaximations
+        expect(f('.UsageRightsDialog__fileName').text).to eq "new folder"
+        expect(f(".UsageRightsSelectBox__select")).to be_displayed
+        set_usage_rights_in_modal
+        react_modal_hidden
+        # a11y: focus should go back to the element that was clicked.
+        check_element_has_focus(f('.Toolbar__ManageUsageRights'))
+        ff('.media-body')[0].click
+        wait_for_ajaximations
+        verify_usage_rights_ui_updates
+      end
       it "should not show the creative commons selection if creative commons isn't selected", priority: "1", test_id: 194247 do
         f('.UsageRightsIndicator__openModal').click
         wait_for_ajaximations
@@ -331,4 +358,5 @@ describe "better_file_browsing" do
       end
     end
   end
+
 end

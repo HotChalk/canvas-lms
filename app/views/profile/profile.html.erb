@@ -25,10 +25,11 @@
   <% end %>
 <% end %>
 
-<% js_env :folder_id => @user.profile_pics_folder.id,
-          :PASSWORD_POLICY => @domain_root_account.password_policy,
-          :PASSWORD_POLICIES => Hash[@password_pseudonyms.map{ |p| [p.id, p.account.password_policy]}],
-          :PROFILE => @user_data
+<% js_env folder_id: @user.profile_pics_folder.id,
+          PASSWORD_POLICY: @domain_root_account.password_policy,
+          PASSWORD_POLICIES: Hash[@password_pseudonyms.map{ |p| [p.id, p.account.password_policy]}],
+          PROFILE: @user_data,
+          INTERNATIONAL_SMS_ENABLED: @user.account.feature_enabled?(:international_sms)
 %>
 <% js_bundle :profile, :profile_show %>
 <% css_bundle :profile_edit %>
@@ -47,14 +48,14 @@
     <td><span <% unless editable_name %>id="name"<% end %>
               class="full_name <%= editable_name ? 'display_data' : 'edit_or_show_data' %>"><%=h @user.name %></span>
       <%= f.text_field :name, :readonly => true, :class => "edit_data", :maxlength => 255, :size => 30 if editable_name %>
-      <span class="edit_or_show_data" style="font-size: 0.8em; color: #888;"><br/><%= t('hints.name', "This name will be used for grading.") %></span>
+      <span class="edit_or_show_data data_description"><br/><%= t('hints.name', "This name will be used for grading.") %></span>
   </tr>
   <tr>
     <td><%= f.blabel :short_name, :en => "Display Name" %></td>
     <td><span <% unless editable_name %>id="short_name"<% end %>
               class="short_name <%= editable_name ? 'display_data' : 'edit_or_show_data' %>"><%=h @user.short_name %></span>
       <%= f.text_field :short_name, :class => "edit_data", :maxlength => 255, :size => 30 if editable_name %>
-      <span class="edit_or_show_data" style="font-size: 0.8em; color: #888;"><br/><%= t('hints.short_name', "People will see this name in discussions, messages and comments.") %></span>
+      <span class="edit_or_show_data data_description"><br/><%= t('hints.short_name', "People will see this name in discussions, messages and comments.") %></span>
     </td>
   </tr>
   <tr>
@@ -62,7 +63,7 @@
     <td><span <% unless editable_name %>id="sortable_name"<% end %>
               class="sortable_name <%= editable_name ? 'display_data' : 'edit_or_show_data' %>"><%=h @user.sortable_name %></span>
       <%= f.text_field :sortable_name, :class => "edit_data", :maxlength => 255, :size => 30  if editable_name %>
-      <span class="edit_or_show_data" style="font-size: 0.8em; color: #888;"><br/><%= t('hints.sortable_name', "This name appears in sorted lists.") %></span>
+      <span class="edit_or_show_data data_description"><br/><%= t('hints.sortable_name', "This name appears in sorted lists.") %></span>
     </td>
   </tr>
   <% end %>

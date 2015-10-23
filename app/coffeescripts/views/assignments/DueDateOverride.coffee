@@ -51,7 +51,7 @@ define [
 
     validateTokenInput: (data, errors) =>
       validRowKeys = _.pluck(data.assignment_overrides, "rowKey")
-      blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section seleted')
+      blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section selected')
       for row in $('.Container__DueDateRow-item')
         unless $(row).is(':hidden')          
           rowKey = "#{$(row).data('row-key')}"

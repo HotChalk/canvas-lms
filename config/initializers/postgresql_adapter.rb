@@ -43,7 +43,7 @@ module PostgreSQLAdapterExtensions
       # it as fast as possible. Note that a NOT EXISTS would be faster, but this is
       # the query postgres does for the VALIDATE CONSTRAINT, so we want exactly this
       # query to be warm
-      execute("SELECT fk.#{column} FROM #{from_table} fk LEFT OUTER JOIN #{to_table} pk ON fk.#{column}=pk.id WHERE pk.id IS NULL AND fk.#{column} IS NOT NULL LIMIT 1")
+      execute("SELECT fk.#{column} FROM #{quote_table_name(from_table)} fk LEFT OUTER JOIN #{quote_table_name(to_table)} pk ON fk.#{column}=pk.id WHERE pk.id IS NULL AND fk.#{column} IS NOT NULL LIMIT 1")
     end
 
     super(from_table, to_table, options)
@@ -52,7 +52,7 @@ module PostgreSQLAdapterExtensions
   end
 
   def rename_index(table_name, old_name, new_name)
-    return execute "ALTER INDEX #{quote_column_name(old_name)} RENAME TO #{quote_table_name(new_name)}";
+    return execute "ALTER INDEX #{quote_table_name(old_name)} RENAME TO #{quote_column_name(new_name)}";
   end
 
   # have to replace the entire method to support concurrent
@@ -139,6 +139,8 @@ module PostgreSQLAdapterExtensions
   # (for instance when using functions like LOWER)
   # this will lead to problems if we try to remove the index (index_exists? will return false)
   def indexes(table_name)
+    schema = shard.name if @config[:use_qualified_names]
+
     result = query(<<-SQL, 'SCHEMA')
          SELECT distinct i.relname, d.indisunique, d.indkey, pg_get_indexdef(d.indexrelid), t.oid
          FROM pg_class t
@@ -147,7 +149,7 @@ module PostgreSQLAdapterExtensions
          WHERE i.relkind = 'i'
            AND d.indisprimary = 'f'
            AND t.relname = '#{table_name}'
-           AND i.relnamespace IN (SELECT oid FROM pg_namespace WHERE nspname = ANY (current_schemas(false)) )
+           AND i.relnamespace IN (SELECT oid FROM pg_namespace WHERE nspname = #{schema ? "'#{schema}'" : 'ANY (current_schemas(false))'} )
         ORDER BY i.relname
     SQL
 
@@ -214,6 +216,76 @@ module PostgreSQLAdapterExtensions
 
   def extension_available?(extension)
     select_value("SELECT 1 FROM pg_available_extensions WHERE name='#{extension}'").to_i == 1
+  end
+
+  private
+
+  OID = ActiveRecord::ConnectionAdapters::PostgreSQLAdapter::OID if Rails.version >= '4'
+
+  def initialize_type_map(*args)
+    return super if Rails.version >= '4.2'
+
+    known_type_names = OID::NAMES.keys.map { |n| "'#{n}'" }
+    sql = <<-SQL % [known_type_names.join(", "), known_type_names.join(", ")]
+    SELECT t.oid, t.typname, t.typelem, t.typdelim, t.typinput
+     FROM pg_type t
+     LEFT OUTER JOIN pg_type et ON t.typelem=et.oid
+     WHERE
+       t.typname IN (%s)
+       OR et.typname IN (%s)
+    SQL
+    result = execute(sql, 'SCHEMA')
+    leaves, nodes = result.partition { |row| row['typelem'] == '0' }
+
+    if Rails.version < '4.1'
+      # populate the leaf nodes
+      leaves.find_all { |row| OID.registered_type? row['typname'] }.each do |row|
+        OID::TYPE_MAP[row['oid'].to_i] = OID::NAMES[row['typname']]
+      end
+
+      arrays, nodes = nodes.partition { |row| row['typinput'] == 'array_in' }
+
+      # populate composite types
+      nodes.find_all { |row| OID::TYPE_MAP.key? row['typelem'].to_i }.each do |row|
+        if OID.registered_type? row['typname']
+          # this composite type is explicitly registered
+          vector = OID::NAMES[row['typname']]
+        else
+          # use the default for composite types
+          vector = OID::Vector.new row['typdelim'], OID::TYPE_MAP[row['typelem'].to_i]
+        end
+
+        OID::TYPE_MAP[row['oid'].to_i] = vector
+      end
+
+      # populate array types
+      arrays.find_all { |row| OID::TYPE_MAP.key? row['typelem'].to_i }.each do |row|
+        array = OID::Array.new  OID::TYPE_MAP[row['typelem'].to_i]
+        OID::TYPE_MAP[row['oid'].to_i] = array
+      end
+    else
+      type_map = args.first
+
+      # populate the leaf nodes
+      leaves.find_all { |row| OID.registered_type? row['typname'] }.each do |row|
+        type_map[row['oid'].to_i] = OID::NAMES[row['typname']]
+      end
+
+      records_by_oid = result.group_by { |row| row['oid'] }
+
+      arrays, nodes = nodes.partition { |row| row['typinput'] == 'array_in' }
+
+      # populate composite types
+      nodes.each do |row|
+        add_oid row, records_by_oid, type_map
+      end
+
+      # populate array types
+      arrays.find_all { |row| type_map.key? row['typelem'].to_i }.each do |row|
+        array = OID::Array.new  type_map[row['typelem'].to_i]
+        type_map[row['oid'].to_i] = array
+      end
+    end
   end
 end
 

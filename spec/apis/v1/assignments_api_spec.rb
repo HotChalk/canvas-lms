@@ -937,7 +937,7 @@ describe AssignmentsApiController, type: :request do
       expect(@adhoc_override.set).to eq [@student]
       expect(@adhoc_override.due_at_overridden).to be_truthy
       expect(@adhoc_override.due_at.to_i).to eq @adhoc_due_at.to_i
-      expect(@adhoc_override.title).to eq @student.name
+      expect(@adhoc_override.title).to eq "1 student"
 
       @section_override = @assignment.assignment_overrides.where(set_type: 'CourseSection').first
       expect(@section_override).not_to be_nil
@@ -1077,13 +1077,13 @@ describe AssignmentsApiController, type: :request do
         json = api_call_to_create_adhoc_override(student_ids: [@student.id])
 
         @assignment = Assignment.find json['id']
-        adhoc_override = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        adhoc_override = @assignment.assignment_overrides.active.where(set_type: 'ADHOC').first
 
         expect(@assignment.assignment_overrides.count).to eq 1
 
         api_call_to_update_adhoc_override(student_ids: [@student.id, @first_student.id])
 
-        ao = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        ao = @assignment.assignment_overrides.active.where(set_type: 'ADHOC').first
         expect(ao.set).to  match_array([@student, @first_student])
       end
 
@@ -1113,12 +1113,12 @@ describe AssignmentsApiController, type: :request do
 
         expect(@assignment.assignment_overrides.count).to eq 1
 
-        adhoc_override = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        adhoc_override = @assignment.assignment_overrides.active.where(set_type: 'ADHOC').first
         expect(adhoc_override.set).to eq [@student]
 
         api_call_to_update_adhoc_override(student_ids: [@first_student.id])
 
-        ao = @assignment.assignment_overrides.where(set_type: 'ADHOC').first
+        ao = @assignment.assignment_overrides.active.where(set_type: 'ADHOC').first
         expect(ao.set).to eq [@first_student]
       end
     end
@@ -2126,6 +2126,7 @@ describe AssignmentsApiController, type: :request do
       end
 
       it "returns has_overrides correctly" do
+        @user = @teacher
         @assignment = @course.assignments.create!(:title => "Test Assignment",:description => "foo")
         json = api_get_assignment_in_course(@assignment, @course)
         expect(json['has_overrides']).to eq false
@@ -2134,6 +2135,10 @@ describe AssignmentsApiController, type: :request do
         create_override_for_assignment
         json = api_get_assignment_in_course(@assignment, @course)
         expect(json['has_overrides']).to eq true
+
+        @user = @student # don't show has_overrides to students
+        json = api_get_assignment_in_course(@assignment, @course)
+        expect(json['has_overrides']).to be_nil
       end
 
       it "returns all_dates when requested" do

@@ -45,7 +45,7 @@ define([
     $("#add_notification_form .datetime_field").bind('blur change', function() {
       var date = Date.parse($(this).val());
       if(date) {
-        date = $.datetimeString(date, {localized: false});
+        date = $.datetimeString(date);
       }
       $(this).val(date);
     });
@@ -324,6 +324,9 @@ define([
       $("#show_resources_link_input").toggle(!!$("#account_settings_enable_resources_link").attr('checked'));
     }).trigger('change');
 
+    $('#account_settings_global_includes').change(function() {
+      $('#new_styles_sub_account_includes').toggle(this.checked);
+    }).trigger('change');
   });
 
 });

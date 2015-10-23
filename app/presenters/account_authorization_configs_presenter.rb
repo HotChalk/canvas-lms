@@ -18,11 +18,6 @@ class AccountAuthorizationConfigsPresenter
     end.compact
   end
 
-  def needs_discovery_url?
-    configs.count >= 2 &&
-      configs.any?{|c| !c.is_a?(AccountAuthorizationConfig::LDAP) }
-  end
-
   def needs_unknown_user_url?
     configs.any? { |c| c.is_a?(AccountAuthorizationConfig::Delegated) }
   end
@@ -106,10 +101,6 @@ class AccountAuthorizationConfigsPresenter
     AccountAuthorizationConfig::SAML.enabled?
   end
 
-  def canvas_auth_only?
-    !account.non_canvas_auth_configured?
-  end
-
   def login_placeholder
     AccountAuthorizationConfig.default_delegated_login_handle_name
   end
@@ -124,6 +115,12 @@ class AccountAuthorizationConfigsPresenter
 
   def parent_reg_selected
     account.parent_registration?
+  end
+
+  def last_canvas_provider?(aac)
+    !aac.new_record? &&
+      aac.is_a?(AccountAuthorizationConfig::Canvas) &&
+      !account.authentication_providers.active.where("id<>?", aac).exists?
   end
 
   private

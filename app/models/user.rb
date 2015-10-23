@@ -19,6 +19,8 @@
 require 'atom'
 
 class User < ActiveRecord::Base
+  include TurnitinID
+
   # this has to be before include Context to prevent a circular dependency in Course
   def self.sortable_name_order_by_clause(table = nil)
     col = table ? "#{table}.sortable_name" : 'sortable_name'
@@ -74,29 +76,29 @@ class User < ActiveRecord::Base
   has_many :user_observees, :class_name => 'UserObserver', :foreign_key => :observer_id, :dependent => :delete_all
   has_many :observed_users, :through => :user_observees, :source => :user
   has_many :all_courses, :source => :course, :through => :enrollments
-  has_many :group_memberships, :include => :group, :dependent => :destroy
+  has_many :group_memberships, preload: :group, dependent: :destroy
   has_many :groups, :through => :group_memberships
   has_many :polls, class_name: 'Polling::Poll'
 
-  has_many :current_group_memberships, :include => :group, :class_name => 'GroupMembership', :conditions => "group_memberships.workflow_state = 'accepted' AND groups.workflow_state <> 'deleted'"
+  has_many :current_group_memberships, eager_load: :group, class_name: 'GroupMembership', conditions: "group_memberships.workflow_state = 'accepted' AND groups.workflow_state<>'deleted'"
   has_many :current_groups, :through => :current_group_memberships, :source => :group
   has_many :user_account_associations
   has_many :associated_accounts, :source => :account, :through => :user_account_associations, :order => 'user_account_associations.depth'
   has_many :associated_root_accounts, :source => :account, :through => :user_account_associations, :order => 'user_account_associations.depth', :conditions => 'accounts.parent_account_id IS NULL'
   has_many :developer_keys
-  has_many :access_tokens, :include => :developer_key
+  has_many :access_tokens, preload: :developer_key
   has_many :context_external_tools, :as => :context, :dependent => :destroy, :order => 'name'
 
   has_many :student_enrollments
   has_many :ta_enrollments
   has_many :teacher_enrollments, :class_name => 'TeacherEnrollment', :conditions => ["enrollments.type = 'TeacherEnrollment'"]
-  has_many :submissions, :include => [:assignment, :submission_comments], :order => 'submissions.updated_at DESC', :dependent => :destroy
+  has_many :submissions, preload: [:assignment, :submission_comments], order: 'submissions.updated_at DESC', dependent: :destroy
   has_many :pseudonyms, :order => 'position', :dependent => :destroy
   has_many :active_pseudonyms, :class_name => 'Pseudonym', :conditions => ['pseudonyms.workflow_state != ?', 'deleted']
   has_many :pseudonym_accounts, :source => :account, :through => :pseudonyms
   has_one :pseudonym, :conditions => ['pseudonyms.workflow_state != ?', 'deleted'], :order => 'position'
   has_many :attachments, :as => 'context', :dependent => :destroy
-  has_many :active_images, :as => :context, :class_name => 'Attachment', :conditions => ["attachments.file_state != ? AND attachments.content_type LIKE 'image%'", 'deleted'], :order => 'attachments.display_name', :include => :thumbnail
+  has_many :active_images, as: :context, class_name: 'Attachment', conditions: ["attachments.file_state != ? AND attachments.content_type LIKE 'image%'", 'deleted'], order: 'attachments.display_name', preload: :thumbnail
   has_many :active_assignments, :as => :context, :class_name => 'Assignment', :conditions => ['assignments.workflow_state != ?', 'deleted']
   has_many :all_attachments, :as => 'context', :class_name => 'Attachment'
   has_many :assignment_student_visibilities
@@ -105,15 +107,13 @@ class User < ActiveRecord::Base
   has_many :discussion_topic_user_visibilities
   has_many :folders, :as => 'context', :order => 'folders.name'
   has_many :active_folders, :class_name => 'Folder', :as => :context, :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
-  has_many :active_folders_with_sub_folders, :class_name => 'Folder', :as => :context, :include => [:active_sub_folders], :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
-  has_many :active_folders_detailed, :class_name => 'Folder', :as => :context, :include => [:active_sub_folders, :active_file_attachments], :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
-  has_many :calendar_events, :as => 'context', :dependent => :destroy, :include => [:parent_event]
+  has_many :calendar_events, as: 'context', dependent: :destroy, preload: :parent_event
   has_many :eportfolios, :dependent => :destroy
   has_many :quiz_submissions, :dependent => :destroy, :class_name => 'Quizzes::QuizSubmission'
   has_many :dashboard_messages, :class_name => 'Message', :conditions => {:to => "dashboard", :workflow_state => 'dashboard'}, :order => 'created_at DESC', :dependent => :destroy
   has_many :collaborations, :order => 'created_at DESC'
   has_many :user_services, :order => 'created_at', :dependent => :destroy
-  has_many :rubric_associations, :as => :context, :include => :rubric, :order => 'rubric_associations.created_at DESC'
+  has_many :rubric_associations, as: :context, preload: :rubric, order: 'rubric_associations.created_at DESC'
   has_many :rubrics
   has_many :context_rubrics, :as => :context, :class_name => 'Rubric'
   has_many :grading_standards, :conditions => ['workflow_state != ?', 'deleted']
@@ -124,10 +124,10 @@ class User < ActiveRecord::Base
 
   has_many :inbox_items, :order => 'created_at DESC'
   has_many :submission_comment_participants
-  has_many :submission_comments, :through => :submission_comment_participants, :include => {:submission => {:assignment => {}, :user => {}} }
+  has_many :submission_comments, through: :submission_comment_participants, preload: { submission: [:assignment, :user] }
   has_many :collaborators
-  has_many :collaborations, :through => :collaborators, :include => [:user, :collaborators]
-  has_many :assigned_submission_assessments, :class_name => 'AssessmentRequest', :foreign_key => 'assessor_id', :include => {:user => {}, :submission => :assignment}
+  has_many :collaborations, through: :collaborators, preload: [:user, :collaborators]
+  has_many :assigned_submission_assessments, class_name: 'AssessmentRequest', foreign_key: 'assessor_id', preload: [:user, submission: :assignment]
   has_many :assigned_assessments, :class_name => 'AssessmentRequest', :foreign_key => 'assessor_id'
   has_many :web_conference_participants
   has_many :web_conferences, :through => :web_conference_participants
@@ -138,8 +138,8 @@ class User < ActiveRecord::Base
   has_many :user_notes
   has_many :account_reports
   has_many :stream_item_instances, :dependent => :delete_all
-  has_many :all_conversations, :class_name => 'ConversationParticipant', :include => :conversation
-  has_many :conversation_batches, :include => :root_conversation_message
+  has_many :all_conversations, class_name: 'ConversationParticipant', preload: :conversation
+  has_many :conversation_batches, preload: :root_conversation_message
   has_many :favorites
   has_many :zip_file_imports, :as => :context
   has_many :messages
@@ -147,8 +147,10 @@ class User < ActiveRecord::Base
   has_many :sis_post_grades_statuses
   has_many :content_migrations, :as => :context
   has_many :content_exports, :as => :context
-  has_many :usage_rights, as: :context, class_name: 'UsageRights', dependent: :destroy
-
+  has_many :usage_rights,
+    as: :context,
+    class_name: 'UsageRights',
+    dependent: :destroy
   has_many :gradebook_csvs, dependent: :destroy
 
   has_one :profile, :class_name => 'UserProfile'
@@ -174,12 +176,12 @@ class User < ActiveRecord::Base
 
   scope :of_account, lambda { |account| where("EXISTS (?)", account.user_account_associations.where("user_account_associations.user_id=users.id")).shard(account.shard) }
   scope :recently_logged_in, -> {
-    includes(:pseudonyms).
+    eager_load(:pseudonyms).
         where("pseudonyms.current_login_at>?", 1.month.ago).
         order("pseudonyms.current_login_at DESC").
         limit(25)
   }
-  scope :include_pseudonym, -> { includes(:pseudonym) }
+  scope :include_pseudonym, -> { preload(:pseudonym) }
   scope :restrict_to_sections, lambda { |sections|
     if sections.empty?
       scoped
@@ -189,10 +191,10 @@ class User < ActiveRecord::Base
   }
   scope :name_like, lambda { |name|
     scopes = []
-    scopes << where(wildcard('users.name', name))
-    scopes << where(wildcard('users.short_name', name))
-    scopes << joins(:pseudonyms).where(wildcard('pseudonyms.sis_user_id', name)).where(pseudonyms: {workflow_state: 'active'})
-    scopes << joins(:pseudonyms).where(wildcard('pseudonyms.unique_id', name)).where(pseudonyms: {workflow_state: 'active'})
+    scopes << unscoped.where(wildcard('users.name', name))
+    scopes << unscoped.where(wildcard('users.short_name', name))
+    scopes << unscoped.joins(:pseudonyms).where(wildcard('pseudonyms.sis_user_id', name)).where(pseudonyms: {workflow_state: 'active'})
+    scopes << unscoped.joins(:pseudonyms).where(wildcard('pseudonyms.unique_id', name)).where(pseudonyms: {workflow_state: 'active'})
 
     scopes.map!(&:to_sql)
     self.from("(#{scopes.join("\nUNION\n")}) users")
@@ -244,8 +246,10 @@ class User < ActiveRecord::Base
   }
 
   def assignment_and_quiz_visibilities(context)
-     {assignment_ids: DifferentiableAssignment.scope_filter(context.assignments, self, context).pluck(:id),
-      quiz_ids: DifferentiableAssignment.scope_filter(context.quizzes, self, context).pluck(:id)}
+    RequestCache.cache("assignment_and_quiz_visibilities", self, context) do
+      {assignment_ids: DifferentiableAssignment.scope_filter(context.assignments, self, context).pluck(:id),
+        quiz_ids: DifferentiableAssignment.scope_filter(context.quizzes, self, context).pluck(:id)}
+    end
   end
 
   def self.order_by_sortable_name(options = {})
@@ -487,14 +491,13 @@ class User < ActiveRecord::Base
             Enrollment.where("workflow_state<>'deleted' AND type<>'StudentViewEnrollment'").
                 where(:user_id => shard_user_ids).
                 select([:user_id, :course_id, :course_section_id]).
-                uniq.
-                all
+                uniq.to_a
 
         # probably a lot of dups, so more efficient to use a set than uniq an array
         course_section_ids = Set.new
         shard_enrollments.each { |e| course_section_ids << e.course_section_id }
         data[:sections] += shard_sections = CourseSection.select([:id, :course_id, :nonxlist_course_id]).
-            where(:id => course_section_ids.to_a).all unless course_section_ids.empty?
+            where(:id => course_section_ids.to_a).to_a unless course_section_ids.empty?
         shard_sections ||= []
         course_ids = Set.new
         shard_sections.each do |s|
@@ -502,11 +505,11 @@ class User < ActiveRecord::Base
           course_ids << s.nonxlist_course_id if s.nonxlist_course_id
         end
 
-        data[:courses] += Course.select([:id, :account_id]).where(:id => course_ids.to_a).all unless course_ids.empty?
+        data[:courses] += Course.select([:id, :account_id]).where(:id => course_ids.to_a).to_a unless course_ids.empty?
 
-        data[:pseudonyms] += Pseudonym.active.select([:user_id, :account_id]).uniq.where(:user_id => shard_user_ids).all
+        data[:pseudonyms] += Pseudonym.active.select([:user_id, :account_id]).uniq.where(:user_id => shard_user_ids).to_a
         AccountUser.unscoped do
-          data[:account_users] += AccountUser.select([:user_id, :account_id]).uniq.where(:user_id => shard_user_ids).all
+          data[:account_users] += AccountUser.select([:user_id, :account_id]).uniq.where(:user_id => shard_user_ids).to_a
         end
       end
       # now make it easy to get the data by user id
@@ -525,7 +528,7 @@ class User < ActiveRecord::Base
         # if shards is more than just the current shard, users will be set; otherwise
         # we never loaded users, but it doesn't matter, cause it's all the current shard
         shard_user_ids = users ? users.map(&:id) : user_ids
-        UserAccountAssociation.where(:user_id => shard_user_ids).all
+        UserAccountAssociation.where(:user_id => shard_user_ids).to_a
       end.each do |aa|
         key = [aa.user_id, aa.account_id]
         # duplicates. the unique index prevents these now, but this code
@@ -609,7 +612,7 @@ class User < ActiveRecord::Base
 
   scope :with_service, lambda { |service|
     service = service.service if service.is_a?(UserService)
-    includes(:user_services).where(:user_services => { :service => service.to_s })
+    eager_load(:user_services).where(:user_services => { :service => service.to_s })
   }
   scope :enrolled_before, lambda { |date| where("enrollments.created_at<?", date) }
 
@@ -924,6 +927,7 @@ class User < ActiveRecord::Base
 
       self.update_account_associations
     end
+    self.reload
   end
 
   def associate_with_shard(shard, strength = :strong)
@@ -1665,7 +1669,7 @@ class User < ActiveRecord::Base
               distinct_on(:id).shard(shards).to_a
 
           unless options[:include_completed_courses]
-            enrollments = Enrollment.where(:id => courses.map { |c| Shard.relative_id_for(c.primary_enrollment_id, c.shard, Shard.current) }).all
+            enrollments = Enrollment.where(:id => courses.map { |c| Shard.relative_id_for(c.primary_enrollment_id, c.shard, Shard.current) }).to_a
             courses_hash = courses.index_by(&:id)
             # prepopulate the reverse association
             enrollments.each { |e| e.course = courses_hash[e.course_id] }
@@ -1791,10 +1795,10 @@ class User < ActiveRecord::Base
 
         Shackles.activate(:slave) do
           submissions = []
-          submissions += self.submissions.after(opts[:start_at]).for_context_codes(context_codes).
+          submissions += self.submissions.after(opts[:start_at]).for_context_codes(context_codes).eager_load(:assignment).
             where("submissions.score IS NOT NULL AND assignments.workflow_state=? AND assignments.muted=?", 'published', false).
             order('submissions.created_at DESC').
-            limit(opts[:limit]).all
+            limit(opts[:limit]).to_a
 
           # THIS IS SLOW, it takes ~230ms for mike
           submissions += Submission.for_context_codes(context_codes).
@@ -1814,9 +1818,9 @@ class User < ActiveRecord::Base
             SQL
             where(assignments: {muted: false, workflow_state: 'published'}).
             order('last_updated_at_from_db DESC').
-            limit(opts[:limit]).all
+            limit(opts[:limit]).to_a
 
-          submissions = submissions.sort_by{|t| (t.last_updated_at_from_db.to_datetime.in_time_zone rescue nil) || t.created_at}.reverse
+          submissions = submissions.sort_by{|t| t['last_updated_at_from_db'] || t.created_at}.reverse
           submissions = submissions.uniq
           submissions.first(opts[:limit])
 
@@ -1930,7 +1934,34 @@ class User < ActiveRecord::Base
     opts[:end_at] ||= 1.weeks.from_now
     opts[:limit] ||= 20
 
-    events = CalendarEvent.active.for_user_and_context_codes(self, context_codes).between(now, opts[:end_at]).limit(opts[:limit]).reject(&:hidden?)
+    # if we're looking through a lot of courses, we should probably not spend a lot of time
+    # computing which sections are visible or not before we make the db call;
+    # instead, i think we should pull for all the sections and filter after the fact
+    filter_after_db = !opts[:use_db_filter] &&
+      (context_codes.grep(/\Acourse_\d+\z/).count > Setting.get('filter_events_by_section_code_threshold', '25').to_i)
+
+    section_codes = self.section_context_codes(context_codes, filter_after_db)
+    limit = filter_after_db ? opts[:limit] * 2 : opts[:limit] # pull extra events just in case
+    events = CalendarEvent.active.for_user_and_context_codes(self, context_codes, section_codes).
+      between(now, opts[:end_at]).limit(limit).to_a.reject(&:hidden?)
+
+    if filter_after_db
+      original_count = events.count
+      if events.any?{|e| e.context_code.start_with?("course_section_")}
+        section_ids = events.map(&:context_code).grep(/\Acourse_section_\d+\z/).map{ |s| s.sub(/\Acourse_section_/, '').to_i }
+        section_course_codes = Course.joins(:course_sections).where(:course_sections => {:id => section_ids}).
+          pluck(:id).map{|id| "course_#{id}"}
+        visible_section_codes = self.section_context_codes(section_course_codes)
+        events.reject!{|e| e.context_code.start_with?("course_section_") && !visible_section_codes.include?(e.context_code)}
+        events = events.first(opts[:limit]) # strip down to the original limit
+      end
+
+      # if we've filtered too many (which should be unlikely), just fallback on the old behavior
+      if original_count >= opts[:limit] && events.count < opts[:limit]
+        return self.upcoming_events(opts.merge(:use_db_filter => true))
+      end
+    end
+
     events += select_available_assignments(
       select_upcoming_assignments(
         Assignment.published.
@@ -2011,7 +2042,7 @@ class User < ActiveRecord::Base
 
       # :manage_groups is only available for admin enrollments
       admin_enrolls = self.enrollments.current.of_admin_type
-      group_admin_courses = self.courses_for_enrollments(admin_enrolls).includes(:active_groups).select do |c|
+      group_admin_courses = self.courses_for_enrollments(admin_enrolls).preload(:active_groups).select do |c|
         c.active_groups.any? && c.grants_right?(self, :manage_groups)
       end
       group_admin_courses.each do |c|
@@ -2146,12 +2177,34 @@ class User < ActiveRecord::Base
     end
   end
 
-  def section_context_codes(context_codes)
+  def section_context_codes(context_codes, skip_visibility_filter=false)
     course_ids = context_codes.grep(/\Acourse_\d+\z/).map{ |s| s.sub(/\Acourse_/, '').to_i }
     return [] unless course_ids.present?
-    Course.where(id: course_ids).inject([]) do |ary, course|
-      ary.concat course.sections_visible_to(self).map(&:asset_string)
+
+    section_ids = []
+    if skip_visibility_filter
+      full_course_ids = course_ids
+    else
+      full_course_ids = []
+      Course.where(id: course_ids).each do |course|
+        result = course.course_section_visibility(self)
+        case result
+        when Array
+          section_ids.concat(result)
+        when :all
+          full_course_ids << course.id
+        end
+      end
     end
+
+    if full_course_ids.any?
+      current_shard = Shard.current
+      Shard.partition_by_shard(full_course_ids) do |shard_course_ids|
+        section_ids.concat(CourseSection.active.where(:course_id => shard_course_ids).pluck(:id).
+            map{|id| Shard.relative_id_for(id, Shard.current, current_shard)})
+      end
+    end
+    section_ids.map{|id| "course_section_#{id}"}
   end
 
   def manageable_courses(include_concluded = false)
@@ -2380,9 +2433,15 @@ class User < ActiveRecord::Base
 
   def menu_courses(enrollment_uuid = nil)
     return @menu_courses if @menu_courses
+
     favorites = self.courses_with_primary_enrollment(:favorite_courses, enrollment_uuid)
-    return (@menu_courses = favorites) if favorites.length > 0
-    @menu_courses = self.courses_with_primary_enrollment(:current_and_invited_courses, enrollment_uuid).first(12)
+    if favorites.length > 0
+      @menu_courses = favorites
+    else
+      @menu_courses = self.courses_with_primary_enrollment(:current_and_invited_courses, enrollment_uuid).first(12)
+    end
+    ActiveRecord::Associations::Preloader.new(@menu_courses, :enrollment_term).run
+    @menu_courses
   end
 
   def user_can_edit_name?
@@ -2530,7 +2589,7 @@ class User < ActiveRecord::Base
     return cid if cid
 
     Setting.transaction do
-      s = Setting.lock.where(name: 'crocodoc_counter').first
+      s = Setting.lock.where(name: 'crocodoc_counter').first_or_create(value: 0)
       cid = s.value = s.value.to_i + 1
       s.save!
     end
@@ -2546,7 +2605,7 @@ class User < ActiveRecord::Base
   # mfa settings for a user are the most restrictive of any pseudonyms the user has
   # a login for
   def mfa_settings
-    result = self.pseudonyms.shard(self).includes(:account).map(&:account).uniq.map do |account|
+    result = self.pseudonyms.shard(self).preload(:account).map(&:account).uniq.map do |account|
       case account.mfa_settings
         when :disabled
           0

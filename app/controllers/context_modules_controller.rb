@@ -53,7 +53,8 @@ class ContextModulesController < ApplicationController
         :MODULE_FILE_PERMISSIONS => {
            usage_rights_required: @context.feature_enabled?(:usage_rights_required),
            manage_files: @context.grants_right?(@current_user, session, :manage_files)
-        }
+        },
+        :NC_OR_ENABLED => @context.feature_enabled?(:nc_or)
     end
   end
   include ModuleIndexHelper
@@ -180,22 +181,24 @@ class ContextModulesController < ApplicationController
   def content_tag_assignment_data
     if authorized_action(@context, @current_user, :read)
       info = {}
-      TempCache.enable do
-        @context.module_items_visible_to(@current_user).each do |tag|
-          if tag.can_have_assignment?
-            info[tag.id] = Rails.cache.fetch([tag, @current_user, "content_tag_assignment_info"].cache_key) do
-              if tag.assignment
-                tag.assignment.context_module_tag_info(@current_user, @context)
-              else
-                {
-                  :points_possible => nil,
-                  :due_date => (tag.content_type_quiz? && tag.content.due_at ? tag.content.due_at.utc.iso8601 : nil)
-                }
-              end
+      now = Time.now.utc.iso8601
+      @context.module_items_visible_to(@current_user).each do |tag|
+        if tag.can_have_assignment?
+          info[tag.id] = Rails.cache.fetch([tag, @current_user, "content_tag_assignment_info2"].cache_key) do
+            if tag.assignment
+              tag.assignment.context_module_tag_info(@current_user, @context)
+            else
+              {
+                :points_possible => nil,
+                :due_date => (tag.content_type_quiz? && tag.content.due_at ? tag.content.due_at.utc.iso8601 : nil)
+              }
             end
-          else
-            info[tag.id] = {:points_possible => nil, :due_date => nil}
           end
+        else
+          info[tag.id] = {:points_possible => nil, :due_date => nil}
+        end
+        if info[tag.id][:due_date] && info[tag.id][:due_date] < now
+          info[tag.id][:past_due] = true
         end
       end
       render :json => info
@@ -244,7 +247,7 @@ class ContextModulesController < ApplicationController
     elsif @progression.locked?
       res[:locked] = true
       res[:modules] = []
-      previous_modules = @context.context_modules.active.where('position<?', @module.position).order(:position).all
+      previous_modules = @context.context_modules.active.where('position<?', @module.position).order(:position).to_a
       previous_modules.reverse!
       valid_previous_modules = []
       prereq_ids = @module.prerequisites.select{|p| p[:type] == 'context_module' }.map{|p| p[:id] }

@@ -1,7 +1,7 @@
 require File.expand_path(File.dirname(__FILE__) + '/../common')
 
 describe "admin settings tab" do
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
   before :each do
     course_with_admin_logged_in
     get "/accounts/#{Account.default.id}/settings"
@@ -10,7 +10,10 @@ describe "admin settings tab" do
   def get_default_services
     default_services = []
     service_hash = Account.default.allowed_services_hash
-    service_hash.each { |k, v| default_services.push k if  v[:expose_to_ui] }
+    service_hash.each do |k, v|
+      default_services.push k if v[:expose_to_ui] &&
+        (!v[:expose_to_ui_proc] || v[:expose_to_ui_proc].call(@user, Account.default))
+    end
     default_services
   end
 

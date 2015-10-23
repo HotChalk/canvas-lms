@@ -111,14 +111,14 @@ class GradeSummaryPresenter
   end
 
   def groups
-    @groups ||= @context.assignment_groups.active.all
+    @groups ||= @context.assignment_groups.active.to_a
   end
 
   def assignments(gp_id = nil)
     @assignments ||= begin
       visible_assignments = AssignmentGroup.visible_assignments(student, @context, groups, [:assignment_overrides])
       if gp_id
-        visible_assignments = GradingPeriod.active.find(gp_id).assignments(visible_assignments)
+        visible_assignments = grading_period_assignments(gp_id, visible_assignments)
       end
       group_index = groups.index_by(&:id)
       visible_assignments.select { |a| a.submission_types != 'not_graded'}.map { |a|
@@ -131,10 +131,19 @@ class GradeSummaryPresenter
     end
   end
 
+  def grading_period_assignments(grading_period_id, assignments)
+    grading_period = GradingPeriod.context_find(@context, grading_period_id)
+    if grading_period
+      grading_period.assignments_for_student(assignments, student)
+    else
+      assignments
+    end
+  end
+
   def submissions
     @submissions ||= begin
       ss = @context.submissions
-      .includes(:visible_submission_comments,
+      .preload(:visible_submission_comments,
                 {:rubric_assessments => [:rubric, :rubric_association]},
                 :content_participations)
       .where("assignments.workflow_state != 'deleted'")

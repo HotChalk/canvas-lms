@@ -937,9 +937,7 @@ define([
 
       $pickers.each(function() {
         var $field = $(this);
-        // remove the second 'false' argument once the pickers know how to
-        // parse localized datetimes
-        var formattedDate = Handlebars.helpers.datetimeFormatted($field.val() || '', false);
+        var formattedDate = Handlebars.helpers.datetimeFormatted($field.val() || '');
 
         $field.val(formattedDate);
         $field.datetime_field();
@@ -3909,7 +3907,7 @@ define([
       var val = (Math.random() * data.range) + data.min;
       val = Math.round(val * data.rounder) / (data.rounder);
       $variable.attr('data-value', val);
-      if (!options || options.template) {
+      if (!options || options.template || options.recompute) {
         $variable.find(".value").text(val);
       }
       if (!options || options.recompute) {

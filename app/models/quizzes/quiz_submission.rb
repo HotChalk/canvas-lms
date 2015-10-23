@@ -143,43 +143,6 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     true
   end
 
-  def create_outcome_result(question, alignment)
-    # find or create the user's unique LearningOutcomeResult for this alignment
-    # of the quiz question.
-    result = alignment.learning_outcome_results.
-      for_association(quiz).
-      for_associated_asset(question).
-      where(user_id: user.id).
-      first_or_initialize
-
-    # force the context and artifact
-    result.artifact = self
-    result.context = quiz.context || alignment.context
-
-    # update the result with stuff from the quiz submission's question result
-    cached_question = quiz_data.detect { |q| q[:assessment_question_id] == question.id }
-    cached_answer = submission_data.detect { |q| q[:question_id] == cached_question[:id] }
-    raise "Could not find valid question" unless cached_question
-    raise "Could not find valid answer" unless cached_answer
-
-    # mastery
-    result.score = cached_answer[:points]
-    result.possible = cached_question['points_possible']
-    result.mastery = alignment.mastery_score && result.score && result.possible && (result.score / result.possible) > alignment.mastery_score
-
-    # attempt
-    result.attempt = attempt
-
-    # title
-    result.title = "#{user.name}, #{quiz.title}: #{cached_question[:name]}"
-
-    result.assessed_at = Time.now
-    result.submitted_at = self.finished_at
-
-    result.save_to_version(result.attempt)
-    result
-  end
-
   def question(id)
     questions.detect { |q| q[:id].to_i == id.to_i }
   end
@@ -384,7 +347,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   end
 
   def quiz_questions
-    Quizzes::QuizQuestion.where(id: quiz_question_ids).all
+    Quizzes::QuizQuestion.where(id: quiz_question_ids).to_a
   end
 
   def update_quiz_points_possible
@@ -715,14 +678,22 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
       answer = answer.with_indifferent_access
       score = params["question_score_#{answer["question_id"]}".to_sym]
       answer["more_comments"] = params["question_comment_#{answer["question_id"]}".to_sym] if params["question_comment_#{answer["question_id"]}".to_sym]
-      if score != "--" && score.present? # != ""
-        answer["points"] = (score.to_f rescue nil) || answer["points"] || 0
-        answer["correct"] = "defined" if answer["correct"] == "undefined" && (score.to_f rescue nil)
-      elsif score == "--"
+      if score.present?
+        begin
+          float_score = score.to_f
+        rescue
+          float_score = nil
+        end
+        answer["points"] = float_score || answer["points"] || 0
+        answer["correct"] = "defined" if answer["correct"] == "undefined" && float_score
+      elsif score && score.empty?
         answer["points"] = 0
         answer["correct"] = "undefined"
       end
-      self.workflow_state = "pending_review" if answer["correct"] == "undefined"
+      if answer["correct"] == "undefined"
+        question = quiz_data.find {|h| h[:id] == answer["question_id"] }
+        self.workflow_state = "pending_review" if question && question["question_type"] != "text_only_question"
+      end
       res << answer
       tally += answer["points"].to_f rescue 0
     end
@@ -892,5 +863,13 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def ensure_question_reference_integrity!
     fixer = ::Quizzes::QuizSubmission::QuestionReferenceDataFixer.new
     fixer.run!(self)
+  end
+
+  # TODO: Extract? conceptually similar to Submission::Tardiness#late?
+  def late?
+    return false if finished_at.blank?
+    return false if quiz.due_at.blank?
+
+    finished_at > quiz.due_at
   end
 end
