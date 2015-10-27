@@ -198,6 +198,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     getFormData: ->
       data = super
+      for dateField in ['last_reply_at', 'posted_at', 'delayed_post_at']
+        data[dateField] = $.unfudgeDateForProfileTimezone(data[dateField])
       #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
@@ -245,7 +247,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
-        data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
+        data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
 
       assignment = @model.get(model_key)
       assignment or= @model.createAssignment()

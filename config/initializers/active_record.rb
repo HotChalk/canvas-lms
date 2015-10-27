@@ -1,6 +1,8 @@
 require 'active_support/callbacks/suspension'
 
 class ActiveRecord::Base
+  self.cache_timestamp_format = :usec unless CANVAS_RAILS3
+
   def write_attribute(attr_name, *args)
     if CANVAS_RAILS3
       column = column_for_attribute(attr_name)
@@ -53,8 +55,7 @@ class ActiveRecord::Base
 
   def self.all_models
     return @all_models if @all_models.present?
-    @all_models = (ActiveRecord::Base.send(:subclasses) +
-                   ActiveRecord::Base.models_from_files +
+    @all_models = (ActiveRecord::Base.models_from_files +
                    [Version]).compact.uniq.reject { |model|
       !(model.superclass == ActiveRecord::Base || model.superclass.abstract_class?) ||
       (model.respond_to?(:tableless?) && model.tableless?) ||
@@ -63,19 +64,17 @@ class ActiveRecord::Base
   end
 
   def self.models_from_files
-    @from_files ||= Dir[
-      "#{Rails.root}/app/models/**/*.rb",
-      "#{Rails.root}/vendor/plugins/*/app/models/**/*.rb",
-      "#{Rails.root}/gems/plugins/*/app/models/**/*.rb",
-    ].sort.collect { |file|
-      model = begin
-          file.sub(%r{.*/app/models/(.*)\.rb$}, '\1').camelize.constantize
-        rescue NameError, LoadError
-          next
-        end
-      next unless model < ActiveRecord::Base
-      model
-    }
+    @from_files ||= begin
+      Dir[
+        "#{Rails.root}/app/models/**/*.rb",
+        "#{Rails.root}/vendor/plugins/*/app/models/**/*.rb",
+        "#{Rails.root}/gems/plugins/*/app/models/**/*.rb",
+      ].sort.each do |file|
+        next if const_defined?(file.sub(%r{.*/app/models/(.*)\.rb$}, '\1').camelize)
+        ActiveSupport::Dependencies.require_or_load(file)
+      end
+      ActiveRecord::Base.descendants
+    end
   end
 
   def self.maximum_text_length
@@ -209,7 +208,7 @@ class ActiveRecord::Base
   def touch_context
     return if (@@skip_touch_context ||= false || @skip_touch_context ||= false)
     if self.respond_to?(:context_type) && self.respond_to?(:context_id) && self.context_type && self.context_id
-      self.context_type.constantize.update_all({ updated_at: Time.now.utc }, { id: self.context_id })
+      self.context_type.constantize.where(id: self.context_id).update_all(updated_at: Time.now.utc)
     end
   rescue
     Canvas::Errors.capture_exception(:touch_context, $ERROR_INFO)
@@ -218,10 +217,10 @@ class ActiveRecord::Base
   def touch_user
     if self.respond_to?(:user_id) && self.user_id
       shard = self.user.shard
-      User.update_all({ :updated_at => Time.now.utc }, { :id => self.user_id })
+      User.where(:id => self.user_id).update_all(:updated_at => Time.now.utc)
       User.connection.after_transaction_commit do
         shard.activate do
-          User.update_all({ :updated_at => Time.now.utc }, { :id => self.user_id })
+          User.where(:id => self.user_id).update_all(:updated_at => Time.now.utc)
         end if shard != Shard.current
         User.invalidate_cache(self.user_id)
       end
@@ -519,15 +518,15 @@ class ActiveRecord::Base
     # transaction (savepoint) ensures we don't mess up things for the outer
     # transaction. useful for possible race conditions where we don't want to
     # take a lock (e.g. when we create a submission).
-    retries.times do
+    retries.times do |retry_count|
       begin
-        result = transaction(:requires_new => true) { uncached { yield } }
+        result = transaction(:requires_new => true) { uncached { yield(retry_count) } }
         connection.clear_query_cache
         return result
       rescue ActiveRecord::RecordNotUnique
       end
     end
-    result = transaction(:requires_new => true) { uncached { yield } }
+    result = transaction(:requires_new => true) { uncached { yield(retries) } }
     connection.clear_query_cache
     result
   end
@@ -576,7 +575,7 @@ class ActiveRecord::Base
       join_conditions = []
       joins_sql.strip.split('INNER JOIN')[1..-1].each do |join|
         # this could probably be improved
-        raise "PostgreSQL update_all/delete_all only supports INNER JOIN" unless join.strip =~ /([a-zA-Z0-9'"_]+(?:(?:\s+[aA][sS])?\s+[a-zA-Z0-9'"_]+)?)\s+ON\s+(.*)/
+        raise "PostgreSQL update_all/delete_all only supports INNER JOIN" unless join.strip =~ /([a-zA-Z0-9'"_\.]+(?:(?:\s+[aA][sS])?\s+[a-zA-Z0-9'"_]+)?)\s+ON\s+(.*)/
         tables << $1
         join_conditions << $2
       end
@@ -614,7 +613,32 @@ unless defined? OpenDataExport
   end
 end
 
+module PreloadAndEagerLoadOnAssociation
+  def scope
+    result = super
+    result = result.preload(options[:preload]) if options[:preload]
+    result = result.eager_load(options[:eager_load]) if options[:eager_load]
+    result
+  end
+end
+
+ActiveRecord::Associations::AssociationScope.prepend(PreloadAndEagerLoadOnAssociation)
+
+ActiveRecord::Associations::Builder::Association.valid_options += [:preload, :eager_load]
+if CANVAS_RAILS3
+ActiveRecord::Associations::Builder::CollectionAssociation.valid_options += [:preload, :eager_load]
+ActiveRecord::Associations::Builder::SingularAssociation.valid_options += [:preload, :eager_load]
+ActiveRecord::Associations::Builder::BelongsTo.valid_options += [:preload, :eager_load]
+ActiveRecord::Associations::Builder::HasAndBelongsToMany.valid_options += [:preload, :eager_load]
+ActiveRecord::Associations::Builder::HasMany.valid_options += [:preload, :eager_load]
+ActiveRecord::Associations::Builder::HasOne.valid_options += [:preload, :eager_load]
+end
+
 ActiveRecord::Relation.class_eval do
+  def includes(*args)
+    return super if args.empty? || args == [nil]
+    raise "Use preload or eager_load instead of includes"
+  end
 
   def select_values_necessitate_temp_table?
     return false unless select_values.present?
@@ -662,7 +686,7 @@ ActiveRecord::Relation.class_eval do
         sql = to_sql
         cursor = "#{table_name}_in_batches_cursor_#{sql.hash.abs.to_s(36)}"
         connection.execute("DECLARE #{cursor} CURSOR FOR #{sql}")
-        includes = includes_values
+        includes = includes_values + preload_values
         klass.unscoped do
           batch = connection.uncached { klass.find_by_sql("FETCH FORWARD #{batch_size} FROM #{cursor}") }
           while !batch.empty?
@@ -708,7 +732,7 @@ ActiveRecord::Relation.class_eval do
             old_proc = connection.raw_connection.set_notice_processor {}
             if pluck && pluck.any?{|p| p == primary_key.to_s}
               connection.add_index table, primary_key, name: index
-              index = primary_key
+              index = primary_key.to_s
             else
               pluck.unshift(index) if pluck
               connection.execute "ALTER TABLE #{table}
@@ -728,7 +752,7 @@ ActiveRecord::Relation.class_eval do
           raise "Temp tables not supported!"
       end
 
-      includes = includes_values
+      includes = includes_values + preload_values
       klass.unscoped do
         if pluck
           batch = klass.from(table).order(index).limit(batch_size).pluck(*pluck)
@@ -930,7 +954,7 @@ ActiveRecord::Relation.class_eval do
   def union(*scopes)
     uniq_identifier = "#{table_name}.#{primary_key}"
     scopes << self
-    sub_query = (scopes).map {|s| s.except(:select).select(uniq_identifier).to_sql}.join(" UNION ALL ")
+    sub_query = (scopes).map {|s| s.except(:select, :order).select(uniq_identifier).to_sql}.join(" UNION ALL ")
     engine.where("#{uniq_identifier} IN (#{sub_query})")
   end
 end
@@ -1082,7 +1106,7 @@ end
 
 ActiveRecord::Associations::HasOneAssociation.class_eval do
   def create_scope
-    scope = scoped.scope_for_create.stringify_keys
+    scope = (CANVAS_RAILS3 ? self.scoped : self.scope).scope_for_create.stringify_keys
     scope = scope.except(klass.primary_key) unless klass.primary_key.to_s == reflection.foreign_key.to_s
     scope
   end
@@ -1311,7 +1335,8 @@ ActiveRecord::ConnectionAdapters::SchemaStatements.class_eval do
     when 'PostgreSQL'
       foreign_key_name = foreign_key_name(from_table, column, options)
       query = supports_delayed_constraint_validation? ? 'convalidated' : 'conname'
-      value = select_value("SELECT #{query} FROM pg_constraint INNER JOIN pg_namespace ON pg_namespace.oid=connamespace WHERE conname='#{foreign_key_name}' AND nspname=current_schema()")
+      schema = @config[:use_qualified_names] ? quote(shard.name) : 'current_schema()'
+      value = select_value("SELECT #{query} FROM pg_constraint INNER JOIN pg_namespace ON pg_namespace.oid=connamespace WHERE conname='#{foreign_key_name}' AND nspname=#{schema}")
       if supports_delayed_constraint_validation? && value == 'f'
         execute("ALTER TABLE #{quote_table_name(from_table)} DROP CONSTRAINT #{quote_table_name(foreign_key_name)}")
       elsif value
@@ -1336,7 +1361,7 @@ ActiveRecord::ConnectionAdapters::SchemaStatements.class_eval do
 
   # does a query first to make the actual constraint adding fast
   def change_column_null_with_less_locking(table, column)
-    execute("SELECT COUNT(*) FROM #{table} WHERE #{column} IS NULL") if open_transactions == 0
+    execute("SELECT COUNT(*) FROM #{quote_table_name(table)} WHERE #{column} IS NULL") if open_transactions == 0
     change_column_null table, column, false
   end
 
@@ -1424,7 +1449,7 @@ end
 
 module UnscopeCallbacks
   def run_callbacks(kind)
-    scope = self.class.base_class.unscoped
+    scope = CANVAS_RAILS3 ? self.class.unscoped : self.class.base_class.unscoped
     scope.default_scoped = true
     scope.scoping { super }
   end

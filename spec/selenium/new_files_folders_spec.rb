@@ -2,7 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
 
 describe "better_file_browsing, folders" do
-   include_examples "in-process server selenium tests"
+   include_context "in-process server selenium tests"
 
   context "Folders" do
     before(:each) do
@@ -12,7 +12,7 @@ describe "better_file_browsing, folders" do
       add_folder(folder_name)
     end
 
-    it "should display the new folder form", priority: "1", test_id: 121884 do
+    it "should display the new folder form", priority: "1", test_id: 268052 do
       click_new_folder_button
       expect(f("form.ef-edit-name-form")).to be_displayed
     end
@@ -21,7 +21,16 @@ describe "better_file_browsing, folders" do
       expect(fln("new test folder")).to be_present
     end
 
-    it "should edit folder name", priority: "1", test_id: 133127 do
+    it "should display all cog icon options", priority: "1", test_id: 133124 do
+      create_new_folder
+      ff('.al-trigger')[0].click
+      expect(fln("Download")).to be_displayed
+      expect(fln("Rename")).to be_displayed
+      expect(fln("Move")).to be_displayed
+      expect(fln("Delete")).to be_displayed
+    end
+
+    it "should edit folder name", priority: "1", test_id: 223501 do
       folder_rename_to = "test folder"
       edit_name_from_cog_icon(folder_rename_to)
       wait_for_ajaximations
@@ -29,7 +38,22 @@ describe "better_file_browsing, folders" do
       expect(fln("test folder")).to be_present
     end
 
-    it "should delete a folder from cog icon", priority: "1", test_id: 133128 do
+    it "should validate xss on folder text", priority: "1", test_id: 133113 do
+     add_folder('<script>alert("Hi");</script>')
+     expect(ff('.media-body')[0].text).to eq '<script>alert("Hi");<_script>'
+    end
+
+    it "should move a folder", priority: "1", test_id: 133125 do
+      ff('.media-body')[0].click
+      wait_for_ajaximations
+      add_folder("test folder")
+      move("test folder", 0, :cog_icon)
+      wait_for_ajaximations
+      expect(f("#flash_message_holder").text).to eq "test folder moved to course files\nClose"
+      expect(ff(".treeLabel span")[2].text).to eq "test folder"
+    end
+
+    it "should delete a folder from cog icon", priority: "1", test_id: 223502 do
       delete(0, :cog_icon)
       expect(fln("new test folder")).not_to be_present
     end
@@ -43,7 +67,7 @@ describe "better_file_browsing, folders" do
       expect(driver.find_element(:class => 'published')).to be_displayed
     end
 
-    it "should make folder available to student with link", priority: "1", test_id: 193158 do
+    it "should make folder available to student with link", priority: "1", test_id: 133110 do
       set_item_permissions(:restricted_access, :available_with_link, :cloud_icon)
       expect(f('.btn-link.published-status.hiddenState')).to be_displayed
       expect(driver.find_element(:class => 'hiddenState')).to be_displayed
@@ -87,6 +111,28 @@ describe "better_file_browsing, folders" do
        new_folder = create_new_folder
        expect(get_all_files_folders.count).to eq 1
        expect(new_folder.text).to match /New Folder/
+     end
+
+     it "should handle duplicate folder names", priority: "1", test_id: 133130 do
+       create_new_folder
+       add_folder("New Folder")
+       expect(get_all_files_folders.last.text).to match /New Folder 2/
+     end
+
+     it "should display folders in tree view", priority: "1", test_id: 133099 do
+       add_file(fixture_file_upload('files/example.pdf', 'application/pdf'),
+               @course, "example.pdf")
+       get "/courses/#{@course.id}/files"
+       create_new_folder
+       add_folder("New Folder")
+       ff('.media-body')[1].click
+       wait_for_ajaximations
+       add_folder("New Folder 1.1")
+       ff(".icon-folder")[1].click
+       expect(ff('.media-body')[0].text).to eq "New Folder 1.1"
+       get "/courses/#{@course.id}/files"
+       expect(ff('.media-body')[0].text).to eq "example.pdf"
+       expect(f('.ef-folder-content')).to be_displayed
      end
 
      it "should create 15 new child folders and show them in the FolderTree when expanded", priority: "2", test_id: 121886 do

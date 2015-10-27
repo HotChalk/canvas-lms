@@ -33,6 +33,7 @@ describe 'CrocodocDocument' do
     before :once do
       teacher_in_course(:active_all => true)
       student_in_course
+      ta_in_course
       @submitter = @student
       student_in_course
       @other_student = @student
@@ -90,7 +91,8 @@ describe 'CrocodocDocument' do
     end
 
     it "should not allow annotations if anonymous_peer_reviews" do
-      @submission.assignment.update_attribute(:anonymous_peer_reviews, true)
+      @submission.assignment.update_attributes anonymous_peer_reviews: true,
+                                               peer_reviews: true
       expect(@crocodoc.permissions_for_user(@student)).to eq({
         :filter => 'none',
         :admin => false,

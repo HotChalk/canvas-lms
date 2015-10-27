@@ -102,18 +102,18 @@ define [
       else
         'students_url'
 
-      gotAllStudents = $.Deferred().done => @gotAllStudents()
+      @gotAllAssignmentGroupsPromise = $.Deferred().done => @gotAllAssignmentGroups()
+      gotAllStudents = $.Deferred().done(()=>
+        @gotAllAssignmentGroupsPromise.then(()=> @gotAllStudents())
+      )
 
-      # this method should be removed after a month in production
-      @alignCoursePreferencesWithLocalStorage()
-
-      assignmentGroupsParams = {exclude_descriptions: true}
+      @assignmentGroupsParams = {exclude_descriptions: true}
       if @mgpEnabled && @gradingPeriodToShow && @gradingPeriodToShow != '0' && @gradingPeriodToShow != ''
-        $.extend(assignmentGroupsParams, {grading_period_id: @gradingPeriodToShow})
+        $.extend(@assignmentGroupsParams, {grading_period_id: @gradingPeriodToShow})
 
       ajax_calls = [
         $.ajaxJSON(@options[enrollmentsUrl], "GET")
-      , $.ajaxJSON(@options.assignment_groups_url, "GET", assignmentGroupsParams, @gotAssignmentGroups)
+      , $.ajaxJSON(@options.assignment_groups_url, "GET", @assignmentGroupsParams, @gotAssignmentGroups)
       , $.ajaxJSON( @options.sections_url, "GET", {}, @gotSections)
       ]
 
@@ -155,7 +155,7 @@ define [
           gotAllStudents.resolve()
 
       gotCustomColumns = @getCustomColumns()
-      @gotAllData = $.when(gotCustomColumns, gotAllStudents)
+      @gotAllData = $.when(gotCustomColumns, gotAllStudents, @gotAllAssignmentGroupsPromise)
 
       @allSubmissionsLoaded.done =>
         for c in @customColumns
@@ -271,7 +271,8 @@ define [
       @getSubmissionsChunks()
       @initHeader()
 
-    gotAssignmentGroups: (assignmentGroups) =>
+    gotAllAssignmentGroups: () =>
+      assignmentGroups = @allAssignmentGroups;
       @assignmentGroups = {}
       @assignments      = {}
 
@@ -287,8 +288,40 @@ define [
           assignment.assignment_group = group
           assignment.due_at = tz.parse(assignment.due_at)
           @assignments[assignment.id] = assignment
-
       @postGradesStore.setGradeBookAssignments @assignments
+
+
+    gotAssignmentGroups: (assignmentGroups, xhr) =>
+      @allAssignmentGroups = [];
+
+      gotAssignmentGroupsChunk = (groups) =>
+        for group in groups
+          @allAssignmentGroups.push(group)
+
+      gotAssignmentGroupsChunk(assignmentGroups)
+
+
+      paginationLinks = xhr.getResponseHeader('Link')
+      lastLink = paginationLinks.match(/<[^>]+>; *rel="last"/)
+      unless lastLink?
+        @gotAllAssignmentGroupsPromise.resolve()
+        return
+      lastPage = lastLink[0].match(/page=(\d+)/)[1]
+      lastPage = parseInt lastPage, 10
+      if lastPage == 1
+        @gotAllAssignmentGroupsPromise.resolve()
+        return
+      agParams = @assignmentGroupsParams
+      fetchAssignmentGroupsChunk = (page) =>
+        $.ajaxJSON @options.assignment_groups_url, "GET", $.extend(agParams, {page})
+      dfds = (fetchAssignmentGroupsChunk(page) for page in [2..lastPage])
+      $.when(dfds...).then (responses...) =>
+        if dfds.length == 1
+          gotAssignmentGroupsChunk(responses[0])
+        else
+          gotAssignmentGroupsChunk(groups) for [groups, x, y] in responses
+        @gotAllAssignmentGroupsPromise.resolve()
+
 
     gotCourse: (course) =>
       @course = course
@@ -318,6 +351,11 @@ define [
 
     gotAllStudents: ->
       @withAllStudents (students) =>
+        #empty the array so this is idempotent, you can end up with too many rows
+        @rows.length = 0
+        if @mgpEnabled
+          gradingPeriods = @indexedGradingPeriods()
+          overrides = @indexedOverrides()
         for student_id, student of students
           student.computed_current_score ||= 0
           student.computed_final_score ||= 0
@@ -336,8 +374,10 @@ define [
           # fill in dummy submissions, so there's something there even if the
           # student didn't submit anything for that assignment
           for assignment_id, assignment of @assignments
-            student["assignment_#{assignment_id}"] ||= { assignment_id: assignment_id, user_id: student_id }
-
+            student["assignment_#{assignment_id}"] ?= { assignment_id: assignment_id, user_id: student_id }
+            submission = student["assignment_#{assignment_id}"]
+            if @submissionOutsideOfGradingPeriod(submission, student, gradingPeriods, overrides)
+              submission.hidden = true
           @rows.push(student)
 
     defaultSortType: 'assignment_group'
@@ -468,7 +508,16 @@ define [
         return wrappedFn(a, b)
 
     rowFilter: (student) =>
-      !@sectionToShow || (@sectionToShow in student.sections)
+      matchingSection = !@sectionToShow || (@sectionToShow in student.sections)
+      matchingFilter = if @userFilterTerm == ""
+        true
+      else
+        propertiesToMatch = ['name', 'login_id', 'short_name', 'sortable_name']
+        pattern = new RegExp @userFilterTerm, 'i'
+        matched = _.any propertiesToMatch, (prop) ->
+          student[prop]?.match pattern
+
+      matchingSection and matchingFilter
 
     handleAssignmentMutingChange: (assignment) =>
       idx = @grid.getColumnIndex("assignment_#{assignment.id}")
@@ -545,6 +594,7 @@ define [
           params =
             student_ids: (student.id for student in students)
             response_fields: ['id', 'user_id', 'url', 'score', 'grade', 'submission_type', 'submitted_at', 'assignment_id', 'grade_matches_current_submission', 'attachments', 'late', 'workflow_state', 'excused']
+            exclude_response_fields: ['preview_url']
           params['grading_period_id'] = @gradingPeriodToShow if @mgpEnabled && @gradingPeriodToShow && @gradingPeriodToShow != '0' && @gradingPeriodToShow != ''
           $.ajaxJSON(@options.submissions_url, "GET", params, @gotSubmissionsChunk)
           @submissionChunkCount++
@@ -596,6 +646,9 @@ define [
       activeCell = @grid.getActiveCell()
       editing = $(@grid.getActiveCellNode()).hasClass('editable')
       columns = @grid.getColumns()
+      if @mgpEnabled
+        gradingPeriods = @indexedGradingPeriods()
+        overrides = @indexedOverrides()
       for submission in submissions
         student = @student(submission.user_id)
         idToMatch = "assignment_#{submission.assignment_id}"
@@ -606,6 +659,7 @@ define [
           activeCell.cell is cell
         #check for DA visible
         submission["hidden"] = !submission.assignment_visible if submission.assignment_visible?
+        submission.hidden = true if @submissionOutsideOfGradingPeriod(submission, student, gradingPeriods, overrides)
         @updateAssignmentVisibilities(submission) if submission["hidden"]
         @updateSubmission(submission)
         @calculateStudentGrade(student)
@@ -635,6 +689,73 @@ define [
             SubmissionCell.out_of.formatter(row, col, submission, assignment)
           else
             (SubmissionCell[assignment.grading_type] || SubmissionCell).formatter(row, col, submission, assignment, @grid)
+
+
+    indexedOverrides: ->
+      indexed = { studentOverrides: {}, sectionOverrides: {} }
+      _.each @assignments, (assignment) ->
+        if assignment.has_overrides
+          _.each assignment.overrides, (override) ->
+            if override.student_ids
+              indexed.studentOverrides[assignment.id] ?= {}
+              _.each override.student_ids, (studentId) ->
+                indexed.studentOverrides[assignment.id][studentId] = override
+            else if sectionId = override.course_section_id
+              indexed.sectionOverrides[assignment.id] ?= {}
+              indexed.sectionOverrides[assignment.id][sectionId] = override
+      indexed
+
+    indexedGradingPeriods: ->
+      _.indexBy @gradingPeriods, 'id'
+
+    submissionOutsideOfGradingPeriod: (submission, student, gradingPeriods, overrides) ->
+      return false unless @mgpEnabled
+      selectedPeriodId = @gradingPeriodToShow
+      return false if @isAllGradingPeriods(selectedPeriodId)
+
+      assignment = @assignments[submission.assignment_id]
+      gradingPeriod = gradingPeriods[selectedPeriodId]
+      effectiveDueAt = assignment.due_at
+
+      if assignment.has_overrides
+        # we'll eventually need to consider group overrides here
+        # (group overrides are not yet a feature but are planned)
+        sectionOverrides = []
+        sectionOverridesOnAssignment = overrides.sectionOverrides[assignment.id]
+        if sectionOverridesOnAssignment
+          _.each student.sections, (sectionId) ->
+            sectionOverride = sectionOverridesOnAssignment[sectionId]
+            sectionOverrides.push sectionOverride if sectionOverride
+
+        studentOverrides = []
+        studentOverridesOnAssignment = overrides.studentOverrides[assignment.id]
+        if studentOverridesOnAssignment
+          studentOverride = studentOverridesOnAssignment[student.id]
+          studentOverrides.push studentOverride if studentOverride
+
+        allOverridesForSubmission = sectionOverrides.concat studentOverrides
+        overrideDates = _.chain(allOverridesForSubmission)
+          .pluck('due_at')
+          .map((dateString) -> tz.parse(dateString))
+          .value()
+
+        if overrideDates.length > 0
+          nullDueAtsExist = _.any(overrideDates, (date) -> _.isNull(date))
+          effectiveDueAt = if nullDueAtsExist then null else _.max(overrideDates)
+        else
+          return true if assignment.only_visible_to_overrides
+
+      showSubmission = @lastGradingPeriodAndDueAtNull(gradingPeriod, effectiveDueAt) || @dateIsInGradingPeriod(gradingPeriod, effectiveDueAt)
+      !showSubmission
+
+    lastGradingPeriodAndDueAtNull: (gradingPeriod, dueAt) ->
+      gradingPeriod.is_last && _.isNull(dueAt)
+
+    dateIsInGradingPeriod: (gradingPeriod, date) ->
+      return false if _.isNull(date)
+      startDate = tz.parse(gradingPeriod.start_date)
+      endDate = tz.parse(gradingPeriod.end_date)
+      startDate < date && date <= endDate
 
     staticCellFormatter: (row, col, val) ->
       "<div class='cell-content gradebook-cell'>#{htmlEscape(val)}</div>"
@@ -901,14 +1022,14 @@ define [
         showSisSync: @options.post_grades_feature_enabled,
         currentSection: @sectionToShow)
       @sectionMenu.render()
-      @togglePostGrades(not @sectionToShow?)
+      @togglePostGrades(not @sectionToShow? or @sectionList().length is 1)
 
     updateCurrentSection: (section, author) =>
       @sectionToShow = section
       @postGradesStore.setSelectedSection @sectionToShow
       userSettings[if @sectionToShow then 'contextSet' else 'contextRemove']('grading_show_only_section', @sectionToShow)
       @buildRows() if @grid
-      @togglePostGrades(not @sectionToShow?)
+      @togglePostGrades(not @sectionToShow? or @sectionList().length is 1)
 
     showSections: ->
       if @sections_enabled && @options.post_grades_feature_enabled
@@ -1137,40 +1258,8 @@ define [
         new GradeDisplayWarningDialog(dialog_options)
 
     onUserFilterInput: (term) =>
-      # put rows back on the students for dropped assignments
-
-      data = @grid.getData()
-      _.each data, (student) ->
-        if student.beforeFilteredRow?
-          student.row = student.beforeFilteredRow
-          delete student.beforeFilteredRow
-
-      # put the removed items back in their proper order
-      _.each @userFilterRemovedRows.reverse(), (removedStudentItem) ->
-        data.splice removedStudentItem.index, 0, removedStudentItem.data
-      @userFilterRemovedRows = []
-
-      if term != ''
-        propertiesToMatch = ['name', 'login_id', 'short_name', 'sortable_name']
-        index = data.length
-        while index--
-          student = data[index]
-          matched = _.any propertiesToMatch, (prop) ->
-            student[prop]?.match new RegExp term, 'i'
-          if not matched
-            # remove the student, save the item and its index so we can put it
-            # back in order
-            item =
-              index: index
-              data: data.splice(index, 1)[0]
-            @userFilterRemovedRows.push item
-
-      for student, index in data
-        student.beforeFilteredRow = student.row
-        student.row = index
-
-      @grid.setData(data)
-      @grid.invalidate()
+      @userFilterTerm = term
+      @buildRows()
 
     getVisibleGradeGridColumns: ->
       res = [].concat @parentColumns, @customColumnDefinitions()
@@ -1450,41 +1539,51 @@ define [
 
     # show warnings for bad grading setups
     setAssignmentWarnings: =>
-      if @weightedGroups()
-        # assignment group has 0 points possible
-        invalidAssignmentGroups = _.filter @assignmentGroups, (ag) ->
-          pointsPossible = _.inject ag.assignments
+      @totalGradeWarning = null
+
+      if _.any(@assignments, (a) -> a.muted)
+        @totalGradeWarning =
+          warningText: I18n.t "This grade differs from the student's view of the grade because some assignments are muted"
+          icon: "icon-muted"
+      else
+        if @weightedGroups()
+          # assignment group has 0 points possible
+          invalidAssignmentGroups = _.filter @assignmentGroups, (ag) ->
+            pointsPossible = _.inject ag.assignments
+            , ((sum, a) -> sum + (a.points_possible || 0))
+            , 0
+            pointsPossible == 0
+
+          for ag in invalidAssignmentGroups
+            for a in ag.assignments
+              a.invalid = true
+
+          if invalidAssignmentGroups.length > 0
+            groupNames = (ag.name for ag in invalidAssignmentGroups)
+            text = I18n.t 'invalid_assignment_groups_warning',
+              one: "Score does not include %{groups} because it has
+                    no points possible"
+              other: "Score does not include %{groups} because they have
+                      no points possible"
+            ,
+              groups: $.toSentence(groupNames)
+              count: groupNames.length
+            @totalGradeWarning =
+              warningText: text
+              icon: "icon-warning final-warning"
+
+        else
+          # no assignments have points possible
+          pointsPossible = _.inject @assignments
           , ((sum, a) -> sum + (a.points_possible || 0))
           , 0
-          pointsPossible == 0
 
-        for ag in invalidAssignmentGroups
-          for a in ag.assignments
-            a.invalid = true
-
-        if invalidAssignmentGroups.length > 0
-          groupNames = (ag.name for ag in invalidAssignmentGroups)
-          @totalGradeWarning = I18n.t 'invalid_assignment_groups_warning',
-            one: "Score does not include %{groups} because it has
-                  no points possible"
-            other: "Score does not include %{groups} because they have
-                    no points possible"
-          ,
-            groups: $.toSentence(groupNames)
-            count: groupNames.length
-
-      else
-        # no assignments have points possible
-        pointsPossible = _.inject @assignments
-        , ((sum, a) -> sum + (a.points_possible || 0))
-        , 0
-
-        if pointsPossible == 0
-          @totalGradeWarning = I18n.t 'no_assignments_have_points_warning'
-          , "Can't compute score until an assignment has points possible"
-        else
-          @totalGradeWarning = null
-
+          if pointsPossible == 0
+            text = I18n.t 'no_assignments_have_points_warning'
+            , "Can't compute score until an assignment has points possible"
+            @totalGradeWarning =
+              warningText: text
+              icon: "icon-warning final-warning"
     ###
     xsslint jqueryObject.identifier createLink
     xsslint jqueryObject.function showLink hideLink
@@ -1565,11 +1664,3 @@ define [
 
     isAllGradingPeriods: (currentPeriodId) ->
       currentPeriodId == "0"
-
-    # this method should be removed after a month in production
-    alignCoursePreferencesWithLocalStorage: () ->
-      local_storage_show_point_totals = userSettings.contextGet('show_point_totals')
-      if local_storage_show_point_totals and local_storage_show_point_totals != @options.show_total_grade_as_points
-        @options.show_total_grade_as_points = local_storage_show_point_totals
-        userSettings.contextRemove('show_point_totals')
-        $.ajaxJSON @options.setting_update_url, "PUT", show_total_grade_as_points: @options.show_total_grade_as_points

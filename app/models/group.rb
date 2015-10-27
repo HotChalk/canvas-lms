@@ -43,20 +43,18 @@ class Group < ActiveRecord::Base
   belongs_to :root_account, :class_name => "Account"
   belongs_to :course_section
   has_many :calendar_events, :as => :context, :dependent => :destroy
-  has_many :discussion_topics, :as => :context, :conditions => ['discussion_topics.workflow_state != ?', 'deleted'], :include => :user, :dependent => :destroy, :order => 'discussion_topics.position DESC, discussion_topics.created_at DESC'
-  has_many :active_discussion_topics, :as => :context, :class_name => 'DiscussionTopic', :conditions => ['discussion_topics.workflow_state != ?', 'deleted'], :include => :user
-  has_many :all_discussion_topics, :as => :context, :class_name => "DiscussionTopic", :include => :user, :dependent => :destroy
-  has_many :discussion_entries, :through => :discussion_topics, :include => [:discussion_topic, :user], :dependent => :destroy
+  has_many :discussion_topics, as: :context, conditions: ['discussion_topics.workflow_state != ?', 'deleted'], preload: :user, dependent: :destroy, order: 'discussion_topics.position DESC, discussion_topics.created_at DESC'
+  has_many :active_discussion_topics, as: :context, class_name: 'DiscussionTopic', conditions: ['discussion_topics.workflow_state != ?', 'deleted'], preload: :user
+  has_many :all_discussion_topics, as: :context, class_name: "DiscussionTopic", preload: :user, dependent: :destroy
+  has_many :discussion_entries, through: :discussion_topics, preload: [:discussion_topic, :user], dependent: :destroy
   has_many :announcements, :as => :context, :class_name => 'Announcement', :dependent => :destroy
   has_many :active_announcements, :as => :context, :class_name => 'Announcement', :conditions => ['discussion_topics.workflow_state != ?', 'deleted']
   has_many :attachments, :as => :context, :dependent => :destroy, :extend => Attachment::FindInContextAssociation
-  has_many :active_images, :as => :context, :class_name => 'Attachment', :conditions => ["attachments.file_state != ? AND attachments.content_type LIKE 'image%'", 'deleted'], :order => 'attachments.display_name', :include => :thumbnail
+  has_many :active_images, as: :context, class_name: 'Attachment', conditions: ["attachments.file_state != ? AND attachments.content_type LIKE 'image%'", 'deleted'], order: 'attachments.display_name', preload: :thumbnail
   has_many :active_assignments, :as => :context, :class_name => 'Assignment', :conditions => ['assignments.workflow_state != ?', 'deleted']
   has_many :all_attachments, :as => 'context', :class_name => 'Attachment'
   has_many :folders, :as => :context, :dependent => :destroy, :order => 'folders.name'
   has_many :active_folders, :class_name => 'Folder', :as => :context, :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
-  has_many :active_folders_with_sub_folders, :class_name => 'Folder', :as => :context, :include => [:active_sub_folders], :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
-  has_many :active_folders_detailed, :class_name => 'Folder', :as => :context, :include => [:active_sub_folders, :active_file_attachments], :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
   has_many :collaborators
   has_many :external_feeds, :as => :context, :dependent => :destroy
   has_many :messages, :as => :context, :dependent => :destroy
@@ -72,15 +70,21 @@ class Group < ActiveRecord::Base
   belongs_to :leader, :class_name => "User"
 
   EXPORTABLE_ATTRIBUTES = [
-    :id, :name, :workflow_state, :created_at, :updated_at, :context_id, :context_type, :category, :max_membership, :hashtag, :show_public_context_messages, :is_public,
-    :account_id, :default_wiki_editing_roles, :wiki_id, :deleted_at, :join_level, :default_view, :storage_quota, :uuid, :root_account_id, :sis_source_id, :sis_batch_id,
-    :group_category_id, :description, :avatar_attachment_id, :tab_configuration, :dynamic_tab_configuration
-  ]
+    :id, :name, :workflow_state, :created_at, :updated_at, :context_id,
+    :context_type, :category, :max_membership, :is_public, :account_id,
+    :default_wiki_editing_roles, :wiki_id, :deleted_at, :join_level,
+    :default_view, :storage_quota, :uuid, :root_account_id, :sis_source_id,
+    :tab_configuration, :dynamic_tab_configuration,    
+    :sis_batch_id, :group_category_id, :description, :avatar_attachment_id
+  ].freeze
 
   EXPORTABLE_ASSOCIATIONS = [
-    :users, :group_memberships, :users, :context, :group_category, :account, :root_account, :calendar_events, :discussion_topics, :discussion_entries, :announcements,
-    :attachments, :folders, :collaborators, :wiki, :web_conferences, :collaborations, :media_objects, :avatar_attachment, :course_section
-  ]
+    :users, :group_memberships, :users, :context, :group_category, :account,
+    :root_account, :calendar_events, :discussion_topics, :discussion_entries,
+    :announcements, :attachments, :folders, :collaborators, :wiki,
+    :course_section,
+    :web_conferences, :collaborations, :media_objects, :avatar_attachment
+  ].freeze
 
   before_validation :ensure_defaults
   before_save :maintain_category_attribute
@@ -126,8 +130,13 @@ class Group < ActiveRecord::Base
   end
 
   def all_real_students
-    return self.context.all_real_students.where("users.id IN (?)", self.users.pluck(:id)) if self.context.respond_to? "all_real_students"
+    return self.context.all_real_students.where(users: { id: group_memberships.select(:user_id) }) if self.context.respond_to? "all_real_students"
     self.users
+  end
+
+  def all_real_student_enrollments
+    return self.context.all_real_student_enrollments.where(user_id: group_memberships.select(:user_id)) if self.context.respond_to? "all_real_student_enrollments"
+    self.group_memberships
   end
 
   def wiki_with_create
@@ -227,6 +236,14 @@ class Group < ActiveRecord::Base
   def should_add_creator?(creator)
     self.group_category &&
       (self.group_category.communities? || (self.group_category.student_organized? && self.context.user_is_student?(creator)))
+  end
+
+  def submission?
+    if context_type == 'Course'
+      assignments = Assignment.for_group_category(group_category_id).active
+      return Submission.where(group_id: id, assignment_id: assignments).exists?
+    end
+    false
   end
 
   def short_name
@@ -334,7 +351,7 @@ class Group < ActiveRecord::Base
   def bulk_add_users_to_group(users, options = {})
     return if users.empty?
     user_ids = users.map(&:id)
-    old_group_memberships = self.group_memberships.where("user_id IN (?)", user_ids).all
+    old_group_memberships = self.group_memberships.where("user_id IN (?)", user_ids).to_a
     bulk_insert_group_memberships(users, options)
     all_group_memberships = self.group_memberships.where("user_id IN (?)", user_ids)
     new_group_memberships = all_group_memberships - old_group_memberships
@@ -394,7 +411,7 @@ class Group < ActiveRecord::Base
 
   def peer_groups
     return [] if !self.context || !self.group_category || self.group_category.allows_multiple_memberships?
-    self.group_category.groups.where("id<>?", self).all
+    self.group_category.groups.where("id<>?", self).to_a
   end
 
   def migrate_content_links(html, from_course)
@@ -535,6 +552,9 @@ class Group < ActiveRecord::Base
 
       given {|user, session| self.grants_right?(user, session, :manage_content) && self.context && self.context.grants_right?(user, session, :create_conferences)}
       can :create_conferences
+
+      given {|user, session| self.context && self.context.grants_right?(user, session, :read_as_admin)}
+      can :read_as_admin
     end
   end
 
@@ -548,9 +568,9 @@ class Group < ActiveRecord::Base
     return false unless user.present? && self.context.present?
     return true if self.group_category.try(:communities?)
     if self.context.is_a?(Course)
-      return self.context.enrollments.not_fake.except(:includes).where(:user_id => user.id).exists?
+      return self.context.enrollments.not_fake.except(:preload).where(:user_id => user.id).exists?
     elsif self.context.is_a?(Account)
-      return self.context.user_account_associations.where(:user_id => user.id).exists?
+      return self.context.root_account.user_account_associations.where(:user_id => user.id).exists?
     end
     return false
   end
@@ -776,5 +796,11 @@ class Group < ActiveRecord::Base
 
   def sortable_name
     name
+  end
+  ##
+  # Returns a boolean describing if the user passed in has marked this group
+  # as a favorite.
+  def favorite_for_user?(user)
+    user.favorites.where(:context_type => 'Group', :context_id => self).exists?
   end
 end

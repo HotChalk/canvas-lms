@@ -24,21 +24,21 @@ class EportfoliosController < ApplicationController
   before_filter :load_root_account
   before_filter :require_user, :only => [:index, :user_index]
   before_filter :reject_student_view_student
-  
+
   def index
     user_index
   end
-  
+
   def user_index
     @context = @current_user.profile
     return unless tab_enabled?(UserProfile::TAB_EPORTFOLIOS)
     @active_tab = "eportfolios"
     add_crumb(@current_user.short_name, user_profile_url(@current_user))
     add_crumb(t(:crumb, "ePortfolios"))
-    @portfolios = @current_user.eportfolios.active.order(:updated_at).all
+    @portfolios = @current_user.eportfolios.active.order(:updated_at).to_a
     render :user_index
   end
-  
+
   def create
     if authorized_action(Eportfolio.new, @current_user, :create)
       @portfolio = @current_user.eportfolios.build(params[:eportfolio])
@@ -55,7 +55,7 @@ class EportfoliosController < ApplicationController
       end
     end
   end
-  
+
   def show
     @portfolio = Eportfolio.active.find(params[:id])
     if params[:verifier] == @portfolio.uuid
@@ -98,7 +98,7 @@ class EportfoliosController < ApplicationController
       end
     end
   end
-  
+
   def update
     @portfolio = Eportfolio.find(params[:id])
     if authorized_action(@portfolio, @current_user, :update)
@@ -115,7 +115,7 @@ class EportfoliosController < ApplicationController
       end
     end
   end
-  
+
   def destroy
     @portfolio = Eportfolio.find(params[:id])
     if authorized_action(@portfolio, @current_user, :delete)
@@ -131,7 +131,7 @@ class EportfoliosController < ApplicationController
       end
     end
   end
-  
+
   def reorder_categories
     @portfolio = Eportfolio.find(params[:eportfolio_id])
     if authorized_action(@portfolio, @current_user, :update)
@@ -139,7 +139,7 @@ class EportfoliosController < ApplicationController
       render :json => @portfolio.eportfolio_categories.map{|c| [c.id, c.position]}, :status => :ok
     end
   end
-  
+
   def reorder_entries
     @portfolio = Eportfolio.find(params[:eportfolio_id])
     if authorized_action(@portfolio, @current_user, :update)
@@ -148,7 +148,7 @@ class EportfoliosController < ApplicationController
       render :json => @portfolio.eportfolio_entries.map{|c| [c.id, c.position]}, :status => :ok
     end
   end
-  
+
   def export
     zip_filename = "eportfolio.zip"
     @portfolio = Eportfolio.find(params[:eportfolio_id])
@@ -190,11 +190,11 @@ class EportfoliosController < ApplicationController
       end
     end
   end
-  
+
   def public_feed
     @portfolio = Eportfolio.find(params[:eportfolio_id])
     if @portfolio.public || params[:verifier] == @portfolio.uuid
-      @entries = @portfolio.eportfolio_entries.order('eportfolio_entries.created_at DESC').all
+      @entries = @portfolio.eportfolio_entries.order('eportfolio_entries.created_at DESC').to_a
       feed = Atom::Feed.new do |f|
         f.title = t(:title, "%{portfolio_name} Feed", :portfolio_name => @portfolio.name)
         f.links << Atom::Link.new(:href => eportfolio_url(@portfolio.id), :rel => 'self')

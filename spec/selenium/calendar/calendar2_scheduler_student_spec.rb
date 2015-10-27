@@ -3,7 +3,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/calendar2_common'
 require File.expand_path(File.dirname(__FILE__) + '/../helpers/scheduler_common')
 
 describe "scheduler" do
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
   context "as a student" do
 
     before (:each) do
@@ -16,8 +16,11 @@ describe "scheduler" do
       make_full_screen
     end
 
-    def reserve_appointment_manual(n)
+    def reserve_appointment_manual(n, comment = nil)
       ffj('.fc-event')[n].click
+      if comment
+        replace_content(f('#appointment-comment'), comment)
+      end
       driver.execute_script("$('.event-details .reserve_event_link').trigger('click')")
       wait_for_ajax_requests
     end
@@ -34,8 +37,14 @@ describe "scheduler" do
       wait_for_ajaximations
       click_appointment_link
 
-      reserve_appointment_manual(0)
+      reserve_appointment_manual(0, "my comments")
       expect(f('.fc-event')).to include_text "Reserved"
+      ffj('.fc-event')[0].click
+      expect(f('.event-details-content')).to include_text "my comments"
+
+      load_month_view
+      ffj('.fc-event')[0].click
+      expect(f('.event-details-content')).to include_text "my comments"
     end
 
     it "should allow me to cancel existing reservation and sign up for the appointment group from the calendar", priority: "1", test_id: 140200 do

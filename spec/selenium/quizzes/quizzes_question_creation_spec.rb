@@ -2,7 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/quizzes_common')
 
 describe 'quizzes question creation' do
 
-  include_examples 'quizzes selenium tests'
+  include_context 'in-process server selenium tests'
 
   context 'when creating a new question' do
 
@@ -274,6 +274,10 @@ describe 'quizzes question creation' do
         'If [x] + [y] is a whole number, then this is a formula question.'
 
       fj('button.recompute_variables').click
+      val = fj('.variables.value').to_i
+      expect(val <= 10 && val >= 0)
+      fj('button.recompute_variables').click
+      keep_trying_until { expect(fj('.variables.value').to_i != val) }
       fj('.supercalc:visible').send_keys('x + y')
       fj('button.save_formula_button').click
       # normally it's capped at 200 (to keep the yaml from getting crazy big)...
@@ -396,7 +400,7 @@ describe 'quizzes question creation' do
     end
   end
 
-  context 'when editing a quiz question group', priority: "2" do
+  context 'when editing a quiz question group' do
 
     before(:each) do
       course_with_teacher_logged_in

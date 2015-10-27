@@ -80,9 +80,7 @@ define([
         success = false;
       }
       return success;
-    })
-    .find(":text:first")
-      .focus().select();
+    });
 
   $("#resolve_login_form")
     .submit(function(event) {

@@ -1,0 +1,83 @@
+<% login_handle_name = @domain_root_account.login_handle_name_with_inference %>
+ <div id="modal-box" class="login-box">
+    <div id="modal-box-inner">
+       <div class="clearfix">
+         <h1 class="span4">Canvas</h1>
+         <% if @domain_root_account.feature_enabled?(:course_catalog) %>
+           <div class="ic-Login__header__courses-active">
+             <a href="/search/all_courses" class="pull-right"><%= t('browse_courses', 'Browse courses') %></a>
+           </div>
+         <% end %>
+       </div>
+       <%= form_for :pseudonym_session, :url => url_for({ action: :create }.merge(params.slice(:id))), :html => {:id => "login_form", :style => @is_prelogin ? "display:none" : ""} do |f| %>
+
+         <%= render "login/canvas/login_banner" %>
+
+         <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
+         <% login_inner_dialog = yield :login_inner_dialog %>
+         <%= login_inner_dialog if login_inner_dialog && !login_inner_dialog.strip.empty? %>
+         <input type="hidden" name="redirect_to_ssl" value="1"/>
+         <input type="hidden" id="account_id" name="account_id" value="<%= @is_prelogin || params[:direct] ? '' : @domain_root_account.id %>"/>
+         <div>
+           <span class="field-with-fancyplaceholder">
+            <%= f.label :unique_id, login_handle_name, :class => (use_new_styles? ? "ic-Label" : "boo") %>
+            <%= f.text_field :unique_id, :class => (use_new_styles? ? "ic-Input text" : "text"), :value => params[:pseudonym_session].try(:[], :unique_id) %>
+           </span>
+           <span class="field-with-fancyplaceholder">
+            <%= f.label :password, :en => "Password", :class => (use_new_styles? ? "ic-Label" : nil) %>
+            <%= f.password_field :password, :class => (use_new_styles? ? "ic-Input text" : "text") %>
+          </span>
+         </div>
+         <div>
+           <div class="login-options">
+             <% unless session_timeout_enabled? %>
+                 <%= f.check_box :remember_me, :checked => session[:used_remember_me_token] %>
+                 <%= f.label :remember_me, :en => "Stay signed in" %>
+             <% end %>
+             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<!-- i didn't add this - this is the saddest hack ever -->
+             <%= render "login/canvas/forgot_password_link" %>
+           </div>
+           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
+           <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
+           <button type="submit" class="btn btn-primary"><%= t('log_in', 'Log In') %></button>
+         </div> <!-- ic-Login__actions -->
+       <% end %>
+       <%= form_for :prelogin, :url => resolve_login_path, :html => {:id => "resolve_login_form", :style => @is_prelogin ? "" : "display:none"} do |f| %>
+         <h2 class="ui-helper-hidden-accessible"><%= t('log_in', 'Log In') %></h2>
+         <div>
+           <span class=" field-with-fancyplaceholder"><%= f.label :unique_id, :en => 'Username or Email Address' %><%= f.text_field :unique_id, :class => "text", :value => params[:prelogin].try(:[], :unique_id) %></span>
+           <span id="external_login" class=" field-with-fancyplaceholder"><%= t('Click below to login:') %><br /><a id="external_login_link" href="#"></a></span>
+           <!-- crazy IE 8-9 workaround!, if you take this input type=submit out, you cannot just submit the form by hitting enter in ie8-9 -->
+           <input type="submit" style="position: absolute; height: 0px; width: 0px; border: none; padding: 0px;" hidefocus="true" tabindex="-1" />
+           <button id="submit_button" type="submit" class="btn btn-primary" style="margin-top: 7px;" disabled><%= t('Submit') %></button>
+         </div>
+         <div>
+           <div class="login-options">
+             <% url = "https://embersupport.zendesk.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
+             <%= link_to t('need_help', "Need help logging in?"), url, :class => (url != '#' ? "not_external" : "forgot_password_link"), :id => "login_forgot_email", :target => "_blank" %>
+           </div>
+         </div>
+       <% end %>
+       <%= form_for :pseudonym_session, :url => forgot_password_path, :html => {:id => "forgot_password_form", :style => "display: none;"} do |f| %>
+         <p id="forgot_password_instructions">
+         <%= t('login_handle', "Enter your %{login_handle_name} and we'll send you a link to change your password.", :login_handle_name => login_handle_name) %>
+         </p>
+         <div>
+           <span class=" field-with-fancyplaceholder">
+             <label for="pseudonym_session_unique_id_forgot">
+               <%= t("Email") %>
+             </label>
+             <input aria-describedby="forgot_password_instructions" class="text" type="text" name="pseudonym_session[unique_id_forgot]" value="<%= @unauthorized_user.email rescue '' %>" id="pseudonym_session_unique_id_forgot" />
+           </span>
+
+
+           <button type="submit" class="btn btn-primary">
+             <%= t('buttons.request_password', 'Request Password') %>
+           </button>
+
+         </div>
+          &larr; <%= link_to t('back_to_login', "Back to Login"), login_path, :class => "login_link" %>
+       <% end %>
+    </div>
+    <%= render partial: "sso_buttons", locals: { aacs: @aacs_with_buttons } %>
+ </div>

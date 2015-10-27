@@ -3,7 +3,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/testrail_report')
 
 describe 'quizzes question banks' do
 
-  include_examples 'quizzes selenium tests'
+  include_context 'in-process server selenium tests'
 
   context 'when logged in as a teacher' do
 
@@ -173,7 +173,7 @@ describe 'quizzes question banks' do
       expect(ffj('#find_bank_dialog .bank:visible').size).to eq 1
     end
 
-    it 'should import questions from a question bank', priority: "1", test_id: 140671 do
+    it 'should create a question group from a question bank', priority: "1", test_id: 319907 do
       get "/courses/#{@course.id}/quizzes/new"
       click_questions_tab
 

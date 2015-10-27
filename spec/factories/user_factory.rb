@@ -86,6 +86,11 @@ def student_in_course(opts={})
   course_with_student(opts)
 end
 
+def ta_in_course(opts={})
+  opts[:course] = @course if @course && !opts[:course]
+  course_with_ta(opts)
+end
+
 def student_in_section(section, opts={})
   student = opts.fetch(:user) { user }
   enrollment = section.course.enroll_user(student, 'StudentEnrollment', :section => section, :force_update => true)
@@ -102,6 +107,15 @@ def ta_in_section(section, opts={})
   enrollment.workflow_state = 'active'
   enrollment.save!
   ta
+end
+
+def teacher_in_section(section, opts={})
+  teacher = opts.fetch(:user) { user }
+  enrollment = section.course.enroll_user(teacher, 'TeacherEnrollment', :section => section, :force_update => true)
+  teacher.save!
+  enrollment.workflow_state = 'active'
+  enrollment.save!
+  teacher
 end
 
 def teacher_in_course(opts={})

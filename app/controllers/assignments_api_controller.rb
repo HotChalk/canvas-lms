@@ -431,17 +431,17 @@
 #           "type": "integer"
 #         },
 #         "published": {
-#           "description": "(Only visible if 'enable draft' account setting is on) whether the assignment is published",
+#           "description": "Whether the assignment is published",
 #           "example": true,
 #           "type": "boolean"
 #         },
 #         "unpublishable": {
-#           "description": "(Only visible if 'enable draft' account setting is on) Whether the assignment's 'published' state can be changed to false. Will be false if there are student submissions for the assignment.",
+#           "description": "Whether the assignment's 'published' state can be changed to false. Will be false if there are student submissions for the assignment.",
 #           "example": false,
 #           "type": "boolean"
 #         },
 #         "only_visible_to_overrides": {
-#           "description": "(Only visible if the Differentiated Assignments course feature is turned on) Whether the assignment is only visible to overrides.",
+#           "description": "Whether the assignment is only visible to overrides.",
 #           "example": false,
 #           "type": "boolean"
 #         },
@@ -546,7 +546,8 @@ class AssignmentsApiController < ApplicationController
   def index
     if authorized_action(@context, @current_user, :read)
       scope = Assignments::ScopedToUser.new(@context, @current_user).scope.
-          includes(:assignment_group, :rubric_association, :rubric).
+          eager_load(:assignment_group).
+          preload(:rubric_association, :rubric).
           reorder("assignment_groups.position, assignments.position")
       scope = Assignment.search_by_attribute(scope, :title, params[:search_term])
       da_enabled = @context.feature_enabled?(:differentiated_assignments)
@@ -572,6 +573,10 @@ class AssignmentsApiController < ApplicationController
         ActiveRecord::Associations::Preloader.new(assignments, :assignment_overrides).run
         assignments.select{ |a| a.assignment_overrides.size == 0 }.
           each { |a| a.has_no_overrides = true }
+
+        if AssignmentOverrideApplicator.should_preload_override_students?(assignments, @current_user, "assignments_api")
+          AssignmentOverrideApplicator.preload_assignment_override_students(assignments, @current_user)
+        end
       end
 
       include_visibility = include_params.include?('assignment_visibility') && @context.grants_any_right?(@current_user, :read_as_admin, :manage_grades, :manage_assignments)
@@ -587,23 +592,32 @@ class AssignmentsApiController < ApplicationController
         Assignment.preload_can_unpublish(assignments)
       end
 
-      hashes = []
-      TempCache.enable do
-        hashes = assignments.map do |assignment|
+      unless @context.grants_right?(@current_user, :read_as_admin)
+        Assignment.preload_context_module_tags(assignments) # running this again is fine
+      end
 
-          visibility_array = assignment_visibilities[assignment.id] if assignment_visibilities
-          submission = submissions[assignment.id]
-          active_overrides = include_override_objects ? assignment.assignment_overrides.active : nil
-          assignment_json(assignment, @current_user, session,
-                          submission: submission, override_dates: override_dates,
-                          include_visibility: include_visibility,
-                          assignment_visibilities: visibility_array,
-                          needs_grading_count_by_section: needs_grading_count_by_section,
-                          include_all_dates: include_all_dates,
-                          bucket: params[:bucket],
-                          overrides: active_overrides
-                          )
-        end
+      preloaded_attachments = api_bulk_load_user_content_attachments(assignments.map(&:description), @context)
+
+      hashes = []
+      hashes = assignments.map do |assignment|
+
+        visibility_array = assignment_visibilities[assignment.id] if assignment_visibilities
+        submission = submissions[assignment.id]
+        active_overrides = include_override_objects ? assignment.assignment_overrides.active : nil
+        needs_grading_course_proxy = @context.grants_right?(@current_user, session, :manage_grades) ?
+          Assignments::NeedsGradingCountQuery::CourseProxy.new(@context, @current_user) : nil
+
+        assignment_json(assignment, @current_user, session,
+                        submission: submission, override_dates: override_dates,
+                        include_visibility: include_visibility,
+                        assignment_visibilities: visibility_array,
+                        needs_grading_count_by_section: needs_grading_count_by_section,
+                        needs_grading_course_proxy: needs_grading_course_proxy,
+                        include_all_dates: include_all_dates,
+                        bucket: params[:bucket],
+                        overrides: active_overrides,
+                        preloaded_user_content_attachments: preloaded_attachments
+                        )
       end
 
       render :json => hashes
@@ -668,8 +682,7 @@ class AssignmentsApiController < ApplicationController
   #   All dates associated with the assignment, if applicable
   # @returns Assignment
   def show
-    @assignment = @context.active_assignments.find(params[:id],
-        :include => [:assignment_group, :rubric_association, :rubric])
+    @assignment = @context.active_assignments.preload(:assignment_group, :rubric_association, :rubric).find(params[:id])
     if authorized_action(@assignment, @current_user, :read)
       return render_unauthorized_action unless @assignment.visible_to_user?(@current_user)
 

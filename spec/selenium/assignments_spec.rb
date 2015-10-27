@@ -1,11 +1,13 @@
 ﻿require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignments_common')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/public_courses_context')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
 
 describe "assignments" do
 
   # note: due date testing can be found in assignments_overrides_spec
 
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
 
   context "as a teacher" do
 
@@ -42,6 +44,41 @@ describe "assignments" do
 
         expect(f(".save_and_publish")).to be_nil
       end
+
+      context "moderated grading assignments" do
+
+        before do
+          @course.root_account.allow_feature! :moderated_grading
+          @course.enable_feature! :moderated_grading
+          @assignment = @course.assignments.create({name: "Test Moderated Assignment"})
+          @assignment.update_attribute(:moderated_grading, true)
+          @assignment.unpublish
+        end
+
+        it "should show the moderate button when the assignment is published" do
+          get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+          f('#assignment_publish_button').click()
+          wait_for_ajaximations
+          expect(f('#moderated_grading_button')).to be_displayed
+        end
+
+        it "should remove the moderate button when the assignment is unpublished" do
+          @assignment.publish
+          get "/courses/#{@course.id}/assignments/#{@assignment.id}"
+          f('#assignment_publish_button').click()
+          wait_for_ajaximations
+          expect(f('#moderated_grading_button')).not_to be_displayed
+        end
+      end
+    end
+
+    it "should insert a file using RCE in the assignment", priority: "1", test_id: 126671 do
+      @assignment = @course.assignments.create(name: 'Test Assignment')
+      file = @course.attachments.create!(display_name: 'some test file', uploaded_data: default_uploaded_data)
+      file.context = @course
+      file.save!
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}/edit"
+      insert_file_from_rce
     end
 
     it "should edit an assignment", priority: "1", test_id: 56012 do
@@ -507,30 +544,13 @@ describe "assignments" do
     end
 
     context 'save to sis' do
-      def create_post_grades_tool(opts = {})
-        post_grades_tool = @course.context_external_tools.create!(
-          name: opts[:name] || 'test tool',
-          domain: 'example.com',
-          url: 'http://example.com/lti',
-          consumer_key: 'key',
-          shared_secret: 'secret',
-          settings: {
-            post_grades: {
-              url: 'http://example.com/lti/post_grades'
-            }
-          }
-        )
-        post_grades_tool.context_external_tool_placements.create!(placement_type: 'post_grades')
-        post_grades_tool
-      end
-
-      it 'should not show when no passback configured' do
+      it 'should not show when no passback configured', priority: "1", test_id: 244956 do
         get "/courses/#{@course.id}/assignments/new"
         wait_for_ajaximations
         expect(f('#assignment_post_to_sis')).to be_nil
       end
 
-      it 'should show when powerschool is enabled' do
+      it 'should show when powerschool is enabled', priority: "1", test_id: 244913 do
         Account.default.set_feature_flag!('post_grades', 'on')
         @course.sis_source_id = 'xyz'
         @course.save
@@ -540,19 +560,69 @@ describe "assignments" do
         expect(f('#assignment_post_to_sis')).to_not be_nil
       end
 
-      it 'should show when post_grades lti tool installed' do
-        Account.default.set_feature_flag!('post_grades', 'off')
-
-        get "/courses/#{@course.id}/assignments/new"
-        wait_for_ajaximations
-        expect(f('#assignment_post_to_sis')).to be_nil
-
+      it 'should show when post_grades lti tool installed', priority: "1", test_id: 244957 do
         create_post_grades_tool
 
         get "/courses/#{@course.id}/assignments/new"
         wait_for_ajaximations
         expect(f('#assignment_post_to_sis')).to_not be_nil
       end
+
+      it 'should not show when post_grades lti tool not installed', priority: "1", test_id: 250261 do
+        Account.default.set_feature_flag!('post_grades', 'off')
+
+        get "/courses/#{@course.id}/assignments/new"
+        wait_for_ajaximations
+        expect(f('#assignment_post_to_sis')).to be_nil
+      end
+    end
+
+    it 'should go to the assignment index page from left nav', priority: "1", test_id: 108724 do
+      get "/courses/#{@course.id}"
+      f('#wrapper .assignments').click
+      wait_for_ajaximations
+      expect(f('.header-bar-right .new_assignment')).to include_text('Assignment')
+    end
+  end
+
+  context "when a public course is accessed" do
+    include_context "public course as a logged out user"
+
+    it "should display assignments", priority: "1", test_id: 269811 do
+      public_course.assignments.create!(:name => 'assignment 1')
+      get "/courses/#{public_course.id}/assignments"
+      validate_selector_displayed('.assignment.search_show')
+    end
+  end
+
+  context "moderated grading" do
+
+    before do
+      course_with_teacher_logged_in
+      @course.start_at = nil
+      @course.save!
+      @course.root_account.allow_feature! :moderated_grading
+      @course.enable_feature! :moderated_grading
+      @assignment = @course.assignments.create({name: "Test Moderated Assignment"})
+      @assignment.update_attribute(:moderated_grading, true)
+      @assignment.publish
+    end
+
+    it "should show the moderated grading page for moderated grading assignments" do
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}/moderate"
+      expect(f('#assignment_moderation')).to be_displayed
+    end
+
+    it "should deny access for a regular student to the moderation page" do
+      course_with_student_logged_in({course: @course})
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}/moderate"
+      expect(f('#unauthorized_message')).to be_displayed
+    end
+
+    it "should not show the moderation page if it is not a moderated assignment " do
+      @assignment.update_attribute(:moderated_grading, false)
+      get "/courses/#{@course.id}/assignments/#{@assignment.id}/moderate"
+      expect(f('#content h2').text).to eql "Page Not Found"
     end
   end
 end

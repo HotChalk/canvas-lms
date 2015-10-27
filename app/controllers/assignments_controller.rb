@@ -109,7 +109,6 @@ class AssignmentsController < ApplicationController
         @current_user_submission = nil if @current_user_submission &&
           !@current_user_submission.graded? &&
           !@current_user_submission.submission_type
-        @current_user_rubric_assessment = @assignment.rubric_association.rubric_assessments.where(user_id: @current_user).first if @current_user && @assignment.rubric_association
         @current_user_submission.send_later(:context_module_action) if @current_user_submission
       end
 
@@ -146,7 +145,7 @@ class AssignmentsController < ApplicationController
 
       if @assignment.grants_right?(@current_user, session, :grade)
         visible_student_ids = @context.enrollments_visible_to(@current_user).pluck(:user_id)
-        @current_student_submissions = @assignment.submissions.where("submissions.submission_type IS NOT NULL").where(:user_id => visible_student_ids).all
+        @current_student_submissions = @assignment.submissions.where("submissions.submission_type IS NOT NULL").where(:user_id => visible_student_ids).to_a
       end
 
       begin
@@ -171,6 +170,28 @@ class AssignmentsController < ApplicationController
       respond_to do |format|
         format.html { render }
         format.json { render :json => @assignment.as_json(:permissions => {:user => @current_user, :session => session}) }
+      end
+    end
+  end
+
+  def show_moderate
+    raise ActiveRecord::RecordNotFound unless @context.feature_enabled?(:moderated_grading)
+    @assignment ||= @context.assignments.find(params[:assignment_id])
+
+    raise ActiveRecord::RecordNotFound unless @assignment.moderated_grading? && @assignment.published?
+
+    if authorized_action(@context, @current_user, :moderate_grades)
+      add_crumb(@assignment.title, polymorphic_url([@context, @assignment]))
+      add_crumb(t('Moderate'))
+
+      js_env({
+        :URLS => {
+          :student_submissions_url => polymorphic_url([:api_v1, @context, @assignment, :submissions]) + "?include[]=user_summary&include[]=provisional_grades",
+          :publish_grades_url => api_v1_publish_provisional_grades_url({course_id: @context.id, assignment_id: @assignment.id})
+        }})
+
+      respond_to do |format|
+        format.html { render }
       end
     end
   end
@@ -292,7 +313,7 @@ class AssignmentsController < ApplicationController
     active_tab = "Syllabus"
     if authorized_action(@context, @current_user, [:read, :read_syllabus])
       return unless tab_enabled?(@context.class::TAB_SYLLABUS)
-      @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).all
+      @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).to_a
       @assignment_groups = @groups
       @events = @context.events_for(@current_user)
       @undated_events = @events.select {|e| e.start_at == nil}
@@ -406,6 +427,8 @@ class AssignmentsController < ApplicationController
         :GROUP_CATEGORIES => group_categories,
         :KALTURA_ENABLED => !!feature_enabled?(:kaltura),
         :POST_TO_SIS => Assignment.sis_grade_export_enabled?(@context),
+        :MODERATED_GRADING => @context.feature_enabled?(:moderated_grading),
+        :HAS_GRADED_SUBMISSIONS => @assignment.graded_submissions_exist?,
         :SECTION_LIST => (@context.sections_visible_to(@current_user).active.map { |section|
           {
             :id => section.id,

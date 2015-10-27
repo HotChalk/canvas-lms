@@ -95,17 +95,17 @@ class Pseudonym < ActiveRecord::Base
 
     p.dispatch :pseudonym_registration
     p.to { self.communication_channel || self.user.communication_channel }
-    p.whenever { |record|
-      @send_registration_notification
-    }
+    p.whenever { @send_registration_notification }
+
+    p.dispatch :pseudonym_registration_done
+    p.to { self.communication_channel || self.user.communication_channel }
+    p.whenever { @send_registration_done_notification }
 
     p.dispatch :new_user_registration
     p.to { self.communication_channel || self.user.communication_channel }
-    p.whenever { |record|
-      @send_sis_import_notification
-    }
+    p.whenever { @send_sis_import_notification }
   end
-  
+
   def update_account_associations_if_account_changed
     return unless self.user && !User.skip_updating_account_associations?
     if self.id_was.nil?
@@ -136,6 +136,12 @@ class Pseudonym < ActiveRecord::Base
     @send_sis_import_notification = true
     self.save
     @send_sis_import_notification = false
+  end
+
+  def send_registration_done_notification!
+    @send_registration_done_notification = true
+    self.save!
+    @send_registration_done_notification = false
   end
 
   def send_confirmation!
@@ -493,7 +499,7 @@ class Pseudonym < ActiveRecord::Base
       active.
         by_unique_id(credentials[:unique_id]).
         where(:account_id => account_ids).
-        includes(:user).
+        preload(:user).
         select { |p|
           valid = p.valid_arbitrary_credentials?(credentials[:password])
           too_many_attempts = true if p.audit_login(remote_ip, valid) == :too_many_attempts

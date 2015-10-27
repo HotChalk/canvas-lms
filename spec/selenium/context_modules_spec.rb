@@ -1,7 +1,8 @@
 ﻿require File.expand_path(File.dirname(__FILE__) + '/helpers/context_modules_common')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/public_courses_context')
 
 describe "context modules" do
-  include_examples "in-process server selenium tests"
+  include_context "in-process server selenium tests"
   context "as a teacher", priority: "1" do
     before(:each) do
       course_with_teacher_logged_in
@@ -18,6 +19,27 @@ describe "context modules" do
       @ag2 = @course.assignment_groups.create!(:name => "Assignment Group 2")
 
       @course.reload
+    end
+
+    def module_with_two_items
+      modules = create_modules(1, true)
+      modules[0].add_item({id: @assignment.id, type: 'assignment'})
+      modules[0].add_item({id: @assignment2.id, type: 'assignment'})
+      get "/courses/#{@course.id}/modules"
+      ff(".icon-mini-arrow-down")[1].click
+    end
+
+    it "should show all module items", priority: "1", test_id: 126743 do
+      module_with_two_items
+      f(".icon-mini-arrow-right").click
+      wait_for_ajaximations
+      expect(f('.context_module .content')).to be_displayed
+    end
+
+    it "should hide module items", priority: "1", test_id: 280415 do
+      module_with_two_items
+      wait_for_ajaximations
+      expect(f('.context_module .content')).not_to be_displayed
     end
 
     it "should rearrange child objects in same module", priority: "1", test_id: 126733  do
@@ -41,7 +63,7 @@ describe "context modules" do
       end
     end
 
-    it "should rearrange child object to new module", priority: "1", test_id: 126735 do
+    it "should rearrange child object to new module", priority: "1", test_id: 126734 do
       modules = create_modules(2, true)
       #attach 1 assignment to module 1 and 2 assignments to module 2 and add completion reqs
       item1_mod1 = modules[0].add_item({:id => @assignment.id, :type => 'assignment'})
@@ -193,7 +215,7 @@ describe "context modules" do
       end
     end
 
-    it "should edit a module item and validate the changes stick" do
+    it "should edit a module item and validate the changes stick", priority: "1", test_id: 126737 do
       get "/courses/#{@course.id}/modules"
 
       item_edit_text = "Assignment Edit 1"
@@ -350,15 +372,13 @@ describe "context modules" do
       expect(module_item).to include_text(header_text)
     end
 
-    it "should hide and show module contents", priority: "1", test_id: 126732 do
+    it "should always show module contents on empty module", priority: "1", test_id: 126732 do
       get "/courses/#{@course.id}/modules"
-      add_existing_module_item('#assignments_select', 'Assignment', @assignment.title)
+      add_module 'Test module'
       ff(".icon-mini-arrow-down")[1].click
       wait_for_ajaximations
-      expect(f('.context_module .content')).not_to be_displayed
-      f('.icon-mini-arrow-right').click
-      wait_for_ajaximations
       expect(f('.context_module .content')).to be_displayed
+      expect(ff(".icon-mini-arrow-down")[1]).to be_displayed
     end
 
     it "should allow adding an item twice" do
@@ -439,6 +459,8 @@ describe "context modules" do
       add_existing_module_item('#assignments_select', 'Assignment', @assignment.title)
 
       @course.reload
+
+      expect(fj('.requirements_message').text).to be_blank
 
       # add completion criterion
       f('.ig-header-admin .al-trigger').click
@@ -904,7 +926,7 @@ describe "context modules" do
       get "/courses/#{@course.id}"
     end
 
-    it "should render as course home page" do
+    it "should render as course home page", priority: "1", test_id: 126740 do
       create_modules(1)
       @course.default_view = 'modules'
       @course.save!
@@ -912,7 +934,14 @@ describe "context modules" do
       expect(f('.add_module_link').text).not_to be_nil
     end
 
-    it "publishes an unpublished module" do
+    it "should add a new module", priority: "1", test_id: 126704 do
+      add_module('New Module')
+      wait_for_ajaximations
+      mod = @course.context_modules.first
+      expect(mod.name).to eq 'New Module'
+    end
+
+    it "publishes an unpublished module", priority: "1", test_id: 280195 do
       add_module('New Module')
       wait_for_ajaximations
       expect(f('.context_module')).to have_class('unpublished_module')
@@ -925,7 +954,7 @@ describe "context modules" do
       expect(f('#context_modules .publish-icon-published')).to be_displayed
     end
 
-    it "unpublishes a published module" do
+    it "unpublishes a published module", priority: "1", test_id: 280196 do
       add_module('New Module')
       mod = @course.context_modules.first
       publish_module
@@ -935,6 +964,8 @@ describe "context modules" do
       mod.reload
       expect(mod).to be_unpublished
     end
+
+
 
     it "should edit a module", priority: "1", test_id: 126738 do
       edit_text = 'Module Edited'
@@ -965,32 +996,51 @@ describe "context modules" do
       expect(f('.context_module > .header')).not_to be_displayed
     end
 
-    it "should add an assignment to a module" do
+    it "should add an assignment to a module", priority: "1", test_id: 126723 do
       add_new_module_item('#assignments_select', 'Assignment', '[ New Assignment ]', 'New Assignment Title')
       expect(fln('New Assignment Title')).to be_displayed
     end
 
 
-    it "should add a quiz to a module" do
+    it "should add a quiz to a module", priority: "1", test_id: 126719 do
       add_new_module_item('#quizs_select', 'Quiz', '[ New Quiz ]', 'New Quiz Title')
       verify_persistence('New Quiz Title')
     end
 
-    it "should add a content page item to a module" do
+    it "should add a content page item to a module", priority: "1", test_id: 126708 do
       add_new_module_item('#wiki_pages_select', 'Content Page', '[ New Page ]', 'New Page Title')
       verify_persistence('New Page Title')
     end
 
-    it "should add a discussion item to a module" do
+    it "should add a discussion item to a module", priority: "1", test_id: 126711 do
       get "/courses/#{@course.id}/modules"
       add_new_module_item('#discussion_topics_select', 'Discussion', '[ New Topic ]', 'New Discussion Title')
       verify_persistence('New Discussion Title')
     end
 
-    it "should add an external url item to a module" do
+    it "should add an external url item to a module", priority: "1", test_id: 126707 do
       get "/courses/#{@course.id}/modules"
       add_new_external_item('External URL', 'www.google.com', 'Google')
       expect(fln('Google')).to be_displayed
+    end
+
+    it "should add an external tool item to a module from apps", priority: "1", test_id: 126706 do
+      get "/courses/#{@course.id}/settings"
+      make_full_screen
+      wait_for_ajaximations
+      f("#tab-tools-link").click
+      f(".add_tool_link.lm").click
+      f(".dropdown-toggle").click
+      fln("By URL").click
+      ff(".input-block-level")[2].send_keys("Khan Academy")
+      ff(".input-block-level")[3].send_keys("key")
+      ff(".input-block-level")[4].send_keys("secret")
+      ff(".input-block-level")[5].send_keys("https://www.eduappcenter.com/configurations/rt6spjamqrgkduhr.xml")
+      ff(".btn-primary")[6].click
+      get "/courses/#{@course.id}/modules"
+      add_new_external_item('External Tool', 'https://www.edu-apps.org/lti_public_resources/launch?driver=khan_academy&remote_id=y2-uaPiyoxc', 'Counting with small numbers')
+      expect(fln('Counting with small numbers')).to be_displayed
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
     end
 
     it "should add an external tool item to a module" do
@@ -1000,6 +1050,122 @@ describe "context modules" do
     end
   end
 
+  context 'adds existing items to modules' do
+    before do
+      course_with_teacher_logged_in
+      @course.context_modules.create! name: 'Module 1'
+      @mod = @course.context_modules.first
+    end
+
+     it 'should add an unpublished page to a module', priority: "1", test_id: 126709 do
+      @unpub_page = @course.wiki.wiki_pages.create!(title: 'Unpublished Page')
+      @unpub_page.workflow_state = 'unpublished'
+      @unpub_page.save!
+      @mod.add_item(type: 'wiki_page', id: @unpub_page.id)
+      go_to_modules
+      verify_persistence('Unpublished Page')
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
+     end
+
+    it 'should add a published page to a module', priority: "1", test_id: 126710 do
+      @pub_page = @course.wiki.wiki_pages.create!(title: 'Published Page')
+      @mod.add_item(type: 'wiki_page', id: @pub_page.id)
+      go_to_modules
+      verify_persistence('Published Page')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+    end
+
+    it 'should add an unpublished quiz to a module', priority: "1", test_id: 126720 do
+      @unpub_quiz = Quizzes::Quiz.create!(context: @course, title: 'Unpublished Quiz')
+      @unpub_quiz.workflow_state = 'unpublished'
+      @unpub_quiz.save!
+      @mod.add_item(type: 'quiz', id: @unpub_quiz.id)
+      go_to_modules
+      verify_persistence('Unpublished Quiz')
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
+    end
+
+    it 'should add a published quiz to a module', priority: "1", test_id: 126721 do
+      @pub_quiz = Quizzes::Quiz.create!(context: @course, title: 'Published Quiz')
+      @mod.add_item(type: 'quiz', id: @pub_quiz.id)
+      go_to_modules
+      verify_persistence('Published Quiz')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+    end
+
+    it 'should add an unpublished assignment to a module', priority: "1", test_id: 126724 do
+      @unpub_assignment = Assignment.create!(context: @course, title: 'Unpublished Assignment')
+      @unpub_assignment.workflow_state = 'unpublished'
+      @unpub_assignment.save!
+      @mod.add_item(type: 'assignment', id: @unpub_assignment.id)
+      go_to_modules
+      verify_persistence('Unpublished Assignment')
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
+    end
+
+    it 'should add a published assignment to a module', priority: "1", test_id: 126725 do
+      @pub_assignment = Assignment.create!(context: @course, title: 'Published Assignment')
+      @mod.add_item(type: 'assignment', id: @pub_assignment.id)
+      go_to_modules
+      verify_persistence('Published Assignment')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+    end
+
+    it 'should add an non-graded unpublished discussion to a module', priority: "1", test_id: 126712 do
+      @unpub_ungraded_discussion = @course.discussion_topics.create!(title: 'Non-graded Unpublished Discussion')
+      @unpub_ungraded_discussion.workflow_state = 'unpublished'
+      @unpub_ungraded_discussion.save!
+      @mod.add_item(type: 'discussion_topic', id: @unpub_ungraded_discussion.id)
+      go_to_modules
+      verify_persistence('Non-graded Unpublished Discussion')
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
+    end
+
+    it 'should add a non-graded published discussion to a module', priority: "1", test_id: 126713 do
+      @pub_ungraded_discussion = @course.discussion_topics.create!(title: 'Non-graded Published Discussion')
+      @mod.add_item(type: 'discussion_topic', id: @pub_ungraded_discussion.id)
+      go_to_modules
+      verify_persistence('Non-graded Published Discussion')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+    end
+
+    it 'should add an graded unpublished discussion to a module', priority: "1", test_id: 126714 do
+      a = @course.assignments.create!(title: 'some assignment', points_possible: 10)
+      @unpub_graded_discussion = @course.discussion_topics.build(assignment: a, title: 'Graded Unpublished Discussion')
+      @unpub_graded_discussion.workflow_state = 'unpublished'
+      @unpub_graded_discussion.save!
+      @mod.add_item(type: 'discussion_topic', id: @unpub_graded_discussion.id)
+      go_to_modules
+      verify_persistence('Graded Unpublished Discussion')
+      expect(f('span.publish-icon.unpublished.publish-icon-publish > i.icon-unpublish')).to be_displayed
+      expect(f('.points_possible_display').text).to include_text "10 pts"
+    end
+
+    it 'should add a graded published discussion to a module', priority: "1", test_id: 126715 do
+      a = @course.assignments.create!(title: 'some assignment', points_possible: 10)
+      @pub_graded_discussion = @course.discussion_topics.build(assignment: a, title: 'Graded Published Discussion')
+      @pub_graded_discussion.save!
+      @mod.add_item(type: 'discussion_topic', id: @pub_graded_discussion.id)
+      go_to_modules
+      verify_persistence('Graded Published Discussion')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+      expect(f('.points_possible_display').text).to include_text "10 pts"
+    end
+
+    it 'should add a graded published discussion with a due date to a module', priority: "1", test_id: 126716 do
+      @due_at = 3.days.from_now
+      a = @course.assignments.create!(title: 'some assignment', points_possible: 10, due_at: @due_at)
+      @pub_graded_discussion_due = @course.discussion_topics.build(assignment: a, title: 'Graded Published Discussion with Due Date')
+      @pub_graded_discussion_due.save!
+      @mod.add_item(type: 'discussion_topic', id: @pub_graded_discussion_due.id)
+      go_to_modules
+      verify_persistence('Graded Published Discussion with Due Date')
+      expect(f('span.publish-icon.published.publish-icon-published')).to be_displayed
+      expect(f('.due_date_display').text).not_to be_blank
+      expect(f('.due_date_display').text).to eq @due_at.strftime('%b %-d')
+      expect(f('.points_possible_display').text).to include_text "10 pts"
+    end
+  end
   describe "files" do
     FILE_NAME = 'some test file'
 
@@ -1011,9 +1177,8 @@ describe "context modules" do
       @file.save!
     end
 
-    it "should add a file item to a module" do
+    it "should add a file item to a module", priority: "1", test_id: 126728 do
       get "/courses/#{@course.id}/modules"
-
       add_existing_module_item('#attachments_select', 'File', FILE_NAME)
     end
 
@@ -1050,6 +1215,18 @@ describe "context modules" do
     it "loads page with differentiated assignments on" do
       @course.disable_feature!(:differentiated_assignments)
       assert_page_loads
+    end
+  end
+
+  context "when a public course is accessed" do
+    include_context "public course as a logged out user"
+
+    it "should display modules list", priority: "1", test_id: 269812 do
+      @module = public_course.context_modules.create!(:name => "module 1")
+      @assignment = public_course.assignments.create!(:name => 'assignment 1', :assignment_group => @assignment_group)
+      @module.add_item :type => 'assignment', :id => @assignment.id
+      get "/courses/#{public_course.id}/modules"
+      validate_selector_displayed('.item-group-container')
     end
   end
 end

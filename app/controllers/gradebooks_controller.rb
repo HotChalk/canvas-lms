@@ -74,7 +74,7 @@ class GradebooksController < ApplicationController
             submissions_json = @presenter.submissions.map { |s|
               {
                 'assignment_id' => s.assignment_id,
-                'score' => s.grants_right?(@current_user, :read_grade)? s.score  : nil
+                'score' => s.user_can_read_grade?(@current_user) ? s.score  : nil
               }
             }
             ags_json = light_weight_ags_json(@presenter.groups, {student: @presenter.student})
@@ -121,7 +121,14 @@ class GradebooksController < ApplicationController
 
   def light_weight_ags_json(assignment_groups, opts={})
     assignment_groups.map do |ag|
-      assignments = ag.visible_assignments(opts[:student] || @current_user).map do |a|
+      visible_assignments = ag.visible_assignments(opts[:student] || @current_user)
+
+      if multiple_grading_periods? && @current_grading_period_id && !view_all_grading_periods?
+        current_period = GradingPeriod.context_find(@context, @current_grading_period_id)
+        visible_assignments = current_period.assignments_for_student(visible_assignments, opts[:student])
+      end
+
+      visible_assignments.map! do |a|
         {
           :id => a.id,
           :submission_types => a.submission_types_array,
@@ -129,11 +136,12 @@ class GradebooksController < ApplicationController
           :due_at => a.due_at
         }
       end
+
       {
         :id           => ag.id,
         :rules        => ag.rules_hash({stringify_json_ids: true}),
         :group_weight => ag.group_weight,
-        :assignments  => assignments,
+        :assignments  => visible_assignments,
       }
     end
   end
@@ -158,7 +166,7 @@ class GradebooksController < ApplicationController
     @enrollment ||= @context.all_student_enrollments.where(user_id: @current_user).first if !@context.grants_right?(@current_user, session, :manage_grades)
     add_crumb t(:crumb, 'Attendance')
     if !@enrollment && @context.grants_right?(@current_user, session, :manage_grades)
-      @assignments = @context.assignments.active.where(:submission_types => 'attendance').all
+      @assignments = @context.assignments.active.where(:submission_types => 'attendance').to_a
       @students = @context.students_visible_to(@current_user).order_by_sortable_name
       @at_least_one_due_at = @assignments.any?{|a| a.due_at }
       # Find which assignment group most attendance items belong to,
@@ -166,7 +174,7 @@ class GradebooksController < ApplicationController
       # in the list...
       @default_group_id = @assignments.to_a.inject(Hash.new(0)){|h,a| h[a.assignment_group_id] += 1; h}.sort_by{|id, cnt| cnt }.reverse.first[0] rescue nil
     elsif @enrollment && @enrollment.grants_right?(@current_user, session, :read_grades)
-      @assignments = @context.assignments.active.where(:submission_types => 'attendance').all
+      @assignments = @context.assignments.active.where(:submission_types => 'attendance').to_a
       @students = @context.students_visible_to(@current_user).order_by_sortable_name
       @submissions = @context.submissions.where(user_id: @enrollment.user_id).to_a
       @user = @enrollment.user
@@ -185,9 +193,11 @@ class GradebooksController < ApplicationController
       set_current_grading_period if multiple_grading_periods?
       set_js_env
       @post_grades_tools = post_grades_tools
+      gradebook_version = @context.feature_enabled?(:gradebook_performance) ? :react_gradebook : :gradebook2
+
       case @current_user.preferred_gradebook_version
       when "2"
-        render :gradebook2
+        render gradebook_version
         return
       when "srgb"
         render :screenreader
@@ -256,8 +266,8 @@ class GradebooksController < ApplicationController
   def set_current_grading_period
     unless @current_grading_period_id = params[:grading_period_id].presence
       return if view_all_grading_periods?
-      return unless current = GradingPeriod.for(@context).find(&:current?)
-      @current_grading_period_id = current.id.to_s
+      current = GradingPeriod.for(@context).find(&:current?)
+      @current_grading_period_id = current ? current.id.to_s : '0'
     end
   end
 
@@ -280,8 +290,13 @@ class GradebooksController < ApplicationController
     ag_includes = [:assignments]
     ag_includes << :assignment_visibility if @context.feature_enabled?(:differentiated_assignments)
     ag_includes << 'overrides' if @context.feature_enabled?(:differentiated_assignments)
+    chunk_size = if @context.assignments.published.count < Setting.get('gradebook2.assignments_threshold', '20').to_i
+      Setting.get('gradebook2.submissions_chunk_size', '35').to_i
+    else
+      Setting.get('gradebook2.many_submissions_chunk_size', '10').to_i
+    end
     js_env  :GRADEBOOK_OPTIONS => {
-      :chunk_size => Setting.get('gradebook2.submissions_chunk_size', '35').to_i,
+      :chunk_size => chunk_size,
       :assignment_groups_url => api_v1_course_assignment_groups_url(@context, :include => ag_includes, :override_assignment_dates => "false"),
       :sections_url => api_v1_course_sections_url(@context, :include => 'passback_status'),
       :course_url => api_v1_course_url(@context, :include => 'passback_status'),
@@ -329,7 +344,8 @@ class GradebooksController < ApplicationController
       :gradebook_column_size_settings => @current_user.preferences[:gradebook_column_size],
       :gradebook_column_size_settings_url => change_gradebook_column_size_course_gradebook_url,
       :gradebook_column_order_settings => @current_user.preferences[:gradebook_column_order].try(:[], @context.id),
-      :gradebook_column_order_settings_url => save_gradebook_column_order_course_gradebook_url
+      :gradebook_column_order_settings_url => save_gradebook_column_order_course_gradebook_url,
+      :gradebook_performance_enabled => @context.feature_enabled?(:gradebook_performance)
     }
   end
 
@@ -367,7 +383,6 @@ class GradebooksController < ApplicationController
                     else
                       [params[:submission]]
                     end
-
       valid_user_ids = Set.new(@context.students_visible_to(@current_user).pluck(:id))
       submissions.select! { |s| valid_user_ids.include? s[:user_id].to_i }
       users = @context.students.uniq.find(submissions.map { |s| s[:user_id] })
@@ -382,6 +397,7 @@ class GradebooksController < ApplicationController
         @user = users[submission[:user_id].to_i]
         submission[:grader] = @current_user
         submission.delete :comment_attachments
+        submission.delete(:provisional) unless @assignment.moderated_grading?
         if params[:attachments]
           attachments = []
           params[:attachments].each do |idx, attachment|
@@ -399,7 +415,14 @@ class GradebooksController < ApplicationController
           end
 
           submission[:dont_overwrite_grade] = value_to_boolean(params[:dont_overwrite_grades])
-          @submissions += @assignment.grade_student(@user, submission)
+          subs = @assignment.grade_student(@user, submission)
+          if submission[:provisional]
+            is_final = submission[:final] && @context.grants_right?(@current_user, :moderate_grades)
+            subs.each do |sub|
+              sub.apply_provisional_grade_filter!(sub.provisional_grade(@current_user, final: is_final))
+            end
+          end
+          @submissions += subs
         rescue Assignment::GradeError => e
           logger.info "GRADES: grade_student failed because '#{e.message}'"
           @error_message = e.to_s
@@ -463,6 +486,19 @@ class GradebooksController < ApplicationController
       return redirect_to polymorphic_url([@context, @assignment])
     end
 
+    grading_role = if moderated_grading_enabled_and_no_grades_published
+      if @context.grants_right?(@current_user, :moderate_grades)
+        :moderator
+      else
+        :provisional_grader
+      end
+    else
+      :grader
+    end
+
+    # TODO: Handle for moderator when behavior implemented
+    crocodoc_ids = [:provisional_grader].include?(grading_role) && [@current_user.crocodoc_id!]
+
     respond_to do |format|
       format.html do
         @headers = false
@@ -471,6 +507,8 @@ class GradebooksController < ApplicationController
         env = {
           :CONTEXT_ACTION_SOURCE => :speed_grader,
           :settings_url => speed_grader_settings_course_gradebook_path,
+          :force_anonymous_grading => force_anonymous_grading?(@assignment),
+          :grading_role => grading_role
         }
         if @assignment.quiz
           env[:quiz_history_url] = course_quiz_history_path @context.id,
@@ -483,7 +521,10 @@ class GradebooksController < ApplicationController
       end
 
       format.json do
-        render :json => @assignment.speed_grader_json(@current_user, service_enabled?(:avatars))
+        render :json => @assignment.speed_grader_json(@current_user,
+                                                      avatars: service_enabled?(:avatars),
+                                                      grading_role: grading_role,
+                                                      crocodoc_ids: crocodoc_ids)
       end
     end
   end
@@ -616,10 +657,18 @@ class GradebooksController < ApplicationController
 
 
   def assignment_groups_json(opts={})
-    @context.assignment_groups.active.includes(:published_assignments).map { |g|
+    @context.assignment_groups.active.preload(:published_assignments).map { |g|
       assignment_group_json(g, @current_user, session, ['assignments'], {
         stringify_json_ids: opts[:stringify_json_ids] || stringify_json_ids?
       })
     }
+  end
+
+  private
+
+  def moderated_grading_enabled_and_no_grades_published
+    @context.feature_enabled?(:moderated_grading) &&
+      @assignment.moderated_grading? &&
+      !@assignment.grades_published?
   end
 end

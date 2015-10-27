@@ -1,10 +1,11 @@
 require File.expand_path(File.dirname(__FILE__) + '/helpers/quizzes_common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignment_overrides.rb')
+require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
 
 describe "quizzes" do
 
   include AssignmentOverridesSeleniumHelper
-  include_examples "quizzes selenium tests"
+  include_context 'in-process server selenium tests'
 
   def add_question_to_group
     f('.add_question_link').click
@@ -38,17 +39,10 @@ describe "quizzes" do
         get "/courses/#{@course.id}/quizzes"
         expect(f("#summary_quiz_#{@quiz.id} .icon-publish")).to be_displayed
       end
-
-      it "should not exist in a published quiz" do
-        @quiz = course_quiz true
-        get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
-
-        expect(f(".save_and_publish")).to be_nil
-      end
     end
 
     it "should show a summary of due dates if there are multiple", priority: "1", test_id: 210054 do
-      create_quiz_with_default_due_dates
+      create_quiz_with_due_date
       get "/courses/#{@course.id}/quizzes"
       expect(f('.item-group-container .date-available')).not_to include_text "Multiple Dates"
       add_due_date_override(@quiz)
@@ -111,27 +105,17 @@ describe "quizzes" do
       expect(f('#questions')).to be_present
     end
 
-    it "should edit a quiz", priority: "1", test_id: 210057 do
-      @context = @course
-      q = quiz_model
-      q.generate_quiz_data
-      q.save!
-
-      get "/courses/#{@course.id}/quizzes/#{q.id}/edit"
-      wait_for_ajaximations
-
-      test_text = "changed description"
-      keep_trying_until { expect(f('#quiz_description_ifr')).to be_displayed }
-      type_in_tiny '#quiz_description', test_text
-      in_frame "quiz_description_ifr" do
-        expect(f('#tinymce')).to include_text(test_text)
+    it "should insert multiple files using RCE in the quiz", priority: "1", test_id: 132545 do
+      txt_files = ["some test file", "b_file.txt"]
+      txt_files.map do |text_file|
+       file = @course.attachments.create!(display_name: text_file, uploaded_data: default_uploaded_data)
+       file.context = @course
+       file.save!
       end
-      click_save_settings_button
-      wait_for_ajaximations
-
-      get "/courses/#{@course.id}/quizzes/#{q.id}"
-
-      expect(f('#main .description')).to include_text(test_text)
+      @quiz = course_quiz
+      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
+      insert_file_from_rce(:quiz)
+      expect(fln("b_file.txt")).to be_displayed
     end
 
     it "should asynchronously load student quiz results", priority: "2", test_id: 210058 do
@@ -147,42 +131,6 @@ describe "quizzes" do
       expect(f('#quiz_details')).to be_displayed
     end
 
-
-    it "should republish on save", priority: "1", test_id: 210059 do
-      get "/courses/#{@course.id}/quizzes"
-      expect_new_page_load { f(".new-quiz-link").click }
-      quiz = Quizzes::Quiz.last
-      expect_new_page_load do
-        click_save_settings_button
-        wait_for_ajax_requests
-      end
-
-      # Hides SpeedGrader link when unpublished
-      expect(f('.icon-speed-grader')).to be_nil
-
-      expect(f('#quiz-publish-link')).not_to include_text("Published")
-      expect(f('#quiz-publish-link')).to include_text("Publish")
-
-      expect(quiz.versions.length).to eq 1
-      f('#quiz-publish-link').click
-      wait_for_ajax_requests
-      quiz.reload
-      expect(quiz.versions.length).to eq 2
-      get "/courses/#{@course.id}/quizzes/#{quiz.id}/edit"
-      expect_new_page_load {
-        expect(f('#quiz-draft-state').text.strip).to match accessible_variant_of 'Published'
-        expect_new_page_load do
-          click_save_settings_button
-          wait_for_ajax_requests
-        end
-      }
-      quiz.reload
-      expect(quiz.versions.length).to eq 3
-
-      # Shows speedgrader when published
-      expect(f('.icon-speed-grader')).not_to be_nil
-    end
-
     it "should create a new question group", priority: "1", test_id: 210060 do
       get "/courses/#{@course.id}/quizzes/new"
 
@@ -193,7 +141,6 @@ describe "quizzes" do
       replace_content(group_form.find_element(:name, 'quiz_group[question_points]'), '3')
       submit_form(group_form)
       expect(group_form.find_element(:css, '.group_display.name')).to include_text('new group')
-
     end
 
     it "should update a question group", priority: "1", test_id: 210061 do
@@ -225,7 +172,7 @@ describe "quizzes" do
       keep_trying_until { expect(f("#quiz_display_points_possible .points_possible").text).to eq "2" }
     end
 
-    it "should not let you exceed the question limit", priority: "1", test_id: 210062 do
+    it "should not let you exceed the question limit", priority: "3", test_id: 210062 do
       get "/courses/#{@course.id}/quizzes/new"
 
       click_questions_tab
@@ -317,7 +264,7 @@ describe "quizzes" do
       end
     end
 
-    it "should validate numerical input data", priority: "2", test_id: 210066 do
+    it "should validate numerical input data", priority: "1", test_id: 210066 do
       @quiz = quiz_with_new_questions do |bank, quiz|
         aq = bank.assessment_questions.create!
         quiz.quiz_questions.create!(:question_data => {:name => "numerical", 'question_type' => 'numerical_question', 'answers' => [], :points_possible => 1}, :assessment_question => aq)
@@ -573,16 +520,6 @@ describe "quizzes" do
       expect(f('.time_running').text).to match /19 Minutes/
     end
 
-
-    it "should display quiz statistics", priority: "1", test_id: 210071 do
-      quiz_with_submission
-      get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
-
-      click_quiz_statistics_button
-
-      expect(f('#content .question-statistics .question-text')).to include_text("Which book(s) are required for this course?")
-    end
-
     it "should display a link to quiz statistics for a MOOC", priority: "2", test_id: 210072 do
       quiz_with_submission
       @course.large_roster = true
@@ -590,52 +527,6 @@ describe "quizzes" do
       get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
 
       expect(f('#right-side')).to include_text('Quiz Statistics')
-    end
-
-    it "should delete a quiz", priority: "1", test_id: 210073 do
-      quiz_with_submission
-      get "/courses/#{@course.id}/quizzes/#{@quiz.id}"
-      expect_new_page_load do
-        f('.al-trigger').click
-        f('.delete_quiz_link').click
-        accept_alert
-      end
-
-      # Confirm that we make it back to the quizzes index page
-      expect(f('#content')).to include_text("Course Quizzes")
-      expect(@quiz.reload).to be_deleted
-    end
-
-    it "should create overrides", priority: "2", test_id: 210074 do
-      @quiz = create_quiz_with_default_due_dates
-      default_section = @course.course_sections.first
-      other_section = @course.course_sections.create!(:name => "other section")
-      default_section_due = Time.zone.now + 1.days
-      other_section_due = Time.zone.now + 2.days
-      get "/courses/#{@course.id}/quizzes/#{@quiz.id}/edit"
-      wait_for_ajaximations
-      select_first_override_section(default_section.name)
-      first_due_at_element.clear
-      first_due_at_element.
-          send_keys(default_section_due.strftime('%b %-d, %y'))
-
-      add_override
-
-      select_last_override_section(other_section.name)
-      last_due_at_element.
-          send_keys(other_section_due.strftime('%b %-d, %y'))
-      expect_new_page_load do
-        click_save_settings_button
-        wait_for_ajax_requests
-      end
-      overrides = @quiz.reload.assignment_overrides
-      expect(overrides.size).to eq 2
-      default_override = overrides.detect { |o| o.set_id == default_section.id }
-      expect(default_override.due_at.strftime('%b %-d, %y')).
-          to eq default_section_due.to_date.strftime('%b %-d, %y')
-      other_override = overrides.detect { |o| o.set_id == other_section.id }
-      expect(other_override.due_at.strftime('%b %-d, %y')).
-          to eq other_section_due.to_date.strftime('%b %-d, %y')
     end
   end
 end

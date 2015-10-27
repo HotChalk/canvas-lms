@@ -115,7 +115,16 @@ class NotificationPolicy < ActiveRecord::Base
     end
     # Load and return user's policies after defaults may or may not have been set.
     # TODO: Don't load policies for retired channels
-    NotificationPolicy.includes(:notification).for(user)
+    NotificationPolicy.preload(:notification).for(user)
+  end
+
+  # Updates notification policies for a given category in a given communication channel
+  def self.find_or_update_for_category(communication_channel, category, frequency = nil)
+    notifs = Notification.where("category = ?", category)
+    raise ActiveRecord::RecordNotFound unless notifs.exists?
+    notifs.map do |notif|
+      NotificationPolicy.find_or_update_for(communication_channel, notif.name, frequency)
+    end
   end
 
   # Finds the current policy for a given communication channel, or creates it (with default)

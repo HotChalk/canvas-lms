@@ -125,11 +125,11 @@ describe ActiveRecord::Base do
       expect(es.sort).to eq [@e1.id, @e2.id, @e3.id, @e4.id, @e5.id, @e6.id].sort
     end
 
-    it "should honor includes when using a cursor" do
+    it "should honor preload when using a cursor" do
       skip "needs PostgreSQL" unless Account.connection.adapter_name == 'PostgreSQL'
       Account.default.courses.create!
       Account.transaction do
-        Account.where(:id => Account.default).includes(:courses).find_each do |a|
+        Account.where(:id => Account.default).preload(:courses).find_each do |a|
           expect(a.courses.loaded?).to be_truthy
         end
       end
@@ -139,8 +139,7 @@ describe ActiveRecord::Base do
       skip "needs PostgreSQL" unless Account.connection.adapter_name == 'PostgreSQL'
       Account.transaction do
         Account.expects(:find_in_batches_with_cursor).never
-        Account.where(:id => Account.default).includes(:courses).find_each(start: 0) do |a|
-          expect(a.courses.loaded?).to be_truthy
+        Account.where(:id => Account.default).find_each(start: 0) do
         end
       end
     end
@@ -620,10 +619,23 @@ describe ActiveRecord::Base do
   end
 
   describe "callbacks" do
+    before do
+      class MockAccount < Account
+        include RSpec::Matchers
+        before_save do
+          expect(Account.scoped.to_sql).not_to match /callbacks something/
+          expect(MockAccount.scoped.to_sql).not_to match /callbacks something/
+          true
+        end
+      end
+    end
+
+    after do
+      Object.send(:remove_const, :MockAccount)
+    end
+
     it "should use default scope" do
-      Account.send(:include, RSpec::Matchers)
-      Account.before_save { expect(Account.scoped.to_sql).not_to match /callbacks something/; true }
-      Account.where(name: 'callbacks something').create!
+      MockAccount.where(name: 'callbacks something').create!
     end
   end
 end

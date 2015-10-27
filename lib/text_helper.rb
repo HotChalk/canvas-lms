@@ -58,19 +58,17 @@ module TextHelper
     end
   end
 
+  def unlocalized_datetime_string(start_datetime, datetime_type=:event)   start_datetime = start_datetime.in_time_zone rescue start_datetime
+    return nil unless start_datetime
+    date_format = (datetime_type == :verbose || start_datetime.year != Time.zone.today.year) ? "%b %-d, %Y" : "%b %-d"
+    time_format = start_datetime.min == 0 ?  "%l%P" : "%l:%M%P"
+    return start_datetime.strftime("#{date_format} at #{time_format}")
+  end
+
   def datetime_string(start_datetime, datetime_type=:event, end_datetime=nil, shorten_midnight=false, zone=nil)
     zone ||= ::Time.zone
     presenter = Utils::DatetimeRangePresenter.new(start_datetime, end_datetime, datetime_type, zone)
     presenter.as_string(shorten_midnight: shorten_midnight)
-  end
-
-  def unlocalized_datetime_string(start_datetime, datetime_type=:event)
-    start_datetime = start_datetime.in_time_zone rescue start_datetime
-    return nil unless start_datetime
-
-    date_format = (datetime_type == :verbose || start_datetime.year != Time.zone.today.year) ? "%b %-d, %Y" : "%b %-d"
-    time_format = start_datetime.min == 0 ?  "%l%P" : "%l:%M%P"
-    return start_datetime.strftime("#{date_format} at #{time_format}")
   end
 
   def time_ago_in_words_with_ago(time)

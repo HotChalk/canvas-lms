@@ -26,7 +26,7 @@ module Api::V1::CalendarEvent
 
   def event_json(event, user, session, options={})
     context  = Context.find_asset_by_asset_string(event.context_code)
-    hash = if event.is_a?(CalendarEvent)
+    hash = if event.is_a?(::CalendarEvent)
       calendar_event_json(event, user, session, options)
     else
       assignment_event_json(event, user, session, options)
@@ -41,9 +41,10 @@ module Api::V1::CalendarEvent
     include ||= excludes.include?('child_events') ? [] : ['child_events']
 
     context = (options[:context] || event.context)
+    duplicates = options[:duplicates] || []
     participant = nil
 
-    hash = api_json(event, user, session, :only => %w(id created_at updated_at start_at end_at all_day all_day_date title location_address location_name workflow_state course_section_id))
+    hash = api_json(event, user, session, :only => %w(id created_at updated_at start_at end_at all_day all_day_date title location_address location_name workflow_state comments course_section_id))
     if event.context_type == "CourseSection"
       hash['title'] += " (#{context.name})"
       hash['description'] = api_user_content(event.description, event.context.course) unless excludes.include?('description')
@@ -97,6 +98,7 @@ module Api::V1::CalendarEvent
         participant = context.participant_for(user)
         participant_child_events = event.child_events_for(participant)
         hash['reserved'] = (Array === participant_child_events ? participant_child_events.present? : participant_child_events.exists?)
+        hash['reserve_comments'] = participant_child_events.map(&:comments).compact.join(", ")
         hash['reserve_url'] = api_v1_calendar_event_reserve_url(event, participant)
       else
         hash['reserve_url'] = api_v1_calendar_event_reserve_url(event, '{{ id }}')
@@ -137,6 +139,7 @@ module Api::V1::CalendarEvent
 
     hash['url'] = api_v1_calendar_event_url(event) if options.has_key?(:url_override) ? options[:url_override] || hash['own_reservation'] : event.grants_right?(user, session, :read)
     hash['html_url'] = calendar_url_for(options[:effective_context] || event.effective_context, :event => event)
+    hash['duplicates'] = duplicates
     hash
   end
 
