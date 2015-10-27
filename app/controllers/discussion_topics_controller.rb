@@ -859,6 +859,7 @@ class DiscussionTopicsController < ApplicationController
     process_published_parameters(discussion_topic_hash)
     process_group_parameters(discussion_topic_hash)
     process_pin_parameters(discussion_topic_hash)
+    process_override_parameters(discussion_topic_hash)
 
     if @errors.present?
       render :json => {errors: @errors}, :status => :bad_request
@@ -984,6 +985,11 @@ class DiscussionTopicsController < ApplicationController
     @topic.pinned = params[:pinned]
     @topic.position = nil
     @topic.add_to_list_bottom
+  end
+
+  def process_override_parameters(discussion_topic_hash)
+    return unless params.has_key? "only_visible_to_overrides"
+    @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
   end
 
   def apply_positioning_parameters
