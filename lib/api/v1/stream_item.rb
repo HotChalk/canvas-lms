@@ -147,7 +147,7 @@ module Api::V1::StreamItem
     @current_user.shard.activate do
 
       base_scope = @current_user.visible_stream_item_instances(:contexts => contexts).joins(:stream_item)
-      base_scope = filter_stream_item_instances(base_scope)
+      base_scope = StreamItemInstance.where(id: filter_stream_item_instances(base_scope).map(&:id)).joins(:stream_item)
 
       full_counts = base_scope.except(:order).group('stream_items.asset_type', 'stream_items.notification_category',
         'stream_item_instances.workflow_state').count
