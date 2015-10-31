@@ -17,13 +17,14 @@ define [
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/editor/KeyboardShortcuts'
+  'timezone'
   'compiled/tinymce'
   'tinymce.editor_box'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
 GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts, tz) ->
 
   class EditView extends ValidatedFormView
 
@@ -248,6 +249,19 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+
+      # Reply assignments copy the main assignment's overrides, except for the Due Date
+      if data.due_at && model_key == 'reply_assignment' && ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        assignment_id = @model.get(model_key).id
+        _.each data.assignment_overrides, (override) ->
+          override.assignment_id = assignment_id
+          is_all_day = tz.isMidnight data.due_at, {timezone: ENV.CONTEXT_TIMEZONE}
+          data.due_at = tz.changeToTheSecondBeforeMidnight(data.due_at) if is_all_day
+          override.due_at = data.due_at.toISOString()
+          override.all_day = is_all_day
+          override.all_day_date = data.due_at.toISOString().substr(0,10) # need only YYYY-MM-DD
+          override.due_at_overridden = true
+          delete override.id
 
       assignment = @model.get(model_key)
       assignment or= @model.createAssignment()
