@@ -556,6 +556,12 @@ class DiscussionTopicsController < ApplicationController
                                                                       :speed_grader_context_gradebook_url,
                                                                       :assignment_id => @topic.assignment.id,
                                                                       :anchor => {:student_id => ":student_id"}.to_json)
+              if @topic.for_reply_assignment?
+                env_hash[:SPEEDGRADER_REPLY_URL_TEMPLATE] = named_context_url(@topic.reply_assignment.context,
+                                                                              :speed_grader_context_gradebook_url,
+                                                                              :assignment_id => @topic.reply_assignment.id,
+                                                                              :anchor => {:student_id => ":student_id"}.to_json)
+              end
             end
 
             js_hash = {:DISCUSSION => env_hash}

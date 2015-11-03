@@ -186,8 +186,13 @@ define [
     speedgraderUrl: ->
       # ENV.DISCUSSION.SPEEDGRADER_URL_TEMPLATE will only exist if I have permission to grade
       # and this thing is an assignment
-      if ENV.DISCUSSION.SPEEDGRADER_URL_TEMPLATE
-        ENV.DISCUSSION.SPEEDGRADER_URL_TEMPLATE.replace /%22:student_id%22/, @get('user_id')
+      urlTemplate =
+        if (@get('parent_id') && ENV.DISCUSSION.SPEEDGRADER_REPLY_URL_TEMPLATE)
+          ENV.DISCUSSION.SPEEDGRADER_REPLY_URL_TEMPLATE
+        else
+          ENV.DISCUSSION.SPEEDGRADER_URL_TEMPLATE
+      if urlTemplate
+        urlTemplate.replace /%22:student_id%22/, @get('user_id')
 
     ##
     # Computed attribute
