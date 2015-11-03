@@ -104,9 +104,11 @@
           </a>
         <% end %>
         <% if @can_manage_content %>
-            <% js_bundle :course_wizard %>
-            <% css_bundle :course_wizard %>
-            <a href="#" class="btn button-sidebar-wide wizard_popup_link  <%= 'auto_open' if @context.created? || @context.claimed? %>"><i class="icon-question"></i> <%= t('links.course_setup', %{Course Setup Checklist}) %></a>
+            <% unless @disable_checklist %>
+              <% js_bundle :course_wizard %>
+              <% css_bundle :course_wizard %>
+              <a href="#" class="btn button-sidebar-wide wizard_popup_link  <%= 'auto_open' if @context.created? || @context.claimed? %>"><i class="icon-question"></i> <%= t('links.course_setup', %{Course Setup Checklist}) %></a>
+            <% end %>
             <a class="btn button-sidebar-wide" href="<%= context_url(@context, :new_context_discussion_topic_url, :is_announcement => true) %>"><i class="icon-announcement"></i> <%= t('links.new_announcement', %{New Announcement}) %></a>
         <% end %>
         </div>
