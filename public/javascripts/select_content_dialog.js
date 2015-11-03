@@ -191,6 +191,9 @@ define([
               if (item_data['item[type]'] === 'attachment') {
                 // some browsers return a fake path in the file input value, so use the name returned by the server
                 item_data['item[title]'] = obj.display_name;
+                // show file upload button and hide label from previews file selected.
+                $("#module_attachment_uploaded_data").show();                       
+                $('#select_context_content_dialog #attachments_select .new span').hide();
               } else {
                 item_data['item[title]'] = $("#select_context_content_dialog .module_item_option:visible:first .item_title").val();
                 item_data['item[title]'] = item_data['item[title]'] || obj.display_name;
