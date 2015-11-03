@@ -524,7 +524,7 @@
           </li>
         <% end %>
       </ul>
-      <% tabs = dynamic_tabs %>
+      <% tabs = @context.dynamic_tab_configuration %>
       <%= render :partial => "shared/link_content_dialog", :only => [:assignments, :quizzes, :discussion_topics, :wiki_pages] %>
       <p style="margin-bottom: 4px; padding-top: 10px">
         Add extra navigation links for items in this course.

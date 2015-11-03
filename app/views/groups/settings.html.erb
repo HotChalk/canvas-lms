@@ -1,6 +1,6 @@
 <%
   content_for :page_title, join_title(t(:page_title, "Group Settings"), @context.name)
-  jammit_css :group_settings
+  css_bundle :group_settings
   js_bundle :group_navigation_settings
 %>
 
@@ -89,7 +89,7 @@
           </li>
         <% end %>
       </ul>
-      <% tabs = dynamic_tabs %>
+      <% tabs = @context.dynamic_tab_configuration %>
       <%= render :partial => "shared/link_content_dialog", :locals => { :only => [:attachments, :discussion_topics, :wiki_pages] }%>
       <p style="margin-bottom: 4px; padding-top: 10px">
         Add extra navigation links for items in this group.

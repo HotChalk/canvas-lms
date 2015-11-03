@@ -625,19 +625,6 @@ class Group < ActiveRecord::Base
     super.map {|h| h.with_indifferent_access } rescue []
   end
 
-  def dynamic_tab_url(context_type, context_id)
-    base_path = "/groups/#{self.id}"
-    case context_type
-      when 'discussion_topic'
-        return "#{base_path}/discussion_topics/#{context_id}"
-      when 'wiki_page'
-        wiki_page = self.wiki.wiki_pages.find_by_id(context_id)
-        return "#{base_path}/wiki/#{wiki_page.url}"
-      else
-        return nil
-    end
-  end
-
   TAB_HOME, TAB_PAGES, TAB_PEOPLE, TAB_DISCUSSIONS, TAB_FILES,
     TAB_CONFERENCES, TAB_ANNOUNCEMENTS, TAB_PROFILE, TAB_SETTINGS, TAB_COLLABORATIONS = *1..20
 
@@ -661,15 +648,37 @@ class Group < ActiveRecord::Base
     return tab && tab[:hidden]
   end
 
-  def dynamic_tabs()
-    self.dynamic_tab_configuration.map do |link|
-      {
-        :context_type => link[:context_type],
-        :context_id => link[:context_id],
-        :label => link[:label],
-        :href => dynamic_tab_url(link[:context_type], link[:context_id])
-      }
+  def dynamic_tab_hash(tab)
+    hash = {:label => tab[:label]}
+    case tab[:context_type]
+      when 'attachment'
+        hash.merge!({
+          :css_class => 'files',
+          :href => :group_file_download_path,
+          :icon => 'icon-folder',
+          :args => [self.id, tab[:context_id]]
+        })
+      when 'discussion_topic'
+        hash.merge!({
+          :css_class => 'discussions',
+          :href => :group_discussion_topic_path,
+          :icon => 'icon-discussion',
+          :args => [self.id, tab[:context_id]]
+        })
+      when 'wiki_page'
+        wiki_page = self.wiki.wiki_pages.find_by_id(tab[:context_id])
+        hash.merge!({
+          :css_class => 'pages',
+          :href => :group_wiki_page_path,
+          :args => [self.id, wiki_page.url]
+        })
     end
+    hash
+  end
+
+  def dynamic_tabs()
+    id = 10000   # start here to ensure unique IDs
+    self.dynamic_tab_configuration.map { |link| id += 1; dynamic_tab_hash(link).merge!({:id => id}) }
   end
 
   def tabs_available(user=nil, opts={})
@@ -711,6 +720,9 @@ class Group < ActiveRecord::Base
     unless self.grants_right?(user, opts[:session], :update)
       tabs.delete_if {|t| (t[:hidden] || t[:hidden_unused] ) }
     end
+
+    # Add dynamic tabs
+    tabs += dynamic_tabs
 
     tabs
   end

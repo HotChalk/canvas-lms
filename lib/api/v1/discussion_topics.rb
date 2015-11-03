@@ -91,7 +91,7 @@ module Api::V1::DiscussionTopics
       active_overrides = topic.assignment_overrides.active
       json[:assignment_overrides] = assignment_overrides_json(active_overrides)
     end
-    if opts[:include_all_dates] && topic.assignment_overrides
+    if opts[:include_all_dates] && topic.assignment_overrides.present?
       json[:all_dates] = topic.dates_hash_visible_to(user)
     end
     if context.feature_enabled?(:differentiated_assignments)
