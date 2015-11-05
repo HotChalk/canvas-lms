@@ -614,8 +614,14 @@ define [
 
       if @gotSubmissionChunkCount == @submissionChunkCount
         @allSubmissionsLoaded.resolve()
+        @reloadStudentSubmissions(student_submissions)
 
       @grid.render()
+
+    reloadStudentSubmissions: (student_submissions) =>
+      for data in student_submissions
+        student = @student(data.user_id)
+        @calculateStudentGrade(student)
 
     student: (id) =>
       @students[id] || @studentViewStudents[id]
