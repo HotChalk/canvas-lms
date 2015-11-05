@@ -14,23 +14,24 @@
 
     <span class="subtitle ellipsis">
       <%= Enrollment.workflow_readable_type(enrollment.state_based_on_date) %>,
-      <%=
+      <% role_label =
         case enrollment.class.to_s
         when 'TeacherEnrollment'
-          t('roles_teacher', "Enrolled as a Teacher.")
+          t('roles_teacher', "Enrolled as a Teacher")
         when 'StudentEnrollment'
-          t('roles_student', "Enrolled as a Student.")
+          t('roles_student', "Enrolled as a Student")
         when 'TaEnrollment'
-          t('roles_ta', "Enrolled as a TA.")
+          t('roles_ta', "Enrolled as a TA")
         when 'ObserverEnrollment'
-          t('roles_observer', "Enrolled as an Observer.")
+          t('roles_observer', "Enrolled as an Observer")
         when 'DesignerEnrollment'
-          t('roles_designer', "Enrolled as a Designer.")
+          t('roles_designer', "Enrolled as a Designer")
         else
-          t('roles_student', "Enrolled as a Student.")
+          t('roles_student', "Enrolled as a Student")
         end
       %>
-
+      <% role_label += " (#{enrollment.role.name})" if enrollment.role && enrollment.role.workflow_state == 'active' %>
+      <%= "#{role_label}." %>
       <% if enrollment.associated_user %>
         <%= t('linked_to_user', '(Linked to %{user_name})', :user_name => enrollment.associated_user.name) %>
       <% end %>
