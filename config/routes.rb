@@ -672,7 +672,7 @@ CanvasRails::Application.routes.draw do
   post 'login/otp/sms' => 'login/otp#send_via_sms', as: :send_otp_via_sms
   post 'login/otp' => 'login/otp#create'
 
-  get 'login/hmac' => 'login/hmac#create'
+  get 'login/hmac' => 'login/hmac#new', as: :hmac_login
   post 'login/hmac' => 'login/hmac#create'
 
   # deprecated redirect
