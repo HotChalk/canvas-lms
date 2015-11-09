@@ -1069,8 +1069,12 @@ class DiscussionTopicsController < ApplicationController
     if params[:reply_assignment] && !@topic.root_topic_id?
       if params[:assignment].has_key?(:set_reply_assignment) && !value_to_boolean(params[:assignment][:set_reply_assignment])
         if @topic.assignment && @topic.assignment.grants_right?(@current_user, session, :update)
+          reply_assignment = @topic.reply_assignment
+          @topic.reply_assignment = nil
           @topic.grade_replies_separately = false
           @topic.save!
+          reply_assignment.discussion_topic = nil
+          reply_assignment.destroy
         end
       elsif (@reply_assignment = @topic.reply_assignment || (@topic.reply_assignment = @context.assignments.build)) &&
              @reply_assignment.grants_right?(@current_user, session, :update)

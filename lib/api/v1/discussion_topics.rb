@@ -83,7 +83,7 @@ module Api::V1::DiscussionTopics
         include_all_dates: opts[:include_all_dates],                                          
         exclude_description: opts[:exclude_assignment_description])
     end
-    if opts[:include_assignment] && topic.reply_assignment
+    if opts[:include_assignment] && topic.reply_assignment && topic.grade_replies_separately
       json[:reply_assignment] = assignment_json(topic.reply_assignment, user, session,
         include_discussion_topic: false, override_dates: opts[:override_dates])
     end
