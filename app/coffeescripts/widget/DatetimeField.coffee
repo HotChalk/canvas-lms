@@ -238,11 +238,16 @@ define [
         tz.format(@datetime, @formatString())
 
     formatSuggestCourse: ->
+      @is_announcement = false
+
+      if ENV.DISCUSSION_TOPIC
+        @is_announcement = ENV.DISCUSSION_TOPIC.ATTRIBUTES?.is_announcement
+
       if @blank
         ""
       else if @invalid
         ""
-      else if @showTime
+      else if @showTime or @is_announcement
         tz.format(@datetime, @formatString(), @courseTimezone)
       else
         ""

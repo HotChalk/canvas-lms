@@ -45,5 +45,7 @@ splitAssetString) ->
   $ ->
     view.render().$el.appendTo('#content')
     $('#discussion-title').focus()
+    elements = $('.ic-Label')
+    if is_announcement then control.innerHTML = 'Post to' for control in elements when control.innerHTML is 'Assign to'
 
   view
