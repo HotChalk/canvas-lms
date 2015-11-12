@@ -498,15 +498,17 @@ class SubmissionsController < ApplicationController
     begin
       # since google drive can have many different export types, we need to send along our preferred extensions
       document_response, display_name, file_extension = google_docs.download(document_id, @assignment.allowed_extensions, {limit_max_filesize: true})
-    rescue MaxFilesizeExceededException => e
+    rescue GoogleDocs::MaxFilesizeExceededException => e
       Canvas::Errors.capture_exception(:submissions, e)
       logger.error(e)
-      max_filesize = number_to_human_size(Setting.get('google_drive_max_download_filesize', 25.megabytes).to_i)
+      h = ActionView::Base.new
+      h.extend ActionView::Helpers::NumberHelper
+      max_filesize = h.number_to_human_size(Setting.get('google_drive_max_download_filesize', 25.megabytes).to_i)
       flash[:error] = t('errors.max_filesize_exceeded', "Google Drive attachments can only be up to #{max_filesize} in size.")
     end
 
     # error handling
-    unless document_response.try(:is_a?, Net::HTTPOK) || document_response.status == 200
+    unless document_response.nil? || document_response.try(:is_a?, Net::HTTPOK) || document_response.status == 200
       flash[:error] = t('errors.assignment_submit_fail', 'Assignment failed to submit')
     end
 
