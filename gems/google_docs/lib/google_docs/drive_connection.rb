@@ -21,6 +21,8 @@
 module GoogleDocs
   class DriveConnectionException < RuntimeError
   end
+  class MaxFilesizeExceededException < RuntimeError
+  end
 
   class DriveConnection
     def initialize(refresh_token, access_token)
@@ -36,13 +38,20 @@ module GoogleDocs
       'google_drive'
     end
 
-    def download(document_id, extensions)
+    def download(document_id, extensions, opts={})
       response = api_client.execute!(
         :api_method => drive.files.get,
         :parameters => { :fileId => normalize_document_id(document_id) }
       )
 
       file = response.data.to_hash
+
+      # enforce a max file size for downloaded files; keep in mind the entire file gets temporarily cached in memory!
+      if !!opts[:limit_max_filesize] && (file_size = file["fileSize"].to_i)
+        max_filesize = Setting.get('google_drive_max_download_filesize', 25.megabytes).to_i
+        raise MaxFilesizeExceededException, "Google Drive download exceeds maximum allowed filesize of #{max_filesize} bytes." if file_size > max_filesize
+      end
+
       entry = GoogleDocs::DriveEntry.new(file, extensions)
       result = api_client.execute(:uri => entry.download_url)
       if result.status == 200
