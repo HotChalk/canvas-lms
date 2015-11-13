@@ -130,23 +130,22 @@ define [
 
       if context.lastIndexOf('course', 0) == 0
         submit_button.attr 'disabled', 'disabled'
-        $.ajaxJSON '/api/v1/courses/:course_id/user_sections'.replace(':course_id', @currentContextInfo.id), 'GET', {}, (course_sections) ->
-          if course_sections.length > 1
-            section_input = $('<select id="course_section" name="calendar_event[course_section_id]" class="course_section"></select>')
-            for section in course_sections
-              $('<option />',
-                value: section.id
-                text: section.name).appendTo section_input
-            context_section.show()
-          else if course_sections.length == 1
-            section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value="' + course_sections[0].id + '"/>')
-            context_section.hide()
-          else
-            section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
-            context_section.hide()
-          holder.html section_input
-          submit_button.removeAttr 'disabled'
-          return
+        course_sections = @currentContextInfo.course_sections || []
+        if course_sections.length > 1
+          section_input = $('<select id="course_section" name="calendar_event[course_section_id]" class="course_section"></select>')
+          for section in course_sections
+            option = $('<option />', value: section.id, text: section.name)
+            option.attr('selected', 'selected') if @event.calendarEvent && (section.id == @event.calendarEvent.course_section_id)
+            option.appendTo section_input
+          context_section.show()
+        else if course_sections.length == 1
+          section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value="' + course_sections[0].id + '"/>')
+          context_section.hide()
+        else
+          section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
+          context_section.hide()
+        holder.html section_input
+        submit_button.removeAttr 'disabled'
       else
         section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
         context_section.hide()
