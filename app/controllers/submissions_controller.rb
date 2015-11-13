@@ -504,7 +504,11 @@ class SubmissionsController < ApplicationController
       h = ActionView::Base.new
       h.extend ActionView::Helpers::NumberHelper
       max_filesize = h.number_to_human_size(Setting.get('google_drive_max_download_filesize', 25.megabytes).to_i)
-      flash[:error] = t('errors.max_filesize_exceeded', "Google Drive attachments can only be up to #{max_filesize} in size.")
+      max_filesize_message = t('errors.max_filesize_exceeded', <<EOS.html_safe, size: max_filesize, href: view_context.link_to("here", "https://support.hotchalkember.com/hc/en-us/requests/new", target: "_blank"))
+Please note. Google Drive uploads larger than %{size} in file size are prohibited. To upload large videos
+please use a service like Youtube, Vimeo, or Kaltura using the Text Entry option. For help contact support %{href}.
+EOS
+      flash[:error] = {html: max_filesize_message}
     end
 
     # error handling
