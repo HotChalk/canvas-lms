@@ -500,11 +500,24 @@ class SubmissionsController < ApplicationController
     # fetch document from google
     google_docs = google_service_connection
 
-    # since google drive can have many different export types, we need to send along our preferred extensions
-    document_response, display_name, file_extension = google_docs.download(document_id, @assignment.allowed_extensions)
+    begin
+      # since google drive can have many different export types, we need to send along our preferred extensions
+      document_response, display_name, file_extension = google_docs.download(document_id, @assignment.allowed_extensions, {limit_max_filesize: true})
+    rescue GoogleDocs::MaxFilesizeExceededException => e
+      Canvas::Errors.capture_exception(:submissions, e)
+      logger.error(e)
+      h = ActionView::Base.new
+      h.extend ActionView::Helpers::NumberHelper
+      max_filesize = h.number_to_human_size(Setting.get('google_drive_max_download_filesize', 25.megabytes).to_i)
+      max_filesize_message = t('errors.max_filesize_exceeded', <<EOS.html_safe, size: max_filesize, href: view_context.link_to("here", "https://support.hotchalkember.com/hc/en-us/requests/new", target: "_blank"))
+Please note. Google Drive uploads larger than %{size} in file size are prohibited. To upload large videos
+please use a service like Youtube, Vimeo, or Kaltura using the Text Entry option. For help contact support %{href}.
+EOS
+      flash[:error] = {html: max_filesize_message}
+    end
 
     # error handling
-    unless document_response.try(:is_a?, Net::HTTPOK) || document_response.status == 200
+    unless document_response.nil? || document_response.try(:is_a?, Net::HTTPOK) || document_response.status == 200
       flash[:error] = t('errors.assignment_submit_fail', 'Assignment failed to submit')
     end
 
