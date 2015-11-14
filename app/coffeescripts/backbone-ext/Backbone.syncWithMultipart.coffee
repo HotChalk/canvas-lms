@@ -22,10 +22,20 @@ define [
     # Create a hidden form
     httpMethod = {create: 'POST', update: 'PUT', delete: 'DELETE', read: 'GET'}[method]
     toForm = (object, nested, asArray) ->
+      useModels = false;
+      if nested and object.models
+        if object.models.length > 0
+          useModels = true
+          object = object.models[0].attributes
+
       inputs = _.map object, (attr, key) ->
-
-        key = "#{nested}[#{if asArray then '' else key}]" if nested
-
+        
+        if nested
+          if useModels
+            key = "#{nested}[][#{if asArray then '' else key}]"            
+          else
+            key = "#{nested}[#{if asArray then '' else key}]"  
+      
         if _.isElement(attr)
           # leave a copy in the original form, since we're moving it
           $orig = $(attr)
