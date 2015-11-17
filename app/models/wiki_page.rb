@@ -27,7 +27,7 @@ class WikiPage < ActiveRecord::Base
   include HasContentTags
   include CopyAuthorizedLinks
   include ContextModuleItem
-  include CourseLibrary::CourseLibrarySettings
+  include CourseLibrary::Settings
 
   include SearchTermHelper
 

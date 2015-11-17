@@ -1,4 +1,4 @@
-module CourseLibrary::CourseLibrarySettings
+module CourseLibrary::Settings
   attr_accessor :settings
 
   def self.included(base)

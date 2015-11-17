@@ -29,7 +29,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   include DatesOverridable
   include SearchTermHelper
   include Canvas::DraftStateValidations
-  include CourseLibrary::CourseLibrarySettings
+  include CourseLibrary::Settings
 
   attr_accessible :title, :description, :points_possible, :assignment_id, :shuffle_answers,
     :show_correct_answers, :time_limit, :allowed_attempts, :scoring_policy, :quiz_type,

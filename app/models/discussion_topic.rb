@@ -30,7 +30,7 @@ class DiscussionTopic < ActiveRecord::Base
   include ContextModuleItem
   include SearchTermHelper
   include DatesOverridable
-  include CourseLibrary::CourseLibrarySettings
+  include CourseLibrary::Settings
 
   attr_accessible(
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
