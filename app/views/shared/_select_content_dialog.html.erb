@@ -33,8 +33,8 @@
         <% if !only || only.include?(:external_tools) %>
         <option value="context_external_tool" class="context_module_content"><%= t :external_tool_item, "External Tool" %></option>
         <% end %>
-        <% if !only || only.include?(:core) %>
-            <option value="core_item" class="context_module_content"><%= t :external_linked_course_library_item, "Linked Course Library Item" %></option>
+        <% if !only || only.include?(:course_library) %>
+            <option value="course_library_item" class="context_module_content"><%= t :external_linked_course_library_item, "Linked Course Library Item" %></option>
         <% end %>
       </select>
       <% }, :wrapper => '<span class="holder_name">\1</span>' %>
@@ -286,8 +286,8 @@
         </div>
       </div>
       <% end %>
-    <% if !only || only.include?(:core) %>
-        <div id="core_items_select" class="module_item_option">
+    <% if !only || only.include?(:course_library) %>
+        <div id="course_library_items_select" class="module_item_option">
           <div style="font-size: 0.8em;" tabindex="0" aria-alert="true">
             <i class="icon-link"></i>
             <%= t :external_tool_notice1, "Search for a Library item by Course, Name, or Type and Add it to your module.", :wrapper => '<span class="holder_type">\1</span>' %>
@@ -297,30 +297,24 @@
             <div class="ui-dialog-content ui-widget-content" style="padding-left: 19px;">
               <form class="form-inline">
                 <fieldset>
-                  <label class="control-label" for="core-name">Name</label>
-                  <input type="text" id="core-name" class="input-medium" />
-                  <label class="control-label" for="core-type">Type</label>
-                  <select id="coreSearchType">
+                  <label class="control-label" for="course_library-name">Name</label>
+                  <input type="text" id="course_library_name" class="input-medium" />
+                  <label class="control-label" for="course_library_type">Type</label>
+                  <select id="course_library_content_types_select">
                     <option value="HTML_PAGE">Page Content</option>
                     <option value="DISCUSSION_TOPIC">Discussion Topic</option>
                     <option value="HTML_DROPBOX">Assignment</option>
                     <option value="QUIZ">Quiz</option>
                   </select>
-                  <input type="button" value="search" class="btn btn-primary">
+                  <input id="course_library_search_btn" type="button" value="Search" class="btn btn-primary">
                 </fieldset>
               </form>
             </div>
 
           </div>
           <div style="margin-top: 5px;">
-            <select class="module_item_select"  multiple>
-              <% if @context.grants_right?(@current_user, session, :manage_assignments) %>
-                  <option value="new"> <i class="icon-link"></i><%= t :new_quiz_option, "[ New Quiz ]" %></option>
-              <% end %>
+            <select id="cl_module_item_select" class="module_item_select" size="8">
             </select>
-          </div>
-          <div class="row" style="margin-bottom: 3px;">
-            <input type="checkbox" value="Load in new tap"/> Load in new tap
           </div>
         </div>
     <% end %>

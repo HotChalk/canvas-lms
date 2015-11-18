@@ -1742,6 +1742,7 @@ CanvasRails::Application.routes.draw do
     scope(controller: :errors) do
       post "error_reports", action: :create
     end
+
   end
 
   # this is not a "normal" api endpoint in the sense that it is not documented
@@ -1790,4 +1791,6 @@ CanvasRails::Application.routes.draw do
 
   # Hotchalk-specific routes
   get 'hotchalk/packages/:root_account_id' => 'hotchalk_package_imports#index', as: :index
+  get 'hotchalk/cl/:root_account_id/search' => 'hotchalk_course_library#search', as: :search
+
 end

@@ -360,5 +360,23 @@ define([
         $(this).parents(".module_item_option").find(".new").hide();
       }
     });
+
+    $('#course_library_search_btn').click( function () {
+      var contentName = $('#course_library_name').val();
+      var contentType = $('#course_library_content_types_select').val();
+      var searchParams = {'query':contentName, 'subtype':contentType};
+      $.ajaxJSON('/hotchalk/cl/'+ENV.ROOT_ACCOUNT_ID+'/search', 'GET', searchParams, function(data) {
+          var options = [];
+          var results = data.results
+          $clSelect = $('#cl_module_item_select')
+          for(var i in results){
+             options.push('<option value="'+ results[i].id +'">'+ results[i].name +'</option>');
+          }
+          $clSelect.html(options.join(''));
+        }, function(data) {
+            alert(data.message);
+         });
+    });
+
   });
 });

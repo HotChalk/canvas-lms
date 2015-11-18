@@ -19,30 +19,23 @@ module CourseLibrary
 			@http.set_debug_output($stdout)
 		end
 
-		def request(method, resource, params = {}, payload = nil)
+		def json_request(method, resource, params = {}, payload = nil)
 			resource = "/clws#{resource}"
-			begin
-				raise "Invalid Course Library client settings for account ID #{@account_id}" if @cl_base.blank? || @key.blank?
-				
-				case method
-				when :get
-					full_path = path_with_params(resource, params)
-					request = VERB_MAP[method].new(full_path)
+			case method
+			when :get
+				full_path = path_with_params(resource, params)
+				request = VERB_MAP[method].new(full_path)
+			else
+				request = VERB_MAP[method].new(resource)
+				if payload
+					request.body = payload
 				else
-					request = VERB_MAP[method].new(resource)
-					if payload
-						request.body = payload
-					else
-						request.set_form_data(params)
-					end
+					request.set_form_data(params)
 				end
-				add_headers(request)
-				response = @http.request(request)
-				return { :message => response.body, :status => response.code}
-			rescue => e
-				Rails.logger.error "Unable to execute call to Course Library Service", e
-				return { :message => "Invalid Hotchalk Course Library plugin settings for this account", :status => :bad_request }
 			end
+			add_headers(request)
+			response = @http.request(request)
+			return { :json => response.body, :status => response.code}
 		end
 
 		private
@@ -59,6 +52,7 @@ module CourseLibrary
 				account_settings = plugin.settings[:account_external_urls][@account_id]
 				@cl_base = account_settings['cl_base_url']
 				@key = account_settings['cl_integration_key']
+				raise "Invalid Course Library client settings for account ID #{@account_id}" if @cl_base.blank? || @key.blank?
 			end
 		end
 
