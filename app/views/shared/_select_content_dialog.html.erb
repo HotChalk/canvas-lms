@@ -293,14 +293,18 @@
             <%= t :external_tool_notice1, "Search for a Library item by Course, Name, or Type and Add it to your module.", :wrapper => '<span class="holder_type">\1</span>' %>
           </div>
           <br/>
+          <p class="message" style="margin: 10px 0;"><%= t :loading, "Loading..." %></p>
           <div class="row">
-            <div class="ui-dialog-content ui-widget-content" style="padding-left: 19px;">
+            <div class="ui-dialog-content ui-widget-content" style="padding-left: 35px;">
               <form class="form-inline">
                 <fieldset>
+                  <label class="control-label" for="course_library_courses_select">Course</label>
+                  <select id="course_library_courses_select">
+                  </select>
                   <label class="control-label" for="course_library-name">Name</label>
                   <input type="text" id="course_library_name" class="input-medium" />
-                  <label class="control-label" for="course_library_type">Type</label>
-                  <select id="course_library_content_types_select">
+                  <label class="control-label" for="course_library_content_types_select">Type</label>
+                  <select id="course_library_content_types_select" style="width: 150px;">
                     <option value="HTML_PAGE">Page Content</option>
                     <option value="DISCUSSION_TOPIC">Discussion Topic</option>
                     <option value="HTML_DROPBOX">Assignment</option>

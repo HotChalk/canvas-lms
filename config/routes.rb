@@ -1792,5 +1792,6 @@ CanvasRails::Application.routes.draw do
   # Hotchalk-specific routes
   get 'hotchalk/packages/:root_account_id' => 'hotchalk_package_imports#index', as: :index
   get 'hotchalk/cl/:root_account_id/search' => 'hotchalk_course_library#search', as: :search
+  get 'hotchalk/cl/:root_account_id/curricula' => 'hotchalk_course_library#curricula', as: :curricula
 
 end

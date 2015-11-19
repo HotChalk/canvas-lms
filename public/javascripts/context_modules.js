@@ -1198,7 +1198,7 @@ define([
         options.select_button_text = I18n.t('buttons.add_item', "Add Item");
         options.holder_name = name;
         options.height = 550;
-        options.width = 770;
+        options.width = 900;
         options.dialog_title = I18n.t('titles.add_item', "Add Item to %{module}", {'module': name});
         options.close = function () {
           $trigger.focus();

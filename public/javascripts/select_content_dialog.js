@@ -350,6 +350,24 @@ define([
             $select.find(".message").text(I18n.t('errors.loading_failed', "Loading Failed"));
           });
         }
+      }else if ( $(this).val() == 'course_library_item') {
+        var $clSelect = $("#course_library_items_select");
+        if(!$clSelect.hasClass('loaded')) {
+          $clSelect.find(".message").text("Loading...");
+          var $courseSelect = $('#course_library_courses_select');
+          $.ajaxJSON('/hotchalk/cl/'+ENV.ROOT_ACCOUNT_ID+'/curricula', 'GET', null, function(data) {
+              var options = [];
+              options.push('<option value=""></option>');
+              for(var i in data){
+                 options.push('<option value="'+ data[i].id +'">'+ data[i].code + ' - ' + data[i].name +'</option>');
+              }
+              $courseSelect.html(options.join(''));
+              $clSelect.addClass('loaded');
+              $clSelect.find(".message").remove();
+            }, function(data) {
+                $clSelect.find(".message").text(data.message);
+            });
+        }
       }
     })
 
@@ -362,19 +380,31 @@ define([
     });
 
     $('#course_library_search_btn').click( function () {
-      var contentName = $('#course_library_name').val();
-      var contentType = $('#course_library_content_types_select').val();
-      var searchParams = {'query':contentName, 'subtype':contentType};
+      var btn = $(this),
+          contentName = $('#course_library_name').val(),
+          courseId =  $('#course_library_courses_select').val(),
+          contentType = $('#course_library_content_types_select').val(),
+          $clSelect = $('#cl_module_item_select'),
+          searchParams = {'query':contentName, 'subtype':contentType, 'usedIn':courseId};
+      btn.attr('value', 'Searching ...');
+      btn.prop('disabled', true);
       $.ajaxJSON('/hotchalk/cl/'+ENV.ROOT_ACCOUNT_ID+'/search', 'GET', searchParams, function(data) {
-          var options = [];
-          var results = data.results
-          $clSelect = $('#cl_module_item_select')
+          var options = [],
+              results = data.results;
+
           for(var i in results){
              options.push('<option value="'+ results[i].id +'">'+ results[i].name +'</option>');
           }
+          if(options.length === 0){
+            options.push('<optgroup label="No results"></optgroup>');
+          }
           $clSelect.html(options.join(''));
+          btn.attr('value', 'Search');
+          btn.prop('disabled', false);
         }, function(data) {
-            alert(data.message);
+            $clSelect.html('<optgroup label="'+ data.message +'"></optgroup>');
+            btn.attr('value', 'Search');
+            btn.prop('disabled', false);
          });
     });
 
