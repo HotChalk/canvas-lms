@@ -835,7 +835,7 @@ class DiscussionTopicsController < ApplicationController
 
   API_ALLOWED_TOPIC_FIELDS = %w(title message discussion_type delayed_post_at lock_at podcast_enabled
                                 podcast_has_student_posts require_initial_post is_announcement pinned
-                                group_category_id allow_rating only_graders_can_rate sort_by_rating).freeze
+                                group_category_id allow_rating only_graders_can_rate sort_by_rating cl_id).freeze
 
   def process_discussion_topic(is_new = false)
     @errors = {}
@@ -866,6 +866,7 @@ class DiscussionTopicsController < ApplicationController
     process_group_parameters(discussion_topic_hash)
     process_pin_parameters(discussion_topic_hash)
     process_override_parameters(discussion_topic_hash)
+    process_course_library_paremeters(discussion_topic_hash)
 
     if @errors.present?
       render :json => {errors: @errors}, :status => :bad_request
@@ -893,6 +894,10 @@ class DiscussionTopicsController < ApplicationController
         render :json => {errors: errors}, :status => :bad_request
       end
     end
+  end
+
+  def process_course_library_paremeters(discussion_topic_hash)
+    @topic.set_cl_link(discussion_topic_hash[:cl_id]) if discussion_topic_hash[:cl_id]
   end
 
   def process_podcast_parameters(discussion_topic_hash)

@@ -288,6 +288,10 @@
       <% end %>
     <% if !only || only.include?(:course_library) %>
         <div id="course_library_items_select" class="module_item_option">
+          <a id="cl_add_quiz_url" href="<%= context_url(@context, :context_quizzes_url) %>" style="display: none;">&nbsp;</a>
+          <a id="cl_add_wiki_url" href="<%= polymorphic_url([:api_v1, @context, :wiki_pages]) %>" style="display: none;">&nbsp;</a>
+          <a id="cl_add_discussion_topic_url" href="<%= context_url(@context, :api_v1_context_discussion_topics_url) %>" style="display: none;">&nbsp;</a>
+          <a id="cl_add_assignment_url" href="<%= context_url(@context, :context_assignments_url) %>" style="display: none;">&nbsp;</a>
           <div style="font-size: 0.8em;" tabindex="0" aria-alert="true">
             <i class="icon-link"></i>
             <%= t :external_tool_notice1, "Search for a Library item by Course, Name, or Type and Add it to your module.", :wrapper => '<span class="holder_type">\1</span>' %>
@@ -317,7 +321,20 @@
 
           </div>
           <div style="margin-top: 5px;">
-            <select id="cl_module_item_select" class="module_item_select" size="8">
+            <select id="cl_module_item_select" class="module_item_select" size="6">
+            </select>
+          </div>
+          <div id="cl_quiz_options" style="display: none;" >
+            <%= before_label :quiz_group, "Group" %>
+            <select id="cl_quiz_assignment_group_select" name="quiz[assignment_group_id]" aria-label="<%= before_label :quiz_group, "Group" %>">
+              <% cnt = 0 %>
+              <% @context.assignment_groups.active.each do |group| %>
+                <% cnt += 1 %>
+                <option value="<%= group.id %>"><%= group.name %></option>
+              <% end %>
+              <% if cnt == 0 %>
+                <option value=""><%= t 'options.assignments', "Assignments" %></option>
+              <% end %>
             </select>
           </div>
         </div>

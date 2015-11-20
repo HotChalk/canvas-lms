@@ -284,7 +284,7 @@ class WikiPagesApiController < ApplicationController
   # @returns Page
   def create
     initial_params = params.slice(:url)
-    initial_params.merge! (params[:wiki_page] || {}).slice(:url, :title)
+    initial_params.merge! (params[:wiki_page] || {}).slice(:url, :title, :cl_id)
 
     @wiki = @context.wiki
     @page = @wiki.build_wiki_page(@current_user, initial_params)

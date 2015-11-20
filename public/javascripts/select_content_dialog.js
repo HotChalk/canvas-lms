@@ -157,6 +157,91 @@ define([
         item_data['item[title]'] = $("#sub_header_title").val();
         submit(item_data);
 
+      } else if(item_type == 'course_library_item') {
+        var $options = $("#select_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
+        $options.each(function() {
+          var $option = $(this),
+              clType = $option.data('cl-type')
+              data = {},
+              url = null,
+              type = null;
+
+          var clCallback = function(data) {
+              var obj;
+
+              // discussion_topics will come from real api v1 and so wont be nested behind a `discussion_topic` or 'wiki_page' root object
+              if (item_data['item[type]'] === 'discussion_topic' || item_data['item[type]'] === 'wiki_page') {
+                obj = data;
+              } else {
+                obj = data[item_data['item[type]']]; // e.g. data['wiki_page'] for wiki pages
+              }
+
+              $("#select_context_content_dialog").loadingImage('remove');
+              if (item_data['item[type]'] === 'wiki_page') {
+                item_data['item[id]'] = obj.page_id;
+              } else {
+                item_data['item[id]'] = obj.id;
+              }
+              item_data['item[title]'] = $("#select_context_content_dialog .module_item_option:visible:first .item_title").val();
+              item_data['item[title]'] = item_data['item[title]'] || obj.display_name;
+              var $option = $(document.createElement('option'));
+              $option.val(obj.id).text(item_data['item[title]']);
+              $("#" + item_data['item[type]'] + "s_select").find(".module_item_select option:last").after($option);
+              submit(item_data);
+          };
+
+          switch (clType) {
+            case "HTML_PAGE":
+              type = 'wiki_page';
+              data['wiki_page[title]'] = $option.text();
+              data['wiki_page[cl_id]'] = $option.val();
+              url = $("#cl_add_wiki_url").attr('href');
+              break;
+            case "DISCUSSION_TOPIC":
+              type = 'discussion_topic';
+              data['title'] = $option.text();
+              data['cl_id'] = $option.val();
+              url = $("#cl_add_discussion_topic_url").attr('href');
+              break;
+            case "HTML_DROPBOX":
+              type = 'assignment';
+              data['assignment[title]'] = $option.text();
+              data['assignment[cl_id]'] = $option.val();
+              url = $("#cl_add_assignment_url").attr('href');
+              break;
+            case "QUIZ":
+              type = 'quiz';
+              data['quiz[quiz_type]'] = "assignment";
+              data['quiz[assignment_group_id]'] = $('#cl_quiz_assignment_group_select').val();
+              data['quiz[title]'] = $option.text();
+              data['quiz[cl_id]'] = $option.val();
+              url = $("#cl_add_quiz_url").attr('href');
+              break;
+          }
+
+          if(type){
+            var item_data = {
+              'item[type]': type,
+              'item[id]': 'new',
+              'item[cl_id]': $option.val(),
+              'item[title]': $option.text(),
+              'item[indent]': $("#content_tag_indent").val()
+            }
+
+            $.ajaxJSON(url, 'POST', data, function(data) {
+                clCallback(data);
+              }, function(data) {
+                $("#select_context_content_dialog").loadingImage('remove');
+                if (data && data.errors && data.errors.title[0] && data.errors.title[0].message && data.errors.title[0].message === "blank") {
+                  $("#select_context_content_dialog").errorBox(I18n.t('errors.assignment_name_blank', 'Assignment name cannot be blank.'));
+                  $('.item_title').focus();
+                } else {
+                  $("#select_context_content_dialog").errorBox(I18n.t('errors.failed_to_create_item', 'Failed to Create new Item'));
+                }
+
+              });
+          }
+        });
       } else {
 
         var $options = $("#select_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
@@ -393,7 +478,7 @@ define([
               results = data.results;
 
           for(var i in results){
-             options.push('<option value="'+ results[i].id +'">'+ results[i].name +'</option>');
+             options.push('<option data-cl-type="' + results[i].subtype + '" value="'+ results[i].id +'">'+ results[i].name +'</option>');
           }
           if(options.length === 0){
             options.push('<optgroup label="No results"></optgroup>');
@@ -407,6 +492,16 @@ define([
             btn.prop('disabled', false);
          });
     });
+
+   $('#course_library_content_types_select').change( function () {
+      var $this = $(this),
+          type = $this.val();
+      if(type === 'QUIZ'){
+        $('#cl_quiz_options').show();
+      }else{
+        $('#cl_quiz_options').hide();
+      }
+   });
 
   });
 });

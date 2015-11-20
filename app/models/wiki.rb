@@ -181,6 +181,7 @@ class Wiki < ActiveRecord::Base
 
     self.shard.activate do
       page = WikiPage.new(opts)
+      page.set_cl_link(opts[:cl_id]) if opts[:cl_id]
       page.wiki = self
       page.initialize_wiki_page(user)
       page

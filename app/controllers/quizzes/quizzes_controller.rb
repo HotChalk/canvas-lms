@@ -335,6 +335,7 @@ class Quizzes::QuizzesController < ApplicationController
       overrides = delete_override_params
       params[:quiz].delete(:only_visible_to_overrides) unless @context.feature_enabled?(:differentiated_assignments)
       @quiz.transaction do
+        @quiz.set_cl_link(params[:quiz][:cl_id]) if params[:quiz][:cl_id]
         @quiz.update_attributes!(params[:quiz])
         batch_update_assignment_overrides(@quiz,overrides) unless overrides.nil?
       end
