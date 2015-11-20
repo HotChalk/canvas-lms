@@ -35,7 +35,7 @@ module CourseLibrary
 			end
 			add_headers(request)
 			response = @http.request(request)
-			return { :json => response.body, :status => response.code}
+			return response
 		end
 
 		private

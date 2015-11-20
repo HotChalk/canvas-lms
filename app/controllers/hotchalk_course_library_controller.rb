@@ -4,8 +4,8 @@ class HotchalkCourseLibraryController < ApplicationController
 
 	def search
 		#TODO validate user permissions to use CL. 
-		begin
-			client = CourseLibrary::Client.new(params[:root_account_id],@current_user.id)
+		client = init_client
+		if client
 			query_text = params[:query] ? params[:query] : ''
 			subtype = params[:subtype] ? params[:subtype] : ''
 			course_id = params[:usedIn] ? params[:usedIn] : ''
@@ -16,20 +16,25 @@ class HotchalkCourseLibraryController < ApplicationController
 							 :sortBy => "MODIFIED", 
 							 :sortOrder => "DESC"}
 			response = client.json_request(:get,"/search", searchParams)
-			render(:json => response[:json])
-		rescue => e
-			render(:json => { :message => t('invalid_account_external_urls', "Invalid Hotchalk plugin settings for this account") }, :status => :bad_request)
+			render(:json => response.body, :status => response.code)
 		end
 	end
 
 	def curricula
-		#TODO validate user permissions to use CL. 
+		client = init_client
+		if client
+			response =  client.json_request(:get,"/curricula")
+			render(:json => response.body, :status => response.code)
+		end
+	end
+
+	def init_client
 		begin
 			client = CourseLibrary::Client.new(params[:root_account_id],@current_user.id)
-			response = client.json_request(:get,"/curricula")
-			render(:json => response[:json])
+			return client
 		rescue => e
 			render(:json => { :message => t('invalid_account_external_urls', "Invalid Hotchalk plugin settings for this account") }, :status => :bad_request)
+			return nil
 		end
 	end
 
