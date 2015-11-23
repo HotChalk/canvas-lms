@@ -23,7 +23,8 @@ define [
       @labelFn      = options.labelFn or @defaultLabelFn
       @success      = options.success
       @da_enabled   = options.da_enabled
-
+      @checking_set_reply_assignment = options.checking_set_reply_assignment        
+      
     defaultLabelFn: (input) ->
       $("label[for=#{$(input).attr('id')}]").text()
 
@@ -54,7 +55,7 @@ define [
         count: @invalidSectionNames.length
       })
 
-      tpl = template(description: description,da_enabled: @da_enabled, sections: @invalidSectionNames)
+      tpl = template(description: description,da_enabled: @da_enabled, checking_set_reply_assignment: @checking_set_reply_assignment, sections: @invalidSectionNames)
       @$dialog = $(tpl).dialog
         dialogClass: 'dialog-warning'
         draggable  : false

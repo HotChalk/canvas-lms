@@ -240,6 +240,14 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       data
 
+    check_set_reply_assignment: =>   
+      result = false
+      data = this.getFormData()        
+      if this.assignment._previousAttributes.set_reply_assignment      
+        if !data.set_reply_assignment        
+          result = true              
+      result
+
     updateAssignment: (model_key, data) =>
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
@@ -290,6 +298,19 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
+      else if this.check_set_reply_assignment()
+        missingDateDialog = new MissingDateDialog
+          validationFn: -> ''
+          labelFn: (section) -> ''
+          da_enabled: false
+          checking_set_reply_assignment:true
+          success: =>
+            missingDateDialog.$dialog.dialog('close').remove()            
+            ValidatedFormView::submit.call(this)
+        missingDateDialog.cancel = (e) ->
+          missingDateDialog.$dialog.dialog('close').remove()
+
+        missingDateDialog.render() 
       else
         super
 
