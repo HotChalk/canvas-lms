@@ -94,6 +94,7 @@ define [
       json = super
       delete json.assignment unless json.set_assignment
       delete json.reply_assignment unless json.set_reply_assignment
+      json.assignment_overrides = json.assignment_overrides.toJSON() if json.assignment_overrides
       _.extend json,
         summary: @summary()
         unread_count_tooltip: @unreadTooltip()

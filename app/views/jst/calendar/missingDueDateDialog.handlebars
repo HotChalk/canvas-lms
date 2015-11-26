@@ -8,19 +8,12 @@
     {{#each sections}}<li><b>{{this}}</b></li>{{/each}}
     </ul>
   {{else}}
-    {{#if checking_set_reply_assignment}}
-      <p>
-        {{#t "modal.disableGradeRepliesSeperatelyMessage"}}By unchecking the <b>Grade replies separately</b> option you will delete the paired replies assignment and all data associated with it.{{/t}}
-      </p>
-      <p>{{#t "modal.disableGradeRepliesSeperately?"}}Are you sure you want to delete the reply assignment?{{/t}}</p>
-    {{else}}
-      <p>
-        {{#toSentence sections}}<b>{{this}}</b>{{/toSentence}}
-        {{description}}
-      <p>
-      {{#t "modal.chooseDueDate"}}Do you want to go back and select a due date?{{/t}}
-      </p>
-    {{/if}}         
+    <p>
+      {{#toSentence sections}}<b>{{this}}</b>{{/toSentence}}
+      {{description}}
+    <p>
+    {{#t "modal.chooseDueDate"}}Do you want to go back and select a due date?{{/t}}
+    </p>
   {{/if}}
 
   <div class="button-container form-actions">
@@ -28,12 +21,8 @@
     <button type="button" class="btn btn-primary">
       {{#if da_enabled}}
         {{#t "buttons.continue"}}Continue{{/t}}
-      {{else}}   
-        {{#if checking_set_reply_assignment}}
-          {{#t "buttons.continue"}}Continue{{/t}}
-        {{else}}   
-          {{#t "buttons.noDueDate"}}No Due Date{{/t}}
-        {{/if}}      
+      {{else}}
+        {{#t "buttons.noDueDate"}}No Due Date{{/t}}
       {{/if}}
     </button>
   </div>

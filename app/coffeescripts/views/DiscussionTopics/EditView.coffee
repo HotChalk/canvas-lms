@@ -16,6 +16,7 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
+  'compiled/views/DiscussionTopics/ReplyAssignmentRemovedDialogView'
   'compiled/views/editor/KeyboardShortcuts'
   'timezone'
   'compiled/tinymce'
@@ -24,7 +25,7 @@ define [
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
 GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts, tz) ->
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, ReplyAssignmentRemovedDialog, KeyboardShortcuts, tz) ->
 
   class EditView extends ValidatedFormView
 
@@ -240,14 +241,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       data
 
-    check_set_reply_assignment: =>   
-      result = false
-      data = this.getFormData()        
-      if this.assignment._previousAttributes.set_reply_assignment      
-        if !data.set_reply_assignment        
-          result = true              
-      result
-
     updateAssignment: (model_key, data) =>
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
@@ -298,19 +291,15 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
-      else if this.check_set_reply_assignment()
-        missingDateDialog = new MissingDateDialog
-          validationFn: -> ''
-          labelFn: (section) -> ''
-          da_enabled: false
-          checking_set_reply_assignment:true
+      else if @model.get('assignment') && @model.get('assignment').previous('set_reply_assignment') && !this.getFormData().set_reply_assignment
+        replyAssignmentRemovedDialog = new ReplyAssignmentRemovedDialog
           success: =>
-            missingDateDialog.$dialog.dialog('close').remove()            
+            replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
             ValidatedFormView::submit.call(this)
-        missingDateDialog.cancel = (e) ->
-          missingDateDialog.$dialog.dialog('close').remove()
+        replyAssignmentRemovedDialog.cancel = (e) ->
+          replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
 
-        missingDateDialog.render() 
+        replyAssignmentRemovedDialog.render()
       else
         super
 
