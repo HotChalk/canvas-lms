@@ -291,7 +291,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
-      else if @model.get('assignment') && @model.get('assignment').previous('set_reply_assignment') && !this.getFormData().set_reply_assignment
+      else if @model.get('assignment') && (@model.get('assignment').previous('set_reply_assignment') is '1') && !this.getFormData().set_reply_assignment
         replyAssignmentRemovedDialog = new ReplyAssignmentRemovedDialog
           success: =>
             replyAssignmentRemovedDialog.$dialog.dialog('close').remove()

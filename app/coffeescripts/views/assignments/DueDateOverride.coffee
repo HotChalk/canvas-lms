@@ -44,7 +44,7 @@ define [
         rowErrors = dateValidator.validateDates()
         errors = _.extend(errors, rowErrors)
         for own element, msg of rowErrors
-          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]')
+          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]').filter(':visible')
           $dateInput.errorBox msg
         checkedRows.push(override.rowKey)
       errors
