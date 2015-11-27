@@ -97,6 +97,7 @@ class WikiPagesController < ApplicationController
       log_asset_access(@page, 'wiki', @wiki)
 
       js_env :wiki_page_menu_tools => external_tools_display_hashes(:wiki_page_menu)
+      js_env :CL_LINK_ACTIVE => @page.is_cl_link_active
 
       @mark_done = MarkDonePresenter.new(self, @context, params["module_item_id"], @current_user)
       @padless = true
@@ -106,6 +107,7 @@ class WikiPagesController < ApplicationController
   def edit
     if @page.grants_any_right?(@current_user, session, :update, :update_content)
       add_crumb(@page.title)
+      js_env :CL_LINK_ACTIVE => @page.is_cl_link_active
       @padless = true
     else
       if authorized_action(@page, @current_user, :read)

@@ -86,7 +86,6 @@ require [
     createGroupView: createGroupView
     showByView: showByView
     collection: assignmentGroups
-
   app.render()
 
   # kick it all off

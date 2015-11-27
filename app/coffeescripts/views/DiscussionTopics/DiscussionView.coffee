@@ -52,6 +52,8 @@ define [
     # Public: Topic is able to be pinned/unpinned.
     @optionProperty 'pinnable'
 
+    cl_link_active: ENV.CL_LINK_ACTIVE
+
     @child 'publishIcon',                '[data-view=publishIcon]' if ENV.permissions.publish
     @child 'dateDueColumnView',          '[data-view=date-due]'
     @child 'dateAvailableColumnView',    '[data-view=date-available]'
@@ -172,6 +174,7 @@ define [
       base.discussion_topic_menu_tools = ENV.discussion_topic_menu_tools
       _.each base.discussion_topic_menu_tools, (tool) =>
         tool.url = tool.base_url + "&discussion_topics[]=#{@model.get("id")}"
+      is_cl_link_active = @cl_link_active
       base
 
     # Internal: Re-render for publish state change preserving focus

@@ -34,6 +34,9 @@
         <%= t(:points_possible, "Points %{n}", :n => raw("<span style=\"margin-left:5px\" class=\"points_possible\">#{@quiz.points_possible}</span>")) %>
       </span>
 
+      <% if @quiz.is_cl_link_active %>
+      <span class="linked-course-color" ><i class="icon-link" aria-hidden="true" ></i>&nbsp;Linked</span>
+      <% end %>
       <% if @quiz.published? %>
         <span id='quiz-draft-state' class='published-status published'>
           <i class="icon-publish"><span class="screenreader-only"><%= t('buttons.published', "Published") %></span></i>

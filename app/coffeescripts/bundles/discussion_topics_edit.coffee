@@ -30,6 +30,7 @@ splitAssetString) ->
   view = new EditView
     model: model
     permissions: ENV.DISCUSSION_TOPIC.PERMISSIONS
+    cl_link_active: ENV.CL_LINK_ACTIVE
     contextType: contextType
     views:
       'js-overrides': new OverrideView

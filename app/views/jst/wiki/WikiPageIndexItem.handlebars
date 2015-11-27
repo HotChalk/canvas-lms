@@ -1,4 +1,7 @@
 <td role="gridcell">
+    {{#if is_cl_link_active}}
+        <span class="linked-course-line">&nbsp;</span>
+    {{/if}}
   <a href="{{html_url}}" class="wiki-page-link{{#if CAN.PUBLISH}} {{#unless published}}un{{/unless}}published{{/if}}">{{title}}</a>
   {{#if front_page}} <span class="front-page label">{{#t 'labels.front_page'}}Front Page{{/t}}</span>{{/if}}
 </td>

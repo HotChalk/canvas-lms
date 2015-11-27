@@ -3,6 +3,11 @@
     {{#if CAN.EDIT_TITLE}}
       <label for="title" class="screenreader-only">{{#t "title_label"}}Page Title{{/t}}</label>
       <input id="title" name="title" type="text" class="span4 title" value="{{title}}" maxlength="255" autofocus>
+        {{#if cl_link_active}}
+            <a class="btn edit-btn linked-course-line" role="button">
+                <i class="icon-link" aria-hidden="true"></i>
+            </a>
+        {{/if}}
     {{else}}
       <h2>{{title}}</h2>
     {{/if}}

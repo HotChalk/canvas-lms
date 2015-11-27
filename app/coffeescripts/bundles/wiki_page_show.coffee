@@ -26,5 +26,6 @@ require [
     course_id: ENV.COURSE_ID
     course_home: ENV.COURSE_HOME
     course_title: ENV.COURSE_TITLE
+    cl_link_active: ENV.CL_LINK_ACTIVE
 
   wikiPageView.render()

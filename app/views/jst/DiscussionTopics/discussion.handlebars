@@ -1,4 +1,4 @@
-<div class="discussion-content" id="{{id}}_discussion_content">
+<div class="discussion-content {{#if is_cl_link_active}} linked-course-border {{/if}}  discussion-border" id="{{id}}_discussion_content">
   <div class="discussion-row{{#if ENV.permissions.publish}} {{#if published}}discussion-published{{else}}discussion-unpublished{{/if}}{{/if}}">
     {{#if permissions.moderate}}
       <div class="draggable-handle">

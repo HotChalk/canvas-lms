@@ -30,6 +30,7 @@ define [
 
     @optionProperty 'default_editing_roles'
     @optionProperty 'WIKI_RIGHTS'
+    @optionProperty 'cl_link_active'
 
     @lastFocusField: null
 
@@ -139,4 +140,5 @@ define [
       json.CAN.VIEW_TOOLBAR = json.CAN.CREATE
       json.fetched = !!@fetched
       json.fetchedLast = !!@fetchedLast
+      json.cl_link_active = @cl_link_active
       json

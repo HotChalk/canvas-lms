@@ -17,7 +17,7 @@
 #
 class ContentTag < ActiveRecord::Base
   class LastLinkToOutcomeNotDestroyed < StandardError
-    attr_reader :alignment
+    attr_reader :alignment, :content_id
     def initialize( alignment )
       super( 'Link is the last link to an aligned outcome.' +
            'Remove the alignment and then try again')

@@ -9,6 +9,10 @@
         <span class="draggable-handle">
           <i class="icon-drag-handle"></i>
         </span>
+      {{#if is_cl_link_active}}
+          <span class="linked-course-line">&nbsp;</span>
+      {{/if}}
+
       {{/if}}
       <i class='icon-{{iconType}}'></i>
       {{name}}

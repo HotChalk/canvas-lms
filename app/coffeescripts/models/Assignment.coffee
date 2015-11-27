@@ -68,6 +68,9 @@ define [
       return @get 'name' unless arguments.length > 0
       @set 'name', newName
 
+    is_cl_link_active: =>
+      return @get('is_cl_link_active')
+
     pointsPossible: (points) =>
       return @get('points_possible') || 0 unless arguments.length > 0
       @set 'points_possible', points
@@ -308,7 +311,7 @@ define [
         'gradingStandardId', 'isLetterGraded', 'isGpaScaled', 'assignmentGroupId', 'iconType',
         'published', 'htmlUrl', 'htmlEditUrl', 'labelId', 'position', 'postToSIS',
         'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate',
-        'moderatedGrading'
+        'moderatedGrading', "is_cl_link_active"
       ]
       if ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         fields.push 'isOnlyVisibleToOverrides'

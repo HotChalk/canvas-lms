@@ -31,7 +31,7 @@ module Api::V1::DiscussionTopics
   }.freeze
 
   # Public: DiscussionTopic methods to serialize.
-  ALLOWED_TOPIC_METHODS = [:user_name].freeze
+  ALLOWED_TOPIC_METHODS = [:user_name, :is_cl_link_active].freeze
 
   # Public: Serialize an array of DiscussionTopic objects for returning as JSON.
   #

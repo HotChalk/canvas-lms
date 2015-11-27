@@ -23,6 +23,7 @@ module Api::V1::Assignment
   include Api::V1::Locked
   include Api::V1::AssignmentOverride
 
+
   API_ALLOWED_ASSIGNMENT_OUTPUT_FIELDS = {
     :only => %w(
       id
@@ -46,6 +47,8 @@ module Api::V1::Assignment
       moderated_grading
     )
   }.freeze
+
+  ALLOWED_TOPIC_METHODS = [:is_cl_link_active].freeze
 
   API_ASSIGNMENT_NEW_RECORD_FIELDS = {
     :only => %w(
@@ -80,7 +83,7 @@ module Api::V1::Assignment
       fields = {only: fields_copy}
     end
 
-    hash = api_json(assignment, user, session, fields)
+    hash = api_json(assignment, user, session, { only: fields[:only], methods: ALLOWED_TOPIC_METHODS })
     hash['course_id'] = assignment.context_id
     hash['course_name'] = assignment.context.name
     hash['name'] = assignment.title

@@ -34,6 +34,7 @@ define [
     @optionProperty 'wiki_pages_path'
     @optionProperty 'WIKI_RIGHTS'
     @optionProperty 'PAGE_RIGHTS'
+    @optionProperty 'cl_link_active'
 
     initialize: ->
       super
@@ -49,6 +50,7 @@ define [
         STUDENT_ROLE: false
         MEMBER_ROLE: false
         ANYONE_ROLE: false
+      json.cl_link_active = @cl_link_active
 
       # rather than requiring the editing_roles to match a
       # string exactly, we check for individual editing roles

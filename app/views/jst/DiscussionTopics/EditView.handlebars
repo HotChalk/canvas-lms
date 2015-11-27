@@ -9,6 +9,9 @@
 {{#unless isAnnouncement}}
   <div class="discussion-edit-header row-fluid">
     <div class="span4 offset8 text-right">
+        {{#if cl_link_active}}
+            <span class="linked-course-color" ><i class="icon-link" aria-hidden="true" ></i>&nbsp;Linked</span>
+        {{/if}}
       {{#if published}}
         <span id="topic-draft-state" class="published-status published">
           <i class="icon-publish"></i>

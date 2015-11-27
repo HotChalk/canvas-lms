@@ -13,6 +13,7 @@ require [
     wiki_pages_path: ENV.WIKI_PAGES_PATH
     WIKI_RIGHTS: ENV.WIKI_RIGHTS
     PAGE_RIGHTS: ENV.PAGE_RIGHTS
+    cl_link_active: ENV.CL_LINK_ACTIVE
   $('#content').append(wikiPageEditView.$el)
 
   wikiPageEditView.on 'cancel', ->

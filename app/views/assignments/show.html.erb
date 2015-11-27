@@ -25,6 +25,11 @@
         </h1>
       </div>
       <div class='assignment-buttons'>
+        <% if @assignment.is_cl_link_active %>
+            <a class="btn edit-btn linked-course-line" role="button">
+              <i class="icon-link" aria-hidden="true"></i>
+            </a>
+        <% end %>
         <button
           id="assignment_publish_button"
           data-id='<%= @assignment.id %>'

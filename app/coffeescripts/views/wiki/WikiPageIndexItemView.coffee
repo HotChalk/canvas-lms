@@ -27,6 +27,7 @@ define [
     @optionProperty 'collection'
     @optionProperty 'WIKI_RIGHTS'
     @optionProperty 'contextName'
+    @optionProperty 'cl_link_active'
 
     initialize: ->
       super
@@ -39,7 +40,7 @@ define [
       json.CAN =
         MANAGE: !!@WIKI_RIGHTS.manage
         PUBLISH: !!@WIKI_RIGHTS.manage && @contextName == 'courses'
-
+      json.cl_link_active = @cl_link_active
       json.wiki_page_menu_tools = ENV.wiki_page_menu_tools
       _.each json.wiki_page_menu_tools, (tool) =>
         tool.url = tool.base_url + "&pages[]=#{@model.get("page_id")}"

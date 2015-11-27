@@ -38,6 +38,7 @@ define [
     @optionProperty 'course_id'
     @optionProperty 'course_home'
     @optionProperty 'course_title'
+    @optionProperty 'cl_link_active'
 
     initialize: ->
       @model.on 'change', => @render()
@@ -121,6 +122,7 @@ define [
       json.wiki_page_history_path = @wiki_page_history_path
       json.course_home = @course_home
       json.course_title = @course_title
+      json.cl_link_active = @cl_link_active
       json.CAN =
         VIEW_PAGES: !!@WIKI_RIGHTS.read
         PUBLISH: !!@WIKI_RIGHTS.manage && json.contextName == 'courses'

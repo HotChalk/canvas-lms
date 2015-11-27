@@ -16,6 +16,11 @@
           {{#if front_page}}
             <span class="front-page label">{{#t 'labels.front_page'}}Front Page{{/t}}</span>
           {{/if}}
+            {{#if cl_link_active}}
+                <a class="btn edit-btn linked-course-line" role="button">
+                    <i class="icon-link" aria-hidden="true"></i>
+                </a>
+            {{/if}}
           {{#if CAN.PUBLISH}}
             <span class="publish-button"></span>
           {{else}}

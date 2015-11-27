@@ -55,6 +55,11 @@
     <div class="headerBar">
       <div class="row-fluid form-inline" style="overflow: visible;">
         <div class="pull-right">
+          <% if @topic.is_cl_link_active %>
+            <a class="btn edit-btn linked-course-line" role="button">
+              <i class="icon-link" aria-hidden="true"></i>
+            </a>
+          <% end %>
           <% if !@topic.is_announcement && can_do(@context, @current_user, :moderate_forum) %>
             <button
               id="topic_publish_button"
