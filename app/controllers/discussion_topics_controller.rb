@@ -440,6 +440,9 @@ class DiscussionTopicsController < ApplicationController
   def show
     parent_id = params[:parent_id]
     @topic = @context.all_discussion_topics.find(params[:id])
+    user_sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
+    topic_sections = @topic.sections_with_visibility(@current_user) || []
+    @filter_sections = (user_sections & topic_sections).sort_by(&:name)
     @presenter = DiscussionTopicPresenter.new(@topic, @current_user)
     @assignment = if @topic.for_assignment?
       AssignmentOverrideApplicator.assignment_overridden_for(@topic.assignment, @current_user)
@@ -500,6 +503,7 @@ class DiscussionTopicsController < ApplicationController
             end
 
             env_hash = {
+              :SECTION_IDS => @filter_sections.map(&:id),
               :APP_URL => named_context_url(@context, :context_discussion_topic_url, @topic),
               :TOPIC => {
                 :ID => @topic.id,
