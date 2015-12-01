@@ -67,7 +67,7 @@ require [
 
   resetFilterEntryData = ->
     selectedSectionId = $('#section_selected').val()
-    sectionIds = (if selectedSectionId == "0" then ENV.DISCUSSION.SECTION_IDS else [parseInt(selectedSectionId)])
+    sectionIds = (if typeof selectedSectionId == 'undefined' or selectedSectionId == null or selectedSectionId == "0" then ENV.DISCUSSION.SECTION_IDS else [parseInt(selectedSectionId)])
     entryData = data.get 'entries'
     filterEntryData = _.filter(entryData, (e) -> checkSection(sectionIds, _.map(e.author.sections, (section) -> parseInt(section.id))))
     entries.options.per_page = filterEntryData.length
