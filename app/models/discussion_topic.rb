@@ -53,6 +53,7 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :rated_discussion_entries, :class_name => 'DiscussionEntry', :order =>
     ['COALESCE(parent_id, 0)', 'COALESCE(rating_sum, 0) DESC', :created_at]
   has_many :root_discussion_entries, class_name: 'DiscussionEntry', preload: :user, conditions: ['discussion_entries.parent_id IS NULL AND discussion_entries.workflow_state != ?', 'deleted']
+  has_many :child_discussion_entries, class_name: 'DiscussionEntry', preload: :user, conditions: ['discussion_entries.parent_id IS NOT NULL AND discussion_entries.workflow_state != ?', 'deleted']
   has_one :external_feed_entry, :as => :asset
   belongs_to :external_feed
   belongs_to :context, :polymorphic => true
@@ -244,6 +245,20 @@ class DiscussionTopic < ActiveRecord::Base
       self.reply_assignment.workflow_state = 'published' if self.reply_assignment.deleted?
       self.reply_assignment.workflow_state = published? ? 'published' : 'unpublished'
       self.reply_assignment.save
+    end
+
+    # make sure that if the topic has a new reply assignment (either by going from
+    # ungraded to graded, or from one assignment to another; we ignore the
+    # transition from graded to ungraded) we acknowledge that the users that
+    # have posted have contributed to the topic
+
+    # we won't use self.context_module_action as is used in update_assignment because
+    # student contributions to the discussion topic should relate to the main assignment,
+    # not the reply
+    if self.reply_assignment_id && self.reply_assignment_id_changed? && self.for_reply_assignment?
+      reply_posters.each do |user|
+        self.ensure_submission_for_reply(user) if context.grants_right?(user, :participate_as_student) && self.reply_assignment.visible_to_user?(user)
+      end
     end
   end
   protected :update_reply_assignment
@@ -1053,6 +1068,11 @@ class DiscussionTopic < ActiveRecord::Base
 
   def posters
     user_ids = discussion_entries.map(&:user_id).push(self.user_id).uniq
+    participating_users(user_ids)
+  end
+
+  def reply_posters
+    user_ids = child_discussion_entries.map(&:user_id).push(self.user_id).uniq
     participating_users(user_ids)
   end
 
