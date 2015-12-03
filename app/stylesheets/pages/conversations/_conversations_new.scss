@@ -21,20 +21,23 @@
     }
   }
   @else {
-    width: 100%;  
+    width: 100%;
   }
 }
+
+// Get rid of all the new-style flexbox layout for Conversations
+@include remove-nui-flex-layout;
 
 #footer {
   display: none;
 }
 
 #content {
-  overflow:visible;
-}
-
-#content.container-fluid {
-  padding: 0;
+  overflow: visible;
+  @if $use_new_styles { padding: 0; }
+  @else {
+    &.container-fluid { padding: 0; }
+  }
 }
 
 .conversations {

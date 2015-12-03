@@ -168,6 +168,7 @@ describe Quizzes::QuizSubmissionQuestionsController, :type => :request do
         create_question_set
       end
       it 'should list all items' do
+        Quizzes::QuizSubmission.any_instance.stubs(:quiz_questions).returns([@qq1,@qq2])
         json = api_index
         expect(json['quiz_submission_questions'].size).to eq 2
       end
@@ -323,6 +324,24 @@ describe Quizzes::QuizSubmissionQuestionsController, :type => :request do
         course_with_student(:active_all => true)
         @quiz = quiz_model(course: @course)
         @quiz_submission = @quiz.generate_submission(@student)
+      end
+
+      it "shouldn't give any answers information" do
+        mc = create_question 'multiple_choice'
+        formula = create_question 'numerical'
+
+        json = api_answer({
+          quiz_questions: [{
+            id: mc.id,
+            answer: 1658
+          }, {
+            id: formula.id,
+            answer: 40.0
+            }]
+        })
+
+        expect(json['quiz_submission_questions'][0]["answers"].map(&:keys).uniq.include? "weight").to be_falsey
+        expect(json['quiz_submission_questions'][1]["answers"]).to equal(nil)
       end
 
       context 'answering questions' do

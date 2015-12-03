@@ -1,3 +1,5 @@
+# Keep this class in sync with QuizUserVisibility
+
 class Quizzes::QuizStudentVisibility < ActiveRecord::Base
   # necessary for general_model_spec
   attr_protected :user, :quiz, :course

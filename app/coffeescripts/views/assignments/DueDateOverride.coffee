@@ -26,7 +26,8 @@ define [
           overrides: @model.overrides.models,
           syncWithBackbone: @setNewOverridesCollection,
           sections: @model.sections.models,
-          defaultSectionId: @model.defaultDueDateSectionId
+          defaultSectionId: @model.defaultDueDateSectionId,
+          showDueDate: @model.showDueDate
         ), div)
 
     validateBeforeSave: (data, errors) =>
@@ -43,22 +44,23 @@ define [
         rowErrors = dateValidator.validateDates()
         errors = _.extend(errors, rowErrors)
         for own element, msg of rowErrors
-          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]')
+          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]').filter(':visible')
           $dateInput.errorBox msg
         checkedRows.push(override.rowKey)
       errors
 
     validateTokenInput: (data, errors) =>
       validRowKeys = _.pluck(data.assignment_overrides, "rowKey")
-      blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section seleted')
+      blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section selected')
       for row in $('.Container__DueDateRow-item')
-        rowKey = "#{$(row).data('row-key')}"
-        continue if _.contains(validRowKeys, rowKey)
-        identifier = 'tokenInputFor' + rowKey
-        $inputWrapper = $('[data-row-identifier="'+identifier+'"]')[0]
-        $nameInput = $($inputWrapper).find("input")
-        errors = _.extend(errors, { blankOverrides: [message: blankOverrideMsg] })
-        $nameInput.errorBox(blankOverrideMsg).css("z-index", "20")
+        unless $(row).is(':hidden')          
+          rowKey = "#{$(row).data('row-key')}"
+          continue if _.contains(validRowKeys, rowKey)
+          identifier = 'tokenInputFor' + rowKey
+          $inputWrapper = $('[data-row-identifier="'+identifier+'"]')[0]
+          $nameInput = $($inputWrapper).find("input")
+          errors = _.extend(errors, { blankOverrides: [message: blankOverrideMsg] })
+          $nameInput.errorBox(blankOverrideMsg).css("z-index", "20")
       errors
 
     # ==============================
@@ -67,8 +69,8 @@ define [
 
     setNewOverridesCollection: (newOverrides) =>
       @model.overrides.reset(newOverrides)
-      onlyVisibileToOverrides = ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED && !@model.overrides.containsDefaultDueDate()
-      @model.assignment.isOnlyVisibleToOverrides(onlyVisibileToOverrides)
+      onlyVisibleToOverrides = ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED && !@model.overrides.containsDefaultDueDate()
+      @model.assignment.isOnlyVisibleToOverrides(onlyVisibleToOverrides)
 
     # =================
     #    model info

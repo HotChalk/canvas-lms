@@ -84,8 +84,9 @@ define [
 
     toggleDueDates: (event) ->
       event.preventDefault()
-      @$dueDates.toggleClass('hidden')
-      $(event.currentTarget).text if @$dueDates.hasClass('hidden')
+      dueDates  =$(event.currentTarget).closest('.discussion-assignment-section').find('.due_date_wrapper')
+      dueDates.toggleClass('hidden')
+      $(event.currentTarget).text if dueDates.hasClass('hidden')
         I18n.t('show_due_dates', 'Show Due Dates')
       else
         I18n.t('hide_due_dates', 'Hide Due Dates')

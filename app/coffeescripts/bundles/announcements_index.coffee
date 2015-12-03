@@ -7,7 +7,7 @@ require [
 
   collection = new AnnouncementsCollection
 
-  if ENV.permissions.create
+  if ENV.permissions.create and !ENV.no_external_feeds
     externalFeeds = new ExternalFeedCollection
     externalFeeds.fetch()
     new ExternalFeedsIndexView

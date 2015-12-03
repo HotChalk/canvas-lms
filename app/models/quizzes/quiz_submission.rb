@@ -66,7 +66,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   has_many :enrollments, :primary_key => :user_id, :foreign_key => :user_id
   
   has_many :attachments, :as => :context, :dependent => :destroy
-  has_many :events, class_name: 'Quizzes::QuizSubmissionEvent', dependent: :destroy
+  has_many :events, class_name: 'Quizzes::QuizSubmissionEvent'
 
   # update the QuizSubmission's Submission to 'graded' when the QuizSubmission is marked as 'complete.' this
   # ensures that quiz submissions with essay questions don't show as graded in the SpeedGrader until the instructor
@@ -81,8 +81,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     submission.update_attribute(:workflow_state, "graded")
   end
 
-  serialize :quiz_data
-  serialize :submission_data
+  serialize_utf8_safe :quiz_data
+  serialize_utf8_safe :submission_data
 
   simply_versioned :automatic => false
 
@@ -143,43 +143,6 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     true
   end
 
-  def create_outcome_result(question, alignment)
-    # find or create the user's unique LearningOutcomeResult for this alignment
-    # of the quiz question.
-    result = alignment.learning_outcome_results.
-      for_association(quiz).
-      for_associated_asset(question).
-      where(user_id: user.id).
-      first_or_initialize
-
-    # force the context and artifact
-    result.artifact = self
-    result.context = quiz.context || alignment.context
-
-    # update the result with stuff from the quiz submission's question result
-    cached_question = quiz_data.detect { |q| q[:assessment_question_id] == question.id }
-    cached_answer = submission_data.detect { |q| q[:question_id] == cached_question[:id] }
-    raise "Could not find valid question" unless cached_question
-    raise "Could not find valid answer" unless cached_answer
-
-    # mastery
-    result.score = cached_answer[:points]
-    result.possible = cached_question['points_possible']
-    result.mastery = alignment.mastery_score && result.score && result.possible && (result.score / result.possible) > alignment.mastery_score
-
-    # attempt
-    result.attempt = attempt
-
-    # title
-    result.title = "#{user.name}, #{quiz.title}: #{cached_question[:name]}"
-
-    result.assessed_at = Time.now
-    result.submitted_at = self.finished_at
-
-    result.save_to_version(result.attempt)
-    result
-  end
-
   def question(id)
     questions.detect { |q| q[:id].to_i == id.to_i }
   end
@@ -231,10 +194,14 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
       # prevents the student from starting to take the quiz for the last
       # time, then opening a new tab and looking at the results from
       # a prior attempt)
-      !quiz.allowed_attempts || quiz.allowed_attempts < 1 || attempt > quiz.allowed_attempts || (completed? && attempt == quiz.allowed_attempts)
+      !quiz.allowed_attempts || quiz.allowed_attempts < 1 || attempt > quiz.allowed_attempts || last_attempt_completed?
     else
       true
     end
+  end
+
+  def last_attempt_completed?
+    completed? && quiz.allowed_attempts && attempt >= quiz.allowed_attempts
   end
 
   def self.needs_grading
@@ -252,16 +219,14 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
 
   # There is also a needs_grading scope which needs to replicate this logic
   def needs_grading?(strict=false)
-    if strict && self.untaken? && self.overdue?(true)
-      true
-    elsif self.untaken? && self.end_at && self.end_at < Time.now
-      true
-    elsif self.completed? && !graded?
-      true
-    else
-      false
-    end
+    overdue_and_needs_submission?(strict) || (self.completed? && !graded?)
   end
+
+  def overdue_and_needs_submission?(strict=false)
+    (strict && self.untaken? && self.overdue?(true)) ||
+    (self.untaken? && self.end_at && self.end_at < Time.now)
+  end
+  alias_method :overdue_and_needs_submission, :overdue_and_needs_submission?
 
   def has_seen_results?
     !!self.has_seen_results
@@ -270,6 +235,10 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def finished_in_words
     extend ActionView::Helpers::DateHelper
     started_at && finished_at && time_ago_in_words(Time.now - (finished_at - started_at))
+  end
+
+  def finished_at_fallback
+    [self.end_at, Time.zone.now].compact.min
   end
 
   def points_possible_at_submission_time
@@ -298,13 +267,9 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     new_params[:cnt] = (new_params[:cnt].to_i + 1) % 5
     snapshot!(params) if new_params[:cnt] == 1
 
-    connection.execute <<-SQL
-      UPDATE quiz_submissions
-         SET user_id=#{self.user_id || 'NULL'},
-             submission_data=#{connection.quote(new_params.to_yaml)}
-       WHERE workflow_state NOT IN ('complete', 'pending_review')
-         AND id=#{self.id}
-    SQL
+    self.class.where(id: self).
+        where("workflow_state NOT IN ('complete', 'pending_review')").
+        update_all(user_id: user_id, submission_data: new_params.to_yaml)
 
     record_answer(new_params)
 
@@ -314,6 +279,16 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def record_answer(submission_data)
     extractor = Quizzes::LogAuditing::QuestionAnsweredEventExtractor.new
     extractor.create_event!(submission_data, self)
+  end
+
+  def record_creation_event
+    Quizzes::QuizSubmissionEvent.new.tap do |event|
+      event.event_type = Quizzes::QuizSubmissionEvent::EVT_SUBMISSION_CREATED
+      event.event_data = {"quiz_version" => self.quiz_version, "quiz_data" => self.quiz_data}
+      event.created_at = Time.zone.now
+      event.quiz_submission = self
+      event.attempt = self.attempt
+    end.save!
   end
 
   def sanitize_params(params)
@@ -362,7 +337,17 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   end
 
   def questions_as_object
-    self.quiz_data || {}
+    self.quiz_data || []
+  end
+
+  def quiz_question_ids
+    questions_as_object.map{ |question|
+      question["id"]
+    }.compact
+  end
+
+  def quiz_questions
+    Quizzes::QuizQuestion.where(id: quiz_question_ids).to_a
   end
 
   def update_quiz_points_possible
@@ -505,6 +490,11 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     to_be_kept_score = final_score
     self.fudge_points = new_fudge
 
+    if self.workflow_state == "pending_review"
+      self.workflow_state = "complete"
+      self.has_seen_results = false
+    end
+
     if self.quiz && self.quiz.scoring_policy == "keep_highest"
       # exclude the score of the version we're curretly overwriting
       if to_be_kept_score < highest_score_so_far(version.id)
@@ -598,11 +588,6 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     })
   end
 
-  def grade_submission(opts={})
-    warn '[DEPRECATED] Quizzes::QuizSubmission#grade_submission is deprecated, use Quizzes::SubmissionGrader#grade_submission'
-    Quizzes::SubmissionGrader.new(self).grade_submission(opts)
-  end
-
   # Complete (e.g, turn-in) the quiz submission by doing the following:
   #
   #  - generating a (full) snapshot of the current state along with any
@@ -647,7 +632,8 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     if self.quiz && self.user
       if self.score
         self.quiz.context_module_action(self.user, :scored, self.kept_score)
-      elsif self.finished_at
+      end
+      if self.finished_at
         self.quiz.context_module_action(self.user, :submitted)
       end
     end
@@ -692,14 +678,22 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
       answer = answer.with_indifferent_access
       score = params["question_score_#{answer["question_id"]}".to_sym]
       answer["more_comments"] = params["question_comment_#{answer["question_id"]}".to_sym] if params["question_comment_#{answer["question_id"]}".to_sym]
-      if score != "--" && score.present? # != ""
-        answer["points"] = (score.to_f rescue nil) || answer["points"] || 0
-        answer["correct"] = "defined" if answer["correct"] == "undefined" && (score.to_f rescue nil)
-      elsif score == "--"
+      if score.present?
+        begin
+          float_score = score.to_f
+        rescue
+          float_score = nil
+        end
+        answer["points"] = float_score || answer["points"] || 0
+        answer["correct"] = "defined" if answer["correct"] == "undefined" && float_score
+      elsif score && score.empty?
         answer["points"] = 0
         answer["correct"] = "undefined"
       end
-      self.workflow_state = "pending_review" if answer["correct"] == "undefined"
+      if answer["correct"] == "undefined"
+        question = quiz_data.find {|h| h[:id] == answer["question_id"] }
+        self.workflow_state = "pending_review" if question && question["question_type"] != "text_only_question"
+      end
       res << answer
       tally += answer["points"].to_f rescue 0
     end
@@ -827,47 +821,6 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     self.with_versioning(true) { self.save! }
   end
 
-  # Schedules the submission for grading when it becomes overdue.
-  #
-  # Only applicable if the submission is set to become overdue, per the `end_at`
-  # field.
-  #
-  # @throw ArgumentError If the submission does not have an end_at timestamp set.
-  def grade_when_overdue
-    # disable grading in background until we figure out potential race condition issues
-    return
-
-    unless self.end_at.present?
-      raise ArgumentError,
-        'QuizSubmission is not applicable for overdue enforced grading!'
-    end
-
-    self.send_later_enqueue_args(:grade_if_untaken, {
-      # 6 seconds because DJ polls at 5 second intervals, and we need at least
-      # 1 second for the submission to become overdue
-      :run_at => self.end_at + 6.seconds,
-      :priority => Delayed::LOW_PRIORITY,
-      :max_attempts => 1
-    })
-  end
-
-  # don't use this directly, see #grade_when_overdue
-  def grade_if_untaken
-    # disable grading in background until we figure out potential race condition issues
-    return
-
-    # We can skip the needs_grading? test because we know that the submission
-    # is overdue since the job will be processed after submission.end_at ...
-    # so we simply test its workflow state.
-    #
-    # Also, we can't use QuizSubmission#overdue? because as of 10/2013 it adds
-    # a graceful period of 1 (or 5) minute(s) after the true end date of the submission,
-    # which doesn't work for us here.
-    if self.untaken?
-      Quizzes::SubmissionGrader.new(self).grade_submission(:finished_at => self.end_at)
-    end
-  end
-
   # evizitei: these 3 delegations allow quiz submissions to be used in
   # templates designed for regular submissions.  Any additional functionality
   # put into those templates will need to be provided in both submissions and
@@ -910,5 +863,13 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def ensure_question_reference_integrity!
     fixer = ::Quizzes::QuizSubmission::QuestionReferenceDataFixer.new
     fixer.run!(self)
+  end
+
+  # TODO: Extract? conceptually similar to Submission::Tardiness#late?
+  def late?
+    return false if finished_at.blank?
+    return false if quiz.due_at.blank?
+
+    finished_at > quiz.due_at
   end
 end

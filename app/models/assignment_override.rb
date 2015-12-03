@@ -25,15 +25,16 @@ class AssignmentOverride < ActiveRecord::Base
   attr_accessible
   EXPORTABLE_ATTRIBUTES = [
     :id, :created_at, :updated_at, :assignment_id, :assignment_version, :set_type, :set_id, :title, :workflow_state, :due_at_overridden, :due_at, :all_day,
-    :all_day_date, :unlock_at_overridden, :unlock_at, :lock_at_overridden, :lock_at, :quiz_id, :quiz_version
+    :all_day_date, :unlock_at_overridden, :unlock_at, :lock_at_overridden, :lock_at, :quiz_id, :quiz_version, :discussion_topic_id
   ]
 
-  EXPORTABLE_ASSOCIATIONS = [:assignment, :quiz, :assignment_override_students]
+  EXPORTABLE_ASSOCIATIONS = [:assignment, :quiz, :discussion_topic, :assignment_override_students]
 
   attr_accessor :dont_touch_assignment
 
   belongs_to :assignment
   belongs_to :quiz, class_name: 'Quizzes::Quiz'
+  belongs_to :discussion_topic
   belongs_to :set, :polymorphic => true
   has_many :assignment_override_students, :dependent => :destroy
 
@@ -49,6 +50,8 @@ class AssignmentOverride < ActiveRecord::Base
     :if => lambda{ |override| override.assignment? && override.active? && concrete_set.call(override) }
   validates_uniqueness_of :set_id, :scope => [:quiz_id, :set_type, :workflow_state],
     :if => lambda{ |override| override.quiz? && override.active? && concrete_set.call(override) }
+  validates_uniqueness_of :set_id, :scope => [:discussion_topic_id, :set_type, :workflow_state],
+    :if => lambda{ |override| override.discussion_topic? && override.active? && concrete_set.call(override) }
   validate :if => concrete_set do |record|
     if record.set && record.assignment && record.active?
       case record.set
@@ -67,8 +70,8 @@ class AssignmentOverride < ActiveRecord::Base
   end
 
   validate do |record|
-    if [record.assignment, record.quiz].all?(&:nil?)
-      record.errors.add :base, "assignment or quiz required"
+    if [record.assignment, record.quiz, record.discussion_topic].all?(&:nil?)
+      record.errors.add :base, "assignment, quiz or discussion topic required"
     end
   end
 
@@ -93,6 +96,8 @@ class AssignmentOverride < ActiveRecord::Base
   def assignment?; !!assignment_id; end
 
   def quiz?; !!quiz_id; end
+
+  def discussion_topic?; !!discussion_topic_id; end
 
   workflow do
     state :active
@@ -134,14 +139,13 @@ class AssignmentOverride < ActiveRecord::Base
     read_attribute(:set_id)
   end
 
-  def set_with_adhoc
+  def set
     if self.set_type == 'ADHOC'
-      assignment_override_students.includes(:user).map(&:user)
+      assignment_override_students.preload(:user).map(&:user)
     else
-      set_without_adhoc
+      super
     end
   end
-  alias_method_chain :set, :adhoc
 
   def set_id=(id)
     if self.set_type == 'ADHOC'
@@ -170,7 +174,7 @@ class AssignmentOverride < ActiveRecord::Base
       true
     end
 
-    scope "overriding_#{field}", where("#{field}_overridden" => true)
+    scope "overriding_#{field}", -> { where("#{field}_overridden" => true) }
   end
 
   override :due_at
@@ -241,27 +245,25 @@ class AssignmentOverride < ActiveRecord::Base
   end
 
   def set_title_if_needed
-    return if self.workflow_state == "deleted"
 
     if set_type != 'ADHOC' && set
       self.title = set.name
     elsif set_type == 'ADHOC' && set.any?
       self.title ||= title_from_students(set)
+    else
+      self.title ||= "No Title"
     end
   end
 
   def title_from_students(students)
-    sorted_students = (students || []).sort_by(&:name)
-    if sorted_students.count > 3
-      others_count = sorted_students.count - 2
-      first_two_students = sorted_students[0..1].map(&:name).join(", ")
-      I18n.t(
-        '%{first_two_students}, and %{others_count} others',
-        {first_two_students: first_two_students, others_count: others_count}
-      )
-    elsif sorted_students.any?
-      sorted_students.map(&:name).to_sentence
-    end
+    return t("No Students") if students.blank?
+    t(:student_count,
+      {
+        one: '%{count} student',
+        other: '%{count} students'
+      },
+      count: students.count
+     )
   end
 
   has_a_broadcast_policy

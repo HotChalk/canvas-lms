@@ -113,6 +113,13 @@ namespace :canvas do
     compile_css = truthy_values.include?(args[:compile_css])
     build_js = truthy_values.include?(args[:build_js])
 
+    log_time('Making sure node_modules are up to date') { `npm install` }
+
+    # public/dist/brandable_css/brandable_css_bundles_with_deps.json needs
+    # to exist before we run handlebars stuff, so we have to do this first
+    require 'lib/brandable_css'
+    log_time('compile css (including custom brands)') { BrandableCSS.compile_all! }
+
     require 'parallel'
     processes = (ENV['CANVAS_BUILD_CONCURRENCY'] || Parallel.processor_count).to_i
     puts "working in #{processes} processes"
@@ -120,17 +127,6 @@ namespace :canvas do
     tasks = Hash.new
 
     if compile_css
-      tasks["Compile sass and make jammit css bundles"] = -> {
-        log_time('npm run compile-sass') do
-          half_of_avilable_cores = (processes / 2).ceil.to_s
-          raise unless system({"CANVAS_SASS_STYLE" => "compressed", "CANVAS_BUILD_CONCURRENCY" => half_of_avilable_cores}, "npm run compile-sass")
-        end
-
-        log_time("Jammit") do
-          require 'jammit'
-          Jammit.package!
-        end
-      }
       tasks["css:styleguide"] = -> {
         Rake::Task['css:styleguide'].invoke
       }
@@ -170,6 +166,7 @@ namespace :canvas do
     end
     combined_time = times.reduce(:+)
     puts "Finished compiling assets in #{real_time}. parallelism saved #{combined_time - real_time} (#{real_time.to_f / combined_time.to_f * 100.0}%)"
+    raise "Error reving files" unless system('node_modules/.bin/gulp rev')
   end
 
   desc "Check static assets and generate api documentation."
@@ -242,11 +239,6 @@ namespace :db do
     task :predeploy => [:environment, :load_config] do
       ActiveRecord::Migrator.new(:up, "db/migrate/", nil).migrate(:predeploy)
     end
-
-    desc "Run all pending postdeploy migrations"
-    task :postdeploy => [:environment, :load_config] do
-      ActiveRecord::Migrator.new(:up, "db/migrate/", nil).migrate(:postdeploy)
-    end
   end
 
   namespace :test do
@@ -283,6 +275,6 @@ Switchman::Rake.filter_database_servers do |servers, block|
   block.call(servers)
 end
 
-%w{db:pending_migrations db:migrate:predeploy db:migrate:postdeploy}.each { |task_name| Switchman::Rake.shardify_task(task_name) }
+%w{db:pending_migrations db:migrate:predeploy}.each { |task_name| Switchman::Rake.shardify_task(task_name) }
 
 end

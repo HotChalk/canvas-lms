@@ -38,7 +38,7 @@ describe 'login' do
 
     def stubby(stub_response)
       @cas_client = CASClient::Client.new(
-        cas_base_url: @account.account_authorization_config.auth_base,
+        cas_base_url: @account.authentication_providers.first.auth_base,
         encode_extra_attributes_as: :raw
       )
       @cas_client.instance_variable_set(:@stub_response, stub_response)
@@ -109,9 +109,8 @@ describe 'login' do
 
     it "should redirect to a custom url if the user CAS account doesn't exist" do
       redirect_url = 'http://google.com/'
-      aac = Account.default.account_authorization_config
-      aac.unknown_user_url = redirect_url
-      aac.save
+      Account.default.unknown_user_url = redirect_url
+      Account.default.save!
 
       stubby("yes\nnonexistentuser\n")
 
@@ -252,7 +251,7 @@ describe 'login' do
       account.auth_discovery_url = discovery_url
       account.save!
 
-      get account_account_authorization_configs_url(account)
+      get account_authentication_providers_url(account)
       redirect_until(discovery_url)
     end
   end

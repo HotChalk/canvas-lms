@@ -141,6 +141,10 @@ define [
       return @get 'post_to_sis' unless arguments.length > 0
       @set 'post_to_sis', postToSisBoolean
 
+    moderatedGrading: (moderatedGradingBoolean) =>
+      return @get 'moderated_grading' unless arguments.length > 0
+      @set 'moderated_grading', moderatedGradingBoolean
+
     peerReviews: (peerReviewBoolean) =>
       return @get 'peer_reviews' unless arguments.length > 0
       @set 'peer_reviews', peerReviewBoolean
@@ -289,10 +293,6 @@ define [
       else
         return @dueAt()
 
-    courseSectionId: (id) =>
-      return @get('course_section_id') unless arguments.length > 0
-      @set 'course_section_id', id
-
     toView: =>
       fields = [
         'name', 'dueAt','description','pointsPossible', 'lockAt', 'unlockAt',
@@ -307,7 +307,8 @@ define [
         'frozenAttributes', 'freezeOnCopy', 'canFreeze', 'isSimple',
         'gradingStandardId', 'isLetterGraded', 'isGpaScaled', 'assignmentGroupId', 'iconType',
         'published', 'htmlUrl', 'htmlEditUrl', 'labelId', 'position', 'postToSIS',
-        'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate', 'courseSectionId'
+        'multipleDueDates', 'nonBaseDates', 'allDates', 'isQuiz', 'singleSectionDueDate',
+        'moderatedGrading'
       ]
       if ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED
         fields.push 'isOnlyVisibleToOverrides'

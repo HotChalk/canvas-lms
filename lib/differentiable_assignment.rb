@@ -2,7 +2,7 @@ module DifferentiableAssignment
   def differentiated_assignments_applies?
     return false if !context.feature_enabled?(:differentiated_assignments)
 
-    if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name)
+    if self.is_a?(Assignment) || Quizzes::Quiz.class_names.include?(self.class_name) || self.is_a?(DiscussionTopic)
       self.only_visible_to_overrides
     elsif self.assignment
       self.assignment.only_visible_to_overrides
@@ -27,17 +27,29 @@ module DifferentiableAssignment
   end
 
   def visibility_view
-    self.is_a?(Assignment) ? AssignmentStudentVisibility : Quizzes::QuizStudentVisibility
+    if self.is_a?(Assignment)
+      AssignmentUserVisibility
+    elsif self.is_a?(DiscussionTopic)
+      DiscussionTopicUserVisibility
+    else
+      Quizzes::QuizUserVisibility
+    end
   end
 
   def column_name
-    self.is_a?(Assignment) ? :assignment_id : :quiz_id
+    if self.is_a?(Assignment)
+      :assignment_id
+    elsif self.is_a?(DiscussionTopic)
+      :discussion_topic_id
+    else
+      :quiz_id
+    end
   end
 
-  # will not filter the collection for teachers, will for non-observer students
+  # will not filter the collection for admins, will for non-observer students and teachers
   # will filter for observers with observed students but not for observers without observed students
   def self.filter(collection, user, context, opts={}, &filter_block)
-    return collection if teacher_or_public_user?(user, context, opts)
+    return collection if user.account_admin?(context)
 
     return filter_block.call(collection, [user.id]) if user_not_observer?(user, context, opts)
 
@@ -52,16 +64,21 @@ module DifferentiableAssignment
   # can filter scope of Assignments, DiscussionTopics, Quizzes, or ContentTags
   def self.scope_filter(scope, user, context, opts={})
     self.filter(scope, user, context, opts) do |scope, user_ids|
-      scope.visible_to_students_in_course_with_da(user_ids, context.id)
+      scope.visible_to_users_in_course_with_da(user_ids, context.id)
     end
   end
 
   def self.teacher_or_public_user?(user, context, opts)
     return true if opts[:is_teacher] == true
-    return true if !context.includes_user?(user)
-    permissions_implying_visibility = [:read_as_admin, :manage_grades, :manage_assignments]
-    permissions_implying_visibility << :manage_content if context.is_a?(Course)
-    context.grants_any_right?(user, *permissions_implying_visibility)
+    RequestCache.cache('teacher_or_public_user', user, context) do
+      if !context.includes_user?(user)
+        true
+      else
+        permissions_implying_visibility = [:read_as_admin, :manage_grades, :manage_assignments]
+        permissions_implying_visibility << :manage_content if context.is_a?(Course)
+        context.grants_any_right?(user, *permissions_implying_visibility)
+      end
+    end
   end
 
   def self.user_not_observer?(user, context, opts)

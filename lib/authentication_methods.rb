@@ -74,15 +74,21 @@ module AuthenticationMethods
       if !@access_token
         raise AccessTokenError
       end
+
+      if !@access_token.authorized_for_account?(@domain_root_account)
+        raise AccessTokenError
+      end
+
       @current_user = @access_token.user
       @current_pseudonym = @current_user.find_pseudonym_for_account(@domain_root_account, true)
+
       unless @current_user && @current_pseudonym
         raise AccessTokenError
       end
       @access_token.used!
 
       RequestContextGenerator.add_meta_header('at', @access_token.global_id)
-      RequestContextGenerator.add_meta_header('dk', @access_token.developer_key.global_id) if @access_token.developer_key
+      RequestContextGenerator.add_meta_header('dk', @access_token.global_developer_key_id) if @access_token.developer_key_id
     end
   end
 
@@ -240,7 +246,7 @@ module AuthenticationMethods
     return nil if url.blank?
     begin
       uri = URI.parse(url)
-    rescue URI::InvalidURIError
+    rescue URI::Error
       return nil
     end
     return nil unless uri.path[0] == '/'
@@ -277,9 +283,7 @@ module AuthenticationMethods
       format.html {
         store_location
         flash[:warning] = I18n.t('lib.auth.errors.not_authenticated', "You must be logged in to access this page") unless request.path == '/'
-        opts = {}
-        opts[:canvas_login] = 1 if params[:canvas_login]
-        redirect_to login_url(opts)
+        redirect_to login_url(params.slice(:canvas_login, :authentication_provider))
       }
       format.json { render_json_unauthorized }
     end
@@ -321,4 +325,5 @@ module AuthenticationMethods
   def delegated_auth_redirect_uri(uri)
     uri
   end
+
 end

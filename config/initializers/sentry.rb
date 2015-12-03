@@ -15,10 +15,14 @@ if settings.present?
     config.tags = settings.fetch(:tags, {}).merge('canvas_revision' => Canvas.revision)
     config.sanitize_fields += Rails.application.config.filter_parameters.map(&:to_s)
     config.sanitize_credit_cards = false
+    config.excluded_exceptions += %w{AuthenticationMethods::AccessTokenError}
   end
 
-  Canvas::Errors.register!(:sentry_notification) do |exception, data|
-    setting = Setting.get("sentry_error_logging_enabled", 'true')
-    SentryProxy.capture(exception, data) if setting == 'true'
+  Rails.configuration.to_prepare do
+    Canvas::Errors.register!(:sentry_notification) do |exception, data|
+      setting = Setting.get("sentry_error_logging_enabled", 'true')
+      SentryProxy.capture(exception, data) if setting == 'true'
+    end
   end
+
 end

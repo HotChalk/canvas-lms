@@ -27,6 +27,7 @@ class Pseudonym < ActiveRecord::Base
   has_many :communication_channels, :order => 'position'
   belongs_to :communication_channel
   belongs_to :sis_communication_channel, :class_name => 'CommunicationChannel'
+  belongs_to :authentication_provider, class_name: 'AccountAuthorizationConfig'
   MAX_UNIQUE_ID_LENGTH = 100
 
   CAS_TICKET_EXPIRED = 'expired'
@@ -42,6 +43,7 @@ class Pseudonym < ActiveRecord::Base
   validates_length_of :unique_id, :maximum => MAX_UNIQUE_ID_LENGTH
   validates_length_of :sis_user_id, :maximum => maximum_string_length, :allow_blank => true
   validates_presence_of :account_id
+  validate :must_be_root_account
   # allows us to validate the user and pseudonym together, before saving either
   validates_each :user_id do |record, attr, value|
     record.errors.add(attr, "blank?") unless value || record.user
@@ -64,10 +66,13 @@ class Pseudonym < ActiveRecord::Base
   acts_as_authentic do |config|
     config.validates_format_of_login_field_options = {:with => /\A\w[\w\.\+\-_'@ =]*\z/}
     config.login_field :unique_id
-    config.validations_scope = [:account_id, :workflow_state]
     config.perishable_token_valid_for = 30.minutes
     config.validates_length_of_login_field_options = {:within => 1..MAX_UNIQUE_ID_LENGTH}
-    config.validates_uniqueness_of_login_field_options = { :case_sensitive => false, :scope => [:account_id, :workflow_state], :if => lambda { |p| (p.unique_id_changed? || p.workflow_state_changed?) && p.active? } }
+    config.validates_uniqueness_of_login_field_options = {
+        case_sensitive: false,
+        scope: [:account_id, :workflow_state, :authentication_provider_id],
+        if: ->(p) { (p.unique_id_changed? || p.workflow_state_changed?) && p.active? }
+    }
     config.crypto_provider = Authlogic::CryptoProviders::Sha512
   end
 
@@ -90,17 +95,17 @@ class Pseudonym < ActiveRecord::Base
 
     p.dispatch :pseudonym_registration
     p.to { self.communication_channel || self.user.communication_channel }
-    p.whenever { |record|
-      @send_registration_notification
-    }
+    p.whenever { @send_registration_notification }
+
+    p.dispatch :pseudonym_registration_done
+    p.to { self.communication_channel || self.user.communication_channel }
+    p.whenever { @send_registration_done_notification }
 
     p.dispatch :new_user_registration
     p.to { self.communication_channel || self.user.communication_channel }
-    p.whenever { |record|
-      @send_sis_import_notification
-    }
+    p.whenever { @send_sis_import_notification }
   end
-  
+
   def update_account_associations_if_account_changed
     return unless self.user && !User.skip_updating_account_associations?
     if self.id_was.nil?
@@ -115,6 +120,12 @@ class Pseudonym < ActiveRecord::Base
     account.root_account_id || account.id
   end
 
+  def must_be_root_account
+    if account_id_changed?
+      self.errors.add(:account_id, "must belong to a root_account") unless self.account_id == self.root_account_id
+    end
+  end
+
   def send_registration_notification!
     @send_registration_notification = true
     self.save!
@@ -125,6 +136,12 @@ class Pseudonym < ActiveRecord::Base
     @send_sis_import_notification = true
     self.save
     @send_sis_import_notification = false
+  end
+
+  def send_registration_done_notification!
+    @send_registration_done_notification = true
+    self.save!
+    @send_registration_done_notification = false
   end
 
   def send_confirmation!
@@ -146,13 +163,18 @@ class Pseudonym < ActiveRecord::Base
   end
 
   def self.custom_find_by_unique_id(unique_id)
-    self.active.by_unique_id(unique_id).first if unique_id
+    self.for_auth_configuration(unique_id, nil) if unique_id
   end
-  
+
+  def self.for_auth_configuration(unique_id, aac)
+    auth_id = aac.try(:auth_provider_filter)
+    active.by_unique_id(unique_id).where(authentication_provider_id: auth_id).first
+  end
+
   def set_password_changed
     @password_changed = self.password && self.password_confirmation == self.password
   end
-  
+
   def password=(new_pass)
     self.password_auto_generated = false
     super(new_pass)
@@ -297,15 +319,13 @@ class Pseudonym < ActiveRecord::Base
 
     # an admin can delete any non-SIS pseudonym that they can update
     given do |user|
-      !self.system_created? &&
-      self.grants_right?(user, :update)
+      !sis_user_id && grants_right?(user, :update)
     end
     can :delete
 
     # an admin can only delete an SIS pseudonym if they also can :manage_sis
     given do |user|
-      self.system_created? &&
-      self.grants_right?(user, :manage_sis)
+      sis_user_id && grants_right?(user, :manage_sis)
     end
     can :delete
   end
@@ -366,20 +386,16 @@ class Pseudonym < ActiveRecord::Base
   end
   
   def managed_password?
-    !!(self.sis_user_id && self.account && !self.account.password_authentication?)
+    !!(self.sis_user_id && account && account.non_canvas_auth_configured?)
   end
 
-  def system_created?
-    !!(self.sis_user_id && self.account)
-  end
-  
   def valid_arbitrary_credentials?(plaintext_password)
     return false if self.deleted?
     return false if plaintext_password.blank?
     require 'net/ldap'
     account = self.account || Account.default
     res = false
-    res ||= valid_ldap_credentials?(plaintext_password) if account && account.ldap_authentication?
+    res ||= valid_ldap_credentials?(plaintext_password)
     if account.canvas_authentication?
       # Only check SIS if they haven't changed their password
       res ||= valid_ssha?(plaintext_password) if password_auto_generated?
@@ -405,7 +421,7 @@ class Pseudonym < ActiveRecord::Base
     end
     self.save
     if old_user_id
-      CommunicationChannel.where(:path => self.unique_id, :user_id => old_user_id).update_all(:user_id => user)
+      CommunicationChannel.by_path(self.unique_id).where(:user_id => old_user_id).update_all(:user_id => user)
       User.where(:id => [old_user_id, user]).update_all(:update_at => Time.now.utc)
     end
     if User.find(old_user_id).pseudonyms.empty? && migrate
@@ -424,7 +440,7 @@ class Pseudonym < ActiveRecord::Base
   end
 
   def ldap_bind_result(password_plaintext)
-    self.account.account_authorization_configs.each do |config|
+    account.authentication_providers.active.where(auth_type: 'ldap').each do |config|
       res = config.ldap_bind_result(self.unique_id, password_plaintext)
       return res if res
     end
@@ -483,7 +499,7 @@ class Pseudonym < ActiveRecord::Base
       active.
         by_unique_id(credentials[:unique_id]).
         where(:account_id => account_ids).
-        includes(:user).
+        preload(:user).
         select { |p|
           valid = p.valid_arbitrary_credentials?(credentials[:password])
           too_many_attempts = true if p.audit_login(remote_ip, valid) == :too_many_attempts

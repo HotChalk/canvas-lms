@@ -583,6 +583,7 @@ define([
         },
         upload_only: true,
         object_name: 'attachment',
+        required: ['uploaded_data'],
         processData: function(data) {
           data['attachment[display_name]'] = $(this).find(".file_name").val();
           return data;
@@ -609,6 +610,7 @@ define([
         preparedFileUpload: true,
         singleFile: true,
         object_name: 'attachment',
+        required: ['uploaded_data'],
         context_code: $("#editor_tabs .context_code").text(),
         folder_id: function() {
           return $(this).find("[name='attachment[folder_id]']").val();

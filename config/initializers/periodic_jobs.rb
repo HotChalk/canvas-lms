@@ -63,14 +63,28 @@ Rails.configuration.after_initialize do
     Delayed::Periodic.cron 'IncomingMailProcessor::IncomingMessageProcessor#process', '*/1 * * * *' do
       imp = IncomingMailProcessor::IncomingMessageProcessor.new(IncomingMail::MessageHandler.new, ErrorReport::Reporter.new)
       IncomingMailProcessor::IncomingMessageProcessor.workers.times do |worker_id|
-        imp.send_later_enqueue_args(:process,
-                                    {singleton: "IncomingMailProcessor::IncomingMessageProcessor#process:#{worker_id}", max_attempts: 1},
-                                    {worker_id: worker_id})
+        if IncomingMailProcessor::IncomingMessageProcessor.dedicated_workers_per_mailbox
+          # Launch one per mailbox
+          IncomingMailProcessor::IncomingMessageProcessor.mailbox_accounts.each do |account|
+            imp.send_later_enqueue_args(:process,
+                                        {singleton: "IncomingMailProcessor::IncomingMessageProcessor#process:#{worker_id}:#{account.address}", max_attempts: 1},
+                                        {worker_id: worker_id, mailbox_account_address: account.address})
+          end
+        else
+          # Just launch the one
+          imp.send_later_enqueue_args(:process,
+                                      {singleton: "IncomingMailProcessor::IncomingMessageProcessor#process:#{worker_id}", max_attempts: 1},
+                                      {worker_id: worker_id})
+        end
       end
     end
   end
 
-  Delayed::Periodic.cron 'ErrorReport.destroy_error_reports', '35 */1 * * *' do
+  Delayed::Periodic.cron 'IncomingMailProcessor::Instrumentation#process', '*/5 * * * *' do
+    IncomingMailProcessor::Instrumentation.process
+  end
+
+  Delayed::Periodic.cron 'ErrorReport.destroy_error_reports', '2-59/5 * * * *' do
     cutoff = Setting.get('error_reports_retain_for', 3.months.to_s).to_i
     if cutoff > 0
       with_each_shard_by_database(ErrorReport, :destroy_error_reports, cutoff.ago)
@@ -108,12 +122,6 @@ Rails.configuration.after_initialize do
   end
 
   Delayed::Periodic.cron 'Course.auto_publish', '*/10 * * * *', :priority => Delayed::LOW_PRIORITY do
-    Shard.with_each_shard(exception: -> { ErrorReport.log_exception(:periodic_job, $!) }) do
-      Course.auto_publish
-    end
-  end
-
-  Dir[Rails.root.join('vendor', 'plugins', '*', 'config', 'periodic_jobs.rb')].each do |plugin_periodic_jobs|
-    require plugin_periodic_jobs
+    with_each_shard_by_database(Course, :auto_publish)
   end
 end

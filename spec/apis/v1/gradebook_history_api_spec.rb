@@ -142,24 +142,19 @@ describe GradebookHistoryApiController, type: :request do
       @submission4 = @assignment2.submit_homework(@student1)
     end
 
-    it 'should return submission version API objects' do
-      @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
-
-      json = api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json", {
-        :controller => 'gradebook_history_api',
-        :action => 'feed',
-        :format => 'json',
-        :course_id => @course.id.to_s
-      }).first
-
-      expect(json.keys.sort).to eq ["assignment_id", "assignment_name", "attempt", "body", "current_grade", "current_graded_at", "current_grader", "grade", "grade_matches_current_submission", "graded_at", "grader", "grader_id", "id", "late", "preview_url", "score", "submission_type", "submitted_at", "url", "user_id", "user_name", "workflow_state"]
+    def create_versions
+      @submission1.with_versioning(:explicit => true) {
+        @submission1.update_attributes!(:graded_at => Time.zone.now, :grader_id => @grader.id, :score => 100) }
+      @submission2.with_versioning(:explicit => true) {
+        @submission2.update_attributes!(:graded_at => Time.zone.now, :grader_id => @super_grader.id, :score => 90) }
+      @submission3.with_versioning(:explicit => true) {
+        @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80) }
+      @submission4.with_versioning(:explicit => true) {
+        @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70) }
     end
 
     it 'should return all applicable versions' do
-      @submission1.update_attributes!(:graded_at => Time.zone.now, :grader_id => @grader.id, :score => 100)
-      @submission2.update_attributes!(:graded_at => Time.zone.now, :grader_id => @super_grader.id, :score => 90)
-      @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
-      @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      create_versions
 
       expect(api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json", {
         :controller => 'gradebook_history_api',
@@ -170,10 +165,7 @@ describe GradebookHistoryApiController, type: :request do
     end
 
     it 'should paginate the versions' do
-      @submission1.update_attributes!(:graded_at => Time.zone.now, :grader_id => @grader.id, :score => 100)
-      @submission2.update_attributes!(:graded_at => Time.zone.now, :grader_id => @super_grader.id, :score => 90)
-      @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
-      @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      create_versions
 
       expect(api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json?per_page=5", {
         :controller => 'gradebook_history_api',
@@ -199,7 +191,9 @@ describe GradebookHistoryApiController, type: :request do
     end
 
     it 'should order the most recent versions first' do
-      @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
+      @submission3.with_versioning(:explicit => true) {
+        @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
+      }
 
       json = api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json", {
         :controller => 'gradebook_history_api',
@@ -214,7 +208,9 @@ describe GradebookHistoryApiController, type: :request do
     end
 
     it 'should optionally restrict by assignment_id' do
-      @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      @submission4.with_versioning(:explicit => true) {
+        @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      }
 
       json = api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json?assignment_id=#{@assignment2.id}", {
         :controller => 'gradebook_history_api',
@@ -229,7 +225,9 @@ describe GradebookHistoryApiController, type: :request do
     end
 
     it 'should optionally restrict by user_id' do
-      @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      @submission4.with_versioning(:explicit => true) {
+        @submission4.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 70)
+      }
 
       json = api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json?user_id=#{@student1.id}", {
         :controller => 'gradebook_history_api',
@@ -244,7 +242,9 @@ describe GradebookHistoryApiController, type: :request do
     end
 
     it 'should optionally reverse ordering to oldest version first' do
-      @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
+      @submission3.with_versioning(:explicit => true) {
+        @submission3.update_attributes!(:graded_at => 24.hours.ago, :grader_id => @other_grader.id, :score => 80)
+      }
 
       json = api_call_as_user(@teacher, :get, "/api/v1/courses/#{@course.id}/gradebook_history/feed.json?ascending=1", {
         :controller => 'gradebook_history_api',

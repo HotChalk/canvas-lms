@@ -1,7 +1,7 @@
 require_relative "quizzes_common"
 
 shared_examples_for "quiz question selenium tests" do
-  include_examples "quizzes selenium tests"
+  include_context 'in-process server selenium tests'
 
   def create_oqaat_quiz(opts={})
     course_with_teacher(:active_all => true)
@@ -71,7 +71,7 @@ shared_examples_for "quiz question selenium tests" do
 
   def accept_cant_go_back_warning
     expect_new_page_load {
-      fj("button:contains('Begin'):visible").click
+      fj("button:contains('Begin').ui-button").click
     }
     wait_for_ajaximations
   end

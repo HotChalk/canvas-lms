@@ -162,6 +162,23 @@ describe ContextModulesController do
       expect(response).to redirect_to course_assignment_url(@course, assignment1, :module_item_id => assignmentTag1.id)
     end
 
+    it "should still redirect for unpublished modules if teacher and course is concluded" do
+      user_session(@teacher)
+
+      @module = @course.context_modules.create!
+      ag = @course.assignment_groups.create!
+      assignment1 = ag.assignments.create!(:context => @course)
+
+      assignmentTag1 = @module.add_item :type => 'assignment', :id => assignment1.id
+
+      assignmentTag1.unpublish
+      @course.complete!
+
+      get 'item_redirect', :course_id => @course.id, :id => assignmentTag1.id
+      expect(response).to be_redirect
+      expect(response).to redirect_to course_assignment_url(@course, assignment1, :module_item_id => assignmentTag1.id)
+    end
+
     it "should not redirect for unpublished modules if student" do
       user_session(@student)
 
@@ -383,6 +400,29 @@ describe ContextModulesController do
       order = tags.reverse.map(&:id)
       post 'reorder_items', :course_id => @course.id, :context_module_id => mod.id, :order => order.join(",")
       expect(mod.reload.content_tags.map(&:id)).to eq order
+    end
+  end
+
+  describe "POST 'add_item'" do
+    before :once do
+      course_with_teacher(:active_all => true)
+      @module = @course.context_modules.create!
+    end
+
+    it "should set position" do
+      user_session @teacher
+      @module.add_item({ :type => 'context_module_sub_header', :title => 'foo!' }, nil, position: 1)
+      post 'add_item', :course_id => @course.id, :context_module_id => @module.id, :item =>
+                         { :type => 'context_module_sub_header', :title => 'bar!', :position => 3 }
+      expect(@module.content_tags.map {|tag| [tag.title, tag.position]}).to match_array([['foo!', 1], ['bar!', 3]])
+    end
+
+    it "shouldn't duplicate an existing position" do
+      user_session @teacher
+      @module.add_item({ :type => 'context_module_sub_header', :title => 'foo!' }, nil, position: 3)
+      post 'add_item', :course_id => @course.id, :context_module_id => @module.id, :item =>
+                       { :type => 'context_module_sub_header', :title => 'bar!', :position => 3 }
+      expect(@module.content_tags.map {|tag| [tag.title, tag.position]}).to match_array([['foo!', 3], ['bar!', 4]])
     end
   end
 

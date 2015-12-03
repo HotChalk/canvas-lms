@@ -24,3 +24,37 @@
   font-size: 0.7em;
   margin-left: 20px;
 }
+
+#rubric_associations{
+  ul {
+    list-style-type: none;
+    padding-left: 0px;
+    margin-left: 0;
+
+    li{
+      margin-bottom: 30px;
+
+      .title {
+        font-size: 1.2em;
+        font-weight: bold;
+      }
+      .rubric-association-details {
+        margin-left: 40px;
+      }
+      .rubric_option{
+        margin-left: 20px;
+      }
+      span {
+        font-weight: bold;
+      }
+      label {
+        font-size: 13px;
+      }
+    } 
+  }
+  .published {
+    color: #33802a;
+  }
+}
+
+

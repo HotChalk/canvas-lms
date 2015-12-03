@@ -627,7 +627,7 @@ describe ConversationsController, type: :request do
               p.delete("avatar_url")
             }
           }
-          json.each {|c| c["messages"].each {|m| m["participating_user_ids"].sort!}} 
+          json.each {|c| c["messages"].each {|m| m["participating_user_ids"].sort!}}
           json.each { |c| c.delete("last_authored_message_at") } # This is sometimes not updated. It's a known bug.
           expect(json).to eql [
             {
@@ -730,8 +730,9 @@ describe ConversationsController, type: :request do
 
       it "should create a conversation with forwarded messages" do
         forwarded_message = conversation(@me, :sender => @bob).messages.first
-        attachment = @me.conversation_attachments_folder.attachments.create!(:context => @me, :uploaded_data => stub_png_data)
-        forwarded_message.attachments << attachment
+        attachment = @bob.conversation_attachments_folder.attachments.create!(:context => @bob, :uploaded_data => stub_png_data)
+        forwarded_message.attachment_ids = [attachment.id]
+        forwarded_message.save!
 
         json = api_call(:post, "/api/v1/conversations",
                 { :controller => 'conversations', :action => 'create', :format => 'json' },
@@ -763,7 +764,7 @@ describe ConversationsController, type: :request do
             "subscribed" => true,
             "private" => true,
             "starred" => false,
-            "properties" => ["last_author"],
+            "properties" => ["last_author", "attachments"],
             "visible" => false,
             "context_code" => conversation.conversation.context_code,
             "audience" => [@billy.id],
@@ -796,7 +797,8 @@ describe ConversationsController, type: :request do
                                              'locked_for_user' => false,
                                              'hidden_for_user' => false,
                                              'created_at' => attachment.created_at.as_json,
-                                             'updated_at' => attachment.updated_at.as_json, 
+                                             'updated_at' => attachment.updated_at.as_json,
+                                             'modified_at' => attachment.updated_at.as_json,
                                              'thumbnail_url' => attachment.thumbnail_url }], "participating_user_ids" => [@me.id, @bob.id].sort
                   }
                 ]
@@ -804,7 +806,7 @@ describe ConversationsController, type: :request do
             ]
           }
         ]
-        expect(json).to eql expected
+        expect(json).to eq expected
       end
 
       it "should set subject" do
@@ -978,7 +980,8 @@ describe ConversationsController, type: :request do
                 'hidden_for_user' => false,
                 'created_at' => attachment.created_at.as_json,
                 'updated_at' => attachment.updated_at.as_json,
-                'thumbnail_url' => attachment.thumbnail_url
+                'thumbnail_url' => attachment.thumbnail_url,
+                'modified_at' => attachment.updated_at.as_json
               }
             ],
             "participating_user_ids" => [@me.id, @bob.id].sort
@@ -1905,7 +1908,7 @@ describe ConversationsController, type: :request do
       expect(ConversationMessageParticipant.count).to eql 0
       # should leave the conversation and its message in the database
       expect(Conversation.count).to eql 1
-      expect(ConversationMessage.count).to eql 1 
+      expect(ConversationMessage.count).to eql 1
     end
 
     context "sharding" do
@@ -1952,5 +1955,5 @@ describe ConversationsController, type: :request do
       expect(json).to eql({'unread_count' => '1'})
     end
   end
-  
+
 end

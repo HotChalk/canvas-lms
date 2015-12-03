@@ -35,6 +35,10 @@ class GradeSummaryPresenter
     user_has_elevated_permissions? && !@id_param
   end
 
+  def user_an_observer_of_student?
+    observed_students.key? student
+  end
+
   def student_is_user?
     student == @current_user
   end
@@ -107,14 +111,14 @@ class GradeSummaryPresenter
   end
 
   def groups
-    @groups ||= @context.assignment_groups.active.all
+    @groups ||= @context.assignment_groups.active.to_a
   end
 
   def assignments(gp_id = nil)
     @assignments ||= begin
       visible_assignments = AssignmentGroup.visible_assignments(student, @context, groups, [:assignment_overrides])
       if gp_id
-        visible_assignments = GradingPeriod.active.find(gp_id).assignments(visible_assignments)
+        visible_assignments = grading_period_assignments(gp_id, visible_assignments)
       end
       group_index = groups.index_by(&:id)
       visible_assignments.select { |a| a.submission_types != 'not_graded'}.map { |a|
@@ -127,10 +131,19 @@ class GradeSummaryPresenter
     end
   end
 
+  def grading_period_assignments(grading_period_id, assignments)
+    grading_period = GradingPeriod.context_find(@context, grading_period_id)
+    if grading_period
+      grading_period.assignments_for_student(assignments, student)
+    else
+      assignments
+    end
+  end
+
   def submissions
     @submissions ||= begin
       ss = @context.submissions
-      .includes(:visible_submission_comments,
+      .preload(:visible_submission_comments,
                 {:rubric_assessments => [:rubric, :rubric_association]},
                 :content_participations)
       .where("assignments.workflow_state != 'deleted'")
@@ -176,6 +189,7 @@ class GradeSummaryPresenter
       # require score then add a filter when the DA feature is on
       chain.joins(:submissions)
         .where("submissions.user_id in (?)", real_and_active_student_ids)
+        .where("NOT submissions.excused OR submissions.excused IS NULL")
         .group("assignments.id")
         .select("assignments.id, max(score) max, min(score) min, avg(score) avg")
         .index_by(&:id)
@@ -199,7 +213,7 @@ class GradeSummaryPresenter
 
   def courses_with_grades
     @courses_with_grades ||= begin
-      if student_is_user?
+      if student_is_user? || user_an_observer_of_student?
         student.courses_with_grades
       else
         nil

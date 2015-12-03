@@ -13,7 +13,6 @@ define [
   'compiled/views/calendar/MissingDateDialogView'
   'compiled/views/assignments/AssignmentGroupSelector'
   'compiled/views/assignments/GroupCategorySelector'
-  'compiled/views/assignments/SectionSelector'
   'compiled/jquery/toggleAccessibly'
   'compiled/views/editor/KeyboardShortcuts'
   'compiled/tinymce'
@@ -23,7 +22,7 @@ define [
   'compiled/jquery.rails_flash_notifications'
 ], (INST, I18n, ValidatedFormView, _, $, wikiSidebar, template,
 userSettings, TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
-AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibly, RCEKeyboardShortcuts) ->
+AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardShortcuts) ->
 
   class EditView extends ValidatedFormView
 
@@ -51,10 +50,12 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     EXTERNAL_TOOLS_CONTENT_TYPE = '#assignment_external_tool_tag_attributes_content_type'
     EXTERNAL_TOOLS_CONTENT_ID = '#assignment_external_tool_tag_attributes_content_id'
     EXTERNAL_TOOLS_NEW_TAB = '#assignment_external_tool_tag_attributes_new_tab'
-    SECTION_SELECTOR = '#section_selector'
     ASSIGNMENT_POINTS_POSSIBLE = '#assignment_points_possible'
     ASSIGNMENT_POINTS_CHANGE_WARN = '#point_change_warning'
 
+    PEER_REVIEWS_BOX = '#assignment_peer_reviews'
+    GROUP_CATEGORY_BOX = '#has_group_category'
+    MODERATED_GRADING_BOX = '#assignment_moderated_grading'
 
     els: _.extend({}, @::els, do ->
       els = {}
@@ -78,9 +79,9 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       els["#{EXTERNAL_TOOLS_NEW_TAB}"] = '$externalToolsNewTab'
       els["#{EXTERNAL_TOOLS_CONTENT_TYPE}"] = '$externalToolsContentType'
       els["#{EXTERNAL_TOOLS_CONTENT_ID}"] = '$externalToolsContentId'
-      els["#{SECTION_SELECTOR}"] = '$sectionSelector'
       els["#{ASSIGNMENT_POINTS_POSSIBLE}"] = '$assignmentPointsPossible'
       els["#{ASSIGNMENT_POINTS_CHANGE_WARN}"] = '$pointsChangeWarning'
+      els["#{MODERATED_GRADING_BOX}"] = '$moderatedGradingBox'
       els
     )
 
@@ -96,6 +97,9 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       events["click #{EXTERNAL_TOOLS_URL}"] = 'showExternalToolsDialog'
       events["click #{EXTERNAL_TOOLS_URL}_screenreader_button"] = 'showExternalToolsDialogForScreenreader'
       events["change #assignment_points_possible"] = 'handlePointsChange'
+      events["change #{PEER_REVIEWS_BOX}"] = 'handleModeratedGradingChange'
+      events["change #{GROUP_CATEGORY_BOX}"] = 'handleModeratedGradingChange'
+      events["change #{MODERATED_GRADING_BOX}"] = 'handleModeratedGradingChange'
       events
     )
 
@@ -103,7 +107,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
     @child 'gradingTypeSelector', "#{GRADING_TYPE_SELECTOR}"
     @child 'groupCategorySelector', "#{GROUP_CATEGORY_SELECTOR}"
     @child 'peerReviewsSelector', "#{PEER_REVIEWS_FIELDS}"
-    @child 'sectionSelector', "#{SECTION_SELECTOR}"
 
     initialize: (options) ->
       super
@@ -112,7 +115,6 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', -> window.location = @get 'html_url'
       @gradingTypeSelector.on 'change:gradingType', @handleGradingTypeChange
-      @sectionSelector.parentModel = @model
 
     handleCancel: (ev) =>
       ev.preventDefault()
@@ -122,12 +124,36 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       ["assignment_group_id","grading_type","submission_type","submission_types",
        "points_possible","allowed_extensions","peer_reviews","peer_review_count",
        "automatic_peer_reviews","group_category_id","grade_group_students_individually",
-       "turnitin_enabled","course_section_id"]
+       "turnitin_enabled"]
 
     handlePointsChange:(ev) =>
       ev.preventDefault()
       if @assignment.hasSubmittedSubmissions()
         @$pointsChangeWarning.toggleAccessibly(@$assignmentPointsPossible.val() != "#{@assignment.pointsPossible()}")
+
+    disableCheckbox: (box, message) ->
+      box.prop("disabled", true).parent().attr('data-tooltip', 'top').data('tooltip', {disabled: false}).attr('title', message)
+
+    enableCheckbox: (box) ->
+      if box.prop("disabled")
+        box.removeProp("disabled").parent().timeoutTooltip().timeoutTooltip('disable').removeAttr('data-tooltip').removeAttr('title')
+
+    handleModeratedGradingChange: =>
+      if ENV?.MODERATED_GRADING && !ENV?.HAS_GRADED_SUBMISSIONS
+        if @$moderatedGradingBox.prop('checked')
+          @disableCheckbox(@$peerReviewsBox, I18n.t("Peer reviews cannot be enabled for moderated assignments"))
+          @disableCheckbox(@$groupCategoryBox, I18n.t("Group assignments cannot be enabled for moderated assignments"))
+          @enableCheckbox(@$moderatedGradingBox)
+        else
+          if @$groupCategoryBox.prop('checked')
+            @disableCheckbox(@$moderatedGradingBox,  I18n.t("Moderated grading cannot be enabled for group assignments"))
+          else if @$peerReviewsBox.prop('checked')
+            @disableCheckbox(@$moderatedGradingBox, I18n.t("Moderated grading cannot be enabled for peer reviewed assignments"))
+          else
+            @enableCheckbox(@$moderatedGradingBox)
+
+          @enableCheckbox(@$peerReviewsBox)
+          @enableCheckbox(@$groupCategoryBox)
 
     setDefaultsIfNew: =>
       if @assignment.isNew()
@@ -184,9 +210,18 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       @$peerReviewsFields.toggleAccessibly subVal != 'external_tool'
 
     afterRender: =>
+      # have to do these here because they're rendered by other things
+      @$peerReviewsBox = $("#{PEER_REVIEWS_BOX}")
+      @$groupCategoryBox = $("#{GROUP_CATEGORY_BOX}")
+
       @_attachEditorToDescription()
       $ @_initializeWikiSidebar
       @addTinyMCEKeyboardShortcuts()
+      @handleModeratedGradingChange()
+      if ENV?.MODERATED_GRADING && ENV?.HAS_GRADED_SUBMISSIONS
+        @$moderatedGradingBox.prop("disabled", true).
+          parent().attr('data-tooltip', 'top').
+          attr('title', I18n.t("Moderated grading setting cannot be changed if graded submissions exist"))
       this
 
     toJSON: =>
@@ -194,6 +229,7 @@ AssignmentGroupSelector, GroupCategorySelector, SectionSelector, toggleAccessibl
       _.extend data,
         kalturaEnabled: ENV?.KALTURA_ENABLED or false
         postToSISEnabled: ENV?.POST_TO_SIS or false
+        moderatedGradingEnabled: ENV?.MODERATED_GRADING or false
         isLargeRoster: ENV?.IS_LARGE_ROSTER or false
         submissionTypesFrozen: _.include(data.frozenAttributes, 'submission_types')
         differentiatedAssignmentsEnabled: @assignment.differentiatedAssignmentsEnabled()

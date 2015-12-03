@@ -147,12 +147,13 @@ require 'atom'
 class UsersController < ApplicationController
   include Delicious
   include SearchHelper
+  include SectionTabHelper
   include I18nUtilities
   include CustomColorHelper
 
   before_filter :require_user, :only => [:grades, :merge, :kaltura_session,
     :ignore_item, :ignore_stream_item, :close_notification, :mark_avatar_image,
-    :user_dashboard, :toggle_dashboard, :masquerade, :external_tool,
+    :user_dashboard, :toggle_recent_activity_dashboard, :masquerade, :external_tool,
     :dashboard_sidebar, :settings, :all_menu_courses]
   before_filter :require_registered_user, :only => [:delete_user_service,
     :create_user_service]
@@ -164,7 +165,11 @@ class UsersController < ApplicationController
     @user = User.where(id: params[:user_id]).first if params[:user_id].present?
     @user ||= @current_user
     if authorized_action(@user, @current_user, :read)
-      current_active_enrollments = @user.enrollments.current.includes(:course).shard(@user).to_a
+      crumb_url = polymorphic_url([@current_user]) if @user.grants_right?(@current_user, session, :view_statistics)
+      add_crumb(@current_user.short_name, crumb_url)
+      add_crumb(t('crumbs.grades', 'Grades'), grades_path)
+
+      current_active_enrollments = @user.enrollments.current.preload(:course).shard(@user).to_a
 
       @presenter = GradesPresenter.new(current_active_enrollments)
 
@@ -199,9 +204,7 @@ class UsersController < ApplicationController
       redirect_uri = oauth_success_url(:service => 'google_drive')
       session[:oauth_gdrive_nonce] = SecureRandom.hex
       state = Canvas::Security.create_jwt(redirect_uri: redirect_uri, return_to_url: return_to_url, nonce: session[:oauth_gdrive_nonce])
-      doc_service = @current_user.user_services.where(service: "google_docs").first
-      user_name = doc_service.service_user_name if doc_service
-      redirect_to GoogleDrive::Client.auth_uri(google_drive_client, state, user_name)
+      redirect_to GoogleDrive::Client.auth_uri(google_drive_client, state)
     elsif params[:service] == "twitter"
       success_url = oauth_success_url(:service => 'twitter')
       request_token = Twitter::Connection.request_token(success_url)
@@ -275,10 +278,12 @@ class UsersController < ApplicationController
 
         flash[:notice] = t('google_drive_added', "Google Drive account successfully added!")
         return redirect_to(json['return_to_url'])
-      rescue => e
+      rescue Google::APIClient::ClientError => e
         Canvas::Errors.capture_exception(:oauth, e)
-        flash[:error] = t('google_drive_fail', "Google Drive authorization failed. Please try again")
+
+        flash[:error] = e.to_s
       end
+      return redirect_to(user_profile_url(@current_user))
     end
 
     if !oauth_request || (request.host_with_port == oauth_request.original_host_with_port && oauth_request.user != @current_user)
@@ -467,6 +472,7 @@ class UsersController < ApplicationController
   end
 
   def user_dashboard
+    session.delete(:parent_registration) if session[:parent_registration]
     check_incomplete_registration
     get_context
 
@@ -479,7 +485,13 @@ class UsersController < ApplicationController
     end
     disable_page_views if @current_pseudonym && @current_pseudonym.unique_id == "pingdom@instructure.com"
 
-    js_env :DASHBOARD_SIDEBAR_URL => dashboard_sidebar_url
+    js_env({
+      :DASHBOARD_SIDEBAR_URL => dashboard_sidebar_url,
+      :PREFERENCES => {
+        :recent_activity_dashboard => @current_user.preferences[:recent_activity_dashboard],
+        :custom_colors => @current_user.custom_colors
+      }
+    })
 
     @announcements = AccountNotification.for_user_and_account(@current_user, @domain_root_account)
     @pending_invitations = @current_user.cached_current_enrollments(:include_enrollment_uuid => session[:enrollment_uuid], :preload_courses => true).select { |e| e.invited? }
@@ -499,7 +511,7 @@ class UsersController < ApplicationController
       assignments = upcoming_events.select{ |e| e.is_a?(Assignment) }
       Shard.partition_by_shard(assignments) do |shard_assignments|
         Submission.
-          select([:id, :assignment_id, :score, :workflow_state]).
+          select([:id, :assignment_id, :score, :workflow_state, :updated_at]).
           where(:assignment_id => shard_assignments, :user_id => user)
       end
     end
@@ -520,7 +532,7 @@ class UsersController < ApplicationController
     Shackles.activate(:slave) do
       prepare_current_user_dashboard_items
 
-      if @show_recent_feedback = (@current_user.student_enrollments.active.present?)
+      if @show_recent_feedback = (@current_user.student_enrollments.active.exists?)
         @recent_feedback = (@current_user && @current_user.recent_feedback) || []
       end
     end
@@ -528,10 +540,11 @@ class UsersController < ApplicationController
     render :layout => false
   end
 
-  def toggle_dashboard
-    @current_user.preferences[:new_dashboard] = !@current_user.preferences[:new_dashboard]
+  def toggle_recent_activity_dashboard
+    @current_user.preferences[:recent_activity_dashboard] =
+      !@current_user.preferences[:recent_activity_dashboard]
     @current_user.save!
-    render :json => {}
+    render json: {}
   end
 
   include Api::V1::StreamItem
@@ -962,12 +975,16 @@ class UsersController < ApplicationController
     if authorized_action(@user, @current_user, :view_statistics)
       add_crumb(t('crumbs.profile', "%{user}'s profile", :user => @user.short_name), @user == @current_user ? user_profile_path(@current_user) : user_path(@user) )
 
-      @group_memberships = @user.current_group_memberships.includes(:group)
+      @group_memberships = @user.current_group_memberships
 
       # course_section and enrollment term will only be used if the enrollment dates haven't been cached yet;
       # maybe should just look at the first enrollment and check if it's cached to decide if we should include
       # them here
-      @enrollments = @user.enrollments.with_each_shard { |scope| scope.where("enrollments.workflow_state<>'deleted' AND courses.workflow_state<>'deleted'").includes({:course => { :enrollment_term => :enrollment_dates_overrides }}, :associated_user, :course_section) }
+      @enrollments = @user.enrollments.
+        shard(@user).
+        where("enrollments.workflow_state<>'deleted' AND courses.workflow_state<>'deleted'").
+        eager_load(:course).
+        preload(:associated_user, :course_section, course: { enrollment_term: :enrollment_dates_overrides }).to_a
 
       # restrict view for other users
       if @user != @current_user
@@ -1006,7 +1023,7 @@ class UsersController < ApplicationController
   #
   # @returns User
   def api_show
-    @user = params[:id] && params[:id] != 'self' ? User.find(params[:id]) : @current_user
+    @user = params[:id] && params[:id] != 'self' ? api_find(User, params[:id]) : @current_user
     if @user.grants_any_right?(@current_user, session, :manage, :manage_user_details)
       render :json => user_json(@user, @current_user, session, %w{locale avatar_url permissions}, @current_user.pseudonym.account)
     else
@@ -1038,12 +1055,12 @@ class UsersController < ApplicationController
     @lti_launch.params = adapter.generate_post_payload
 
     @lti_launch.resource_url = @tool.user_navigation(:url)
-    @lti_launch.link_text = @tool.label_for(:user_navigation)
+    @lti_launch.link_text = @tool.label_for(:user_navigation, I18n.locale)
     @lti_launch.analytics_id = @tool.tool_id
 
     @active_tab = @tool.asset_string
     add_crumb(@current_user.short_name, user_profile_path(@current_user))
-    render ExternalToolsController.display_template('default')
+    render Lti::AppUtil.display_template
   end
 
   def new
@@ -1092,6 +1109,17 @@ class UsersController < ApplicationController
   #   self-registration and this canvas instance requires users to accept
   #   the terms (on by default).
   #
+  #   If this is true, it will mark the user as having accepted the terms of use.
+  #
+  # @argument user[skip_registration] [Boolean]
+  #   Automatically mark the user as registered.
+  #
+  #   If this is true, it is recommended to set <tt>"pseudonym[send_confirmation]"</tt> to true as well.
+  #   Otherwise, the user will not receive any messages about their account creation.
+  #
+  #   The users communication channel confirmation can be skipped by setting
+  #   <tt>"communication_channel[skip_confirmation]"</tt> to true as well.
+  #
   # @argument pseudonym[unique_id] [Required, String]
   #   User's login ID. If this is a self-registration, it must be a valid
   #   email address.
@@ -1131,6 +1159,9 @@ class UsersController < ApplicationController
   #   Otherwise, the user must respond to a confirmation message to confirm the
   #   channel.
   #
+  #   If this is true, it is recommended to set <tt>"pseudonym[send_confirmation]"</tt> to true as well.
+  #   Otherwise, the user will not receive any messages about their account creation.
+  #
   # @argument force_validations [Boolean]
   #   If true, validations are performed on the newly created user (and their associated pseudonym)
   #   even if the request is made by a privileged user like an admin. When set to false,
@@ -1149,6 +1180,8 @@ class UsersController < ApplicationController
     # Look for an incomplete registration with this pseudonym
 
     sis_user_id = nil
+    params[:pseudonym] ||= {}
+
     if @context.grants_right?(@current_user, session, :manage_sis)
       sis_user_id = params[:pseudonym].delete(:sis_user_id)
     end
@@ -1186,7 +1219,9 @@ class UsersController < ApplicationController
 
     includes = %w{locale}
 
-    if cc_params = params[:communication_channel]
+    cc_params = params[:communication_channel]
+
+    if cc_params
       cc_type = cc_params[:type] || CommunicationChannel::TYPE_EMAIL
       cc_addr = cc_params[:address] || params[:pseudonym][:unique_id]
 
@@ -1220,10 +1255,14 @@ class UsersController < ApplicationController
       end
 
       @user.attributes = params[:user]
+      accepted_terms = params[:user].delete(:terms_of_use)
+      @user.accept_terms if value_to_boolean(accepted_terms)
+      includes << "terms_of_use" unless accepted_terms.nil?
     end
     @user.name ||= params[:pseudonym][:unique_id]
+    skip_registration = value_to_boolean(params[:user].try(:[], :skip_registration))
     unless @user.registered?
-      @user.workflow_state = if require_password || skip_confirmation
+      @user.workflow_state = if require_password || skip_registration || skip_confirmation
         # no email confirmation required (self_enrollment_code and password
         # validations will ensure everything is legit)
         'registered'
@@ -1242,9 +1281,7 @@ class UsersController < ApplicationController
 
     @invalid_observee_creds = nil
     if @user.initial_enrollment_type == 'observer'
-      # TODO: SAML/CAS support
-      if observee_pseudonym = Pseudonym.authenticate(params[:observee] || {},
-          [@domain_root_account.id] + @domain_root_account.trusted_account_ids)
+      if (observee_pseudonym = authenticate_observee)
         @observee = observee_pseudonym.user
       else
         @invalid_observee_creds = Pseudonym.new
@@ -1415,7 +1452,9 @@ class UsersController < ApplicationController
   # 'course_42'
   #
   # @argument hexcode [String]
-  #   The hexcode of the color to set for the context.
+  #   The hexcode of the color to set for the context, if you choose to pass the
+  #   hexcode as a query parameter rather than in the request body you should
+  #   NOT include the '#' unless you escape it first.
   #
   # @example_request
   #
@@ -1616,6 +1655,9 @@ class UsersController < ApplicationController
 
           session.delete(:require_terms)
           flash[:notice] = t('user_updated', 'User was successfully updated.')
+          unless params[:redirect_to_previous].blank?
+            return redirect_to :back
+          end
           format.html { redirect_to user_url(@user) }
           format.json {
             render :json => user_json(@user, @current_user, session, %w{locale avatar_url},
@@ -1812,28 +1854,11 @@ class UsersController < ApplicationController
     end
   end
 
-  def require_self_registration
-    get_context
-    @context = @domain_root_account || Account.default unless @context.is_a?(Account)
-    @context = @context.root_account
-    unless @context.grants_right?(@current_user, session, :manage_user_logins) ||
-        @context.self_registration_allowed_for?(params[:user] && params[:user][:initial_enrollment_type])
-      flash[:error] = t('no_self_registration', "Self registration has not been enabled for this account")
-      respond_to do |format|
-        format.html { redirect_to root_url }
-        format.json { render :json => {}, :status => 403 }
-      end
-      return false
-    end
-  end
-
   def all_menu_courses
     render :json => Rails.cache.fetch(['menu_courses', @current_user].cache_key) {
       map_courses_for_menu(@current_user.courses_with_primary_enrollment)
     }
   end
-
-  protected :require_self_registration
 
   def teacher_activity
     @teacher = User.find(params[:user_id])
@@ -1842,7 +1867,7 @@ class UsersController < ApplicationController
 
       if params[:student_id]
         student = User.find(params[:student_id])
-        enrollments = student.student_enrollments.active.includes(:course).with_each_shard
+        enrollments = student.student_enrollments.active.preload(:course).shard(student).to_a
         enrollments.each do |enrollment|
           should_include = enrollment.course.user_has_been_instructor?(@teacher) &&
                            enrollment.course.enrollments_visible_to(@teacher, :include_priors => true).where(id: enrollment).first &&
@@ -1961,7 +1986,7 @@ class UsersController < ApplicationController
       student[:last_interaction] = [student[:last_interaction], date].compact.max
     end
     scope = ConversationMessage.
-        joins('INNER JOIN conversation_participants ON conversation_participants.conversation_id=conversation_messages.conversation_id').
+        joins("INNER JOIN #{ConversationParticipant.quoted_table_name} ON conversation_participants.conversation_id=conversation_messages.conversation_id").
         where('conversation_messages.author_id = ? AND conversation_participants.user_id IN (?) AND NOT conversation_messages.generated', teacher, ids)
     # fake_arel can't pass an array in the group by through the scope
     last_message_dates = scope.group(['conversation_participants.user_id', 'conversation_messages.author_id']).maximum(:created_at)
@@ -1972,11 +1997,11 @@ class UsersController < ApplicationController
 
     # find all ungraded submissions in one query
     ungraded_submissions = course.submissions.
-        includes(:assignment).
+        preload(:assignment).
         where("user_id IN (?) AND #{Submission.needs_grading_conditions}", ids).
         except(:order).
-        order(:submitted_at).
-        all
+        order(:submitted_at).to_a
+
 
     ungraded_submissions.each do |submission|
       next unless student = data[submission.user_id]
@@ -1998,5 +2023,29 @@ class UsersController < ApplicationController
 
 
     Canvas::ICU.collate_by(data.values) { |e| e[:enrollment].user.sortable_name }
+  end
+
+  protected
+
+  def require_self_registration
+    get_context
+    @context = @domain_root_account || Account.default unless @context.is_a?(Account)
+    @context = @context.root_account
+    unless @context.grants_right?(@current_user, session, :manage_user_logins) ||
+        @context.self_registration_allowed_for?(params[:user] && params[:user][:initial_enrollment_type])
+      flash[:error] = t('no_self_registration', "Self registration has not been enabled for this account")
+      respond_to do |format|
+        format.html { redirect_to root_url }
+        format.json { render :json => {}, :status => 403 }
+      end
+      return false
+    end
+  end
+
+  private
+
+  def authenticate_observee
+    Pseudonym.authenticate(params[:observee] || {},
+                           [@domain_root_account.id] + @domain_root_account.trusted_account_ids)
   end
 end

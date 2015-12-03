@@ -1,10 +1,11 @@
 module Api::V1
   class CourseJson
 
-    BASE_ATTRIBUTES = %w(id name course_code account_id start_at default_view enrollment_term_id is_public)
+    BASE_ATTRIBUTES = %w(id name course_code account_id start_at default_view enrollment_term_id is_public
+                         grading_standard_id)
 
     INCLUDE_CHECKERS = { :grading => 'needs_grading_count', :syllabus => 'syllabus_body',
-                         :url => 'html_url', :description => 'public_description', :permissions => "permissions" }
+                         :url => 'html_url', :description => 'public_description', :permissions => "permissions", :state_by_date => "state_by_date" }
 
     OPTIONAL_FIELDS = %w(needs_grading_count public_description enrollments)
 
@@ -42,6 +43,7 @@ module Api::V1
       @hash['hide_final_grades'] = @course.hide_final_grades?
       @hash['workflow_state'] = @course.api_state
       @hash['course_format'] = @course.course_format if @course.course_format.present?
+      @hash['restrict_enrollments_to_course_dates'] = !!@course.restrict_enrollments_to_course_dates
       clear_unneeded_fields(@hash)
     end
 
@@ -71,7 +73,8 @@ module Api::V1
 
     def needs_grading_count(enrollments, course)
       if include_grading && enrollments && enrollments.any? { |e| e.participating_instructor? }
-        course.assignments.active.to_a.sum{|a| Assignments::NeedsGradingCountQuery.new(a, user).count }
+        proxy = Assignments::NeedsGradingCountQuery::CourseProxy.new(course, user)
+        course.assignments.active.to_a.sum{|a| Assignments::NeedsGradingCountQuery.new(a, user, proxy).count }
       end
     end
 
@@ -94,6 +97,23 @@ module Api::V1
               :computed_final_score => e.computed_final_score,
               :computed_current_grade => e.computed_current_grade,
               :computed_final_grade => e.computed_final_grade)
+          end
+          if include_state_by_date && e.student?
+            state_by_date = 'hidden'
+            state = e.state_based_on_date
+            if [:completed, :rejected].include?(state)
+              state_by_date = 'past' unless e.workflow_state == "invited" || e.restrict_past_view?
+            else
+              start_at, end_at = e.enrollment_dates.first
+              if start_at && start_at > Time.now.utc
+                state_by_date = 'future' unless e.restrict_future_view?
+              elsif state != :inactive
+                state_by_date = 'current'
+              end
+            end
+            h.merge!(
+              :state_by_date => state_by_date
+            )
           end
           h
         end

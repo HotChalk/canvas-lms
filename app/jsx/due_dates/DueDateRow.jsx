@@ -29,6 +29,7 @@ define([
       defaultSectionNamer: React.PropTypes.func.isRequired,
       replaceDate: React.PropTypes.func.isRequired,
       canDelete: React.PropTypes.bool.isRequired,
+      showDueDate: React.PropTypes.bool.isRequired,
       currentlySearching: React.PropTypes.bool.isRequired,
       allStudentsFetched: React.PropTypes.bool.isRequired,
     },
@@ -106,7 +107,7 @@ define([
 
     render() {
       return (
-        <div className="Container__DueDateRow-item" data-row-key={this.props.rowKey} >
+        <div className="Container__DueDateRow-item" role="region" aria-label={I18n.t("Due Date Set")} data-row-key={this.props.rowKey} >
           {this.removeLinkIfNeeded()}
           <DueDateTokenWrapper tokens              = {this.tokenizedOverrides()}
                                handleTokenAdd      = {this.props.handleTokenAdd}
@@ -121,6 +122,7 @@ define([
                             rowKey      = {this.props.rowKey}
                             overrides   = {this.props.overrides}
                             replaceDate = {this.props.replaceDate}
+                            showDueDate = {this.props.showDueDate}
                             sections    = {this.props.sections}/>
         </div>
       )

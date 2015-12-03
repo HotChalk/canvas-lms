@@ -146,7 +146,7 @@ class AssignmentGroup < ActiveRecord::Base
     self.assignments.map{|a| a.points_possible || 0}.sum
   end
 
-  scope :include_active_assignments, -> { includes(:active_assignments) }
+  scope :include_active_assignments, -> { preload(:active_assignments) }
   scope :active, -> { where("assignment_groups.workflow_state<>'deleted'") }
   scope :before, lambda { |date| where("assignment_groups.created_at<?", date) }
   scope :for_context_codes, lambda { |codes| active.where(:context_code => codes).order(:position) }
@@ -202,23 +202,19 @@ class AssignmentGroup < ActiveRecord::Base
   end
 
   def visible_assignments(user, includes=[])
-    AssignmentGroup.visible_assignments(user, self.context, [self], includes)
+    self.class.visible_assignments(user, self.context, [self], includes)
   end
 
   def self.visible_assignments(user, context, assignment_groups, includes = [])
-    if context.grants_any_right?(user, :manage_grades, :read_as_admin, :manage_assignments)
+    if user && user.account_admin?(context)
       scope = context.active_assignments.where(:assignment_group_id => assignment_groups)
     elsif user.nil?
       scope = context.active_assignments.published.where(:assignment_group_id => assignment_groups)
+    elsif context.user_is_instructor?(user)
+      scope = user.assignments_visible_in_course(context).where(:assignment_group_id => assignment_groups)
     else
-      scope = user.assignments_visibile_in_course(context).
+      scope = user.assignments_visible_in_course(context).
               where(:assignment_group_id => assignment_groups).published
-    end
-
-    # if necessary, filter out assignments that do not belong to the current user's sections
-    unless user.account_admin?(context)
-      visible_sections = context.respond_to?(:sections_visible_to) ? context.sections_visible_to(user).map(&:id) : []
-      scope = scope.visible_to_sections(visible_sections)
     end
 
     includes.any? ? scope.preload(includes) : scope

@@ -5,19 +5,21 @@ define [
   'compiled/calendar/commonEventFactory'
   'compiled/calendar/TimeBlockList'
   'jst/calendar/editCalendarEvent'
+  'compiled/util/coupleTimeFields'
   'jquery.instructure_date_and_time'
   'jquery.instructure_forms'
   'jquery.instructure_misc_helpers'
   'vendor/date'
   'jquery.ajaxJSON'
-], ($, _, tz, commonEventFactory, TimeBlockList, editCalendarEventTemplate) ->
+], ($, _, tz, commonEventFactory, TimeBlockList, editCalendarEventTemplate, coupleTimeFields) ->
 
   class EditCalendarEventDetails
     constructor: (selector, @event, @contextChangeCB, @closeCB) ->
       @currentContextInfo = null
+
       @$form = $(editCalendarEventTemplate({
         title: @event.title
-        contexts: @event.possibleContexts()
+        contexts: @filterExpiredContexts(@event.possibleContexts())
         lockedTitle: @event.lockedTitle
         location_name: @event.location_name
         isEditing: !!@event.id
@@ -29,11 +31,12 @@ define [
       @$form.submit @formSubmit
       @$form.find(".more_options_link").click @moreOptionsClick
       @$form.find("select.context_id").change @contextChange
+      @$form.find("#duplicate_event").change @duplicateCheckboxChanged
       @$form.find("select.context_id").triggerHandler('change', false)
 
-      # Hide the context selector completely if this is an existing event, since it can't be changed.
-      if !@event.isNewEvent()
-        @$form.find(".context_select").hide()
+      # Context can't be changed, and duplication only works on create
+      unless @event.isNewEvent()
+        @$form.find(".context_select, .duplicate_event_row, .duplicate_event_toggle_row").hide()
 
     contextInfoForCode: (code) ->
       for context in @event.possibleContexts()
@@ -46,7 +49,9 @@ define [
 
     getFormData: =>
       data = @$form.getFormData(object_name: 'calendar_event')
-      data = _.omit(data, 'date', 'start_time', 'end_time')
+      data = _.omit(data,
+        'date', 'start_time', 'end_time',
+        'duplicate', 'duplicate_count', 'duplicate_interval', 'duplicate_frequency', 'append_iterator')
 
       # check if input box was cleared for explicitly undated
       date = @$form.find('input[name=date]').data('date') if @$form.find('input[name=date]').val()
@@ -61,6 +66,14 @@ define [
         end_at += end_time.toString(' HH:mm') if end_time
         data.end_at = tz.parse(end_at)
 
+      if duplicate = @$form.find('#duplicate_event').prop('checked')
+        data.duplicate = {
+          count: @$form.find('#duplicate_count').val()
+          interval: @$form.find('#duplicate_interval').val()
+          frequency: @$form.find('#duplicate_frequency').val()
+          append_iterator: @$form.find('#append_iterator').is(":checked")
+        }
+
       data
 
     moreOptionsClick: (jsEvent) =>
@@ -70,7 +83,10 @@ define [
       params = return_to: window.location.href
 
       data = @getFormData()
-
+      if !data.context_code
+        @$form.find('#calendar_event_context').addClass('error-field')
+        @$form.find('#no_calendar_message').show()
+        return
       # override parsed input with user input (for 'More Options' only)
       data.start_date = @$form.find('input[name=date]').val()
       data.start_time = @$form.find('input[name=start_time]').val()
@@ -81,6 +97,7 @@ define [
       if data.start_date then params['start_date'] = data.start_date
       if data.start_time then params['start_time'] = data.start_time
       if data.end_time then params['end_time'] = data.end_time
+      if data.duplicate then params['duplicate'] = data.duplicate
 
       pieces = $(jsEvent.target).attr('href').split("#")
       pieces[0] += "?" + $.param(params)
@@ -89,10 +106,23 @@ define [
     setContext: (newContext) =>
       @$form.find("select.context_id").val(newContext).triggerHandler('change', false)
 
+    filterExpiredContexts: (contexts) =>
+      filtered = []
+      for c in contexts
+        if  c.type == 'course' 
+          if c.conclude_at == null || new Date(c.conclude_at) > Date.now()
+            filtered.push(c)
+        else
+          filtered.push(c)
+      filtered
+
+
     contextChange: (jsEvent, propagate) =>
       context = $(jsEvent.target).val()
       @currentContextInfo = @contextInfoForCode(context)
-
+      @$form.find('#calendar_event_context').removeClass('error-field')
+      @$form.find('#no_calendar_message').hide()
+      
       # section selection code
       context_section = $('.course_section')
       holder = $('.course_section_holder')
@@ -100,23 +130,22 @@ define [
 
       if context.lastIndexOf('course', 0) == 0
         submit_button.attr 'disabled', 'disabled'
-        $.ajaxJSON '/api/v1/courses/:course_id/user_sections'.replace(':course_id', @currentContextInfo.id), 'GET', {}, (course_sections) ->
-          if course_sections.length > 1
-            section_input = $('<select id="course_section" name="calendar_event[course_section_id]" class="course_section"></select>')
-            for section in course_sections
-              $('<option />',
-                value: section.id
-                text: section.name).appendTo section_input
-            context_section.show()
-          else if course_sections.length == 1
-            section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value="' + course_sections[0].id + '"/>')
-            context_section.hide()
-          else
-            section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
-            context_section.hide()
-          holder.html section_input
-          submit_button.removeAttr 'disabled'
-          return
+        course_sections = @currentContextInfo.course_sections || []
+        if course_sections.length > 1
+          section_input = $('<select id="course_section" name="calendar_event[course_section_id]" class="course_section"></select>')
+          for section in course_sections
+            option = $('<option />', value: section.id, text: section.name)
+            option.attr('selected', 'selected') if @event.calendarEvent && (section.id == @event.calendarEvent.course_section_id)
+            option.appendTo section_input
+          context_section.show()
+        else if course_sections.length == 1
+          section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value="' + course_sections[0].id + '"/>')
+          context_section.hide()
+        else
+          section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
+          context_section.hide()
+        holder.html section_input
+        submit_button.removeAttr 'disabled'
       else
         section_input = $('<input id="course_section" name="calendar_event[course_section_id]" type="hidden" value=""/>')
         context_section.hide()
@@ -136,46 +165,36 @@ define [
         moreOptionsHref = @event.fullDetailsURL() + '/edit'
       @$form.find(".more_options_link").attr 'href', moreOptionsHref
 
+    duplicateCheckboxChanged: (jsEvent, propagate) =>
+      @enableDuplicateFields(jsEvent.target.checked)
+
+    enableDuplicateFields: (shouldEnable) =>
+      elts = @$form.find(".duplicate_fields").find('input')
+      disableValue = !shouldEnable
+      elts.prop("disabled", disableValue)
+      @$form.find('.duplicate_event_row').toggle(!disableValue)
+
     setupTimeAndDatePickers: () =>
-      @$form.find(".date_field").date_field()
-      # TODO: Refactor this logic that forms a relationship between two time fields into a module
-      @$form.find(".time_field").time_field().
-        blur (jsEvent) =>
-          start_time = @$form.find(".time_field.start_time").next(".datetime_suggest").text()
-          if @$form.find(".time_field.start_time").next(".datetime_suggest").hasClass('invalid_datetime')
-            start_time = null
-          start_time ?= @$form.find(".time_field.start_time").val()
-          end_time = @$form.find(".time_field.end_time").next(".datetime_suggest").text()
-          if @$form.find(".time_field.end_time").next(".datetime_suggest").hasClass('invalid_datetime')
-            end_time = null
-          end_time ?= @$form.find(".time_field.end_time").val()
+      # select the appropriate fields
+      $date = @$form.find(".date_field")
+      $start = @$form.find(".time_field.start_time")
+      $end = @$form.find(".time_field.end_time")
 
-          startDate = Date.parse(start_time)
-          endDate = Date.parse(end_time)
+      # set them up as appropriate variants of datetime_field
+      $date.date_field()
+      $start.time_field()
+      $end.time_field()
 
-          startDate = startDate || endDate
-          endDate = endDate || startDate
+      # fill initial values of each field according to @event
+      start = $.unfudgeDateForProfileTimezone(@event.startDate())
+      end = $.unfudgeDateForProfileTimezone(@event.endDate())
 
-          if $(jsEvent.target).hasClass('end_time')
-            if startDate > endDate then startDate = endDate
-          else
-            if endDate < startDate then endDate = startDate
-          if startDate
-            @$form.find(".time_field.start_time").val(startDate.toString('h:mmtt').toLowerCase())
-          if endDate
-            @$form.find(".time_field.end_time").val(endDate.toString('h:mmtt').toLowerCase())
+      $date.data('instance').setDate(start)
+      $start.data('instance').setTime(if @event.allDay then null else start)
+      $end.data('instance').setTime(if @event.allDay then null else end)
 
-      startDate = @event.startDate()
-      endDate = @event.endDate()
-
-      if !@event.allDay
-        if startDate
-          @$form.find(".time_field.start_time").val(startDate.toString('h:mmtt')).change().blur()
-        if endDate
-          @$form.find(".time_field.end_time").val(endDate.toString('h:mmtt')).change().blur()
-
-      if startDate
-        @$form.find(".date_field").val(startDate.toString('MMM d, yyyy')).change()
+      # couple start and end times so that end time will never precede start
+      coupleTimeFields($start, $end)
 
     formSubmit: (jsEvent) =>
       jsEvent.preventDefault()
@@ -193,6 +212,8 @@ define [
         'calendar_event[end_at]': if data.end_at then data.end_at.toISOString() else ''
         'calendar_event[location_name]': location_name
       }
+
+      params['calendar_event[duplicate]'] = data.duplicate if data.duplicate?
 
       if @event.isNewEvent()
         params['calendar_event[context_code]'] = data.context_code

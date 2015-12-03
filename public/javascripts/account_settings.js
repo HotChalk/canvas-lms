@@ -45,7 +45,7 @@ define([
     $("#add_notification_form .datetime_field").bind('blur change', function() {
       var date = Date.parse($(this).val());
       if(date) {
-        date = date.toString($.datetime.defaultFormat);
+        date = $.datetimeString(date);
       }
       $(this).val(date);
     });
@@ -216,14 +216,27 @@ define([
     $(".open_report_description_link").click(function(event) {
       event.preventDefault();
       var title = $(this).parents(".title").find("span.title").text();
-      $(this).parent(".reports").find(".report_description").dialog({
+      $(this).parent(".reports").find(".report_description").clone().dialog({
         title: title,
-        width: 800
+        width: 800,
+        close: function(event, ui) {
+          $(this).remove();
+        }
       });
     });
 
     $(".run_report_link").click(function(event) {
       event.preventDefault();
+      $start_at = $(this).parent("form").find("[name='parameters[start_at]']")
+      $end_at = $(this).parent("form").find("[name='parameters[end_at]']")
+      if($start_at.length === 1 && $end_at.length === 1){
+        var start_date = new Date($start_at.val()).getTime();
+        var end_date = new Date($end_at.val()).getTime();
+        if(  !isNaN(start_date) && !isNaN(end_date) && start_date > end_date ){
+          alert('Please select an end date after the start date.');
+          return;
+        }
+      }
       $(this).parent("form").submit();
     });
 
@@ -311,11 +324,9 @@ define([
       $("#show_resources_link_input").toggle(!!$("#account_settings_enable_resources_link").attr('checked'));
     }).trigger('change');
 
-
-    $('.branding_section_toggler').on('change', function(){
-      $(this).prevAll('.branding_section').last().toggle(!this.checked)
-    })
-
+    $('#account_settings_global_includes').change(function() {
+      $('#new_styles_sub_account_includes').toggle(this.checked);
+    }).trigger('change');
   });
 
 });

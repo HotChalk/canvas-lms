@@ -21,6 +21,7 @@ define([
       overrides: React.PropTypes.array.isRequired,
       syncWithBackbone: React.PropTypes.func.isRequired,
       sections: React.PropTypes.array.isRequired,
+      showDueDate: React.PropTypes.bool.isRequired,
       defaultSectionId: React.PropTypes.string.isRequired
     },
 
@@ -34,6 +35,7 @@ define([
         sections: {},
         rows: {},
         addedRowCount: 0,
+        showDueDate: true,
         defaultSectionId: null,
         currentlySearching: false,
         allStudentsFetched: false
@@ -289,6 +291,7 @@ define([
                            students             = {this.state.students}
                            sections             = {this.state.sections}
                            canDelete            = {this.canRemoveRow()}
+                           showDueDate          = {this.props.showDueDate}
                            validDropdownOptions = {this.validDropdownOptions()}
                            handleDelete         = {this.removeRow.bind(this, rowKey)}
                            handleTokenAdd       = {this.handleTokenAdd.bind(this, rowKey)}

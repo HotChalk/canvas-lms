@@ -60,10 +60,7 @@ module Canvas
       def paths(cache_busting = false)
         @paths ||= {
           :common => 'compiled/bundles/common',
-          :jqueryui => 'vendor/jqueryui',
-          :uploadify => '../flash/uploadify/jquery.uploadify-3.2',
-          'swfobject' => 'vendor/swfobject/swfobject',
-          'swfupload' => 'vendor/swfupload/swfupload'
+          :jqueryui => 'vendor/jqueryui'
         }.update(cache_busting ? cache_busting_paths : {}).
           update(plugin_paths).
           update(Canvas::RequireJs::PluginExtension.paths).
@@ -115,10 +112,16 @@ module Canvas
               deps: ['react'],
               exports: 'ReactRouter'
             },
+            'bower/react-tray/dist/react-tray': {
+              deps: ['react']
+            },
             'bower/react-modal/dist/react-modal': {
               deps: ['react']
             },
             'bower/react-tokeninput/dist/react-tokeninput': {
+              deps: ['react'],
+            },
+            'bower/react-select-box/dist/react-select-box': {
               deps: ['react'],
             },
             'bower/ember/ember': {
@@ -132,13 +135,17 @@ module Canvas
             'bower/handlebars/handlebars.runtime': {
               exports: 'Handlebars'
             },
+            'bower/reflux/dist/reflux.js': {
+              deps: ['react'],
+              exports: 'Reflux'
+            },
             'vendor/FileAPI/FileAPI.min': {
               deps: ['jquery', 'vendor/FileAPI/config'],
               exports: 'FileAPI'
             },
-            'uploadify': {
-              deps: ['jquery', 'swfupload'],
-              exports: '$'
+            'fixed-data-table': {
+              deps: ['object_assign', 'react'],
+              exports: 'fixed-data-table'
             },
             'vendor/bootstrap-select/bootstrap-select' : {
               deps: ['jquery'],
@@ -165,6 +172,9 @@ module Canvas
             },
             'bower/tinymce/tinymce' : {
               exports: 'tinymce'
+            },
+            'bower/axios/dist/axios' : {
+              exports: 'axios'
             },
             'bower/tinymce/themes/modern/theme' : {
               deps: ['bower/tinymce/tinymce'],

@@ -144,7 +144,7 @@ class GroupsController < ApplicationController
 
   SETTABLE_GROUP_ATTRIBUTES = %w(
     name description join_level is_public group_category avatar_attachment course_section
-    storage_quota_mb max_membership leader
+    storage_quota_mb max_membership leader default_view
   ).freeze
 
   include TextHelper
@@ -198,24 +198,30 @@ class GroupsController < ApplicationController
   # @returns [Group]
   def index
     return context_index if @context
-    groups_scope = @current_user.current_groups    
+    includes = {:include => params[:include]}
+    groups_scope = @current_user.current_groups
     respond_to do |format|
       format.html do
-        @groups = groups_scope.with_each_shard{ |scope|
-          scope = scope.by_name
-          scope = scope.where(:context_type => params[:context_type]) if params[:context_type]
-          scope.includes(:group_category)
-        }
+        groups_scope = groups_scope.by_name
+        groups_scope = groups_scope.where(:context_type => params[:context_type]) if params[:context_type]
+        groups_scope = groups_scope.preload(:group_category)
+
+        groups = groups_scope.shard(@current_user).to_a
+
+        # Split the groups out into those in concluded courses and those not in concluded courses
+        @current_groups, @previous_groups = groups.partition do |group|
+          group.context_type != 'Course' || !group.context.concluded?
+        end
       end
 
       format.json do
         @groups = ShardedBookmarkedCollection.build(Group::Bookmarker, groups_scope) do |scope|
           scope = scope.scoped
           scope = scope.where(:context_type => params[:context_type]) if params[:context_type]
-          scope.includes(:group_category)
+          scope.preload(:group_category)
         end
         @groups = Api.paginate(@groups, self, api_v1_current_user_groups_url)
-        render :json => (@groups.map { |g| group_json(g, @current_user, session) })
+        render :json => (@groups.map { |g| group_json(g, @current_user, session,includes) })
       end
     end
   end
@@ -245,7 +251,7 @@ class GroupsController < ApplicationController
 
     @groups   = all_groups = @context.groups.active.where(course_section_id: @sections)
                                   .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
-                                  .includes(:group_category)
+                                  .eager_load(:group_category)
 
     unless api_request?
       if @context.is_a?(Account)
@@ -273,7 +279,7 @@ class GroupsController < ApplicationController
           if @domain_root_account.enable_manage_groups2?
             categories_json = @categories.map{ |cat| get_section_filtered_group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
             sections_json = course_sections_json(@sections)
-            uncategorized = @context.groups.uncategorized.all
+            uncategorized = @context.groups.uncategorized.to_a
             if uncategorized.present?
               json = group_category_json(GroupCategory.uncategorized, @current_user, session)
               json["groups"] = uncategorized.map{ |group| group_json(group, @current_user, session) }
@@ -382,7 +388,29 @@ class GroupsController < ApplicationController
         end
         if authorized_action(@group, @current_user, :read)
           set_badge_counts_for(@group, @current_user)
-          @home_page = @group.wiki.front_page
+          @group_home_view = (params[:view] == "feed" && 'feed') || @group.default_view || 'feed'
+
+          # make sure the wiki front page exists
+          if @group_home_view == 'wiki'
+            @group_home_view = 'feed' if @group.wiki.front_page.nil?
+          end
+
+          if  @group_home_view == 'wiki'
+            @wiki = @group.wiki
+            @page = @wiki.front_page
+            set_js_rights [:wiki, :page]
+            set_js_wiki_data :course_home => true
+            @padless = true
+          elsif @group_home_view == 'announcements'
+            add_crumb(t(:announcements_crumb, "Announcements"))
+            can_create = @group.announcements.scoped.new.grants_right?(@current_user, session, :create)
+            js_env :permissions => {
+              :create => can_create,
+              :moderate => can_create
+            }
+            js_env :is_showing_announcements => true
+            js_env :no_external_feeds => true
+          end
         end
       end
       format.json do
@@ -455,17 +483,22 @@ class GroupsController < ApplicationController
         course_section = CourseSection.active.find(params[:course_section_id])
         return render :json => {}, :status => bad_request unless course_section
         params[:course_section] = course_section
-    end
+    end    
 
     attrs = api_request? ? params : params[:group]
     attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
     @group = @context.groups.scoped.new(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
-
+    unless params[:course_section_id]
+      user_sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
+      params[:course_section_id] = user_sections.first.id
+      @group.course_section_id = params[:course_section_id]
+    end
+    
     if authorized_action(@group, @current_user, :create)
       respond_to do |format|
-        if @group.save
+        if @group.save          
           @group.add_user(@current_user, 'accepted', true) if @group.should_add_creator?(@current_user)
-          @group.invitees = params[:invitees]
+          @group.invitees = params[:invitees]          
           flash[:notice] = t('notices.create_success', 'Group was successfully created.')
           format.html { redirect_to group_url(@group) }
           format.json { render :json => group_json(@group, @current_user, session, {include: ['users', 'group_category', 'permissions']}) }
@@ -564,6 +597,26 @@ class GroupsController < ApplicationController
           format.html { render :edit }
           format.json { render :json => @group.errors, :status => :bad_request }
         end
+      end
+    end
+  end
+
+  def settings
+    find_group
+    if authorized_action(@group, @current_user, :update)
+      add_crumb(t('#crumbs.settings', "Settings"), named_context_url(@context, :context_settings_url))
+    end
+  end
+
+  def update_nav
+    find_group
+    if authorized_action(@group, @current_user, :update)
+      @group.tab_configuration = JSON.parse(params[:tabs_json])
+      @group.dynamic_tab_configuration = JSON.parse(params[:dynamic_tabs_json])
+      @group.save
+      respond_to do |format|
+        format.html { redirect_to named_context_url(@context, :context_settings_url) }
+        format.json { render :json => {:update_nav => true} }
       end
     end
   end

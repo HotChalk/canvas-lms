@@ -21,14 +21,15 @@ class AssignmentOverrideStudent < ActiveRecord::Base
   belongs_to :assignment_override
   belongs_to :user
   belongs_to :quiz, class_name: 'Quizzes::Quiz'
+  belongs_to :discussion_topic
 
   attr_accessible :user
-  EXPORTABLE_ATTRIBUTES = [:id, :created_at, :updated_at, :assignment_id, :assignment_override_id, :user_id, :quiz_id]
+  EXPORTABLE_ATTRIBUTES = [:id, :created_at, :updated_at, :assignment_id, :assignment_override_id, :user_id, :quiz_id, :discussion_topic_id]
 
-  EXPORTABLE_ASSOCIATIONS = [:assignment, :assignment_override, :user, :quiz]
+  EXPORTABLE_ASSOCIATIONS = [:assignment, :assignment_override, :user, :quiz, :discussion_topic]
 
   validates_presence_of :assignment_override, :user
-  validates_uniqueness_of :user_id, :scope => [:assignment_id, :quiz_id]
+  validates_uniqueness_of :user_id, :scope => [:assignment_id, :quiz_id, :discussion_topic_id]
 
   validate :assignment_override do |record|
     if record.assignment_override && record.assignment_override.set_type != 'ADHOC'
@@ -49,8 +50,8 @@ class AssignmentOverrideStudent < ActiveRecord::Base
   end
 
   validate do |record|
-    if [record.assignment, record.quiz].all?(&:nil?)
-      record.errors.add :base, "requires assignment or quiz"
+    if [record.assignment, record.quiz, record.discussion_topic].all?(&:nil?)
+      record.errors.add :base, "requires assignment, quiz or discussion topic"
     end
   end
 
@@ -61,6 +62,9 @@ class AssignmentOverrideStudent < ActiveRecord::Base
     elsif assignment
       assignment.reload if assignment.id != assignment_id
       assignment.context_id
+    elsif discussion_topic
+      discussion_topic.reload if discussion_topic.id != discussion_topic_id
+      discussion_topic.context_id
     end
   end
 
@@ -69,6 +73,7 @@ class AssignmentOverrideStudent < ActiveRecord::Base
     if assignment_override
       self.assignment_id = assignment_override.assignment_id
       self.quiz_id = assignment_override.quiz_id
+      self.discussion_topic_id = assignment_override.discussion_topic_id
     end
   end
   protected :default_values

@@ -27,30 +27,22 @@ class CourseSection < ActiveRecord::Base
     :end_at, :created_at, :updated_at, :workflow_state, :restrict_enrollments_to_section_dates, :nonxlist_course_id
   ]
 
-  EXPORTABLE_ASSOCIATIONS = [:course, :nonxlist_course, :root_account, :enrollments, :users, :calendar_events, :assignment_overrides, :announcements, :discussion_topics]
+  EXPORTABLE_ASSOCIATIONS = [:course, :nonxlist_course, :root_account, :enrollments, :users, :calendar_events, :assignment_overrides]
 
   belongs_to :course
   belongs_to :nonxlist_course, :class_name => 'Course'
   belongs_to :root_account, :class_name => 'Account'
-  belongs_to :course_section
-  has_many :enrollments, :include => :user, :conditions => ['enrollments.workflow_state != ?', 'deleted'], :dependent => :destroy
+  has_many :enrollments, preload: :user, conditions: ['enrollments.workflow_state != ?', 'deleted'], dependent: :destroy
   has_many :all_enrollments, :class_name => 'Enrollment'
   has_many :students, :through => :student_enrollments, :source => :user
-  has_many :student_enrollments, :class_name => 'StudentEnrollment', :conditions => ['enrollments.workflow_state != ? AND enrollments.workflow_state != ? AND enrollments.workflow_state != ? AND enrollments.workflow_state != ?', 'deleted', 'completed', 'rejected', 'inactive'], :include => :user
-  has_many :all_student_enrollments, :class_name => 'StudentEnrollment', :conditions => ['enrollments.workflow_state != ?', 'deleted'], :include => :user
+  has_many :student_enrollments, class_name: 'StudentEnrollment', conditions: ['enrollments.workflow_state != ? AND enrollments.workflow_state != ? AND enrollments.workflow_state != ? AND enrollments.workflow_state != ?', 'deleted', 'completed', 'rejected', 'inactive'], preload: :user
+  has_many :all_student_enrollments, class_name: 'StudentEnrollment', conditions: ['enrollments.workflow_state != ?', 'deleted'], preload: :user
   has_many :instructor_enrollments, :class_name => 'Enrollment', :conditions => "(enrollments.type = 'TaEnrollment' or enrollments.type = 'TeacherEnrollment')"
-  has_many :admins, :through => :admin_enrollments, :source => :user
   has_many :admin_enrollments, :class_name => 'Enrollment', :conditions => "(enrollments.type = 'TaEnrollment' or enrollments.type = 'TeacherEnrollment' or enrollments.type = 'DesignerEnrollment')"
-  has_many :observers, :through => :observer_enrollments, :source => :user
-  has_many :observer_enrollments, :class_name => 'ObserverEnrollment', :conditions => ['enrollments.workflow_state != ?', 'deleted'], :include => :user
   has_many :users, :through => :enrollments
   has_many :course_account_associations
   has_many :calendar_events, :as => :context
   has_many :assignment_overrides, :as => :set, :dependent => :destroy
-  has_many :announcements, :class_name => 'Announcement', :dependent => :destroy
-  has_many :active_announcements, :class_name => 'Announcement', :conditions => ['discussion_topics.workflow_state != ?', 'deleted'], :dependent => :destroy, :order => 'discussion_topics.position DESC, discussion_topics.created_at DESC'
-  has_many :discussion_topics, :conditions => ['discussion_topics.workflow_state != ?', 'deleted'], :include => :user, :dependent => :destroy, :order => 'discussion_topics.position DESC, discussion_topics.created_at DESC'
-  has_many :active_discussion_topics, :class_name => 'DiscussionTopic', :conditions => ['discussion_topics.workflow_state != ?', 'deleted'], :dependent => :destroy, :order => 'discussion_topics.position DESC, discussion_topics.created_at DESC'
 
   before_validation :infer_defaults, :verify_unique_sis_source_id
   validates_presence_of :course_id, :root_account_id, :workflow_state
@@ -61,12 +53,23 @@ class CourseSection < ActiveRecord::Base
 
   before_save :maybe_touch_all_enrollments
   after_save :update_account_associations_if_changed
+  after_save :delete_enrollments_later_if_deleted
 
   include StickySisFields
   are_sis_sticky :course_id, :name, :start_at, :end_at, :restrict_enrollments_to_section_dates
 
   def maybe_touch_all_enrollments
     self.touch_all_enrollments if self.start_at_changed? || self.end_at_changed? || self.restrict_enrollments_to_section_dates_changed? || self.course_id_changed?
+  end
+
+  def delete_enrollments_later_if_deleted
+    send_later_if_production(:delete_enrollments_if_deleted) if workflow_state == 'deleted' && workflow_state_changed?
+  end
+
+  def delete_enrollments_if_deleted
+    if workflow_state == 'deleted'
+      self.enrollments.active.find_each(&:destroy)
+    end
   end
 
   def participating_students
@@ -97,12 +100,8 @@ class CourseSection < ActiveRecord::Base
   def touch_all_enrollments
     return if new_record?
     self.enrollments.update_all(:updated_at => Time.now.utc)
-    case User.connection.adapter_name
-    when 'MySQL', 'Mysql2'
-      User.connection.execute("UPDATE users, enrollments SET users.updated_at=NOW() WHERE users.id=enrollments.user_id AND enrollments.course_section_id=#{self.id}")
-    else
-      User.where("id IN (SELECT user_id FROM enrollments WHERE course_section_id=?)", self).update_all(:updated_at => Time.now.utc)
-    end
+    User.where("id IN (SELECT user_id FROM enrollments WHERE course_section_id=?)", self).
+        update_all(updated_at: Time.now.utc)
   end
 
   set_policy do

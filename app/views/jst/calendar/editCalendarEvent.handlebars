@@ -19,7 +19,7 @@
               {{#t}}Event Date:{{/t}}
               {{datepickerScreenreaderPrompt 'date'}}
             </label>
-            <input id="calendar_event_date" type="text" 
+            <input id="calendar_event_date" type="text"
               name="date" style="width: 100px;" class="date_field"
               aria-labelledby='calendar_event_date_accessible_label'
               data-tooltip title="{{accessibleDateFormat 'date'}}"/>
@@ -74,6 +74,7 @@
               {{/if}}
             {{/each}}
           </select>
+          <p id="no_calendar_message" class="error-message" style="display: none;">Please select a calendar first</p>
         </td>
       </tr>
       <tr class="course_section" style="display: none;">

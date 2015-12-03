@@ -191,7 +191,7 @@ describe PseudonymsController do
       @p2 = @user.pseudonyms.build(:unique_id => "another_one@test.com",:password => 'password', :password_confirmation => 'password')
       @p2.sis_user_id = 'another_one@test.com'
       @p2.save!
-      @p2.account.account_authorization_configs.create!(:auth_type => 'ldap')
+      @p2.account.authentication_providers.create!(:auth_type => 'ldap')
       delete 'destroy', :user_id => @user.id, :id => @p2.id
       assert_status(200)
       expect(@pseudonym).to be_active
@@ -399,17 +399,33 @@ describe PseudonymsController do
       expect(bob.pseudonym.reload.unique_id).to eq 'old_username'
     end
 
-    it "should succeed with partial update" do
+    it "should fail partial update when permission isn't given to make username change" do
       bob = user_with_pseudonym(username: 'old_username', password: 'old_password')
       user_session(bob)
       put 'update',
-        id: bob.pseudonym.id,
-        user_id: bob.id,
-        pseudonym: {
-          password: 'new_password',
-          password_confirmation: 'new_password',
-          unique_id: 'new_username'
-        }
+          id: bob.pseudonym.id,
+          user_id: bob.id,
+          pseudonym: {
+              password: 'new_password',
+              password_confirmation: 'new_password',
+              unique_id: 'new_username'
+          }
+      expect(response).not_to be_success
+      bob.pseudonym.reload
+      expect(bob.pseudonym.unique_id).to eq 'old_username'
+      expect(bob.pseudonym).to be_valid_password('old_password')
+    end
+
+    it "should allow password change for current user" do
+      bob = user_with_pseudonym(username: 'old_username', password: 'old_password')
+      user_session(bob)
+      put 'update',
+          id: bob.pseudonym.id,
+          user_id: bob.id,
+          pseudonym: {
+              password: 'new_password',
+              password_confirmation: 'new_password',
+          }
       expect(response).to be_redirect
       bob.pseudonym.reload
       expect(bob.pseudonym.unique_id).to eq 'old_username'

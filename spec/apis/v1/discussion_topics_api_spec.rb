@@ -68,6 +68,7 @@ describe Api::V1::DiscussionTopics do
     expect(data[:permissions][:attach]).to eq false # students can't attach by default
 
     @topic.context.update_attribute(:allow_student_forum_attachments, true)
+    AdheresToPolicy::Cache.clear
     data = @test_api.discussion_topic_api_json(@topic, @topic.context, @student, nil)
     expect(data[:permissions][:attach]).to eq true
   end
@@ -304,6 +305,7 @@ describe DiscussionTopicsController, type: :request do
                                    'hidden_for_user' => false,
                                    'created_at' => @attachment.created_at.as_json,
                                    'updated_at' => @attachment.updated_at.as_json,
+                                   'modified_at' => @attachment.updated_at.as_json,
                                    'thumbnail_url' => @attachment.thumbnail_url,
                   }],
                   "topic_children"=>[@sub.id],
@@ -1131,6 +1133,7 @@ describe DiscussionTopicsController, type: :request do
                 'created_at' => attachment.created_at.as_json,
                 'updated_at' => attachment.updated_at.as_json,
                 'thumbnail_url' => attachment.thumbnail_url,
+                'modified_at' => attachment.updated_at.as_json
               }],
       "posted_at"=>gtopic.posted_at.as_json,
       "root_topic_id"=>nil,
@@ -2198,6 +2201,7 @@ describe DiscussionTopicsController, type: :request do
           'created_at' => @attachment.created_at.as_json,
           'updated_at' => @attachment.updated_at.as_json,
           'thumbnail_url' => @attachment.thumbnail_url,
+          'modified_at' => @attachment.updated_at.as_json
         }
 
         v0 = json['view'][0]

@@ -29,7 +29,7 @@ class UserObserveesController < ApplicationController
   #
   # List the users that the given user is observing.
   #
-  # *Note:* all users are allowed to list their own observees. Administrators can list 
+  # *Note:* all users are allowed to list their own observees. Administrators can list
   # other users' observees.
   #
   # @example_request
@@ -39,7 +39,7 @@ class UserObserveesController < ApplicationController
   #
   # @returns [User]
   def index
-    observed_users = user.observed_users.order_by_sortable_name
+    observed_users = user.observed_users.active.order_by_sortable_name
     observed_users = Api.paginate(observed_users, self, api_v1_user_observees_url)
     render json: users_json(observed_users, @current_user, session)
   end
@@ -67,15 +67,34 @@ class UserObserveesController < ApplicationController
   #
   # @returns User
   def create
-    observee_pseudonym = Pseudonym.authenticate(params[:observee] || {}, [@domain_root_account.id] + @domain_root_account.trusted_account_ids)
-
-    observee_user = observee_pseudonym.user if observee_pseudonym && common_accounts_for(user, observee_pseudonym.user).present?
-    if observee_user
-      add_observee(observee_user)
-      render json: user_json(observee_user, @current_user, session)
-    else
-      render json: {errors: [{'message' => 'Invalid credentials provided.'}]}, status: :unauthorized
+    # verify target observee exists and is in an account with the observer
+    observee_pseudonym = @domain_root_account.pseudonyms.active.by_unique_id(params[:observee][:unique_id]).first
+    if observee_pseudonym.nil? || common_accounts_for(user, observee_pseudonym.user).empty?
+      render json: {errors: [{'message' => 'Unknown observee.'}]}, status: 422
+      return
     end
+
+    # if using external auth, save off form information then send to external
+    # login form. remainder of adding observee happens in response to that flow
+    if @domain_root_account.parent_registration?
+      session[:parent_registration] = {}
+      session[:parent_registration][:user_id] = @current_user.id
+      session[:parent_registration][:observee] = params[:observee]
+      session[:parent_registration][:observee_only] = true
+      render(json: {redirect: saml_observee_path})
+      return
+    end
+
+    # verify provided password
+    unless Pseudonym.authenticate(params[:observee] || {}, [@domain_root_account.id] + @domain_root_account.trusted_account_ids)
+      render json: {errors: [{'message' => 'Invalid credentials provided.'}]}, status: :unauthorized
+      return
+    end
+
+    # add observer
+    observee_user = observee_pseudonym.user
+    add_observee(observee_user)
+    render json: user_json(observee_user, @current_user, session)
   end
 
   # @API Show an observee
@@ -133,24 +152,31 @@ class UserObserveesController < ApplicationController
   private
 
   def user
-    @user ||= params[:user_id].nil? ? @current_user : api_find(User, params[:user_id])
+    @user ||= params[:user_id].nil? ? @current_user : api_find(User.active, params[:user_id])
   end
 
   def observee
-    @observee ||= api_find(User, params[:observee_id])
+    @observee ||= api_find(User.active, params[:observee_id])
   end
 
   def add_observee(observee)
-    unless has_observee?(observee)
-      user.user_observees.create! do |uo|
-        uo.user_id = observee.id
+    UserObserver.unique_constraint_retry do
+      unless has_observee?(observee)
+        user.user_observees.create! do |uo|
+          uo.user_id = observee.id
+        end
+        user.touch
       end
-      user.touch
     end
   end
 
   def remove_observee(observee)
+    user.observer_enrollments.shard(user).where(:associated_user_id => observee).each do |enrollment|
+      enrollment.workflow_state = 'deleted'
+      enrollment.save
+    end
     user.user_observees.where(user_id: observee).destroy_all
+    user.update_account_associations
     user.touch
   end
 

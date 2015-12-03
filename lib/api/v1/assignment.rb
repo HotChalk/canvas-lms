@@ -43,7 +43,7 @@ module Api::V1::Assignment
       grade_group_students_individually
       group_category_id
       grading_standard_id
-      course_section_id
+      moderated_grading
     )
   }.freeze
 
@@ -53,7 +53,6 @@ module Api::V1::Assignment
       due_at
       assignment_group_id
       post_to_sis
-      course_section_id
     )
   }.freeze
 
@@ -72,7 +71,6 @@ module Api::V1::Assignment
 
     if opts[:override_dates] && !assignment.new_record?
       assignment = assignment.overridden_for(user)
-
     end
 
     fields = assignment.new_record? ? API_ASSIGNMENT_NEW_RECORD_FIELDS : API_ALLOWED_ASSIGNMENT_OUTPUT_FIELDS
@@ -120,10 +118,14 @@ module Api::V1::Assignment
                                              opts[:preloaded_user_content_attachments] || {})
     end
 
+    can_manage = assignment.context.grants_right?(user, :manage_assignments)
+
     hash['muted'] = assignment.muted?
     hash['unpublished_module'] = assignment.unpublished_module
     hash['html_url'] = course_assignment_url(assignment.context_id, assignment)
-    hash['has_overrides'] = assignment.has_overrides?
+    if can_manage
+      hash['has_overrides'] = assignment.has_overrides?
+    end
 
     if assignment.external_tool? && assignment.external_tool_tag.present?
       external_tool_tag = assignment.external_tool_tag
@@ -142,8 +144,8 @@ module Api::V1::Assignment
       hash['peer_reviews_assign_at'] = assignment.peer_reviews_assign_at
     end
 
-    if assignment.grants_right?(user, :grade)
-      query = Assignments::NeedsGradingCountQuery.new(assignment, user)
+    if assignment.context.grants_right?(user, :manage_grades)
+      query = Assignments::NeedsGradingCountQuery.new(assignment, user, opts[:needs_grading_course_proxy])
       if opts[:needs_grading_count_by_section]
         hash['needs_grading_count_by_section'] = query.count_by_section
       end
@@ -165,32 +167,35 @@ module Api::V1::Assignment
       hash['allowed_extensions'] = assignment.allowed_extensions
     end
 
-    if assignment.rubric_association
-      hash['use_rubric_for_grading'] = !!assignment.rubric_association.use_for_grading
-      if assignment.rubric_association.rubric
-        hash['free_form_criterion_comments'] = !!assignment.rubric_association.rubric.free_form_criterion_comments
+    unless opts[:exclude_rubric]
+      if assignment.rubric_association
+        hash['use_rubric_for_grading'] = !!assignment.rubric_association.use_for_grading
+        if assignment.rubric_association.rubric
+          hash['free_form_criterion_comments'] = !!assignment.rubric_association.rubric.free_form_criterion_comments
+        end
       end
-    end
 
-    if assignment.rubric
-      rubric = assignment.rubric
-      hash['rubric'] = rubric.data.map do |row|
-        row_hash = row.slice(:id, :points, :description, :long_description)
-        row_hash["ratings"] = row[:ratings].map do |c|
-          c.slice(:id, :points, :description)
+      if assignment.rubric
+        rubric = assignment.rubric
+        hash['rubric'] = rubric.data.map do |row|
+          row_hash = row.slice(:id, :points, :description, :long_description)
+          row_hash["ratings"] = row[:ratings].map do |c|
+            c.slice(:id, :points, :description)
+          end
+          if row[:learning_outcome_id] && outcome = LearningOutcome.where(id: row[:learning_outcome_id]).first
+            row_hash["outcome_id"] = outcome.id
+            row_hash["vendor_guid"] = outcome.vendor_guid
+            row_hash["threshold"] = outcome.rubric_criterion[:mastery_points]
+          end
+          row_hash
         end
-        if row[:learning_outcome_id] && outcome = LearningOutcome.where(id: row[:learning_outcome_id]).first
-          row_hash["outcome_id"] = outcome.id
-          row_hash["vendor_guid"] = outcome.vendor_guid
-        end
-        row_hash
+        hash['rubric_settings'] = {
+          'id' => rubric.id,
+          'title' => rubric.title,
+          'points_possible' => rubric.points_possible,
+          'free_form_criterion_comments' => !!rubric.free_form_criterion_comments
+        }
       end
-      hash['rubric_settings'] = {
-        'id' => rubric.id,
-        'title' => rubric.title,
-        'points_possible' => rubric.points_possible,
-        'free_form_criterion_comments' => !!rubric.free_form_criterion_comments
-      }
     end
 
     if opts[:include_discussion_topic] && assignment.discussion_topic
@@ -200,7 +205,7 @@ module Api::V1::Assignment
         assignment.discussion_topic.context,
         user,
         session,
-        include_assignment: false)
+        include_assignment: false, exclude_messages: opts[:exclude_description])
     end
 
     if opts[:include_all_dates] && assignment.assignment_overrides
@@ -217,7 +222,9 @@ module Api::V1::Assignment
     end
 
     hash['published'] = ! assignment.unpublished?
-    hash['unpublishable'] = assignment.can_unpublish?
+    if can_manage
+      hash['unpublishable'] = assignment.can_unpublish?
+    end
 
     if opts[:differentiated_assignments_enabled] || (opts[:differentiated_assignments_enabled] != false && assignment.context.feature_enabled?(:differentiated_assignments))
       hash['only_visible_to_overrides'] = value_to_boolean(assignment.only_visible_to_overrides)
@@ -303,7 +310,6 @@ module Api::V1::Assignment
     notify_of_update
     integration_id
     integration_data
-    course_section_id
   )
 
   API_ALLOWED_TURNITIN_SETTINGS = %w(
@@ -428,7 +434,12 @@ module Api::V1::Assignment
     end
 
     if assignment_params.key? "muted"
-      assignment.muted = value_to_boolean(assignment_params.delete("muted"))
+      muted = value_to_boolean(assignment_params.delete("muted"))
+      if muted
+        assignment.mute!
+      else
+        assignment.unmute!
+      end
     end
 
     if assignment.context.grants_right?(user, :manage_sis)
@@ -479,11 +490,15 @@ module Api::V1::Assignment
       end
     end
 
-    if assignment.context.feature_enabled?(:post_grades)
-      if assignment_params.has_key? "post_to_sis"
-        assignment.post_to_sis = value_to_boolean(assignment_params['post_to_sis'])
-      end
+    post_to_sis = assignment_params.key?('post_to_sis') ? value_to_boolean(assignment_params['post_to_sis']) : nil
+    unless post_to_sis.nil? || !Assignment.sis_grade_export_enabled?(assignment.context)
+      assignment.post_to_sis = post_to_sis
     end
+
+    if assignment.context.feature_enabled?(:moderated_grading) && assignment_params.key?('moderated_grading')
+      assignment.moderated_grading = value_to_boolean(assignment_params['moderated_grading'])
+    end
+
     assignment.updating_user = user
     assignment.attributes = update_params
     assignment.infer_times

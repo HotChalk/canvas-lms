@@ -31,7 +31,7 @@ class CanvadocSessionsController < ApplicationController
 
     if attachment.canvadocable?
       attachment.submit_to_canvadocs unless attachment.canvadoc_available?
-      url = attachment.canvadoc.session_url
+      url = attachment.canvadoc.session_url(user: @current_user)
       if url.nil?
         render :text => "Document is currently unavailable. Please try again later."
       else

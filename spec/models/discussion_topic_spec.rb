@@ -428,10 +428,17 @@ describe DiscussionTopic do
     end
 
     it "shouldn't send to streams on creation or update if it's delayed" do
-      topic = @course.discussion_topics.create!(:title => "this should not be delayed", :message => "content here")
+      topic = @course.discussion_topics.create!(
+        title: "this should not be delayed",
+        message: "content here"
+      )
       expect(topic.stream_item).not_to be_nil
 
-      topic = delayed_discussion_topic(:title => "this should be delayed", :message => "content here", :delayed_post_at => Time.now + 1.day)
+      topic = delayed_discussion_topic(
+        title: "this should be delayed",
+        message: "content here",
+        delayed_post_at: 1.day.from_now
+      )
       expect(topic.stream_item).to be_nil
 
       topic.message = "content changed!"
@@ -439,15 +446,31 @@ describe DiscussionTopic do
       expect(topic.stream_item).to be_nil
     end
 
-    it "should send to streams on update from delayed to active" do
-      topic = delayed_discussion_topic(:title => "this should be delayed", :message => "content here", :delayed_post_at => Time.now + 1.day)
-      expect(topic.workflow_state).to eq 'post_delayed'
+    it "should send to streams on update from unpublished to active" do
+      topic = discussion_topic(
+        title: "this should be delayed",
+        message: "content here",
+        workflow_state: "unpublished"
+      )
+      expect(topic.workflow_state).to eq 'unpublished'
       expect(topic.stream_item).to be_nil
 
-      topic.delayed_post_at = nil
-      topic.title = "this isn't delayed any more"
       topic.workflow_state = 'active'
       topic.save!
+      expect(topic.stream_item).not_to be_nil
+    end
+
+    it "doesn't rely on broadcast policy when sending to stream" do
+      topic = discussion_topic(
+        title: "this should be delayed",
+        message: "content here",
+        workflow_state: "unpublished"
+      )
+      expect(topic.workflow_state).to eq 'unpublished'
+      expect(topic.stream_item).to be_nil
+
+      topic.workflow_state = 'active'
+      topic.save_without_broadcasting!
       expect(topic.stream_item).not_to be_nil
     end
 
@@ -809,6 +832,18 @@ describe DiscussionTopic do
 
     it "shouldn't allow student (and observer) who hasn't posted to see" do
       expect(@topic.user_can_see_posts?(@student)).to eq false
+    end
+
+    it "should not allow participation in deleted discussions" do
+      @topic.destroy
+      expect {@topic.discussion_entries.create!(:message => "second message", :user => @student)}.to raise_error(ActiveRecord::RecordInvalid)
+      expect {@topic.discussion_entries.create!(:message => "second message", :user => @teacher)}.to raise_error(ActiveRecord::RecordInvalid)
+    end
+
+    it "should throw incomingMail error when reply to deleted discussion" do
+      @topic.destroy
+      expect { @topic.reply_from(:user => @teacher, :text => "hai") }.to raise_error(IncomingMail::Errors::ReplyToDeletedDiscussion)
+      expect { @topic.reply_from(:user => @student, :text => "hai") }.to raise_error(IncomingMail::Errors::ReplyToDeletedDiscussion)
     end
 
     it "should allow student (and observer) who has posted to see" do
@@ -1588,7 +1623,7 @@ describe DiscussionTopic do
   describe "context_module_action" do
     context "group discussion" do
       before :once do
-        group_assignment_discussion
+        group_assignment_discussion(course: @course)
         @module = @course.context_modules.create!
         @topic_tag = @module.add_item(type: 'discussion_topic', id: @root_topic.id)
         @module.completion_requirements = { @topic_tag.id => { type: 'must_contribute' } }

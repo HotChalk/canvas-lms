@@ -6,7 +6,6 @@ define [
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/views/assignments/PeerReviewsSelector'
   'compiled/views/assignments/PostToSisSelector'
-  'compiled/views/assignments/SectionSelector'
   'underscore'
   'jst/DiscussionTopics/EditView'
   'wikiSidebar'
@@ -17,14 +16,16 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
+  'compiled/views/DiscussionTopics/ReplyAssignmentRemovedDialogView'
   'compiled/views/editor/KeyboardShortcuts'
+  'timezone'
   'compiled/tinymce'
   'tinymce.editor_box'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
-GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, SectionSelector, _, template, wikiSidebar,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
+GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, ReplyAssignmentRemovedDialog, KeyboardShortcuts, tz) ->
 
   class EditView extends ValidatedFormView
 
@@ -65,6 +66,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       @assignment = @model.get("assignment")
       @replyAssignment = @model.get("reply_assignment")
       @initialPointsPossible = @assignment.pointsPossible()
+      @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', =>
         @unwatchUnload()
@@ -128,7 +130,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
       _.defer(@renderPostToSisOptions) if ENV.POST_GRADES
-      _.defer(@renderSectionOptions)
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
 
@@ -185,6 +186,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         el: '#peer_review_options'
         parentModel: @assignment
         nested: true
+        hideAnonymousPeerReview: true
 
 #      @peerReviewSelector.render()
 
@@ -196,15 +198,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       @postToSisSelector.render()
 
-    renderSectionOptions: =>
-      @sectionSelector = new SectionSelector
-        el: '#section_selector'
-        parentModel: @model
-
-      @sectionSelector.render()
-
     getFormData: ->
       data = super
+      for dateField in ['last_reply_at', 'posted_at', 'delayed_post_at']
+        data[dateField] = $.unfudgeDateForProfileTimezone(data[dateField])
       #data.title ||= I18n.t 'default_discussion_title', 'No Title'
       data.discussion_type = if data.threaded is '1' then 'threaded' else 'side_comment'
       data.podcast_has_student_posts = false unless data.podcast_enabled is '1'
@@ -234,10 +231,8 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
         data.assignment = @model.createAssignment(set_assignment: '0')
-
-      if !!data.attachment
-        data.delayed_post_at = Date.parse(data.delayed_post_at).toString() if data.delayed_post_at
-        data.lock_at = Date.parse(data.lock_at).toString() if data.lock_at
+        if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+          data.only_visible_to_overrides = !@discussionDueDateOverrideView.overridesContainDefault()
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
@@ -250,10 +245,24 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
       data.unlock_at = defaultDate?.get('unlock_at') or null
-      data.due_at = defaultDate?.get('due_at') or null
+      if !data.due_at
+        data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
-        data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
+        data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+
+      # Reply assignments copy the main assignment's overrides, except for the Due Date
+      if data.due_at && model_key == 'reply_assignment' && ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        assignment_id = @model.get(model_key).id
+        _.each data.assignment_overrides, (override) ->
+          override.assignment_id = assignment_id
+          is_all_day = tz.isMidnight data.due_at, {timezone: ENV.CONTEXT_TIMEZONE}
+          data.due_at = tz.changeToTheSecondBeforeMidnight(data.due_at) if is_all_day
+          override.due_at = data.due_at.toISOString()
+          override.all_day = is_all_day
+          override.all_day_date = data.due_at.toISOString().substr(0,10) # need only YYYY-MM-DD
+          override.due_at_overridden = true
+          delete override.id
 
       assignment = @model.get(model_key)
       assignment or= @model.createAssignment()
@@ -282,6 +291,15 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
+      else if @model.get('assignment') && (@model.get('assignment').previous('set_reply_assignment') is '1') && !this.getFormData().set_reply_assignment
+        replyAssignmentRemovedDialog = new ReplyAssignmentRemovedDialog
+          success: =>
+            replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
+            ValidatedFormView::submit.call(this)
+        replyAssignmentRemovedDialog.cancel = (e) ->
+          replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
+
+        replyAssignmentRemovedDialog.render()
       else
         super
 
@@ -315,13 +333,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      if data.delayed_post_at && data.lock_at
-        start_date = new Date(data.delayed_post_at);
-        end_date = new Date(data.lock_at);
-        if end_date < start_date
-          errors["delayed_post_at"] = [
-            message: I18n.t 'from_date_greater_than_until_date', 'Until date must be after the from date'
-          ]
+      if data.set_assignment is '0'
+        data2 =
+          assignment_overrides: @discussionDueDateOverrideView.getAllDates()
+        errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)

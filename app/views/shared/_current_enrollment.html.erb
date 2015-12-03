@@ -30,7 +30,7 @@
               <%= "data-favorite-url=#{api_v1_add_favorite_course_url(current_enrollment.course_id)}" %>
           <% end %>
         >
-          <i class="icon-star" ></i>
+          <i class="icon-star"></i>
           <span id="course_list_screenreader_message_<%= current_enrollment.course_id %>" class="screenreader-only">
             <%= tooltip_message %>
           </span>
@@ -48,6 +48,11 @@
 
         <% unless current_enrollment.course.enrollment_term.default_term? %>
           <span class="subtitle ellipsis course-list-term"><%= current_enrollment.course.enrollment_term.name %></span>
+        <% end %>
+        <% if current_enrollment.course.start_at? && current_enrollment.course.conclude_at?  %>
+          <span class="subtitle ellipsis course-list-term"> - <%= friendly_datetime(current_enrollment.course.start_at, context: current_enrollment.course) %>
+             to <%= friendly_datetime(current_enrollment.course.conclude_at, context: current_enrollment.course) %>
+          </span>
         <% end %>
         <% if show_link %></a><% end %>
       </td>

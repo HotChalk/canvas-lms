@@ -31,9 +31,9 @@ define([
               <a className={"al-trigger btn"} role="button" href="#">
                 <i className={"icon-settings"}></i>
                 <i className={"icon-mini-arrow-down"}></i>
-                <span className={"screenreader-only"}>Settings</span>
+                <span className={"screenreader-only"}>{ this.props.tool.name + ' ' + I18n.t('Settings') }</span>
               </a>
-              <ul className={"al-options"} role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" aria-activedescendant="toolbar-2">
+              <ul className={"al-options"} role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" >
                 {configureButton}
                 <EditExternalToolButton ref="editExternalToolButton" tool={this.props.tool} />
                 <ExternalToolPlacementButton ref="externalToolPlacementButton" tool={this.props.tool} />
@@ -44,13 +44,8 @@ define([
         )
       } else {
         return (
-          <td className="links text-right" nowrap="nowrap" style={{lineHeight: '33px'}}>
-            <span className="text-muted">
-              <i className="icon-lock"
-                ref="lockIcon"
-                data-tooltip="left"
-                title={I18n.t('Installed by Admin')}></i>
-            </span>
+          <td className="links text-right e-tool-table-data" nowrap="nowrap" >
+            <ExternalToolPlacementButton ref="externalToolPlacementButton" tool={this.props.tool} type="button"/>
           </td>
         );
       }
@@ -66,10 +61,24 @@ define([
       }
     },
 
+    locked() {
+      if (!this.props.tool.installed_locally) {
+        return (
+          <span className="text-muted">
+            <i className="icon-lock"
+               ref="lockIcon"
+               data-tooltip="top"
+               title={I18n.t('Installed by Admin')}></i>
+          </span>
+        );
+      }
+    },
+
     render() {
       return (
         <tr className="ExternalToolsTableRow external_tool_item">
-          <td scope="row" nowrap="nowrap" className={this.nameClassNames()} title={this.props.tool.name} style={{lineHeight: '33px'}}>
+          <td className="e-tool-table-data center-text">{this.locked()}</td>
+          <td scope="row" nowrap="nowrap" className={this.nameClassNames() + " e-tool-table-data"} title={this.props.tool.name}>
             {this.props.tool.name} {this.disabledFlag()}
           </td>
           {this.renderButtons()}

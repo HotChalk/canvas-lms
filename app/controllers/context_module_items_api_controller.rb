@@ -253,10 +253,9 @@ class ContextModuleItemsApiController < ApplicationController
   # @returns ModuleItem
   def show
     if authorized_action(@context, @current_user, :read)
-      mod = @context.modules_visible_to(@student || @current_user).find(params[:module_id])
-      item = mod.content_tags_visible_to(@student || @current_user).find(params[:id])
-      prog = @student ? mod.evaluate_for(@student) : nil
-      render :json => module_item_json(item, @student || @current_user, session, mod, prog, Array(params[:include]))
+      get_module_item
+      prog = @student ? @module.evaluate_for(@student) : nil
+      render :json => module_item_json(@item, @student || @current_user, session, @module, prog, Array(params[:include]))
     end
   end
 
@@ -481,8 +480,44 @@ class ContextModuleItemsApiController < ApplicationController
     end
   end
 
-  MAX_SEQUENCES = 10
 
+  # @API Mark module item as done/not done
+  #
+  # Mark a module item as done/not done. Use HTTP method PUT to mark as done,
+  # and DELETE to mark as not done.
+  #
+  # @example_request
+  #
+  #     curl https://<canvas>/api/v1/courses/<course_id>/modules/<module_id>/items/<item_id>/done \
+  #       -X Put \
+  #       -H 'Authorization: Bearer <token>'
+  def mark_as_done
+    if authorized_action(@context, @current_user, :read)
+      get_module_item
+      @item.context_module_action(@current_user, :done)
+      render :json => { :message => t('OK') }
+    end
+  end
+
+  def mark_as_not_done
+    if authorized_action(@context, @current_user, :read)
+      get_module_item
+      if (progression = @item.progression_for_user(@current_user))
+        progression.uncomplete_requirement(params[:id].to_i)
+        progression.evaluate
+      end
+      render :json => { :message => t('OK') }
+    end
+  end
+
+  def get_module_item
+    user = @student || @current_user
+    @module = @context.modules_visible_to(user).find(params[:module_id])
+    @item = @module.content_tags.find(params[:id])
+    raise ActiveRecord::RecordNotFound unless @item && @item.visible_to_user?(user)
+  end
+
+  MAX_SEQUENCES = 10
   # @API Get module item sequence
   #
   # Given an asset in a course, find the ModuleItem it belongs to, and also the previous and next Module Items
@@ -511,16 +546,12 @@ class ContextModuleItemsApiController < ApplicationController
 
       # assemble a sequence of content tags in the course
       # (break ties on module position by module id)
-      tags = @context.module_items_visible_to(@current_user).
-          select('content_tags.*, context_modules.id as module_id, context_modules.position AS module_position').
-          reject { |item| item.content_type == 'ContextModuleSubHeader' }.
-          sort_by { |item| [item.module_position.to_i, item.module_id, item.position || CanvasSort::Last] }
+      tag_ids = @context.sequential_module_item_ids & @context.module_items_visible_to(@current_user).reorder(nil).pluck(:id)
 
       # find content tags to include
       tag_indices = []
       if asset_type == 'ContentTag'
-        tag_ix = tags.each_index.detect { |ix| tags[ix].id == asset_id.to_i }
-        tag_indices << tag_ix if tag_ix
+        tag_ids.each_with_index { |tag_id, ix| tag_indices << ix if tag_id == asset_id.to_i }
       else
         # map wiki page url to id
         if asset_type == 'WikiPage'
@@ -542,32 +573,45 @@ class ContextModuleItemsApiController < ApplicationController
         end
 
         # find up to MAX_SEQUENCES tags containing the object (or its associated assignment)
-        tags.each_index do |ix|
-          if (tags[ix].content_type == asset_type && tags[ix].content_id == asset_id) ||
-             (associated_assignment_id && tags[ix].content_type == 'Assignment' && tags[ix].content_id == associated_assignment_id)
-            tag_indices << ix
-            break if tag_indices.length == MAX_SEQUENCES
-          end
+        matching_tag_ids = @context.context_module_tags.where(:id => tag_ids).
+          where(:content_type => asset_type, :content_id => asset_id).pluck(:id)
+        if associated_assignment_id
+          matching_tag_ids += @context.context_module_tags.where(:id => tag_ids).
+            where(:content_type => 'Assignment', :content_id => associated_assignment_id).pluck(:id)
+        end
+
+        if matching_tag_ids.any?
+          tag_ids.each_with_index { |tag_id, ix| tag_indices << ix if matching_tag_ids.include?(tag_id) }
         end
       end
 
+      tag_indices.sort!
+      if tag_indices.length > MAX_SEQUENCES
+        tag_indices = tag_indices[0, MAX_SEQUENCES]
+      end
+
       # render the result
-      module_ids = Set.new
       result = { :items => [] }
+
+      needed_tag_ids = []
       tag_indices.each do |ix|
-        hash = { :current => module_item_json(tags[ix], @current_user, session), :prev => nil, :next => nil }
-        module_ids << tags[ix].context_module_id
+        needed_tag_ids << tag_ids[ix]
+        needed_tag_ids << tag_ids[ix - 1] if ix > 0
+        needed_tag_ids << tag_ids[ix + 1] if ix < tag_ids.size - 1
+      end
+
+      needed_tags = ContentTag.where(:id => needed_tag_ids.uniq).preload(:context_module).index_by(&:id)
+      tag_indices.each do |ix|
+        hash = { :current => module_item_json(needed_tags[tag_ids[ix]], @current_user, session), :prev => nil, :next => nil }
         if ix > 0
-          hash[:prev] = module_item_json(tags[ix - 1], @current_user, session)
-          module_ids << tags[ix - 1].context_module_id
+          hash[:prev] = module_item_json(needed_tags[tag_ids[ix - 1]], @current_user, session)
         end
-        if ix < tags.size - 1
-          hash[:next] = module_item_json(tags[ix + 1], @current_user, session)
-          module_ids << tags[ix + 1].context_module_id
+        if ix < tag_ids.size - 1
+          hash[:next] = module_item_json(needed_tags[tag_ids[ix + 1]], @current_user, session)
         end
         result[:items] << hash
       end
-      modules = @context.context_modules.where(id: module_ids.to_a)
+      modules = needed_tags.values.map(&:context_module).uniq
       result[:modules] = modules.map { |mod| module_json(mod, @current_user, session) }
 
       render :json => result
@@ -590,13 +634,11 @@ class ContextModuleItemsApiController < ApplicationController
   #
   def mark_item_read
     if authorized_action(@context, @current_user, :read)
-      mod = @context.modules_visible_to(@current_user).find(params[:module_id])
-      item = mod.content_tags_visible_to(@current_user).find(params[:id])
-
-      content = (item.content && item.content.respond_to?(:locked_for?)) ? item.content : item
+      get_module_item
+      content = (@item.content && @item.content.respond_to?(:locked_for?)) ? @item.content : @item
       return render :json => { :message => t('The module item is locked.') }, :status => :forbidden if content.locked_for?(@current_user)
 
-      item.context_module_action(@current_user, :read)
+      @item.context_module_action(@current_user, :read)
       render :json => { :message => t('OK') }
     end
   end
