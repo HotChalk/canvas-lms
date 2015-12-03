@@ -14,7 +14,14 @@ define([
     displayName: 'FileSelectBox',
 
     propTypes: {
-      contextString: React.PropTypes.string.isRequired
+      contextString: React.PropTypes.string.isRequired,
+      allowNewFile: React.PropTypes.bool.isRequired
+    },
+
+    getDefaultProps() {
+      return {
+        allowNewFile: true
+      };
     },
 
     getInitialState () {
@@ -99,10 +106,11 @@ define([
     },
 
     render () {
+      newFileOption = this.props.allowNewFile ? <option value="new">{I18n.t('[ New File ]')}</option> : null;
       return (
         <div>
           <select ref="selectBox" aria-busy={this.isLoading()} className="module_item_select" aria-label={I18n.t('Select the file you want to associate, or add a file by selecting "New File".')} multiple>
-            <option value="new">{I18n.t('[ New File ]')}</option>
+            {newFileOption}
             {this.renderFilesAndFolders()}
           </select>
         </div>

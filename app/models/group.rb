@@ -713,8 +713,8 @@ class Group < ActiveRecord::Base
 
     tabs.each do |tab|
       #tab[:hidden_unused] = true if tab[:id] == TAB_PROFILE && root_account.try(:canvas_network_enabled?)
-      tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS && user && self.grants_right?(user, :read)
-      tab[:hidden_unused] = true if tab[:id] == TAB_CONFERENCES && user && self.grants_right?(user, :read)
+      tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS && !(user && self.grants_right?(user, :read))
+      tab[:hidden_unused] = true if tab[:id] == TAB_CONFERENCES && !(user && self.grants_right?(user, :read))
     end
   
     unless self.grants_right?(user, opts[:session], :update)

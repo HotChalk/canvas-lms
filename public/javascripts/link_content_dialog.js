@@ -60,7 +60,7 @@ $(document).ready(function() {
   $("#add_module_item_select").change(function() {
     $("#link_context_content_dialog .module_item_option").hide();
     if ($(this).val() === 'attachment') {
-      React.render(React.createFactory(FileSelectBox)({contextString: ENV.context_asset_string}), $('#module_item_select_file')[0]);
+      React.render(React.createFactory(FileSelectBox)({contextString: ENV.context_asset_string, allowNewFile: false}), $('#module_item_select_file')[0]);
     }
     $("#" + $(this).val() + "s_select").show().find(".module_item_select").change();
   });

@@ -275,7 +275,7 @@
                 type             = "text"
                 aria-label       = "<%= t("Search entries or author") %>"
                 placeholder      = "<%= t("Search entries or author") %>"
-                size             = 50
+                size             = 40
               >
 
               <input
@@ -284,13 +284,16 @@
                 aria-label = "<%= t("filter replies by unread") %>"
               ><label aria-hidden="true" for="onlyUnread"><%= t('unread', 'Unread') %></label>
 
-              &nbsp; &nbsp;
+              &nbsp;
               <button id="collapseAll" class="btn disableWhileFiltering" title="<%= t('collapse_replies', 'Collapse replies') %>" aria-label="<%= t('collapse_replies', 'Collapse replies') %>">
                 <%= image_tag 'discussions/collapse_icon.png', :alt => t('collapse_replies', 'Collapse replies') %>
               </button>
               <button id="expandAll" class="btn disableWhileFiltering" title="<%= t('expand_replies', 'Expand replies') %>" aria-label="<%= t('expand_replies', 'Expand replies') %>">
                 <%= image_tag 'discussions/expand_icon.png', :alt => t('expand_replies', 'Expand replies') %>
               </button>
+              <% if @filter_sections.length > 1 %>
+                <%= select_tag :section_selected, options_for_select([[t('all_sections', 'All Sections'), 0]] + (@filter_sections.map {|s| [s.name, s.id]}), 0), :style => "width:160px" %>
+              <% end %>              
 
             </div>
 

@@ -16,6 +16,7 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
+  'compiled/views/DiscussionTopics/ReplyAssignmentRemovedDialogView'
   'compiled/views/editor/KeyboardShortcuts'
   'timezone'
   'compiled/tinymce'
@@ -24,7 +25,7 @@ define [
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
 GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, wikiSidebar,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts, tz) ->
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, ReplyAssignmentRemovedDialog, KeyboardShortcuts, tz) ->
 
   class EditView extends ValidatedFormView
 
@@ -290,6 +291,15 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
+      else if @model.get('assignment') && (@model.get('assignment').previous('set_reply_assignment') is '1') && !this.getFormData().set_reply_assignment
+        replyAssignmentRemovedDialog = new ReplyAssignmentRemovedDialog
+          success: =>
+            replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
+            ValidatedFormView::submit.call(this)
+        replyAssignmentRemovedDialog.cancel = (e) ->
+          replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
+
+        replyAssignmentRemovedDialog.render()
       else
         super
 
