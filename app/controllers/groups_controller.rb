@@ -480,25 +480,25 @@ class GroupsController < ApplicationController
     end
 
     if params[:course_section_id]
-        course_section = CourseSection.active.find(params[:course_section_id])
-        return render :json => {}, :status => bad_request unless course_section
-        params[:course_section] = course_section
+      course_section = CourseSection.active.find(params[:course_section_id])
+      return render :json => {}, :status => bad_request unless course_section
+      params[:course_section] = course_section
     end    
 
     attrs = api_request? ? params : params[:group]
     attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
     @group = @context.groups.scoped.new(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
     unless params[:course_section_id]
-      user_sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
-      params[:course_section_id] = user_sections.first.id
+      user_sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).active : []
+      params[:course_section_id] = user_sections.present? ? user_sections.first.id : nil
       @group.course_section_id = params[:course_section_id]
     end
     
     if authorized_action(@group, @current_user, :create)
       respond_to do |format|
-        if @group.save          
+        if @group.save
           @group.add_user(@current_user, 'accepted', true) if @group.should_add_creator?(@current_user)
-          @group.invitees = params[:invitees]          
+          @group.invitees = params[:invitees]
           flash[:notice] = t('notices.create_success', 'Group was successfully created.')
           format.html { redirect_to group_url(@group) }
           format.json { render :json => group_json(@group, @current_user, session, {include: ['users', 'group_category', 'permissions']}) }

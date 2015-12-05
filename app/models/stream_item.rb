@@ -437,7 +437,7 @@ class StreamItem < ActiveRecord::Base
 
   public
   def destroy_user_stream_item_instances(user_id)
-    self.stream_item_instances.with_each_shard do |scope|
+    self.stream_item_instances.shard(self).activate do |scope|
       StreamItemCache.invalidate_recent_stream_items(user_id, self.context_type, self.context_id)
       scope.where(:user_id => user_id).delete_all
     end
