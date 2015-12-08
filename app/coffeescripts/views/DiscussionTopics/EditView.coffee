@@ -229,6 +229,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         # create assignments unless the user checked "Use for Grading".
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
+        defaultDate = @discussionDueDateOverrideView.getDefaultDueDate()
+        data.lock_at = defaultDate?.get('lock_at') or null
+        data.delayed_post_at = defaultDate?.get('unlock_at') or null        
         data.assignment = @model.createAssignment(set_assignment: '0')
         if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
           data.only_visible_to_overrides = !@discussionDueDateOverrideView.overridesContainDefault()

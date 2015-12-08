@@ -385,6 +385,7 @@ class DiscussionTopicsController < ApplicationController
         add_crumb(@topic.title, named_context_url(@context, :context_discussion_topic_url, @topic.id))
         add_crumb t :edit_crumb, "Edit"
         hash[:ATTRIBUTES] = discussion_topic_api_json(@topic, @context, @current_user, session, override_dates: false, include_overrides: true)
+        hash[:ATTRIBUTES][:unlock_at] = hash[:ATTRIBUTES][:delayed_post_at]        
       end
       (hash[:ATTRIBUTES] ||= {})[:is_announcement] = @topic.is_announcement
       hash[:ATTRIBUTES][:can_group] = @topic.can_group?
