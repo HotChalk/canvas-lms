@@ -122,6 +122,14 @@ module CanvasRails
       app.config.middleware.swap('ActionDispatch::RequestId', "RequestContextGenerator")
       app.config.middleware.insert_before('ActionDispatch::ParamsParser', 'Canvas::RequestThrottle')
       app.config.middleware.insert_before('Rack::MethodOverride', 'PreventNonMultipartParse')
+      app.config.middleware.insert_before(0, 'Rack::Cors') do
+        cors_config = (File.exist?(Rails.root+"config/cors.yml") && YAML.load_file(Rails.root+"config/cors.yml")[Rails.env]) || {}
+        cors_config = {'origins' => 'localhost', 'headers' => 'any', 'methods' => ['get', 'post', 'put', 'delete', 'head', 'options']}.merge(cors_config || {})
+        allow do
+          origins cors_config['origins']
+          resource '*', :headers => cors_config['headers'], :methods => cors_config['methods']
+        end
+      end
     end
 
     config.to_prepare do

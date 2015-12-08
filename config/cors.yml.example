@@ -1,0 +1,34 @@
+# This file is used to whitelist HTTP origins, headers and domains for Cross-Origin Resource Sharing (CORS).
+
+test:
+  origins: *
+  headers: any
+  methods:
+  - get
+  - post
+  - put
+  - delete
+  - head
+  - options
+
+development:
+  origins: *
+  headers: any
+  methods:
+  - get
+  - post
+  - put
+  - delete
+  - head
+  - options
+
+production:
+  origins: localhost
+  headers: any
+  methods:
+  - get
+  - post
+  - put
+  - delete
+  - head
+  - options
