@@ -146,3 +146,5 @@ gem 'gepub'
 gem 'newrelic_rpm'
 # Lograge Logging
 gem "lograge", '0.3.1'
+# Rack CORS middleware
+gem 'rack-cors', '0.4.0', require: 'rack/cors'
