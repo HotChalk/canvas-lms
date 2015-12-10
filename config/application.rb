@@ -127,7 +127,7 @@ module CanvasRails
         cors_config = {'origins' => 'localhost', 'headers' => 'any', 'methods' => ['get', 'post', 'put', 'delete', 'head', 'options']}.merge(cors_config || {})
         allow do
           origins cors_config['origins']
-          resource '*', :headers => cors_config['headers'], :methods => cors_config['methods']
+          resource '*', :headers => cors_config['headers'].to_sym, :methods => cors_config['methods'].map(&:to_sym)
         end
       end
     end
