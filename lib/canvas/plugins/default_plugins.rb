@@ -350,14 +350,14 @@ Canvas::Plugin.register('live_events', nil, {
   :validator => 'LiveEventsValidator'
 })
 Canvas::Plugin.register('hotchalk', :export_system, {
-    :name => 'Hotchalk',
-    :description => 'Hotchalk integration',
+    :name => lambda{ t :name, 'Hotchalk' },
+    :description => lambda{ t :description, 'Hotchalk integration' },
     :website => 'http://www.hotchalk.com',
     :author => 'Hotchalk',
     :author_website => 'http://www.hotchalk.com',
     :version => '1.0.0',
     :settings_partial => 'plugins/hotchalk_settings',
-    :select_text => 'Hotchalk Course Export Package',
+    :select_text => lambda{ I18n.t :hotchalk_course_export_description, "Hotchalk Course Export Package" },
     :settings => {
         :account_external_urls => {},
         :worker => 'CCWorker',
