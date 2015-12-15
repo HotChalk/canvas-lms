@@ -532,7 +532,13 @@
       <button class="btn btn-small add_page_link">Add Navigation Link</button>
       <ul id="nav_dynamic_list" aria-label="Dynamic Links" class="nav_list connectedSortable">
         <% tabs.each do |tab|  %>
-          <li aria-label="<%= tab[:label] %>" class="navitem enabled links" id="nav_dynamic_tab_id_<%= tab[:context_type] %>_<%= tab[:context_id] %>" tabindex="0"><%= tab[:label] %>
+        <%
+          id = tab[:context_id]
+          if tab[:context_type] == "external_url"
+            id = tab[:url]
+          end
+        %>
+          <li aria-label="<%= tab[:label] %>" class="navitem enabled links" id="nav_dynamic_tab_id_<%= tab[:context_type] %>_<%= id %>" tabindex="0"><%= tab[:label] %>
             <div class='links'>
               <a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screen-reader-text'>Delete</span></a>
             </div>

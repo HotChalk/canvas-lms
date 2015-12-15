@@ -316,6 +316,15 @@ module ApplicationHelper
     @context.dynamic_tabs()
   end
 
+  def get_external_url_path page_url    
+    decode_url = Base64.decode64(page_url)    
+    if decode_url.include? "http"
+      decode_url
+    else
+      "http://" + decode_url
+    end    
+  end
+
   def embedded_chat_quicklaunch_params
     {
       user_id: @current_user.id,

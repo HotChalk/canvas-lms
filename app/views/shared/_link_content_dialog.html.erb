@@ -26,6 +26,9 @@
         <% if !only || only.include?(:discussion_topics) %>
         <option value="discussion_topic"><%= t :discussion_item, "Discussion" %></option>
         <% end %>
+        <% if !only || only.include?(:external_url) %>
+        <option value="external_url"><%= t :external_url, "External URL" %></option>
+        <% end %>
       </select>
       <% } %>
     </div>
@@ -146,6 +149,26 @@
         </div>
       </div>
       <% end %>
+
+      <% if !only || only.include?(:external_url) %>
+      <div id="external_urls_select" class="module_item_option" style="margin: 5px 20px;">
+        <div style="font-size: 0.8em;">
+          <i class="icon-link"></i>
+          <%= t :external_url_notice, 'Enter URL address. Example: http://www.example.com' %>
+        </div>
+        <div style="margin-top: 5px;">
+          <input type="text" id="url_address">
+        </div>
+        <div style="font-size: 0.8em;">
+          <i class="icon-text"></i>
+          <%= t :external_url_title_notice, 'Type a title for display on menu.' %>
+        </div>
+        <div style="margin-top: 5px;">
+          <input type="text" id="url_title">
+        </div>
+      </div>
+      <% end %>
+
     </div>
     <div class="button-container">
       <button type="button" class="cancel_button btn"><%= t "#buttons.cancel", "Cancel" %></button>
