@@ -2384,6 +2384,14 @@ class Course < ActiveRecord::Base
           :href => :course_wiki_page_path,
           :args => [self.id, wiki_page.url]
         })
+      when 'external_url'
+        page_url = tab[:url]
+        hash.merge!({
+          :css_class => 'pages',
+          :href => :get_external_url_path,
+          :target => '_blank',
+          :args => [page_url]
+        })
     end
     hash
   end

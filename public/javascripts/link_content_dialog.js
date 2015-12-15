@@ -46,16 +46,42 @@ $(document).ready(function() {
       }
     };
     var item_type = $("#add_module_item_select").val();
-    var $options = $("#link_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
-    $options.each(function() {
-      var $option = $(this);
-      var item_data = {
-        'item[type]': item_type,
-        'item[id]': $option.val(),
-        'item[title]': $option.text()
+    if (item_type === 'external_url')
+    {
+      function validate_url(url){
+        var urlR = '^(?!mailto:)(?:(?:http|https|ftp)://)(?:\\S+(?::\\S*)?@)?(?:(?:(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[0-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))|localhost)(?::\\d{2,5})?(?:(/|\\?|#)[^\\s]*)?$';
+        var result = url.match(urlR);
+        if (result === null || result.lenght == 0){return false;}
+        else{return true;}  
       };
-      submit(item_data);
-    });
+      var external_url = $('#url_address').val();           
+      if (validate_url(external_url)){
+        var external_url_title = $('#url_title').val();
+        var item_data = {
+          'item[type]': item_type,
+          'item[id]': btoa(external_url),
+          'item[title]': external_url_title
+        };
+        submit(item_data);
+      }
+      else{        
+        $.flashError(I18n.t('errors.wrong_url', "The provided URL is not correct. Please enter another address."));
+      }            
+    }
+    else
+    {
+      var $options = $("#link_context_content_dialog .module_item_option:visible:first .module_item_select option:selected");
+      $options.each(function() {
+        var $option = $(this);
+        var item_data = {
+          'item[type]': item_type,
+          'item[id]': $option.val(),
+          'item[title]': $option.text()
+        };
+        submit(item_data);
+      });  
+    }
+  
   });
   $("#add_module_item_select").change(function() {
     $("#link_context_content_dialog .module_item_option").hide();

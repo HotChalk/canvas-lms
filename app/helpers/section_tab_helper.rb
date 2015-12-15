@@ -89,6 +89,7 @@ module SectionTabHelper
 
     def a_attributes
       { href: @tab.path,
+        target: @tab.target,
         class: a_classes }.tap do |h|
         if @tab.screenreader?
           h[:'aria-label'] = @tab.screenreader

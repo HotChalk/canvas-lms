@@ -1,5 +1,6 @@
 class SectionTabPresenter
   include Rails.application.routes.url_helpers
+  include ApplicationHelper
 
   def initialize(tab, context)
     @tab = OpenStruct.new(tab)
@@ -22,6 +23,10 @@ class SectionTabPresenter
 
   def path
     tab.args.instance_of?(Hash) ? send(tab.href, tab.args) : send(tab.href, *path_args)
+  end
+
+  def target
+    tab.target
   end
 
   def path_args
