@@ -307,6 +307,8 @@ class DiscussionTopicsController < ApplicationController
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
+    @topics = @topics.map {|topic| AssignmentOverrideApplicator.assignment_overridden_for(topic, @current_user)}
+
     if states.present?
       @topics.reject! { |t| t.locked_for?(@current_user) } if states.include?('unlocked')
       @topics.select! { |t| t.locked_for?(@current_user) } if states.include?('locked')
