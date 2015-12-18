@@ -290,6 +290,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
             dateDialog.dialog('close').remove()
             ValidatedFormView::submit.call(this)
         missingDateDialog.cancel = (e) ->
+          _this.shouldPublish = false;
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
