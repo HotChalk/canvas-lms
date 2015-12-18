@@ -973,11 +973,13 @@ module ApplicationHelper
   end
 
   def feedbackify_enabled?
+    return false unless @current_user
     @external_web_tools_config ||= ConfigFile.load('external_web_tools')
     @external_web_tools_config['enable_feedbackify']
   end
 
   def include_feedbackify
+    return nil unless @current_user
     snippet = ""
     @external_web_tools_config ||= ConfigFile.load('external_web_tools')
     if @external_web_tools_config['enable_feedbackify']
