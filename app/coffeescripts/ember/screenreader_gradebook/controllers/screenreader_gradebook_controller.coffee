@@ -161,7 +161,7 @@ define [
                                       'online_url', 'online_quiz']
       submissionTypes             = @get('selectedAssignment.submission_types')
       submissionTypesOnWhitelist  = _.intersection(submissionTypes, whitelist)
-      hasWhitelistedSubmissions   = submissionTypesOnWhitelist.length == submissionTypes.length
+      hasWhitelistedSubmissions = if submissionTypes == null then false else submissionTypesOnWhitelist.length == submissionTypes.length
       showButton                  = !@get('selectedAssignment.hide_download_submissions_button')
 
       hasSubmittedSubmissions and hasWhitelistedSubmissions and showButton
