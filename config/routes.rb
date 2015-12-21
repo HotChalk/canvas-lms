@@ -385,8 +385,9 @@ CanvasRails::Application.routes.draw do
     delete 'test_student' => 'courses#reset_test_student'
     get 'content_migrations' => 'content_migrations#index'
   end
-
+    
   get "courses/:course_id/rubrics/:rubric_id/copy", controller: 'rubrics', action: 'copy', as: :rubric_copy
+  get "accounts/:account_id/rubrics/:rubric_id/copy", controller: 'rubrics', action: 'copy', as: :rubric_copy
   get 'quiz_statistics/:quiz_statistics_id/files/:file_id/download' => 'files#show', as: :quiz_statistics_download, download: '1'
 
   resources :page_views, only: :update
