@@ -280,8 +280,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     submit: (event) =>
       event.preventDefault()
       event.stopPropagation()
-      if @dueDateOverrideView.containsSectionsWithoutOverrides()
-        sections = @dueDateOverrideView.sectionsWithoutOverrides()
+      overrideView = if (@model.get('set_assignment') is '1') then @dueDateOverrideView else @discussionDueDateOverrideView
+      if overrideView.containsSectionsWithoutOverrides()
+        sections = overrideView.sectionsWithoutOverrides()
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
@@ -336,7 +337,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      if data.set_assignment is '0'
+      unless data.set_assignment is '1'
         data2 =
           assignment_overrides: @discussionDueDateOverrideView.getAllDates()
         errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)

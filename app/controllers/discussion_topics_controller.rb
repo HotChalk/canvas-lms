@@ -1096,7 +1096,7 @@ class DiscussionTopicsController < ApplicationController
   end
 
   def apply_override_parameters
-    if !params[:assignment] && !params[:assignment_id] && params[:assignment_overrides]
+    if !params[:assignment] && !params[:assignment_id]
       overrides = deserialize_overrides(params[:assignment_overrides])
       overrides = [] if !overrides && params.has_key?(:assignment_overrides)
       params.delete(:assignment_overrides)
