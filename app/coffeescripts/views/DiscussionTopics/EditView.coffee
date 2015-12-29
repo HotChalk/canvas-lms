@@ -256,6 +256,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       # Reply assignments copy the main assignment's overrides, except for the Due Date
       if data.due_at && model_key == 'reply_assignment' && ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        # Refresh the due_at date directly from the UI input, otherwise time zones won't be accounted for correctly
+        data.due_at = $('#discussion_topic_reply_assignment_due_date').data('unfudged-date')
+
         assignment_id = @model.get(model_key).id
         _.each data.assignment_overrides, (override) ->
           override.assignment_id = assignment_id
