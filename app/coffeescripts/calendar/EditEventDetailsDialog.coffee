@@ -59,11 +59,13 @@ define [
       dialog.addClass("group_#{newContext}").data('group_class', "group_#{newContext}")
       @calendarEventForm.setContext(newContext) if @calendarEventForm
       @assignmentDetailsForm.setContext(newContext) if @assignmentDetailsForm
+      $('.edit_assignment_option').removeAttr('style')
 
     closeCB: () =>
       dialog.dialog('close')
 
     dialogClose: () =>
+      dialog.removeClass dialog.data('group_class')
       if @oldFocus?
         @oldFocus.focus()
         @oldFocus = null
@@ -85,6 +87,10 @@ define [
           dialog.find("#edit_assignment_form_holder").data('form-widget', @assignmentDetailsForm)
 
         @setupTabs()
+
+        # Avoid tab with 'color: white' on a white background
+        has_colored_bg = _.any($('#edit_event').attr('class').split(' '), (c) -> c.startsWith('group_'))
+        $('.edit_assignment_option').css('color', 'black') unless has_colored_bg
 
         # TODO: select the tab that should be active
 
