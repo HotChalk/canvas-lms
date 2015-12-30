@@ -2525,7 +2525,9 @@ class Course < ActiveRecord::Base
       end
 
       # Add dynamic tabs
-      tabs += dynamic_tabs
+      unless opts[:for_reordering]
+        tabs += dynamic_tabs
+      end
 
       tabs
     end
