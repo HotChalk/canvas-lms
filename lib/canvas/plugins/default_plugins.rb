@@ -350,8 +350,8 @@ Canvas::Plugin.register('live_events', nil, {
   :validator => 'LiveEventsValidator'
 })
 Canvas::Plugin.register('hotchalk', :export_system, {
-    :name => lambda{ t :name, 'Hotchalk' },
-    :description => lambda{ t :description, 'Hotchalk integration' },
+    :name => lambda{ I18n.t :name, 'Hotchalk' },
+    :description => lambda{ I18n.t :description, 'Hotchalk integration' },
     :website => 'http://www.hotchalk.com',
     :author => 'Hotchalk',
     :author_website => 'http://www.hotchalk.com',
