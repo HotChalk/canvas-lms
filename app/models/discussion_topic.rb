@@ -1020,7 +1020,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def active_participants_with_visibility
-    return active_participants if !course.feature_enabled?(:differentiated_assignments)
+    return active_participants unless course.is_a?(Course) && course.feature_enabled?(:differentiated_assignments)
     users_with_visibility = self.for_assignment? ?
       AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id) :
       DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id)
@@ -1047,7 +1047,7 @@ class DiscussionTopic < ActiveRecord::Base
 
     subscribed_users = participating_users(sub_ids)
 
-    if course.feature_enabled?(:differentiated_assignments)
+    if course.is_a?(Course) && course.feature_enabled?(:differentiated_assignments)
       users_with_visibility = self.for_assignment? ?
         AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id) :
         DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id)
