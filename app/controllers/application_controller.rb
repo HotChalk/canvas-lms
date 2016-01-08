@@ -744,7 +744,7 @@ class ApplicationController < ActionController::Base
     redirect ||= root_url
     context ||= @context
     get_quota(context)
-    if response.body.size + @quota_used > @quota
+    if request.body.size + @quota_used > @quota
       if context.is_a?(Account)
         error = t "#application.errors.quota_exceeded_account", "Account storage quota exceeded"
       elsif context.is_a?(Course)

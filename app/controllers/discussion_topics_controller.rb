@@ -885,7 +885,7 @@ class DiscussionTopicsController < ApplicationController
         log_asset_access(@topic, 'topics', 'topics', 'participate')
 
         apply_positioning_parameters
-        apply_attachment_parameters
+        return unless apply_attachment_parameters
         apply_assignment_parameters
         apply_reply_assignment_parameters
         apply_override_parameters
@@ -1023,7 +1023,7 @@ class DiscussionTopicsController < ApplicationController
                    params[:attachment].size > 0 &&
                    params[:attachment]
 
-      return if attachment && attachment.size > 1.kilobytes &&
+      return false if attachment && attachment.size > 1.kilobytes &&
                 quota_exceeded(named_context_url(@context, :context_discussion_topics_url))
 
       if (params.has_key?(:remove_attachment) || attachment) && @topic.attachment
@@ -1041,6 +1041,7 @@ class DiscussionTopicsController < ApplicationController
         @topic.save
       end
     end
+    true
   end
 
   def apply_assignment_parameters
