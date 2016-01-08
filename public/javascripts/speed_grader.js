@@ -865,11 +865,13 @@ define([
       });
       $expand_link.click(function(event){
          $left_side.width("50%");
-         $right_side.width("50%");
+         $right_side.width("50%");         
+         event.preventDefault();
       });
       $contract_link.click(function(event){
         $left_side.width("75%");
-         $right_side.width("25%");
+        $right_side.width("25%");        
+        event.preventDefault();
       });
       $width_resizer.mousedown(function(event){
         $resize_overlay.show();
