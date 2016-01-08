@@ -731,25 +731,27 @@ class ApplicationController < ActionController::Base
     request.path.match(/\A\/assignments/)
   end
 
-  # Calculates the file storage quota for @context
-  def get_quota
-    quota_params = Attachment.get_quota(@context)
+  # Calculates the file storage quota for context
+  def get_quota(context=nil)
+    context ||= @context
+    quota_params = Attachment.get_quota(context)
     @quota = quota_params[:quota]
     @quota_used = quota_params[:quota_used]
   end
 
-  # Renders a quota exceeded message if the @context's quota is exceeded
-  def quota_exceeded(redirect=nil)
+  # Renders a quota exceeded message if the context's quota is exceeded
+  def quota_exceeded(redirect=nil, context=nil)
     redirect ||= root_url
-    get_quota
+    context ||= @context
+    get_quota(context)
     if response.body.size + @quota_used > @quota
-      if @context.is_a?(Account)
+      if context.is_a?(Account)
         error = t "#application.errors.quota_exceeded_account", "Account storage quota exceeded"
-      elsif @context.is_a?(Course)
+      elsif context.is_a?(Course)
         error = t "#application.errors.quota_exceeded_course", "Course storage quota exceeded"
-      elsif @context.is_a?(Group)
+      elsif context.is_a?(Group)
         error = t "#application.errors.quota_exceeded_group", "Group storage quota exceeded"
-      elsif @context.is_a?(User)
+      elsif context.is_a?(User)
         error = t "#application.errors.quota_exceeded_user", "User storage quota exceeded"
       else
         error = t "#application.errors.quota_exceeded", "Storage quota exceeded"
@@ -757,7 +759,7 @@ class ApplicationController < ActionController::Base
       respond_to do |format|
         flash[:error] = error unless request.format.to_s == "text/plain"
         format.html {redirect_to redirect }
-        format.json {render :json => {:errors => {:base => error}} }
+        format.json {render :json => {:errors => {:base => error}}, :status => :bad_request }
         format.text {render :json => {:errors => {:base => error}} }
       end
       return true

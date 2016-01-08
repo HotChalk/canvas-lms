@@ -127,6 +127,7 @@ define [
     #
     # @api private
     onPostReplySuccess: (entry) =>
+      return @onPostReplyError(entry) if entry.get('errors')
       @view.model.set 'notification', ''
       @trigger 'save', entry
 
@@ -136,6 +137,7 @@ define [
     # @api private
     onPostReplyError: (entry) =>
       @view.model.set 'notification', "<div class='alert alert-info'>#{I18n.t "*An error occurred*, please post your reply again later", wrapper: '<strong>$1</strong>'}</div>"
+      $.flashError(entry.get('errors').base || I18n.t "An error occurred, please post your reply again later") if entry.get('errors')
       @textArea.val entry.get('message')
       @edit()
 
