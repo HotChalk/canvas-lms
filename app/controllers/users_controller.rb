@@ -684,7 +684,7 @@ class UsersController < ApplicationController
     if @current_user
       api_render_stream_summary
     else
-      render_unauthorize_action
+      render_unauthorized_action
     end
   end
 
