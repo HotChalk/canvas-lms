@@ -1152,17 +1152,6 @@ class DiscussionTopicsController < ApplicationController
         hash[:assignment][:points_possible] = params[:points_possible] if params[:points_possible]
         hash[:assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
       end
-      if hash[:reply_assignment].nil? && @context.respond_to?(:assignments) && @context.assignments.new.grants_right?(@current_user, session, :create)
-        hash[:reply_assignment] ||= {}
-      end
-      
-      if !hash[:reply_assignment].nil?
-        if params[:due_at]
-          hash[:reply_assignment][:due_at] = params[:due_at].empty? || params[:due_at] == "null"  ? nil : params[:due_at]
-        end
-        hash[:reply_assignment][:points_possible] = params[:points_possible] if params[:points_possible]
-        hash[:reply_assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
-      end
     end
   end
 end
