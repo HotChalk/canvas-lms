@@ -916,11 +916,9 @@ class DiscussionTopic < ActiveRecord::Base
                             self.context.grants_right?(user, session, :manage_grades))
     end
     can :rate
-
-    given {|user| self.user && self.user == user}
-    can :update and can :delete
-
-    given {|user|  self.is_group_leader?(user)}
+    
+    #verify if the discussion belongs to a group and the user is a leader inside the group
+    given {|user| self.context.is_a?(Group) && self.context.leader_id == user.id}
     can :update and can :delete
   end
 
@@ -1099,18 +1097,7 @@ class DiscussionTopic < ActiveRecord::Base
     return false if is_announcement && locked?
     !locked_for?(user, opts)
   end
-
-  def is_group_leader?(user)
-    result = false
-    @g = self.user.current_groups.select { |g| g.id == self.context_id}     
-    if @g.length > 0
-      if user.id == @g.first.leader_id      
-        result = true
-      end  
-    end
-    return result
-  end
-
+  
   # Public: Determine if the given user can view this discussion topic.
   #
   # user - The user attempting to view the topic (default: nil).
