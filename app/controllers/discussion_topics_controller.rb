@@ -513,6 +513,7 @@ class DiscussionTopicsController < ApplicationController
                 :IS_SUBSCRIBED => @topic.subscribed?(@current_user),
                 :IS_PUBLISHED  => @topic.published?,
                 :CAN_UNPUBLISH => @topic.can_unpublish?,
+                :LOCKED        => @locked
               },
               :PERMISSIONS => {
                 # Can reply

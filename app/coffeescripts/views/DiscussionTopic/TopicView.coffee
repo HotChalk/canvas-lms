@@ -166,7 +166,7 @@ define [
       # erb renders most of this
       if ENV.DISCUSSION.PERMISSIONS.CAN_REPLY
         modelData = @model.toJSON()
-        modelData.showBoxReplyLink = true
+        modelData.showBoxReplyLink = !ENV.DISCUSSION.TOPIC.LOCKED
         modelData.root = true
         modelData.isForMainDiscussion = true
         html = replyTemplate modelData
