@@ -499,6 +499,14 @@ class GroupsController < ApplicationController
         if @group.save
           @group.add_user(@current_user, 'accepted', true) if @group.should_add_creator?(@current_user)
           @group.invitees = params[:invitees]
+
+          # Set a default sis_source_id per LMS-1685
+          @group.reload
+          unless @group.sis_source_id.present?
+            @group.sis_source_id = @group.id
+            @group.save
+          end
+
           flash[:notice] = t('notices.create_success', 'Group was successfully created.')
           format.html { redirect_to group_url(@group) }
           format.json { render :json => group_json(@group, @current_user, session, {include: ['users', 'group_category', 'permissions']}) }
