@@ -2124,6 +2124,15 @@ class Course < ActiveRecord::Base
     end
   end
 
+  #return the users on the same section by user
+  def users_sections_visible_to(user, include_priors=false, opts={})
+    visibilities = section_visibilities_for(user)
+    scope = include_priors ? users : current_users
+    scope =  scope.where(:enrollments => {:workflow_state => opts[:enrollment_state]}) if opts[:enrollment_state]
+    # See also MessageableUsers (same logic used to get users across multiple courses) (should refactor)
+    scope.where(:enrollments => { :course_section_id => visibilities.map {|s| s[:course_section_id] } })
+  end
+
   # returns :all, :none, or an array of section ids
   def course_section_visibility(user)
     visibilities = section_visibilities_for(user)

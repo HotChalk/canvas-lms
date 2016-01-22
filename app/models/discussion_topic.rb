@@ -1300,7 +1300,13 @@ class DiscussionTopic < ActiveRecord::Base
       visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
       return discussion_entries.active.where(user_id: visible_user_ids).count
     end
-    discussion_entries.active.count
+    visibilities = self.context.section_visibilities_for(enrollment.user)
+    if visibilities.first[:admin]
+      discussion_entries.active.count
+    else
+      visible_user_ids = self.context.users_sections_visible_to(enrollment.user)
+      discussion_entries.active.where(user_id: visible_user_ids).count
+    end
   end
 
   # count unread discussion_entries for a given enrollment, considering section visibility restrictions
@@ -1312,7 +1318,15 @@ class DiscussionTopic < ActiveRecord::Base
         DiscussionEntryParticipant.where(user_id: enrollment.user_id, discussion_entry_id: visible_discussion_entry_ids, workflow_state: 'unread').count
       end
     else
-      unread_count(user)
+      visibilities = self.context.section_visibilities_for(user)
+      if visibilities.first[:admin]
+        visible_discussion_entry_ids = discussion_entries.active.pluck(:id)
+      else
+        visible_user_ids = self.context.users_sections_visible_to(user)
+        visible_discussion_entry_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:id)
+      end
+      unread_entries = visible_discussion_entry_ids - DiscussionEntryParticipant.read_entry_ids(visible_discussion_entry_ids, user)
+      unread_entries.length
     end
   end
 
