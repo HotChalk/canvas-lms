@@ -59,10 +59,11 @@ module AttachmentHelper
 
   def filter_by_section(files, context)
     unless @current_user.account_admin?(context) || !context.respond_to?(:sections_visible_to)
-      files.keep_if { |file|
-        sections_current_user = context.sections_visible_to(@current_user).map(&:id)
-        sections_file_user = context.sections_visible_to(file.user).map(&:id)
-        (sections_current_user & sections_file_user).count > 0
+      files.select! { |file|
+        file.user.nil? ||
+          ((sections_current_user = context.sections_visible_to(@current_user).map(&:id)) &&
+            (sections_file_user = context.sections_visible_to(file.user).map(&:id)) &&
+            ((sections_current_user & sections_file_user).count > 0))
       }
     end
     files
