@@ -73,6 +73,9 @@ define [
 
   return sidebar = (contexts, selectedContexts, dataSource) ->
 
+    if selectedContexts
+      userSettings.set('checked_calendar_codes', selectedContexts)
+
     $holder   = $('#context-list-holder')
     $skipLink = $('.skip-to-calendar')
     $colorPickerBtn = $('.ContextList__MoreBtn')
