@@ -1193,21 +1193,6 @@ define([
     $question.attr('id', '').find('.question').attr('id', 'question_new');
     $question.fillTemplateData({ data: question, except: ['answers'] });
     $question.find(".original_question_text").fillFormData(question);
-    if (question.question_type == 'learnosity_question') {
-      $question.find('.question_text').hide()
-      var course_id = location.pathname.match(/\/courses\/([0-9]+)/)[1];
-      var url = '/courses/' + course_id + '/quizzes/' + data.quiz_id + '/questions/' + data.id + '/display';
-      $.getJSON(url, function(question_data) {
-        var question_id = this.url.match(/([0-9]+)\/display/)[1];
-        var container = $('#question_' + question_id);
-        var span = $('<span class="learnosity-response question-' + question_id + '" />');
-        span.data('learnosity-request', question_data);
-        container.find('.question_text').empty().append(span).show();
-        require(['//questions.learnosity.com'], function() {
-          LearnosityApp.init(question_data);
-        });
-      }, 'html');
-    }
     if (question.answers) {
       question.answer_count = question.answers.length;
       data.answer_type = question.answer_type;
@@ -2587,15 +2572,6 @@ define([
           $div.html(question.question_data.question_text);
           question.question_text = TextHelper.truncateText($div.text(), {max: 75});
           question.question_name = question.question_data.question_name;
-          if (question.question_data.question_type == 'learnosity_question') {
-            try {
-              var learnosityObj = JSON.parse($div.text());
-              var newText = learnosityObj['stimulus'] || learnosityObj['description'] || I18n.t('errors.no_preview_available', "No preview available for this question");
-              question.question_text = TextHelper.truncateText(newText, {max: 75});
-            } catch (e) {
-              question.question_text = I18n.t('errors.no_preview_available', "No preview available for this question")
-            }
-          }
           var $question = $findQuestionDialog.find(".found_question.blank").clone(true).removeClass('blank');
           $question.toggleClass('already_added', !!existingIDs[question.id]);
           $question.fillTemplateData({data: question});
@@ -3097,7 +3073,6 @@ define([
         var $question = $("#question_template").clone().removeAttr('id');
         var question = question_data;
         var questionData = $.extend({}, question, question.question_data);
-        if (questionData.question_type == 'learnosity_question') return;
         $teaser.after($question);
         $teaser.remove();
         $question.show();

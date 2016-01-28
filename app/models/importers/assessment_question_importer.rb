@@ -119,11 +119,7 @@ module Importers
     def self.prep_for_import(hash, migration, item_type)
       return hash if hash[:prepped_for_import]
 
-      fields_to_convert = [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html]
-      if hash[:question_type] == 'learnosity_question'
-        fields_to_convert.delete :question_text # do not HTML-convert Learnosity questions
-      end
-      fields_to_convert.each do |field|
+      [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html].each do |field|
         if hash[field].present?
           hash[field] = migration.convert_html(
             hash[field], item_type, hash[:migration_id], field, {:remove_outer_nodes_if_one_child => true}
