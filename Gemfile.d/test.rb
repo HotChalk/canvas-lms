@@ -15,8 +15,6 @@ group :test do
   gem 'rspec', '3.2.0'
   gem 'rspec-rails', '3.2.3'
   gem 'rspec-legacy_formatters', '1.0.0'
-    gem 'rspec-core', '3.2.0'
-    gem 'rspec-support', '3.2.0'
   gem 'rspec-collection_matchers', '1.1.2'
   gem 'shoulda-matchers', '2.8.0'
 

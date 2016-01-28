@@ -398,8 +398,8 @@ CanvasRails::Application.routes.draw do
     get 'link_validator' => 'courses#link_validator', :as => :link_validator
   end
     
-  get "courses/:course_id/rubrics/:rubric_id/copy", controller: 'rubrics', action: 'copy', as: :rubric_copy
-  get "accounts/:account_id/rubrics/:rubric_id/copy", controller: 'rubrics', action: 'copy', as: :rubric_copy
+  get 'courses/:course_id/rubrics/:rubric_id/copy' => 'rubrics#copy'
+  get 'accounts/:account_id/rubrics/:rubric_id/copy' => 'rubrics#copy'
   get 'quiz_statistics/:quiz_statistics_id/files/:file_id/download' => 'files#show', as: :quiz_statistics_download, download: '1'
 
   resources :page_views, only: :update
