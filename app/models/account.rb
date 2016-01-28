@@ -516,7 +516,7 @@ class Account < ActiveRecord::Base
     associated_courses = associated_courses.for_account_id(opts[:department_id]) if opts[:department_id].present?
     associated_courses = associated_courses.for_program_id(opts[:program_id]) if opts[:program_id].present?
     associated_courses = yield associated_courses if block_given?
-    associated_courses = associated_courses.limit(opts[:limit]).active_first.select(columns).all
+    associated_courses = associated_courses.limit(opts[:limit]).active_first.select(columns).to_a
     if opts[:course_format].present?
       filtered = []
       associated_courses.each do |course|
