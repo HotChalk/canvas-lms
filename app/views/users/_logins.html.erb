@@ -108,7 +108,7 @@
           <td class="default_account_name"><%= @domain_root_account.name %></td>
         </tr>
       <% end %>
-      <% if account_context(@context) && account_context(@context).settings[:admins_can_change_passwords] %>
+      <% if ((ctx = ::Context.get_account(@context)) && ctx.settings[:admins_can_change_passwords]) %>
         <tr class="password">
           <td><%= f.blabel :password, :en => "Password" %></td>
           <td><%= f.password_field :password %></td>

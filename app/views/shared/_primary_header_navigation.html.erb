@@ -16,7 +16,7 @@
         <%= t('menu.calendar', 'Calendar') %>
       </a>
     </li>
-    <% if @context && (acct = account_context(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
+    <% if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
       <li id="resources_menu_item" class="menu-item">
         <%= render(:partial => 'shared/resources_menu') %>
       </li>
