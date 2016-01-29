@@ -263,7 +263,8 @@
         <div style="margin-top: 5px;">
         <select class="module_item_select" aria-label="<%= t 'discussion_topic_select_label', 'Select the topic you want to associate, or add a topic by selecting "New Topic".' %>" multiple>
           <option value="new"><%= t :new_topic_option, "[ New Topic ]" %></option>
-          <% discussion_topics = @context.discussion_topics.active.only_discussion_topics.scoped({:limit => 200}) %>
+          <% discussion_topic_ids = @context.discussion_topics.active.only_discussion_topics.limit(200).pluck(:id) %>
+          <% discussion_topics = DiscussionTopic.where(id: discussion_topic_ids) %>
           <% unless is_admin %>
             <% discussion_topics = DifferentiableAssignment.scope_filter(discussion_topics, @current_user, @context) %>
           <% end %>

@@ -138,7 +138,8 @@
         </div>
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
-          <% discussion_topics = @context.discussion_topics.active.only_discussion_topics.scoped({:limit => 200}) %>
+          <% discussion_topic_ids = @context.discussion_topics.active.only_discussion_topics.limit(200).pluck(:id) %>
+          <% discussion_topics = DiscussionTopic.where(id: discussion_topic_ids) %>
           <% unless is_admin || !@context.is_a?(Course) %>
             <% discussion_topics = DifferentiableAssignment.scope_filter(discussion_topics, @current_user, @context) %>
           <% end %>

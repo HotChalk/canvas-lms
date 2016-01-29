@@ -20,7 +20,7 @@
 require 'atom'
 
 # Force loaded so that it will be in ActiveRecord::Base.descendants for switchman to use
-require_dependency 'assignment_student_visibility'
+require_dependency 'assignment_user_visibility'
 
 class DiscussionTopic < ActiveRecord::Base
 
@@ -72,7 +72,7 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :discussion_topic_participants, :dependent => :destroy
   has_many :discussion_entry_participants, :through => :discussion_entries
 
-  has_many :assignment_student_visibilities, :through => :assignment
+  has_many :assignment_user_visibilities, :through => :assignment
 
   belongs_to :user
   belongs_to :course_section
