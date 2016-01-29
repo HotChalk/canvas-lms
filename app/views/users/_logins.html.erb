@@ -1,3 +1,4 @@
+<% if can_do(@user, @current_user, :manage, :manage_user_details) %>
   <% css_bundle :user_logins %>
   <% js_bundle :user_logins %>
   <% js_env :PASSWORD_POLICY => (@domain_root_account.try(:password_policy) || {}) %>
@@ -107,7 +108,7 @@
           <td class="default_account_name"><%= @domain_root_account.name %></td>
         </tr>
       <% end %>
-      <% if account_context(@context) && account_context(@context).settings[:admins_can_change_passwords] %>
+      <% if ((ctx = ::Context.get_account(@context)) && ctx.settings[:admins_can_change_passwords]) %>
         <tr class="password">
           <td><%= f.blabel :password, :en => "Password" %></td>
           <td><%= f.password_field :password %></td>
@@ -138,3 +139,4 @@
       <button type="submit" class="btn btn-primary submit_button"><%= t('buttons.update_login', 'Update Login') %></button>
     </div>
   <% end %>
+<% end %>

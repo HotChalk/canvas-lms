@@ -20,7 +20,7 @@ class Conversation < ActiveRecord::Base
   include SimpleTags
 
   has_many :conversation_participants, :dependent => :destroy
-  has_many :conversation_messages, :order => "created_at DESC, id DESC", :dependent => :delete_all
+  has_many :conversation_messages, -> { order("created_at DESC, id DESC") }, dependent: :delete_all
   has_many :conversation_message_participants, :through => :conversation_messages
   has_one :stream_item, :as => :asset
   belongs_to :context, :polymorphic => true
@@ -165,9 +165,9 @@ class Conversation < ActiveRecord::Base
           # give them all messages
           # NOTE: individual messages in group conversations don't have tags
           connection.execute(sanitize_sql([<<-SQL, self.id, current_user.id, user_ids]))
-            INSERT INTO conversation_message_participants(conversation_message_id, conversation_participant_id, user_id, workflow_state)
+            INSERT INTO #{ConversationMessageParticipant.quoted_table_name}(conversation_message_id, conversation_participant_id, user_id, workflow_state)
             SELECT conversation_messages.id, conversation_participants.id, conversation_participants.user_id, 'active'
-            FROM conversation_messages, conversation_participants, conversation_message_participants
+            FROM #{ConversationMessage.quoted_table_name}, #{ConversationParticipant.quoted_table_name}, #{ConversationMessageParticipant.quoted_table_name}
             WHERE conversation_messages.conversation_id = ?
               AND conversation_messages.conversation_id = conversation_participants.conversation_id
             AND conversation_message_participants.conversation_message_id = conversation_messages.id

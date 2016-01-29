@@ -98,7 +98,7 @@ module Importers
             assessment_question_bank_id: bank.id)
       else
         query = AssessmentQuestion.send(:sanitize_sql, [<<-SQL, hash[:question_name], hash.to_yaml, Time.now.utc, Time.now.utc, bank.id, hash[:migration_id]])
-          INSERT INTO assessment_questions (name, question_data, workflow_state, created_at, updated_at, assessment_question_bank_id, migration_id)
+          INSERT INTO #{AssessmentQuestion.quoted_table_name} (name, question_data, workflow_state, created_at, updated_at, assessment_question_bank_id, migration_id)
           VALUES (?,?,'active',?,?,?,?)
         SQL
         id = AssessmentQuestion.connection.insert(query, "#{name} Create",
@@ -119,11 +119,7 @@ module Importers
     def self.prep_for_import(hash, migration, item_type)
       return hash if hash[:prepped_for_import]
 
-      fields_to_convert = [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html]
-      if hash[:question_type] == 'learnosity_question'
-        fields_to_convert.delete :question_text # do not HTML-convert Learnosity questions
-      end
-      fields_to_convert.each do |field|
+      [:question_text, :correct_comments_html, :incorrect_comments_html, :neutral_comments_html, :more_comments_html].each do |field|
         if hash[field].present?
           hash[field] = migration.convert_html(
             hash[field], item_type, hash[:migration_id], field, {:remove_outer_nodes_if_one_child => true}

@@ -332,7 +332,6 @@ define([
       },
       error: function(data) {
         $(this).loadingImage('remove');
-        $(this).formErrors(data);
       },
       disableWhileLoading: 'spin_on_success'
     })
@@ -429,7 +428,7 @@ define([
       event.preventDefault();
       GradePublishing.publish();
     });
-    if (typeof(sisPublishEnabled) != 'undefined' && sisPublishEnabled) {
+    if (ENV.PUBLISHING_ENABLED) {
       GradePublishing.checkup();
     }
 
