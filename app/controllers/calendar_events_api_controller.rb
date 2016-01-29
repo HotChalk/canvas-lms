@@ -327,8 +327,8 @@ class CalendarEventsApiController < ApplicationController
 
   def render_events_for_user(user, route_url)
     if @type == :all
-      assignments_scope = assignment_scope
-      events_scope = calendar_event_scope
+      assignments_scope = assignment_scope(user)
+      events_scope = calendar_event_scope(user)
       assignments_events = Api.paginate(assignments_scope, self, api_v1_calendar_events_url)
       calendar_events = Api.paginate(events_scope, self, api_v1_calendar_events_url)
       ActiveRecord::Associations::Preloader.new(calendar_events, :child_events).run
