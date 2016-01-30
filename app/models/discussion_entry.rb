@@ -194,7 +194,7 @@ class DiscussionEntry < ActiveRecord::Base
     truncate_html(self.message, :max_length => length)
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.deleted_at = Time.now.utc
@@ -212,7 +212,7 @@ class DiscussionEntry < ActiveRecord::Base
         dt = dt.root_topic
         break if dt.blank?
       end
-      connection.after_transaction_commit { self.discussion_topic.update_materialized_view }
+      self.class.connection.after_transaction_commit { self.discussion_topic.update_materialized_view }
     end
   end
 

@@ -65,7 +65,7 @@ class ContextModulesController < ApplicationController
 
       if @context.grants_right?(@current_user, session, :participate_as_student)
         return unless tab_enabled?(@context.class::TAB_MODULES)
-        ActiveRecord::Associations::Preloader.new(@modules, :content_tags).run
+        ActiveRecord::Associations::Preloader.new.preload(@modules, :content_tags)
         @modules.each{|m| m.evaluate_for(@current_user) }
         session[:module_progressions_initialized] = true
       end
@@ -138,7 +138,7 @@ class ContextModulesController < ApplicationController
   end
 
   def create
-    if authorized_action(@context.context_modules.scoped.new, @current_user, :create)
+    if authorized_action(@context.context_modules.scope.new, @current_user, :create)
       @module = @context.context_modules.build
       @module.workflow_state = 'unpublished'
       @module.attributes = params[:context_module]
@@ -155,7 +155,7 @@ class ContextModulesController < ApplicationController
   end
 
   def reorder
-    if authorized_action(@context.context_modules.scoped.new, @current_user, :update)
+    if authorized_action(@context.context_modules.scope.new, @current_user, :update)
       m = @context.context_modules.not_deleted.first
 
       m.update_order(params[:order].split(","))

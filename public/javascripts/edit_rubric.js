@@ -1026,4 +1026,3 @@ define([
 
   return rubricEditing;
 });
-

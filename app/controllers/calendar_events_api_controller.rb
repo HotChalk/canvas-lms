@@ -331,14 +331,14 @@ class CalendarEventsApiController < ApplicationController
       events_scope = calendar_event_scope(user)
       assignments_events = Api.paginate(assignments_scope, self, api_v1_calendar_events_url)
       calendar_events = Api.paginate(events_scope, self, api_v1_calendar_events_url)
-      ActiveRecord::Associations::Preloader.new(calendar_events, :child_events).run
+      ActiveRecord::Associations::Preloader.new.preload(calendar_events, :child_events)
       assignment_events = apply_assignment_overrides(assignments_events, user)
       mark_submitted_assignments(user, assignments_events)
       events = calendar_events + assignment_events
     else
       scope = @type == :assignment ? assignment_scope(user) : calendar_event_scope(user)
       events = Api.paginate(scope, self, route_url)
-      ActiveRecord::Associations::Preloader.new(events, :child_events).run if @type == :event
+      ActiveRecord::Associations::Preloader.new.preload(events, :child_events) if @type == :event
       if @type == :assignment
         events = apply_assignment_overrides(events, user)
         mark_submitted_assignments(user, events)
@@ -653,7 +653,7 @@ class CalendarEventsApiController < ApplicationController
     @contexts.each do |context|
       log_asset_access([ "calendar_feed", context ], "calendar", 'other')
     end
-    ActiveRecord::Associations::Preloader.new(@events, :context)
+    ActiveRecord::Associations::Preloader.new.preload(@events, :context)
 
     respond_to do |format|
       format.ics do
@@ -892,7 +892,7 @@ class CalendarEventsApiController < ApplicationController
   end
 
   def apply_assignment_overrides(events, user)
-    ActiveRecord::Associations::Preloader.new(events, [:context, :assignment_overrides]).run
+    ActiveRecord::Associations::Preloader.new.preload(events, [:context, :assignment_overrides])
     events.each { |e| e.has_no_overrides = true if e.assignment_overrides.size == 0 }
 
     if AssignmentOverrideApplicator.should_preload_override_students?(events, user, "calendar_events_api")
@@ -900,7 +900,7 @@ class CalendarEventsApiController < ApplicationController
     end
 
     unless (params[:excludes] || []).include?('assignments')
-      ActiveRecord::Associations::Preloader.new(events, [:rubric, :rubric_association]).run
+      ActiveRecord::Associations::Preloader.new.preload(events, [:rubric, :rubric_association])
       # improves locked_json performance
 
       student_events = events.select{|e| !e.context.grants_right?(user, session, :read_as_admin)}

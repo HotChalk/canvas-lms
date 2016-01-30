@@ -292,7 +292,7 @@ class Group < ActiveRecord::Base
     self.available? || self.closed?
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.deleted_at = Time.now.utc
