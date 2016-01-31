@@ -698,7 +698,7 @@ class ApplicationController < ActionController::Base
     if @just_viewing_one_course
 
       # fake assignment used for checking if the @current_user can read unpublished assignments
-      fake = @context.assignments.scoped.new
+      fake = @context.assignments.scope.new
       fake.workflow_state = 'unpublished'
 
       assignment_scope = :active_assignments
@@ -778,20 +778,19 @@ class ApplicationController < ActionController::Base
     request.path.match(/\A\/assignments/)
   end
 
-  # Calculates the file storage quota for context
+  # Calculates the file storage quota for @context
   def get_quota(context=nil)
-    context ||= @context
-    quota_params = Attachment.get_quota(context)
+    quota_params = Attachment.get_quota(context || @context)
     @quota = quota_params[:quota]
     @quota_used = quota_params[:quota_used]
   end
 
-  # Renders a quota exceeded message if the context's quota is exceeded
-  def quota_exceeded(redirect=nil, context=nil)
-    redirect ||= root_url
+  # Renders a quota exceeded message if the @context's quota is exceeded
+  def quota_exceeded(context=nil, redirect=nil)
     context ||= @context
+    redirect ||= root_url
     get_quota(context)
-    if request.body.size + @quota_used > @quota
+    if response.body.size + @quota_used > @quota
       if context.is_a?(Account)
         error = t "#application.errors.quota_exceeded_account", "Account storage quota exceeded"
       elsif context.is_a?(Course)
@@ -807,7 +806,7 @@ class ApplicationController < ActionController::Base
         flash[:error] = error unless request.format.to_s == "text/plain"
         format.html {redirect_to redirect }
         format.json {render :json => {:errors => {:base => error}}, :status => :bad_request }
-        format.text {render :json => {:errors => {:base => error}} }
+        format.text {render :json => {:errors => {:base => error}}, :status => :bad_request }
       end
       return true
     end
@@ -1045,7 +1044,7 @@ class ApplicationController < ActionController::Base
     else
       @page_view.destroy if @page_view && !@page_view.new_record?
     end
-  rescue => e
+  rescue StandardError, CassandraCQL::Error::InvalidRequestException => e
     logger.error "Pageview error!"
     raise e if Rails.env.development?
     true
@@ -1874,7 +1873,8 @@ class ApplicationController < ActionController::Base
   end
 
   def ms_office?
-    request.user_agent.to_s =~ /ms-office/
+    !!(request.user_agent.to_s =~ /ms-office/) ||
+        !!(request.user_agent.to_s =~ %r{Word/\d+\.\d+})
   end
 
   def profile_data(profile, viewer, session, includes)

@@ -135,7 +135,7 @@ require 'atom'
 #
 class GroupsController < ApplicationController
   before_filter :get_context
-  before_filter :require_user, :only => %w[index]
+  before_filter :require_user, :only => %w[index accept_invitation]
 
   include Api::V1::Attachment
   include Api::V1::Group
@@ -216,7 +216,6 @@ class GroupsController < ApplicationController
 
       format.json do
         @groups = ShardedBookmarkedCollection.build(Group::Bookmarker, groups_scope) do |scope|
-          scope = scope.scoped
           scope = scope.where(:context_type => params[:context_type]) if params[:context_type]
           scope.preload(:group_category)
         end
@@ -309,7 +308,7 @@ class GroupsController < ApplicationController
         path = send("api_v1_#{@context.class.to_s.downcase}_user_groups_url")
 
         if value_to_boolean(params[:only_own_groups])
-          all_groups = all_groups.merge(@current_user.current_groups.scoped)
+          all_groups = all_groups.merge(@current_user.current_groups)
         end
 
         @paginated_groups = Api.paginate(all_groups, self, path)
@@ -403,7 +402,7 @@ class GroupsController < ApplicationController
             @padless = true
           elsif @group_home_view == 'announcements'
             add_crumb(t(:announcements_crumb, "Announcements"))
-            can_create = @group.announcements.scoped.new.grants_right?(@current_user, session, :create)
+            can_create = @group.announcements.scope.new.grants_right?(@current_user, session, :create)
             js_env :permissions => {
               :create => can_create,
               :moderate => can_create
@@ -483,17 +482,17 @@ class GroupsController < ApplicationController
       course_section = CourseSection.active.find(params[:course_section_id])
       return render :json => {}, :status => bad_request unless course_section
       params[:course_section] = course_section
-    end    
+    end
 
     attrs = api_request? ? params : params[:group]
     attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
-    @group = @context.groups.scoped.new(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
+    @group = @context.groups.scope.new(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
     unless params[:course_section_id]
       user_sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).active : []
       params[:course_section_id] = user_sections.present? ? user_sections.first.id : nil
       @group.course_section_id = params[:course_section_id]
     end
-    
+
     if authorized_action(@group, @current_user, :create)
       respond_to do |format|
         if @group.save
@@ -684,7 +683,6 @@ class GroupsController < ApplicationController
   end
 
   def accept_invitation
-    require_user
     find_group
     @membership = @group.group_memberships.where(:uuid => params[:uuid]).first if @group
     @membership.accept! if @membership.try(:invited?)

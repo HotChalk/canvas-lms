@@ -270,7 +270,7 @@ class Quizzes::Quiz < ActiveRecord::Base
     self.assignment && self.assignment.muted?
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
 
   def destroy
     self.workflow_state = 'deleted'
@@ -817,7 +817,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   end
 
   def check_if_submissions_need_review
-    self.connection.after_transaction_commit do
+    self.class.connection.after_transaction_commit do
       version_num = self.version_number
       submissions_to_update = []
       self.quiz_submissions.each do |sub|

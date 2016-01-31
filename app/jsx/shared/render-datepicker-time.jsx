@@ -36,7 +36,7 @@ define(['i18n!instructure', 'timezone', 'react'], function(I18n, tz, React) {
     );
 
     var meridianSelect = '';
-    if (tz.hasMeridian()) {
+    if (tz.useMeridian()) {
       // TODO: Change this select to work as described here:
       // http://facebook.github.io/react/docs/forms.html#why-select-value
       //
