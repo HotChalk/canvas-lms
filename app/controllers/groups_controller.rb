@@ -402,7 +402,7 @@ class GroupsController < ApplicationController
             @padless = true
           elsif @group_home_view == 'announcements'
             add_crumb(t(:announcements_crumb, "Announcements"))
-            can_create = @group.announcements.scoped.new.grants_right?(@current_user, session, :create)
+            can_create = @group.announcements.scope.new.grants_right?(@current_user, session, :create)
             js_env :permissions => {
               :create => can_create,
               :moderate => can_create
