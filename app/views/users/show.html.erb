@@ -62,7 +62,8 @@
             <li>
               <a href="<%= url_for(account) %>">
                 <span class="name ellipsis"><%= account.name %></span>
-                <span class="subtitle ellipsis"></span>
+                <% @role_name_desc = t('roles_desc', "Enrolled as ") + getUserAccountRoleName(account.id) %>
+                <span class="subtitle ellipsis"><%= @role_name_desc %></span>
               </a>
             </li>
           <% end %>

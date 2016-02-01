@@ -1054,6 +1054,14 @@ class UsersController < ApplicationController
     end
   end
 
+  # get the role name from the account by user
+  def getUserAccountRoleName(account_id)
+    @role_id = AccountUser.where(user_id:@user.id, account_id:account_id).pluck(:role_id)
+    @role_name = Role.where(id:@role_id).pluck(:name)
+    @role_name.first
+  end
+  helper_method :getUserAccountRoleName
+
   # @API Show user details
   #
   # Shows details for user.
