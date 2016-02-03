@@ -172,7 +172,7 @@ class GradeCalculator
           submission: s,
           score: s && s.score,
           total: a.points_possible || 0,
-          excused: s && s.excused?,
+          excused: s && s.has_attribute?(:excused) && s.excused?,
         }
       end
 
