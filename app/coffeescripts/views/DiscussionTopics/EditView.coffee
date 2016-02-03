@@ -53,7 +53,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       'change #use_for_grading' : 'toggleAvailabilityOptions'
       'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
       'change #discussion_topic_assignment_points_possible' : 'handlePointsChange'
-      'click .cancel_button': 'cancel'
     )
 
     messages:
@@ -316,10 +315,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       else
         super
 
-    cancel: (e) ->
-      e.preventDefault()
-      window.location = ENV.CANCEL_TO if ENV.CANCEL_TO?
-
     fieldSelectors: _.extend({},
       AssignmentGroupSelector::fieldSelectors,
       GroupCategorySelector::fieldSelectors
@@ -346,7 +341,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      unless data.set_assignment is '1'
+      unless data.set_assignment is '1' || !@discussionDueDateOverrideView.$el.is(":visible")
         data2 =
           assignment_overrides: @discussionDueDateOverrideView.getAllDates()
         errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)

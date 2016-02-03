@@ -1327,6 +1327,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
   def discussion_subentry_count_for_enrollment(enrollment = nil)
+    return discussion_entries.active.count unless self.context.is_a?(Course)
     # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
       visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
@@ -1347,6 +1348,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   # count unread discussion_entries for a given enrollment, considering section visibility restrictions
   def unread_count_for_enrollment(enrollment = nil, user = nil)
+    return unread_count(user) unless self.context.is_a?(Course)
     if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
       Shackles.activate(:slave) do
         visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
