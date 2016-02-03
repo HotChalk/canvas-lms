@@ -457,7 +457,11 @@ class DiscussionTopicsController < ApplicationController
     @assignment = if @topic.for_assignment?
       AssignmentOverrideApplicator.assignment_overridden_for(@topic.assignment, @current_user)
     else
-      nil
+      if @topic.is_a? Announcement
+        AssignmentOverrideApplicator.assignment_overridden_for(@topic, @current_user)
+      else
+        nil
+      end
     end
     @context.require_assignment_group rescue nil
     add_discussion_or_announcement_crumb
@@ -477,7 +481,11 @@ class DiscussionTopicsController < ApplicationController
         return
       end
       @headers = !params[:headless]
-      @locked = @topic.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true) || @topic.locked?
+      if @topic.is_a? Announcement and !@assignment.nil?
+        @locked = @assignment.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true)
+      else
+        @locked = @topic.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true) || @topic.locked?
+      end
       @unlock_at = @topic.available_from_for(@current_user)
       @topic.change_read_state('read', @current_user) if @topic.visible_for?(@current_user)
       if @topic.for_group_discussion?
