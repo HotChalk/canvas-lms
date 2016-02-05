@@ -235,7 +235,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         data.delayed_post_at = defaultDate?.get('unlock_at') or null        
         data.assignment = @model.createAssignment(set_assignment: '0')
         if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
-          data.only_visible_to_overrides = !@discussionDueDateOverrideView.overridesContainDefault()
+          apply_overrides = @discussionDueDateOverrideView.$el.is(":visible")
+          override_assigned = !@discussionDueDateOverrideView.overridesContainDefault()
+          data.only_visible_to_overrides = if apply_overrides then override_assigned else null
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
