@@ -1001,7 +1001,11 @@ class DiscussionTopicsController < ApplicationController
   end
 
   def process_override_parameters(discussion_topic_hash)
-    return unless params.has_key? "only_visible_to_overrides"
+    return unless params.has_key?('only_visible_to_overrides')
+    if params['only_visible_to_overrides'].blank?
+      params.delete('only_visible_to_overrides')
+      return
+    end
     @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
   end
 
