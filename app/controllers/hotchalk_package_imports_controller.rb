@@ -34,7 +34,7 @@ class HotchalkPackageImportsController < ApplicationController
         end
         render :json => response.body
       rescue => e
-        logger.error "Unable to fetch Hotchalk package import list", e
+        logger.error "Unable to fetch Hotchalk package import list: #{e.message}"
         render(:json => { :message => t('invalid_account_external_urls', "Invalid Hotchalk plugin settings for this account") }, :status => :bad_request)
       end
     end
