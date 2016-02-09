@@ -29,7 +29,7 @@ class AccountNotification < ActiveRecord::Base
     end
   end
 
-  def self.for_user_allAccounts(user, account)
+  def self.for_user_all_accounts(user, account)
     @notifications = []
     @account_associations = UserAccountAssociation.where(user_id: user.id)
     @account_associations.each do |a|
