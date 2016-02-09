@@ -29,6 +29,16 @@ class AccountNotification < ActiveRecord::Base
     end
   end
 
+  def self.for_user_allAccounts(user, account)
+    @notifications = []
+    @account_associations = UserAccountAssociation.where(user_id: user.id)
+    @account_associations.each do |a|
+      @account_data = Account.find(a.account_id)
+      @notifications += self.for_user_and_account(user, @account_data)
+    end
+    @notifications
+  end
+
   def self.for_user_and_account(user, account)
     current = self.for_account(account)
 

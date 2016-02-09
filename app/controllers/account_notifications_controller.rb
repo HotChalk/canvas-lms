@@ -76,7 +76,7 @@
 class AccountNotificationsController < ApplicationController
   include Api::V1::AccountNotifications
   before_filter :require_user
-  before_filter :require_account_admin, except: [:user_index, :user_close_notification]
+  before_filter :require_account_admin, except: [:user_index, :user_close_notification, :create, :destroy]
 
   # @API Index of active global notification for the user
   # Returns a list of all global notifications in the account for this user
@@ -149,6 +149,7 @@ class AccountNotificationsController < ApplicationController
   #   }
   def create
     @notification = AccountNotification.new(params[:account_notification])
+    @account = Account.find(params[:account_id]);
     @notification.account = @account
     @notification.user = @current_user
     unless params[:account_notification_roles].nil?
@@ -184,6 +185,7 @@ class AccountNotificationsController < ApplicationController
   end
 
   def destroy
+    @account = Account.find(params[:account_id]);
     @notification = @account.announcements.find(params[:id])
     @notification.destroy
     respond_to do |format|
