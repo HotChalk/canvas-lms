@@ -320,6 +320,37 @@ define([
     $('#account_settings_global_includes').change(function() {
       $('#global_includes_warning_message_wrapper').toggleClass('alert', this.checked);
     }).trigger('change');
+    // $('#sub_account_selected').change(function() {
+    //   var account_id = $('#sub_account_selected').val();      
+    //   $.ajax({
+    //     url: "/subaccount/roles",
+    //     type: 'GET',
+    //     dataType: 'json',
+    //     data: {account_id: account_id},
+    //     success: (result) => {
+    //       showAccountRoles(result)
+    //     },
+    //     error: () => {
+    //       console.log("error get roles by subaccount.. ");
+    //       $('#restrict_to_membership_roles').find('ul').html("");
+    //     }
+    //   });
+    // });
+
+    // function showAccountRoles(roles){
+    //   var html_text = "";
+    //   //clean
+    //   $('#restrict_to_membership_roles').find('ul').html("");
+    //   $.each(roles, function(index, value){
+    //     html_text += "<li id='account_notification_role_" + value.id + "'>"
+    //     html_text += "<label>"
+    //     html_text += "<input id='account_notification_role_"+ value.id + "_cbx' class='account_notification_role_cbx' name='account_notification_roles[]' type='checkbox' value='"+value.id+"' />"        
+    //     html_text += " " + value.label + " juan"
+    //     html_text += "</label>"
+    //     html_text += "</li>"
+    //   });
+    //   $('#restrict_to_membership_roles').find('ul').html(html_text);
+    // }    
   });
 
 });
