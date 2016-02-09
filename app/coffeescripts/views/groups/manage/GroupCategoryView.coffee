@@ -69,7 +69,7 @@ define [
       if _previousSectionId
         options = {section_id : _previousSectionId}
       @options.unassignedUsersView.setFilter(search_term, options)
-      @_setUnassignedHeading(@originalCount) unless search_term.length >= 3
+      @_setUnassignedHeading(@originalCount || 0) unless search_term.length >= 3
       _previousSearchTerm = search_term
 
     courseSectionChange: (event) ->
@@ -78,7 +78,8 @@ define [
       if course_section_id
         options = {section_id : course_section_id, force_search : true}
       @options.unassignedUsersView.setFilter(_previousSearchTerm, options)
-      @options.groupsView.setFilter(course_section_id)
+      @options.groupsView.filterBySection(course_section_id)
+      @originalCount = null
       _previousSectionId = course_section_id
 
     attach: ->
