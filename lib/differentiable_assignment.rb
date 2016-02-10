@@ -49,7 +49,7 @@ module DifferentiableAssignment
   # will not filter the collection for admins, will for non-observer students and teachers
   # will filter for observers with observed students but not for observers without observed students
   def self.filter(collection, user, context, opts={}, &filter_block)
-    return collection if user.account_admin?(context)
+    return collection if user.nil? || user.account_admin?(context)
 
     return filter_block.call(collection, [user.id]) if user_not_observer?(user, context, opts)
 
