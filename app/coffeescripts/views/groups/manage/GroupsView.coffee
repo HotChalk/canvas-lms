@@ -50,7 +50,7 @@ define [
         model.itemView.updateFullState()
 
     filterBySection: (course_section_id, options) ->
-      @collection.filter(course_section_id, options) if course_section_id
+      @collection.filterBySection(course_section_id, options) if course_section_id
   
 
 

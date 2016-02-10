@@ -45,7 +45,7 @@ define [
       else
         @url = super
 
-    filter: (course_section_id, options) ->
+    filterBySection: (course_section_id, options) ->
       options = options || {}
       options.reset = true
 
