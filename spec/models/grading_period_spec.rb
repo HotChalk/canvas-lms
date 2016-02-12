@@ -67,14 +67,13 @@ describe GradingPeriod do
     end
   end
 
-  describe "#destroy!" do
-    before { subject.destroy! }
+  describe "#destroy_permanently!" do
+    before { subject.destroy_permanently! }
 
     it { is_expected.to be_destroyed }
   end
 
   describe ".for" do
-
     context "when context is an account" do
       let(:account) { Account.new }
       let(:finder) { mock }
@@ -95,6 +94,30 @@ describe GradingPeriod do
         finder.expects(:grading_periods).once
         GradingPeriod.for(course)
       end
+    end
+  end
+
+  describe ".current_period_for" do
+    let(:account) { Account.new }
+    let(:not_current_grading_period) { mock }
+    let(:current_grading_period) { mock }
+
+    it "returns the current grading period given a context" do
+      GradingPeriod.expects(:for).with(account).returns([not_current_grading_period, current_grading_period])
+      not_current_grading_period.expects(:current?).returns(false)
+      current_grading_period.expects(:current?).returns(true)
+      expect(GradingPeriod.current_period_for(account)).to eq(current_grading_period)
+    end
+
+    it "returns nil if grading periods exist for the given context, but none are current" do
+      GradingPeriod.expects(:for).with(account).returns([not_current_grading_period])
+      not_current_grading_period.expects(:current?).returns(false)
+      expect(GradingPeriod.current_period_for(account)).to be_nil
+    end
+
+    it "returns nil if no grading periods exist for the given context" do
+      GradingPeriod.expects(:for).with(account).returns([])
+      expect(GradingPeriod.current_period_for(account)).to be_nil
     end
   end
 
@@ -254,6 +277,17 @@ describe GradingPeriod do
 
     it "returns false for a date after the period" do
       expect(period.in_date_range? 15.days.from_now).to be false
+    end
+  end
+
+  describe ".json_for" do
+    it "returns a list sorted by date with is_last" do
+      grading_period_group.grading_periods.create! start_date: 1.week.ago, end_date: 2.weeks.from_now, title: 'C'
+      grading_period_group.grading_periods.create! start_date: 4.weeks.ago, end_date: 3.weeks.ago, title: 'A'
+      grading_period_group.grading_periods.create! start_date: 3.weeks.ago, end_date: 2.weeks.ago, title: 'B'
+      json = GradingPeriod.json_for(account, nil)
+      expect(json.map { |el| el['title'] }).to eq %w(A B C)
+      expect(json.map { |el| el['is_last'] }).to eq [false, false, true]
     end
   end
 end

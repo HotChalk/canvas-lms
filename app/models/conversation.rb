@@ -20,7 +20,7 @@ class Conversation < ActiveRecord::Base
   include SimpleTags
 
   has_many :conversation_participants, :dependent => :destroy
-  has_many :conversation_messages, :order => "created_at DESC, id DESC", :dependent => :delete_all
+  has_many :conversation_messages, -> { order("created_at DESC, id DESC") }, dependent: :delete_all
   has_many :conversation_message_participants, :through => :conversation_messages
   has_one :stream_item, :as => :asset
   belongs_to :context, :polymorphic => true
@@ -164,10 +164,10 @@ class Conversation < ActiveRecord::Base
         unless options[:no_messages]
           # give them all messages
           # NOTE: individual messages in group conversations don't have tags
-          connection.execute(sanitize_sql([<<-SQL, self.id, current_user.id, user_ids]))
-            INSERT INTO conversation_message_participants(conversation_message_id, conversation_participant_id, user_id, workflow_state)
+          self.class.connection.execute(sanitize_sql([<<-SQL, self.id, current_user.id, user_ids]))
+            INSERT INTO #{ConversationMessageParticipant.quoted_table_name}(conversation_message_id, conversation_participant_id, user_id, workflow_state)
             SELECT conversation_messages.id, conversation_participants.id, conversation_participants.user_id, 'active'
-            FROM conversation_messages, conversation_participants, conversation_message_participants
+            FROM #{ConversationMessage.quoted_table_name}, #{ConversationParticipant.quoted_table_name}, #{ConversationMessageParticipant.quoted_table_name}
             WHERE conversation_messages.conversation_id = ?
               AND conversation_messages.conversation_id = conversation_participants.conversation_id
             AND conversation_message_participants.conversation_message_id = conversation_messages.id
@@ -475,7 +475,7 @@ class Conversation < ActiveRecord::Base
   end
 
   def subscribed_participants
-    ActiveRecord::Associations::Preloader.new(conversation_participants, :user).run unless ModelCache[:users]
+    ActiveRecord::Associations::Preloader.new.preload(conversation_participants, :user) unless ModelCache[:users]
     conversation_participants.select(&:subscribed?).map(&:user).compact
   end
 
@@ -699,7 +699,7 @@ class Conversation < ActiveRecord::Base
   def delete_for_all
     stream_item.try(:destroy_stream_item_instances)
     shard.activate do
-      conversation_message_participants.scoped.delete_all
+      conversation_message_participants.scope.delete_all
     end
     conversation_participants.shard(self).delete_all
   end

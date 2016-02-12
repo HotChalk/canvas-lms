@@ -43,23 +43,6 @@ module OtherHelperMethods
     driver.execute_async_script(js)
   end
 
-  # add some JS translations to the current page; they'll be merged in at
-  # the root level, so the top-most key should be the locale, e.g.
-  #
-  #   set_translations fr: {key: "Bonjour"}
-  def set_translations(translations)
-    add_translations = "$.extend(true, I18n, {translations: #{translations.to_json}});"
-    if ENV['USE_OPTIMIZED_JS']
-      driver.execute_script <<-JS
-        define('translations/test', ['i18nObj', 'jquery'], function(I18n, $) {
-          #{add_translations}
-        });
-      JS
-    else
-      driver.execute_script add_translations
-    end
-  end
-
   def stub_kaltura
     # trick kaltura into being activated
     CanvasKaltura::ClientV3.stubs(:config).returns({
@@ -125,7 +108,8 @@ module OtherHelperMethods
       "c_file.txt" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/c_file.txt')),
       "amazing_file.txt" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/amazing_file.txt')),
       "Dog_file.txt" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/Dog_file.txt')),
-      "cn-image.jpg" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/cn_image.jpg'))
+      "cn-image.jpg" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/cn_image.jpg')),
+      "empty_file.txt" => File.read(File.expand_path(File.dirname(__FILE__) + '/../../../fixtures/files/empty_file.txt')),
   }.freeze
 
   def get_file(filename, data = nil)
@@ -148,8 +132,10 @@ module OtherHelperMethods
       cattr_accessor :test_secret
 
       def call_with_test_secret(env)
-        @secret = self.class.test_secret
-        @encryption_key = unhex(@secret)
+        if self.class.test_secret.present?
+          @secret = self.class.test_secret
+          @encryption_key = unhex(@secret)
+        end
         call_without_test_secret(env)
       end
 

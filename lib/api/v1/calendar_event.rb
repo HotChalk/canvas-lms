@@ -19,6 +19,7 @@
 module Api::V1::CalendarEvent
   include Api::V1::Json
   include Api::V1::Assignment
+  include Api::V1::Submission
   include Api::V1::AssignmentOverride
   include Api::V1::User
   include Api::V1::Course
@@ -45,6 +46,7 @@ module Api::V1::CalendarEvent
     participant = nil
 
     hash = api_json(event, user, session, :only => %w(id created_at updated_at start_at end_at all_day all_day_date title location_address location_name workflow_state comments course_section_id))
+    hash['type'] = 'event'
     if event.context_type == "CourseSection"
       hash['title'] += " (#{context.name})"
       hash['description'] = api_user_content(event.description, event.context.course) unless excludes.include?('description')
@@ -116,7 +118,7 @@ module Api::V1::CalendarEvent
         events = can_read_child_events ? event.child_events.to_a : event.child_events_for(participant)
 
         # do some preloads
-        ActiveRecord::Associations::Preloader.new(events, :context).run
+        ActiveRecord::Associations::Preloader.new.preload(events, :context)
         if events.first.context.is_a?(User) && user_json_is_admin?(@context, user)
           user_json_preloads(events.map(&:context))
         end
@@ -148,10 +150,12 @@ module Api::V1::CalendarEvent
     hash = api_json(assignment, user, session, :only => %w(created_at updated_at title all_day all_day_date workflow_state))
     hash['description'] = api_user_content(assignment.description, assignment.context) unless excludes.include?('description')
     hash['id'] = "assignment_#{assignment.id}"
+    hash['type'] = 'assignment'
+
     if excludes.include?('assignment')
       hash['html_url'] = course_assignment_url(assignment.context_id, assignment)
     else
-      hash['assignment'] = assignment_json(assignment, user, session, override_dates: false)
+      hash['assignment'] = assignment_json(assignment, user, session, override_dates: false, submission: options[:submissions])
       hash['html_url'] = hash['assignment']['html_url'] if hash['assignment'].include?('html_url')
     end
     hash['context_code'] = assignment.context_code
@@ -184,7 +188,7 @@ module Api::V1::CalendarEvent
     if include.include?('appointments')
       if include.include?('child_events')
         all_child_events = group.appointments.map(&:child_events).flatten
-        ActiveRecord::Associations::Preloader.new(all_child_events, :context).run
+        ActiveRecord::Associations::Preloader.new.preload(all_child_events, :context)
         user_json_preloads(all_child_events.map(&:context)) if !all_child_events.empty? && all_child_events.first.context.is_a?(User) && user_json_is_admin?(@context, user)
       end
       hash['appointments'] = group.appointments.map { |event| calendar_event_json(event, user, session,

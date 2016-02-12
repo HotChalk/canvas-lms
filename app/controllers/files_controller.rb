@@ -119,7 +119,7 @@ class FilesController < ApplicationController
 
   def quota
     get_quota
-    if authorized_action(@context.attachments.scoped.new, @current_user, :create)
+    if authorized_action(@context.attachments.scope.new, @current_user, :create)
       h = ActionView::Base.new
       h.extend ActionView::Helpers::NumberHelper
       result = {
@@ -309,7 +309,7 @@ class FilesController < ApplicationController
   end
 
   def images
-    if authorized_action(@context.attachments.scoped.new, @current_user, :read)
+    if authorized_action(@context.attachments.scope.new, @current_user, :read)
       if Folder.root_folders(@context).first.grants_right?(@current_user, session, :read_contents)
         if @context.grants_right?(@current_user, session, :manage_files)
           @images = @context.active_images.paginate :page => params[:page]
@@ -325,7 +325,7 @@ class FilesController < ApplicationController
   end
 
   def react_files
-    if authorized_action(@context, @current_user, :read) && tab_enabled?(@context.class::TAB_FILES)
+    if authorized_action(@context, @current_user, [:read, :manage_files]) && tab_enabled?(@context.class::TAB_FILES)
       @contexts = [@context]
       get_all_pertinent_contexts(include_groups: true) if @context == @current_user
       files_contexts = @contexts.map do |context|
@@ -361,6 +361,7 @@ class FilesController < ApplicationController
         :FILES_CONTEXTS => files_contexts,
         :NEW_FOLDER_TREE => @context.feature_enabled?(:use_new_tree)
       })
+      log_asset_access([ "files", @context ], "files", "other")
 
       render :text => "".html_safe, :layout => true
     end
@@ -657,7 +658,7 @@ class FilesController < ApplicationController
       redirect_to safe_domain_file_url(attachment, @safer_domain_host, params[:verifier], !inline)
     elsif Attachment.local_storage?
       @headers = false if @files_domain
-      send_file(attachment.full_filename, :type => attachment.content_type_with_encoding, :disposition => (inline ? 'inline' : 'attachment'))
+      send_file(attachment.full_filename, :type => attachment.content_type_with_encoding, :disposition => (inline ? 'inline' : 'attachment'), :filename => attachment.display_name)
     elsif redirect_to_s3
       redirect_to(inline ? attachment.inline_url : attachment.download_url)
     else
@@ -724,7 +725,7 @@ class FilesController < ApplicationController
       @context = @group || @current_user
       @check_quota = false
     elsif @context && intent == 'attach_discussion_file'
-      permission_object = @context.discussion_topics.scoped.new
+      permission_object = @context.discussion_topics.scope.new
       permission = :attach
     elsif @context && intent == 'message'
       permission_object = @context
@@ -746,7 +747,7 @@ class FilesController < ApplicationController
     if authorized_action(permission_object, @current_user, permission)
       if @context.respond_to?(:is_a_context?) && @check_quota
         get_quota
-        return if quota_exceeded(named_context_url(@context, :context_files_url))
+        return if quota_exceeded(@context, named_context_url(@context, :context_files_url))
       end
       @attachment.filename = params[:attachment][:filename]
       @attachment.file_state = 'deleted'
@@ -871,12 +872,13 @@ class FilesController < ApplicationController
     if authorized_action(@attachment, @current_user, :create)
       get_quota
       return if (params[:check_quota_after].nil? || params[:check_quota_after] == '1') &&
-                  quota_exceeded(named_context_url(@context, :context_files_url))
+                  quota_exceeded(@context, named_context_url(@context, :context_files_url))
 
       respond_to do |format|
         @attachment.folder_id ||= @folder.id
         @attachment.workflow_state = nil
         @attachment.file_state = 'available'
+        @attachment.set_publish_state_for_usage_rights
         success = nil
         if params[:attachment] && params[:attachment][:source_attachment_id]
           a = Attachment.find(params[:attachment].delete(:source_attachment_id))
@@ -1054,7 +1056,7 @@ class FilesController < ApplicationController
   #        -H 'Authorization: Bearer <token>'
   def destroy
     @attachment = Attachment.find(params[:id])
-    if authorized_action(@attachment, @current_user, :delete)
+    if can_do(@attachment, @current_user, :delete)
       @attachment.destroy
       respond_to do |format|
         format.html {
@@ -1067,6 +1069,10 @@ class FilesController < ApplicationController
           format.json { render :json => @attachment }
         end
       end
+    elsif @attachment.associated_with_submission?
+      render :json => { :message => I18n.t('Cannot delete a file that has been submitted as part of an assignment') }, :status => :forbidden
+    else
+      render :json => { :message => I18n.t('Unauthorized to delete this file') }, :status => :unauthorized
     end
   end
 
@@ -1109,6 +1115,7 @@ class FilesController < ApplicationController
     if folder.name == 'profile pictures'
       json[:avatar] = avatar_json(@current_user, attachment, { :type => 'attachment' })
     end
+    Api.recursively_stringify_json_ids(json)
 
     render :json => json, :as_text => true
   end

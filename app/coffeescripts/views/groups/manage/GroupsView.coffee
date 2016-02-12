@@ -49,8 +49,8 @@ define [
       for model in @collection.models
         model.itemView.updateFullState()
 
-    setFilter: (course_section_id, options) ->
-      @collection.filter(course_section_id, options) if course_section_id
+    filterBySection: (course_section_id, options) ->
+      @collection.filterBySection(course_section_id, options) if course_section_id
   
 
 

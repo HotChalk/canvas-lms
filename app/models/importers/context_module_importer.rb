@@ -73,6 +73,7 @@ module Importers
       item.start_at = Canvas::Migration::MigratorHelper.get_utc_time_from_timestamp(hash[:start_at]) if hash[:start_at]
       item.end_at = Canvas::Migration::MigratorHelper.get_utc_time_from_timestamp(hash[:end_at]) if hash[:end_at]
       item.require_sequential_progress = hash[:require_sequential_progress] if hash[:require_sequential_progress]
+      item.requirement_count = hash[:requirement_count] if hash[:requirement_count]
 
       if hash[:prerequisites]
         preqs = []
@@ -146,7 +147,7 @@ module Importers
           }, existing_item, :wiki_page => wiki, :position => context_module.migration_position)
         end
       elsif resource_class == Attachment
-        file = context_module.context.attachments.active.where(migration_id: hash[:linked_resource_id]).first if hash[:linked_resource_id]
+        file = context_module.context.attachments.not_deleted.where(migration_id: hash[:linked_resource_id]).first if hash[:linked_resource_id]
         if file
           title = hash[:title] || hash[:linked_resource_title]
           item = context_module.add_item({

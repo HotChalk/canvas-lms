@@ -3,9 +3,10 @@ require File.expand_path(File.dirname(__FILE__) + '/helpers/groups_common')
 
 describe "new groups" do
   include_context "in-process server selenium tests"
+  include GroupsCommon
 
   context "as a teacher" do
-    before (:each) do
+    before(:each) do
       course_with_teacher_logged_in
     end
 
@@ -161,6 +162,31 @@ describe "new groups" do
 
       manually_create_group(has_max_membership:true, member_limit:2)
       expect(f('.group-summary')).to include_text("0 / 2 students")
+    end
+
+    it "should Allow teacher to join students to groups in unpublished courses", priority: "1", test_id: 245957 do
+      group_test_setup(3,1,2)
+      @course.workflow_state = 'unpublished'
+      @course.save!
+      get "/courses/#{@course.id}/groups"
+      @group_category.first.update_attribute(:group_limit,2)
+      2.times do |n|
+        add_user_to_group(@students[n],@testgroup[0],false)
+      end
+      add_user_to_group(@students.last,@testgroup[1],false)
+      get "/courses/#{@course.id}/groups"
+      expect(f(".group[data-id=\"#{@testgroup[0].id}\"] span.show-group-full")).to be_displayed
+      ff(".group-name")[0].click
+      ff(".group-user-actions")[0].click
+      fln("Set as Leader").click
+      f(".group-user-actions[data-user-id=\"#{@students[0].id}\"]").click
+      f(".ui-menu-item .edit-group-assignment").click
+      f(".single-select option").click
+      f(".set-group").click
+      wait_for_ajaximations
+      f(".group[data-id=\"#{@testgroup[1].id}\"] .toggle-group").click
+      expect(f(".icon-user.group-leader")).to be_nil
+      expect(f(".group[data-id=\"#{@testgroup[1].id}\"] .group-user")).to include_text("Test Student 1")
     end
 
     it "should update student count when they're added to groups limited by group", priority: "1", test_id: 94167 do

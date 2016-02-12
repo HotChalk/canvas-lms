@@ -46,16 +46,13 @@ define [
       ENV.DIFFERENTIATED_ASSIGNMENTS_ENABLED && @assignment.isOnlyVisibleToOverrides()
 
     _addOverrideForDefaultSectionIfNeeded: =>
-      return if @_onlyVisibleToOverrides()
+      return if @_onlyVisibleToOverrides() && !@overrides.isEmpty()
       override = AssignmentOverride.defaultDueDate
         due_at: @assignment.get('due_at')
         lock_at: @assignment.get('lock_at')
         unlock_at: @assignment.get('unlock_at')
-      if ENV.LIMIT_PRIVILEGES_TO_COURSE_SECTION && ENV.SECTION_LIST && ENV.SECTION_LIST.length
-        if ENV.SECTION_LIST.length == 1
-          default_section_id = ENV.SECTION_LIST[0].id
-        else
-          return
-
+      if ENV.LIMIT_PRIVILEGES_TO_COURSE_SECTION && ENV.SECTION_LIST && ENV.SECTION_LIST.length == 1
+        default_section_id = ENV.SECTION_LIST[0].id
         override.set 'course_section_id', default_section_id
+
       @overrides.add override

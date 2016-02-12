@@ -34,12 +34,15 @@ require [
             $(this).remove()
 
     $(".enrollment_term_form").formSubmit
+      self:this
+      button_text:''
       processData: (data) ->
         permissions = $(this).parents("tr").find(".permissions").getFormData(object_name: "enrollment_term")
         $.extend permissions, data
 
       beforeSubmit: (data) ->
         $(this).find("button").attr "disabled", true
+        self.button_text = $(this).find(".submit_button").text()
         $(this).find(".submit_button").text I18n.t("messages.submitting", "Submitting...")
 
       success: (data) ->
@@ -69,7 +72,7 @@ require [
       error: (data) ->
         $(this).find("button").attr "disabled", false
         $(this).formErrors data
-        $(this).find(".submit_button").text I18n.t("errors.submit", "Error Submitting")
+        $(this).find(".submit_button").text(self.button_text);
 
     $(".add_term_link").click (event) ->
       event.preventDefault()

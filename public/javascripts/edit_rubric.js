@@ -622,8 +622,8 @@ define([
       if(limitToOneRubric && $("#rubrics .rubric:visible").length > 0) { return; }
       var $rubric = rubricEditing.addRubric();
       $("#rubrics").append($rubric.show());
-      $rubric.find(":text:first").focus().select();
-        $(".add_rubric_link").hide();
+      $rubric.find('.find_rubric_link:visible:first').focus();
+      $(".add_rubric_link").hide();
     });
 
     $("#rubric_dialog")
@@ -760,9 +760,11 @@ define([
           var assignmentPoints = parseFloat($("#assignment_show .points_possible, .discussion-title .discussion-points").text());
           var rubricPoints = parseFloat(data.points_possible);
           if (assignmentPoints != null && assignmentPoints != undefined && rubricPoints != assignmentPoints && !forceSubmit) {
+            var pointRatio = assignmentPoints === 0 ? rubricPoints : rubricPoints / assignmentPoints;
             var $confirmDialog = $(changePointsPossibleToMatchRubricDialog({
               assignmentPoints: assignmentPoints,
-              rubricPoints: rubricPoints
+              rubricPoints: rubricPoints,
+              pointRatio: pointRatio
             }));
             var closeDialog = function(skip){
               forceSubmit = true;
@@ -781,7 +783,7 @@ define([
                   click: function() { closeDialog(true); }
                 }
               ],
-              width: 320,
+              width: 400,
               resizable: false,
               close: $confirmDialog.remove
             });
@@ -1024,4 +1026,3 @@ define([
 
   return rubricEditing;
 });
-

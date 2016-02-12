@@ -29,6 +29,16 @@ class AccountNotification < ActiveRecord::Base
     end
   end
 
+  def self.for_user_all_accounts(user, account)
+    @notifications = []
+    @account_associations = UserAccountAssociation.where(user_id: user.id)
+    @account_associations.each do |a|
+      @account_data = Account.find(a.account_id)
+      @notifications += self.for_user_and_account(user, @account_data)
+    end
+    @notifications
+  end
+
   def self.for_user_and_account(user, account)
     current = self.for_account(account)
 
@@ -52,8 +62,8 @@ class AccountNotification < ActiveRecord::Base
         end
 
         # preload role objects for those enrollments and account users
-        ActiveRecord::Associations::Preloader.new(enrollments, [:role]).run
-        ActiveRecord::Associations::Preloader.new(account_users, [:role]).run
+        ActiveRecord::Associations::Preloader.new.preload(enrollments, [:role])
+        ActiveRecord::Associations::Preloader.new.preload(account_users, [:role])
 
         # map to role ids. user role.id instead of role_id to trigger Role#id
         # magic for built in roles. announcements intended for users not

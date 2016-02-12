@@ -35,7 +35,7 @@ module Outcomes
       required_opts = [:users, :context, :outcomes]
       required_opts.each { |p| raise "#{p} option is required" unless opts[p] }
       users, context, outcomes = opts.values_at(*required_opts)
-      order_results_for_rollup LearningOutcomeResult.where(
+      order_results_for_rollup LearningOutcomeResult.active.where(
         context_code:        context.asset_string,
         user_id:             users.map(&:id),
         learning_outcome_id: outcomes.map(&:id)
@@ -62,7 +62,7 @@ module Outcomes
     #
     # Returns an Array of Rollup objects.
     def outcome_results_rollups(results, users=[])
-      ActiveRecord::Associations::Preloader.new(results, :learning_outcome).run
+      ActiveRecord::Associations::Preloader.new.preload(results, :learning_outcome)
       rollups = results.chunk(&:user_id).map do |_, user_results|
         Rollup.new(user_results.first.user, rollup_user_results(user_results))
       end

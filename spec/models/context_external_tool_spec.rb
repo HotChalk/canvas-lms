@@ -864,6 +864,16 @@ describe ContextExternalTool do
       @course.reload
       expect(@course.lti_context_id).to eq 'dummy_context_id'
     end
+
+    it 'should use the global_asset_id for new assets that are stored in the db' do
+      expect(@course.lti_context_id).to eq nil
+      @tool = @course.context_external_tools.create!(:name => "a", :domain => "google.com", :consumer_key => '12345', :shared_secret => 'secret')
+      context_id = Lti::Asset.global_context_id_for(@course)
+      @tool.opaque_identifier_for(@course)
+      @course.reload
+      expect(@course.lti_context_id).to eq context_id
+    end
+
   end
 
   describe "global navigation" do
@@ -966,6 +976,67 @@ describe ContextExternalTool do
         tool.settings[:resource_selection] = {:url => "http://www.example.com", :icon_url => "http://www.example.com", :selection_width => 100, :selection_height => 100}.with_indifferent_access
         tool.save!
         expect(tool.has_placement?(:link_selection)).to eq false
+      end
+
+    end
+
+    describe ".visible?" do
+      let(:u) {user}
+      let(:admin) {account_admin_user(account:c.root_account)}
+      let(:c) {course(active_course:true)}
+      let(:student) do
+        student = factory_with_protected_attributes(User, valid_user_attributes)
+        e = c.enroll_student(student)
+        e.invite
+        e.accept
+        student
+      end
+      let(:teacher) do
+        teacher = factory_with_protected_attributes(User, valid_user_attributes)
+        e = c.enroll_teacher(teacher)
+        e.invite
+        e.accept
+        teacher
+      end
+
+      it 'returns true for public visibility' do
+        expect(described_class.visible?('public', u, c)).to be true
+      end
+
+      it 'returns false for non members if visibility is members' do
+        expect(described_class.visible?('members', u, c)).to be false
+      end
+
+      it 'returns true for members visibility if a student in the course' do
+        expect(described_class.visible?('members', student, c)).to be true
+      end
+
+      it 'returns true for members visibility if a teacher in the course' do
+        expect(described_class.visible?('members', teacher, c)).to be true
+      end
+
+      it 'returns true for admins visibility if a teacher' do
+        expect(described_class.visible?('admins', teacher, c)).to be true
+      end
+
+      it 'returns true for admins visibility if an admin' do
+        expect(described_class.visible?('admins', admin, c)).to be true
+      end
+
+      it 'returns false for admins visibility if a student' do
+        expect(described_class.visible?('admins', student, c)).to be false
+      end
+
+      it 'returns false for admins visibility if a non member user' do
+        expect(described_class.visible?('admins', u, c)).to be false
+      end
+
+      it 'returns true if visibility is invalid' do
+        expect(described_class.visible?('true', u, c)).to be true
+      end
+
+      it 'returns true if visibility is nil' do
+        expect(described_class.visible?(nil, u, c)).to be true
       end
 
     end

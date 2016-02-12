@@ -1,5 +1,6 @@
 class SectionTabPresenter
   include Rails.application.routes.url_helpers
+  include ApplicationHelper
 
   def initialize(tab, context)
     @tab = OpenStruct.new(tab)
@@ -24,12 +25,16 @@ class SectionTabPresenter
     tab.args.instance_of?(Hash) ? send(tab.href, tab.args) : send(tab.href, *path_args)
   end
 
+  def target
+    tab.target
+  end
+
   def path_args
     tab.args || (tab.no_args && []) || context
   end
 
   def to_h
-    { icon: tab.icon, hidden: hide?, path: path }.tap do |h|
+    { css_class: tab.css_class, icon: tab.icon, hidden: hide?, path: path }.tap do |h|
       h[:screenreader] = tab.screenreader if screenreader?
     end
   end

@@ -1,5 +1,6 @@
 require File.expand_path(File.dirname(__FILE__) + '/../common')
 
+module WikiAndTinyCommon
   def clear_wiki_rce
     wiki_page_body = driver.find_element(:css, 'textarea.body')
     wiki_page_body.clear
@@ -72,7 +73,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../common')
   end
 
   def manually_create_wiki_page(title,body)
-    f('.btn-primary').click
+    f('.new_page').click
     wait_for_ajaximations
     replace_content(f('#title'),title)
     add_text_to_tiny(body)
@@ -176,3 +177,4 @@ require File.expand_path(File.dirname(__FILE__) + '/../common')
   def wiki_page_editor_id
     f('textarea.body')['id']
   end
+end

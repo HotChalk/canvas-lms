@@ -53,7 +53,15 @@
 <% else %>
   <div id="discussion-managebar" class="toolbarView">
     <div class="headerBar">
-      <div class="row-fluid form-inline" style="overflow: visible;">
+      <div class="form-inline" style="overflow: visible;">
+        <div id="keyboard-shortcut-modal-info" tabindex="0">
+          <span aria-hidden="true" class="accessibility-warning">
+            <%= t 'Press the comma key or shift + ? to see a list of keyboard shortcuts' %>
+          </span>
+          <span class="screenreader-only">
+            <%= t 'Press the comma key or shift + question mark to see a list of keyboard shortcuts' %>
+          </span>
+        </div>
         <div class="pull-right">
           <% if !@topic.is_announcement && can_do(@context, @current_user, :moderate_forum) %>
             <button
@@ -145,14 +153,7 @@
                 <% end %>
 
                 <% if can_do(@context, @current_user, :manage_content) %>
-                  <% (@discussion_topic_menu_tools || []).each do |tool_hash| %>
-                    <li>
-                      <a class="menu_tool_link" href="<%= tool_hash[:base_url] %>&discussion_topics[]=<%= @topic.id %>" tabindex="-1" role="menuitem">
-                        <% if tool_hash[:icon_url] %><img class="icon" alt="" src="<%= tool_hash[:icon_url] %>" /><% end %>
-                        <%= tool_hash[:title] %>
-                      </a>
-                    </li>
-                  <% end %>
+                  <%= external_tools_menu_items((@discussion_topic_menu_tools || []), {link_class: "menu_tool_link", settings_key: :discussion_topic_menu, in_list: true, url_params: {:discussion_topics => [@topic.id]}}) %>
                 <% end %>
               </ul>
             </div>
@@ -278,11 +279,12 @@
                 size             = 40
               >
 
+              <span class="screenreader-only" id="onlyUnreadAccessibleLabel"><%= t("Filter replies by unread") %></span>
               <input
                 type    = "checkbox"
                 id      = "onlyUnread"
-                aria-label = "<%= t("filter replies by unread") %>"
-              ><label aria-hidden="true" for="onlyUnread"><%= t('unread', 'Unread') %></label>
+                aria-labelledby="onlyUnreadAccessibleLabel"/>
+              <label for="onlyUnread" aria-hidden="true"><%= t('unread', 'Unread') %></label>
 
               &nbsp;
               <button id="collapseAll" class="btn disableWhileFiltering" title="<%= t('collapse_replies', 'Collapse replies') %>" aria-label="<%= t('collapse_replies', 'Collapse replies') %>">
@@ -298,14 +300,14 @@
             </div>
 
             <div class="span3 right-align">
-              <a role="button" href='#' class='btn topic-subscribe-button' data-tooltip="bottom"
+              <a href='#' class='btn topic-subscribe-button' data-tooltip="bottom"
                  title="<%= t('topic_subscribe_tooltip', 'You are unsubscribed and will not be notified of new comments') %>"
                  role="button"
                  aria-label="<%= t('You are unsubscribed and will not be notified of new comments. Click to subscribe') %> ">
                 <i class='icon-discussion-check' aria-hidden="hidden"></i>
                 <%= t(:topic_subscribe, 'Subscribe') %>
               </a>
-              <a href='#' class='btn topic-unsubscribe-button btn-success' data-tooltip="bottom" role="button"
+              <a href='#' class='btn topic-unsubscribe-button btn-success' data-tooltip="bottom"
                  title="<%= t('topic_subscribed_tooltip', 'You are subscribed and will be notified of new comments') %>"
                  role="button"
                  aria-label="<%= t('You are subscribed and will be notified of new comments. Click to unsubscribe') %> ">
@@ -331,7 +333,7 @@
   </div>
 
   <% if @headers != false %>
-    <div id="module_sequence_footer"></div>
+    <div class="ModuleSequenceFooter__Container" id="module_sequence_footer"></div>
   <% else %>
     <%=
       render :partial => "shared/sequence_footer", :locals => {:asset => @sequence_asset, :context => @sequence_asset.context} if @sequence_asset

@@ -149,6 +149,7 @@ class AccountNotificationsController < ApplicationController
   #   }
   def create
     @notification = AccountNotification.new(params[:account_notification])
+    @account = Account.find(params[:account_id]);
     @notification.account = @account
     @notification.user = @current_user
     unless params[:account_notification_roles].nil?
@@ -184,6 +185,7 @@ class AccountNotificationsController < ApplicationController
   end
 
   def destroy
+    @account = Account.find(params[:account_id]);
     @notification = @account.announcements.find(params[:id])
     @notification.destroy
     respond_to do |format|
@@ -195,8 +197,8 @@ class AccountNotificationsController < ApplicationController
 
   protected
   def require_account_admin
-    get_context
-    if !@account || @account.parent_account_id
+    get_context    
+    if !@account
       flash[:notice] = t(:permission_denied_notice, "You cannot create announcements for that account")
       redirect_to account_settings_path(params[:account_id])
       return false

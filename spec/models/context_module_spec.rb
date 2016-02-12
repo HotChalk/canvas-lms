@@ -29,6 +29,13 @@ describe ContextModule do
       course_module
       expect(@module.available_for?(nil)).to eql(true)
     end
+
+    it "returns true by default when require_sequential_progress is true and there are no requirements" do
+      course_module
+      @module.require_sequential_progress = true
+      @module.save!
+      expect(@module.available_for?(nil)).to eql(true)
+    end
   end
 
   describe "prerequisites=" do
@@ -354,6 +361,7 @@ describe ContextModule do
       @user = User.create!(:name => "some name")
       @course.enroll_student(@user)
 
+      Canvas::Plugin.find!('grade_export').stubs(:enabled?).returns(true)
       @course.expects(:publish_final_grades).with(@user, @user.id).once
 
       @module.evaluate_for(@user)
@@ -674,6 +682,11 @@ describe ContextModule do
         @assign.reload
         @assign.grade_student(@student, :grade => "5", :grader => @teacher)
         expect(@module.evaluate_for(@student)).to be_unlocked
+
+        @assign.reload
+        @assign.grade_student(@student, :grade => nil, :grader => @teacher)
+        # removing the grade manually shouldn't mark as completed either
+        expect(@module.evaluate_for(@student)).to be_unlocked
       end
 
       it "should not fulfill quiz must_submit requirement on manual grade" do
@@ -799,7 +812,7 @@ describe ContextModule do
         @student_1 = student_in_course(course: @course, active_all: true).user
         @student_2 = student_in_course(course: @course, active_all: true).user
 
-        @student_1.enrollments.each(&:destroy!)
+        @student_1.enrollments.each(&:destroy_permanently!)
         @overriden_section = @course.course_sections.create!(name: "test section")
         student_in_section(@overriden_section, user: @student_1)
 
@@ -1077,7 +1090,7 @@ describe ContextModule do
       @student_1 = student_in_course(course: @course, active_all: true).user
       @student_2 = student_in_course(course: @course, active_all: true).user
 
-      @student_1.enrollments.each(&:destroy!)
+      @student_1.enrollments.each(&:destroy_permanently!)
       @overriden_section = @course.course_sections.create!(name: "test section")
       student_in_section(@overriden_section, user: @student_1)
 
@@ -1119,7 +1132,7 @@ describe ContextModule do
       end
       it "should not reload the tags if already loaded" do
         ContentTag.expects(:visible_to_students_in_course_with_da).never
-        ActiveRecord::Associations::Preloader.new(@module, content_tags: :content).run
+        ActiveRecord::Associations::Preloader.new.preload(@module, content_tags: :content)
         @module.content_tags_visible_to(@student_1)
       end
       it "should filter differentiated discussions" do

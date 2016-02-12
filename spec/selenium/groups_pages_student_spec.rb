@@ -1,13 +1,24 @@
-require File.expand_path(File.dirname(__FILE__) + '/common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/groups_common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/announcements_common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/discussions_common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/wiki_and_tiny_common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
-require File.expand_path(File.dirname(__FILE__) + '/helpers/conferences_common')
+require_relative 'common'
+require_relative 'helpers/announcements_common'
+require_relative 'helpers/conferences_common'
+require_relative 'helpers/course_common'
+require_relative 'helpers/discussions_common'
+require_relative 'helpers/files_common'
+require_relative 'helpers/google_drive_common'
+require_relative 'helpers/groups_common'
+require_relative 'helpers/groups_shared_examples'
+require_relative 'helpers/wiki_and_tiny_common'
 
 describe "groups" do
   include_context "in-process server selenium tests"
+  include AnnouncementsCommon
+  include ConferencesCommon
+  include CourseCommon
+  include DiscussionsCommon
+  include FilesCommon
+  include GoogleDriveCommon
+  include GroupsCommon
+  include WikiAndTinyCommon
 
   setup_group_page_urls
 
@@ -34,20 +45,46 @@ describe "groups" do
     describe "announcements page" do
       it_behaves_like 'announcements_page', 'student'
 
+      it "should allow group members to delete their own announcements", priority: "1", test_id: 326521 do
+        create_group_announcement_manually("Announcement by #{@students.first.name}",'yo ho, yo ho')
+        expect(ff('.discussion-topic').size).to eq 1
+        delete_via_gear_menu
+        expect(ff('.discussion-topic').size).to eq 0
+      end
+
       it "should allow any group member to create an announcement", priority: "1", test_id: 273607 do
-        get announcements_page
 
         # Checks that initial user can create an announcement
         create_group_announcement_manually("Announcement by #{@user.name}",'sup')
-        wait_for_ajaximations
 
         # Log in as a new student to verify the last group was created and that they can also create a group
         user_session(@students.first)
-        get announcements_page
         expect(ff('.discussion-topic').size).to eq 1
         create_group_announcement_manually("Announcement by #{@students.first.name}",'yo')
-        get announcements_page
         expect(ff('.discussion-topic').size).to eq 2
+      end
+
+      it "should allow group members to edit their own announcements", priority: "1", test_id: 312867 do
+        create_group_announcement_manually("Announcement by #{@students.first.name}",'The Force Awakens')
+        expect(ff('.discussion-topic').size).to eq 1
+        f('.discussion-title').click
+        f('.edit-btn').click
+        expect(driver.title).to eq 'Edit Announcement'
+        type_in_tiny('textarea[name=message]','Rey is Yodas daughter ')
+        f('.btn-primary').click
+        wait_for_ajaximations
+        get announcements_page
+        expect(ff('.discussion-topic').size).to eq 1
+        expect(fj('.discussion-summary').text).to include_text('Rey is Yodas daughter ')
+      end
+
+      it "should not allow group members to edit someone else's announcement", priority: "1", test_id: 327111 do
+        create_group_announcement_manually("Announcement by #{@user.name}",'sup')
+        user_session(@students.first)
+        get announcements_page
+        expect(ff('.discussion-topic').size).to eq 1
+        f('.discussion-title').click
+        expect(f('.edit-btn')).to be_nil
       end
 
       it "should allow all group members to see announcements", priority: "1", test_id: 273613 do
@@ -118,6 +155,50 @@ describe "groups" do
         expect(f('#new-discussion-btn')).to be_displayed
         verify_no_course_user_access(discussions_page)
       end
+
+      it "should allow discussions to be deleted by their creator", priority: "1", test_id: 329626 do
+        DiscussionTopic.create!(context: @testgroup.first, user: @user, title: 'Delete Me', message: 'Discussion text')
+        get discussions_page
+        expect(ff('.discussion-title-block').size).to eq 1
+        delete_via_gear_menu
+        expect(ff('.discussion-title-block').size).to eq 0
+      end
+
+      it "should not be able to delete a discussion by a different creator", priority: "1", test_id: 420009 do
+        DiscussionTopic.create!(context: @testgroup.first,
+                                user: @students.first,
+                                title: 'Back to the Future day',
+                                message: 'There are no hover boards!')
+        get discussions_page
+        expect(ff('.discussion-title-block').size).to eq 1
+        expect(f('#manage_link')).to be_nil
+      end
+
+      it "should allow group members to edit their discussions", priority: "1", test_id: 312866 do
+        DiscussionTopic.create!(context: @testgroup.first,
+                                user: @user,
+                                title: 'White Snow',
+                                message: 'Where are my skis?')
+        get discussions_page
+        f('.discussion-title').click
+        f('.edit-btn').click
+        expect(driver.title).to eq 'Edit Discussion Topic'
+        type_in_tiny('textarea[name=message]','The slopes are ready,')
+        f('.btn-primary').click
+        wait_for_ajaximations
+        expect(fj('.user_content').text).to include_text('The slopes are ready,')
+      end
+
+      it "should not allow group member to edit discussions by other creators", priority: "1", test_id: 323327 do
+        DiscussionTopic.create!(context: @testgroup.first,
+                                user: @students.first,
+                                title: 'White Snow',
+                                message: 'Where are my skis?')
+        get discussions_page
+        f('.discussion-title').click
+        expect(f('.edit-btn')).to be_nil
+      end
+
     end
 
     #-------------------------------------------------------------------------------------------------------------------
@@ -140,7 +221,7 @@ describe "groups" do
 
       it "should only allow group members to access pages", priority: "1", test_id: 315331 do
         get pages_page
-        expect(fj('.btn-primary:contains("Page")')).to be_displayed
+        expect(f('.new_page')).to be_displayed
         verify_no_course_user_access(pages_page)
       end
     end
@@ -159,7 +240,7 @@ describe "groups" do
         get files_page
         add_folder
         delete(0, :cog_icon)
-        expect(get_all_files_folders.count).to eq 0
+        expect(all_files_folders.count).to eq 0
       end
 
       it "should allow group members to move a folder", priority: "1", test_id: 273632 do
@@ -178,10 +259,10 @@ describe "groups" do
         get files_page
         delete(0, :cog_icon)
         wait_for_ajaximations
-        expect(get_all_files_folders.count).to eq 1
+        expect(all_files_folders.count).to eq 1
         # Now try to delete the other one using toolbar menu
         delete(0, :toolbar_menu)
-        expect(get_all_files_folders.count).to eq 0
+        expect(all_files_folders.count).to eq 0
       end
 
       it "should allow group members to move a file", priority: "1", test_id: 273633 do
@@ -210,7 +291,7 @@ describe "groups" do
 
     #-------------------------------------------------------------------------------------------------------------------
     describe "conferences page" do
-      before(:all) do
+      before(:once) do
         PluginSetting.create!(name: "wimba", settings: {"domain" => "wimba.instructure.com"})
       end
 
@@ -220,6 +301,53 @@ describe "groups" do
         get conferences_page
         expect(f('.new-conference-btn')).to be_displayed
         verify_no_course_user_access(conferences_page)
+      end
+    end
+    #-------------------------------------------------------------------------------------------------------------------
+    describe "collaborations page" do
+      before(:each) do
+        set_up_google_docs
+        unless PluginSetting.where(name: 'google_docs').exists?
+          PluginSetting.create!(name: 'google_docs', settings: {})
+          PluginSetting.create!(name: 'google_drive', settings: {})
+        end
+      end
+
+      it 'lets student in group create a collaboration', priority: "1", test_id: 273641 do
+        get collaborations_page
+        replace_content(find('#collaboration_title'), "c1")
+        replace_content(find('#collaboration_description'), "c1 description")
+        fj('.available-users li:contains("1, Test Student") .icon-user').click
+        fj('.btn:contains("Start Collaborating")').click
+        wait_for_ajaximations
+        # Reload page and new collaboration will be displayed on main window
+        refresh_page
+        expect(element_exists(fj('.collaboration .title:contains("c1")'))).to be true
+        expect(element_exists(fj('.collaboration .description:contains("c1 description")'))).to be true
+      end
+
+      it 'can invite people within your group', priority: "1", test_id: 273642 do
+        students_in_group = @students
+        seed_students(2, 'non-group student')
+        get collaborations_page
+        students_in_group.each do |student|
+          expect(element_exists(fj(".available-users li:contains(#{student.sortable_name}) .icon-user"))).to be true
+        end
+      end
+
+      it 'cannot invite people not in your group', priority: "1", test_id: 588010 do
+        # overriding '@students' array with new students not included in the group
+        seed_students(2, 'non-group Student')
+        get collaborations_page
+        @students.each do |student|
+          expect(element_exists(fj(".available-users li:contains(#{student.sortable_name}) .icon-user"))).to be false
+        end
+      end
+
+      it "should only allow group members to access the group collaborations page", priority: "1", test_id: 319904 do
+        get collaborations_page
+        expect(find('#breadcrumbs').text).to include('Collaborations')
+        verify_no_course_user_access(collaborations_page)
       end
     end
   end

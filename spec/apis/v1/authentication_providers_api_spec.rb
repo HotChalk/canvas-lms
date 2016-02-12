@@ -22,7 +22,7 @@ describe "AuthenticationProviders API", type: :request do
   before :once do
     @account = account_model(:name => 'root')
     user_with_pseudonym(:active_all => true, :account => @account)
-    @account.authentication_providers.scoped.delete_all
+    @account.authentication_providers.scope.delete_all
     @account.account_users.create!(user: @user)
     @cas_hash = {"auth_type" => "cas", "auth_base" => "127.0.0.1"}
     @saml_hash = {'auth_type' => 'saml', 'idp_entity_id' => 'http://example.com/saml1', 'log_in_url' => 'http://example.com/saml1/sli', 'log_out_url' => 'http://example.com/saml1/slo', 'certificate_fingerprint' => '111222', 'identifier_format' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'}
@@ -186,6 +186,7 @@ describe "AuthenticationProviders API", type: :request do
       @saml_hash['login_attribute'] = 'nameid'
       @saml_hash['unknown_user_url'] = nil
       @saml_hash['parent_registration'] = false
+      @saml_hash['jit_provisioning'] = false
       expect(json).to eq @saml_hash
     end
 
@@ -200,6 +201,7 @@ describe "AuthenticationProviders API", type: :request do
       @ldap_hash['auth_over_tls'] = nil
       @ldap_hash['identifier_format'] = nil
       @ldap_hash['position'] = 1
+      @ldap_hash['jit_provisioning'] = false
       expect(json).to eq @ldap_hash
     end
 
@@ -211,6 +213,7 @@ describe "AuthenticationProviders API", type: :request do
       @cas_hash['id'] = aac.id
       @cas_hash['position'] = 1
       @cas_hash['unknown_user_url'] = nil
+      @cas_hash['jit_provisioning'] = false
       expect(json).to eq @cas_hash
     end
 

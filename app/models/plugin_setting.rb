@@ -126,7 +126,7 @@ class PluginSetting < ActiveRecord::Base
   end
 
   def clear_cache
-    connection.after_transaction_commit do
+    self.class.connection.after_transaction_commit do
       MultiCache.delete(PluginSetting.settings_cache_key(self.name))
     end
   end
@@ -142,4 +142,7 @@ class PluginSetting < ActiveRecord::Base
   def self.find_by_name(name)
     where(name: name).first
   end
+
+  # stub for plugins who want to do something fancy
+  def self.current_account=(_); end
 end

@@ -35,7 +35,7 @@ module Api::V1::OutcomeResults
   def outcome_result_json(result)
     hash = api_json(result, @current_user, session, {
       methods: :submitted_or_assessed_at,
-      only: %w(id score)
+      only: %w(id score mastery possible)
     })
     hash[:links] = {
       user: result.user.id.to_s,
@@ -61,7 +61,7 @@ module Api::V1::OutcomeResults
   # Returns a Hash containing serialized outcomes.
   def outcome_results_include_outcomes_json(outcomes)
     outcomes.each_slice(50).each do |outcomes_slice|
-      ActiveRecord::Associations::Preloader.new(outcomes_slice, [:context, :alignments]).run
+      ActiveRecord::Associations::Preloader.new.preload(outcomes_slice, [:context, :alignments])
     end
     assessed_outcomes = []
     outcomes.map(&:id).each_slice(100) do |outcome_ids|

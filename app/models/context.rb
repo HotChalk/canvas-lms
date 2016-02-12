@@ -188,12 +188,17 @@ module Context
     nil
   end
 
-  def self.get_account(context, fallback)
-    return fallback unless context
-    case context.class_name
-    when "Account" then context
-    when "Course", "Group" then Account.find_cached(context.account_id)
-    end || fallback
+  def self.get_account(context)
+    case context
+    when Account
+      context
+    when Course
+      get_account(context.account)
+    when CourseSection
+      get_account(context.course)
+    when Group
+      get_account(context.context)
+    end
   end
 
   def is_a_context?
@@ -211,5 +216,9 @@ module Context
   # Returns false
   def feature_enabled?(_feature)
     false
+  end
+
+  def nickname_for(_user, fallback = :name)
+    self.send fallback if fallback
   end
 end

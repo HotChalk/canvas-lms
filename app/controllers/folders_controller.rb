@@ -193,7 +193,7 @@ class FoldersController < ApplicationController
   #
   # @returns [Folder]
   def resolve_path
-    if authorized_action(@context, @current_user, :read)
+    if authorized_action(@context, @current_user, [:read, :manage_files])
       can_view_hidden_files = can_view_hidden_files?(@context, @current_user, session)
       folders = Folder.resolve_path(@context, params[:full_path], can_view_hidden_files)
       raise ActiveRecord::RecordNotFound if folders.blank?
@@ -287,10 +287,10 @@ class FoldersController < ApplicationController
           where("file_state<>'deleted'").
           order(:created_at).to_a
       @attachment = @attachments.pop
-      @attachments.each{|a| a.destroy! }
+      @attachments.each{|a| a.destroy_permanently! }
       last_date = (@folder.active_file_attachments.map(&:updated_at) + @folder.active_sub_folders.by_position.map(&:updated_at)).compact.max
       if @attachment && last_date && @attachment.created_at < last_date
-        @attachment.destroy!
+        @attachment.destroy_permanently!
         @attachment = nil
       end
 
@@ -489,7 +489,7 @@ class FoldersController < ApplicationController
           end
         else
           format.html { render :new }
-          format.json { render :json => @folder.errors }
+          format.json { render :json => @folder.errors, :status => :bad_request }
         end
       end
     end

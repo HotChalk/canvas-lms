@@ -24,7 +24,7 @@ class ContextModule < ActiveRecord::Base
   belongs_to :context, :polymorphic => true
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course']
   has_many :context_module_progressions, :dependent => :destroy
-  has_many :content_tags, :dependent => :destroy, :order => 'content_tags.position, content_tags.title'
+  has_many :content_tags, -> { order('content_tags.position, content_tags.title') }, dependent: :destroy
   acts_as_list scope: { context: self, workflow_state: ['active', 'unpublished'] }
 
   EXPORTABLE_ATTRIBUTES = [
@@ -79,7 +79,7 @@ class ContextModule < ActiveRecord::Base
 
   def relock_progressions(relocked_modules=[])
     return if relocked_modules.include?(self)
-    connection.after_transaction_commit do
+    self.class.connection.after_transaction_commit do
       relocked_modules << self
       self.context_module_progressions.update_all(:workflow_state => "locked")
       self.invalidate_progressions
@@ -91,7 +91,7 @@ class ContextModule < ActiveRecord::Base
   end
 
   def invalidate_progressions
-    connection.after_transaction_commit do
+    self.class.connection.after_transaction_commit do
       if context_module_progressions.where(current: true).update_all(current: false) > 0
         # don't queue a job unless necessary
         send_later_if_production_enqueue_args(:evaluate_all_progressions, {:strand => "module_reeval_#{self.global_context_id}"})
@@ -168,7 +168,7 @@ class ContextModule < ActiveRecord::Base
     self.position
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.deleted_at = Time.now.utc
@@ -237,7 +237,8 @@ class ContextModule < ActiveRecord::Base
   end
 
   def available_for?(user, opts={})
-    return true if self.active? && !self.to_be_unlocked && self.prerequisites.blank? && !self.require_sequential_progress
+    return true if self.active? && !self.to_be_unlocked && self.prerequisites.blank? &&
+      (self.completion_requirements.empty? || !self.require_sequential_progress)
     if self.grants_right?(user, :read_as_admin)
       return true
     elsif !self.active?
@@ -674,7 +675,7 @@ class ContextModule < ActiveRecord::Base
 
   def completion_event_callbacks
     callbacks = []
-    if publish_final_grade?
+    if publish_final_grade? && (plugin = Canvas::Plugin.find('grade_export')) && plugin.enabled?
       callbacks << lambda { |user| context.publish_final_grades(user, user.id) }
     end
     callbacks

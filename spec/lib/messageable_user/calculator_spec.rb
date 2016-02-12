@@ -142,7 +142,7 @@ describe "MessageableUser::Calculator" do
         # contrived, but have read_roster permission, but no association
         account = Account.create!
         account_admin_user(:user => @viewing_user, :account => account)
-        @viewing_user.user_account_associations.scoped.delete_all
+        @viewing_user.user_account_associations.scope.delete_all
         expect(@calculator.uncached_visible_account_ids).not_to include(account.id)
       end
 
@@ -180,12 +180,14 @@ describe "MessageableUser::Calculator" do
           end
 
           it "should include the group if the course was recently concluded" do
+            @course.start_at = 2.days.ago
             @course.conclude_at = 1.day.ago
             @course.save!
             expect(@calculator.uncached_fully_visible_group_ids).to include(@group.id)
           end
 
           it "should not include the group if the course concluding was not recent" do
+            @course.start_at = 46.days.ago
             @course.conclude_at = 45.days.ago
             @course.save!
             expect(@calculator.uncached_fully_visible_group_ids).not_to include(@group.id)

@@ -3,8 +3,9 @@ require File.expand_path(File.dirname(__FILE__) + '/../common')
 require File.expand_path(File.dirname(__FILE__) + '/../helpers/assignment_overrides')
 
 describe "discussions" do
-  include AssignmentOverridesSeleniumHelper
   include_context 'in-process server selenium tests'
+  include AssignmentOverridesSeleniumHelper
+  include DiscussionsCommon
 
   before do
     @course = course_model
@@ -27,7 +28,7 @@ describe "discussions" do
     user_session(@student1)
     find_vdd_time(@assignment)
     get "/courses/#{@course.id}/discussion_topics"
-    expect(f("#open-discussions .discussion-date-available").text).to include("Available until #{@lock_at_time[0, 6].strip}")
+    expect(f("#open-discussions .discussion-date-available").text).to include("Available until #{format_date_for_view(@assignment.lock_at)}")
     expect(f("#open-discussions .discussion-due-date").text).to include("Due #{@due_at_time}")
     expect_new_page_load{f('#open-discussions .discussion-title').click}
     expect(f('.discussion-reply-action')).to be_present
@@ -39,9 +40,11 @@ describe "discussions" do
     user_session(student2)
     find_vdd_time(@override)
     get "/courses/#{@course.id}/discussion_topics"
-    expect(f("#open-discussions .discussion-date-available").text).
-                                                              to include("Not available until #{@unlock_at_time[0, 6].strip}")
-    expect(f("#open-discussions .discussion-due-date").text).to include("Due #{@due_at_time}")
+    keep_trying_until do
+      expect(f("#open-discussions .discussion-date-available").text).
+                                                              to include("Not available until #{format_date_for_view(@override.unlock_at)}")
+      expect(f("#open-discussions .discussion-due-date").text).to include("Due #{@due_at_time}")
+    end
     expect_new_page_load{f('#open-discussions .discussion-title').click}
     expect(f('.discussion-reply-action')).not_to be_present
     expect(f('.discussion-fyi').text).to include("This topic is locked until #{@unlock_at_time}")
@@ -57,7 +60,7 @@ describe "discussions" do
     # Find the due, available and lock dates of the assignment(everyone)
     find_vdd_time(@assignment)
     expect(f('.discussion-topic-due-dates')).to be_present
-    expect(f('.discussion-topic-due-dates tbody tr td:nth-of-type(1)').text).to include(@due_at_time[0, 6].strip)
+    expect(f('.discussion-topic-due-dates tbody tr td:nth-of-type(1)').text).to include(format_date_for_view(@assignment.due_at))
     expect(f('.discussion-topic-due-dates tbody tr td:nth-of-type(2)').text).to include('Everyone else')
     expect(f('.discussion-topic-due-dates tbody tr td:nth-of-type(3)').text).to include(@unlock_at_time)
     expect(f('.discussion-topic-due-dates tbody tr td:nth-of-type(4)').text).to include(@lock_at_time)
@@ -65,11 +68,33 @@ describe "discussions" do
     # Find the due, available and lock dates of the override(dates assigned to section)
     find_vdd_time(@override)
     expect(f('.discussion-topic-due-dates tbody tr:nth-of-type(2) td:nth-of-type(1)').text).
-                                                                                   to include(@due_at_time[0, 6].strip)
+                                                                                   to include(format_date_for_view(@override.due_at))
     expect(f('.discussion-topic-due-dates tbody tr:nth-of-type(2) td:nth-of-type(2)').text).to include('New Section')
     expect(f('.discussion-topic-due-dates tbody tr:nth-of-type(2) td:nth-of-type(3)').text).
                                                                                  to include(@unlock_at_time)
     expect(f('.discussion-topic-due-dates tbody tr:nth-of-type(2) td:nth-of-type(4)').text).
                                                                                  to include(@lock_at_time)
+  end
+
+  it "should show the earliest lock until date and latest lock after date for observer linked to both students",
+                                                                                    priority: "1", test_id: 304666 do
+    skip('skipped due to a known bug CNVS-15489')
+    student1 = user_with_pseudonym(username: 'student1@example.com', active_all: 1)
+    student_in_course(course: @course, user: student1)
+    student2 = student_in_section(@new_section)
+    observer = user_with_pseudonym(:username => 'observer@example.com', :active_all => 1)
+    @course.enroll_user(observer, 'ObserverEnrollment', :enrollment_state => 'active',
+                            :allow_multiple_enrollments => true, :associated_user_id => student1.id)
+    @course.enroll_user(observer, 'ObserverEnrollment', :enrollment_state => 'active',
+                            :associated_user_id => student2.id)
+    lock_at_time = @quiz.lock_at.strftime('%b %-d')
+    unlock_at_time = @override.unlock_at.strftime('%b %-d')
+    user_session(observer)
+    get "/courses/#{@course.id}/discussion_topics"
+    driver.mouse.move_to fln('Multiple Dates')
+    keep_trying_until do
+      expect(f("#ui-tooltip-0")).to
+      include_text("Everyone else\nAvailable until #{lock_at_time}\nNew Section\nNot available until #{unlock_at_time}")
+    end
   end
 end

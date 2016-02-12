@@ -2,7 +2,6 @@ define [
   'i18n!datepicker'
   'jquery'
   'timezone'
-  'jquery.instructure_date_and_time' # $.unfudgeDateForProfileTimezone, $.midnight
 ], (I18n, $, tz) ->
 
   # translate a strftime style format string (guaranteed to only use %d, %-d,
@@ -147,7 +146,7 @@ define [
       value = @normalizeValue(@$field.val())
       @datetime = tz.parse(value)
       @fudged = $.fudgeDateForProfileTimezone(@datetime)
-      @showTime = @alwaysShowTime or (@allowTime and not $.midnight(@datetime))
+      @showTime = @alwaysShowTime or (@allowTime and not tz.isMidnight(@datetime))
       @blank = not value
       @invalid = not @blank and @datetime == null
 
@@ -163,7 +162,7 @@ define [
         @fudged = null
         @$field.val("")
       @invalid = false
-      @showTime = @alwaysShowTime or (@allowTime and not $.midnight(@datetime))
+      @showTime = @alwaysShowTime or (@allowTime and not tz.isMidnight(@datetime))
       @update()
 
     update: (updates) ->
@@ -190,7 +189,7 @@ define [
           'time-hour': null
           'time-minute': null
           'time-ampm': null
-      else if tz.hasMeridian()
+      else if tz.useMeridian()
         @$field.data
           'time-hour': tz.format(@datetime, "%-l")
           'time-minute': tz.format(@datetime, "%M")

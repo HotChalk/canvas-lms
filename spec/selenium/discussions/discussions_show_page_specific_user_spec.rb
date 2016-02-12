@@ -2,6 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/discussions_commo
 
 describe "discussions" do
   include_context "in-process server selenium tests"
+  include DiscussionsCommon
 
   let(:course) { course_model.tap{|course| course.offer!} }
   let(:student) { student_in_course(course: course, name: 'student', active_all: true).user }
@@ -74,6 +75,8 @@ describe "discussions" do
           topic.save!
 
           get url
+
+          wait_for_ajaximations
           expect(f('.topic-unsubscribe-button')).not_to be_displayed
           expect(f('.topic-subscribe-button')).not_to be_displayed
 

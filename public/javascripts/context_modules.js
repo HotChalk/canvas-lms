@@ -171,8 +171,8 @@ define([
           if(callback) { callback(); }
         });
       },
-      updateAssignmentData: function() {
-        $.ajaxJSON($(".assignment_info_url").attr('href'), 'GET', {}, function(data) {
+      updateAssignmentData: function(callback) {
+        return $.ajaxJSON($(".assignment_info_url").attr('href'), 'GET', {}, function(data) {
           $.each(data, function(id, info) {
             $context_module_item = $("#context_module_item_" + id);
             var data = {};
@@ -195,7 +195,9 @@ define([
             $context_module_item.fillTemplateData({data: data, htmlValues: ['points_possible_display']})
           });
           vddTooltip();
+          if (callback) { callback(); }
         }, function() {
+          if (callback) { callback(); }
         });
       },
       itemClass: function(content_tag) {
@@ -337,21 +339,21 @@ define([
           isNew = true;
           $form.attr('action', $form.find(".add_context_module_url").attr('href'));
           $form.find(".completion_entry").hide();
-          $form.find(".require-sequential").children().hide();
           $form.attr('method', 'POST');
           $form.find(".submit_button").text(I18n.t('buttons.add', "Add Module"));
         } else {
           $form.attr('action', $module.find(".edit_module_link").attr('href'));
           $form.find(".completion_entry").show();
-          $form.find(".require-sequential").children().hide().end()
-          $form.find(".requirement-count-radio .ic-Radio").children().hide().end()
           $form.attr('method', 'PUT');
           $form.find(".submit_button").text(I18n.t('buttons.update', "Update Module"));
         }
         $form.find("#unlock_module_at").prop('checked', data.unlock_at).change()
         $form.find("#require_sequential_progress").attr('checked', data.require_sequential_progress == "true" || data.require_sequential_progress == "1");
         $form.find("#publish_final_grade").attr('checked', data.publish_final_grade == "true" || data.publish_final_grade == "1");
-        $form.find(".prerequisites_entry").showIf($("#context_modules .context_module").length > 1);
+
+        var has_predecessors = $("#context_modules .context_module").length > 1 &&
+                               $("#context_modules .context_module:first").attr("id") !== $module.attr("id")
+        $form.find(".prerequisites_entry").showIf(has_predecessors);
         var prerequisites = [];
         $module.find(".prerequisites .prerequisite_criterion").each(function() {
           prerequisites.push($(this).getTemplateData({textValues: ['id', 'name', 'type']}));
@@ -374,10 +376,9 @@ define([
             .find(".type").val(data.criterion_type || "").change().end()
             .find(".min_score").val(data.min_score || "");
         });
-        var no_prereqs = $("#context_modules .context_module").length == 1;
         var no_items = $module.find(".content .context_module_item").length === 0;
         $form.find(".prerequisites_list .criteria_list").showIf(prerequisites.length != 0).end()
-          .find(".add_prerequisite_link").showIf(!no_prereqs).end()
+          .find(".add_prerequisite_link").showIf(has_predecessors).end()
           .find(".completion_entry .criteria_list").showIf(!no_items).end()
 
           .find(".completion_entry .no_items_message").hide().end()
@@ -386,30 +387,39 @@ define([
         // Set no items or criteria message plus diasable elements if there are no items or no requirements
         if (no_items) {
           $form.find(".completion_entry .no_items_message").show();
-
-        } else if ($module.find(".content .context_module_item .criterion.defined").length !== 0) {
-          $(".require-sequential").children().show();
-          $(".requirement-count-radio .ic-Radio").children().show();
+        }
+        if ($module.find(".content .context_module_item .criterion.defined").length !== 0) {
+          $(".requirement-count-radio").show();
+        } else {
+          $(".requirement-count-radio").hide();
         }
 
         var $requirementCount = $module.find('.pill li').data("requirement-count");
-        $requirementCount == 1 ? $('#context_module_requirement_count_1').prop('checked', true) : $('#context_module_requirement_count').prop('checked', true);
+        if ($requirementCount == 1) {
+          $('#context_module_requirement_count_1').prop('checked', true).change();
+        } else {
+          $('#context_module_requirement_count_').prop('checked', true).change();
+        }
+
 
         $module.fadeIn('fast', function() {
         });
         $module.addClass('dont_remove');
         $form.find(".module_name").toggleClass('lonely_entry', isNew);
+
         $form.dialog({
           autoOpen: false,
           modal: true,
+          title: (isNew ? I18n.t('titles.add', "Add Module") : I18n.t('titles.edit', "Edit Module Settings")),
           width: 600,
+          height: (isNew ? 400 : 600),
           close: function() {
             modules.hideEditModule(true);
           },
           open: function(){
             $(this).find('input[type=text],textarea,select').first().focus();
           }
-        }).fixDialogButtons().dialog('option', {title: (isNew ? I18n.t('titles.add', "Add Module") : I18n.t('titles.edit', "Edit Module Settings")), width: (isNew ? 'auto' : 600)}).dialog('open'); //show();
+        }).dialog('open');
         $module.removeClass('dont_remove');
       },
       hideEditModule: function(remove) {
@@ -582,7 +592,6 @@ define([
           if (data.current_position && position && data.current_position < position) {
             $mod_item.addClass('after_current_position');
           }
-
           // set the status icon
           var $icon_container = $mod_item.find('.module-item-status-icon');
           var mod_id = $mod_item.getTemplateData({textValues: ['id']}).id;
@@ -743,13 +752,12 @@ define([
       updatePrerequisites($module, data.context_module.prerequisites);
 
       // Update requirement message pill
-      if (ENV.NC_OR_ENABLED) {
-        if (data.context_module.completion_requirements.length === 0) {
-          $module.find('.requirements_message').empty();
-        } else {
-          newPillMessage($module, data.context_module.requirement_count);
-        }
+      if (data.context_module.completion_requirements.length === 0) {
+        $module.find('.requirements_message').empty();
+      } else {
+        newPillMessage($module, data.context_module.requirement_count);
       }
+
       $module.find(".context_module_items .context_module_item")
         .removeClass('progression_requirement')
         .removeClass('min_score_requirement')
@@ -876,7 +884,7 @@ define([
         }
       });
       for(var idx in afters) {
-        $select.find("." + afters[idx]).attr('disabled', true);
+        $select.find("." + afters[idx]).hide();
       }
 
       $pre.find(".option").empty().append($select.show());
@@ -925,10 +933,10 @@ define([
       });
       $pre.find(".option").empty().append($option);
       $option.slideDown();
+      $option.find(".id").change();
       $form.find(".completion_entry .criteria_list").append($pre).show();
       $pre.slideDown();
-      $(".require-sequential").children().show();
-      $(".requirement-count-radio .ic-Radio").children().show();
+      $(".requirement-count-radio").show();
       $('#context_module_requirement_count_').change().focus();
     });
     $("#completion_criterion_option .id").change(function() {
@@ -958,6 +966,16 @@ define([
         $option.find(".points_possible_parent").hide();
       }
     });
+
+    $("#add_context_module_form .requirement-count-radio .ic-Radio input").change(function() {
+      if ($('#context_module_requirement_count_').prop('checked')) {
+        $('.require-sequential').show();
+      } else {
+        $('.require-sequential').hide();
+        $('#require_sequential_progress').prop('checked', false)
+      }
+    });
+
     $("#add_context_module_form .delete_criterion_link").click(function(event) {
       event.preventDefault();
       var $elem = $(this).closest(".criteria_list");
@@ -966,8 +984,7 @@ define([
         $(this).remove();
         // Hides radio button and checkbox if there are no requirements
         if ($elem.html().length === 0 && $requirement.length !== 0) {
-          $(".require-sequential").children().fadeOut("fast");
-          $(".requirement-count-radio .ic-Radio").children().fadeOut("fast");
+          $(".requirement-count-radio").fadeOut("fast");
         }
       })
     });
@@ -1219,7 +1236,9 @@ define([
               $module.find(".context_module_items.ui-sortable").sortable('enable').sortable('refresh');
               initNewItemPublishButton($item, data.content_tag);
               modules.updateAssignmentData();
-            })
+            }), { onComplete: function() {
+              $module.find('.add_module_item_link').focus();
+            }}
           );
         };
         INST.selectContentDialog(options);
@@ -1287,7 +1306,7 @@ define([
         }
       });
       for(var idx in afters) {
-        $select.find(".context_module_" + afters[idx]).attr('disabled', true);
+        $select.find(".context_module_" + afters[idx]).hide();
       }
       $("#add_module_prerequisite_dialog").find(".prerequisite_module_select").empty().append($select.show());
       $("#add_module_prerequisite_dialog").dialog({
@@ -1316,7 +1335,6 @@ define([
       $("#context_modules").sortable({
         handle: '.reorder_module_link',
         helper: 'clone',
-        containment: '#context_modules_sortable_container',
         axis: 'y',
         update: modules.updateModulePositions
       });
@@ -1328,6 +1346,8 @@ define([
       var publishData = {
         moduleType: data.type,
         id: data.publishable_id,
+        moduleItemName: data.moduleItemName,
+        moduleItemId: data.id,
         moduleId: data.context_module_id,
         courseId: data.context_id,
         published: data.published,
@@ -1381,10 +1401,12 @@ define([
           model: file,
           togglePublishClassOn: $el.parents('.ig-row')[0],
           userCanManageFilesForContext: ENV.MODULE_FILE_PERMISSIONS.manage_files,
-          usageRightsRequiredForContext: ENV.MODULE_FILE_PERMISSIONS.usage_rights_required
+          usageRightsRequiredForContext: ENV.MODULE_FILE_PERMISSIONS.usage_rights_required,
+          fileName: file.displayName()
         }
 
-        React.render(PublishCloud(props), $el[0]);
+        var Cloud = React.createElement(PublishCloud, props);
+        React.render(Cloud, $el[0]);
         return {model: file} // Pretending this is a backbone view
       }
 
@@ -1394,13 +1416,26 @@ define([
         id: data.id,
         module_id: data.moduleId,
         module_item_id: data.moduleItemId,
+        module_item_name: data.moduleItemName,
         course_id: data.courseId,
         published: data.published,
         publishable: data.publishable,
         unpublishable: data.unpublishable
       });
 
-      var view = new PublishIconView({model: model, el: $el[0]});
+      var viewOptions = {
+        model: model,
+        el: $el[0]
+      };
+
+      if (data.publishMessage) {
+        viewOptions.publishText = data.publishMessage;
+      }
+      if (data.unpublishMessage) {
+        viewOptions.unpublishText = data.unpublishMessage;
+      }
+
+      var view = new PublishIconView(viewOptions);
       var row = $el.closest('.ig-row');
 
       if (data.published) { row.addClass('ig-published'); }
@@ -1627,6 +1662,8 @@ define([
     // "d" deletes module or module item
     // "space" opens up Move Item or Move Module form depending on which item is focused
     $document.keycodes('e d space', function(event) {
+      if (!$currentElem) return;
+
       $elem = getClosestModuleOrItem($currentElem);
       $hasClassItemHover = $elem.hasClass('context_module_item_hover');
 
@@ -1657,6 +1694,8 @@ define([
     // "i" indents module item
     // "o" outdents module item
     $document.keycodes('i o', function(event) {
+      if (!$currentElem) return;
+
       var $currentElemID = $currentElem.attr('id');
 
       if (event.keyString == 'i') {
@@ -1677,8 +1716,10 @@ define([
       setTimeout(modules.initModuleManagement, 1000);
     }
 
-    modules.updateAssignmentData(); // need the assignment data to check past due state
-    modules.updateProgressions();
+    // need the assignment data to check past due state
+    modules.updateAssignmentData(function() {
+      modules.updateProgressions();
+    });
 
     $(".context_module").find(".expand_module_link,.collapse_module_link").bind('click keyclick', function(event, goSlow) {
       event.preventDefault();

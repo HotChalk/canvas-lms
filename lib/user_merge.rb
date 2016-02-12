@@ -51,7 +51,7 @@ class UserMerge
       elsif source_cc.active?
         # active, unconfirmed*
         # active, retired
-        target_cc.destroy!
+        target_cc.destroy_permanently!
         if from_user.shard != target_user.shard
           User.clone_communication_channel(source_cc, target_user, max_position)
         end
@@ -61,7 +61,7 @@ class UserMerge
         to_retire = source_cc
       elsif source_cc.unconfirmed?
         # unconfirmed, retired
-        target_cc.destroy!
+        target_cc.destroy_permanently!
         if from_user.shard != target_user.shard
           User.clone_communication_channel(source_cc, target_user, max_position)
         end
@@ -158,7 +158,7 @@ class UserMerge
       # flagged as updated so the materialized views update
       begin
         entries = DiscussionEntry.where(user_id: from_user)
-        DiscussionTopic.where(id: entries.select(['discussion_topic_id'])).update_all(updated_at: Time.now.utc)
+        DiscussionTopic.where(id: entries.select(['discussion_topic_id'])).touch_all
         entries.update_all(user_id: target_user.id)
         DiscussionTopic.where(user_id: from_user).update_all(user_id: target_user.id, updated_at: Time.now.utc)
       rescue => e

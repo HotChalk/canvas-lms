@@ -162,7 +162,7 @@ class GroupMembership < ActiveRecord::Base
   def touch_groups
     groups_to_touch = [ self.group_id ]
     groups_to_touch << self.old_group_id if self.old_group_id
-    Group.where(:id => groups_to_touch).update_all(:updated_at => Time.now.utc)
+    Group.where(:id => groups_to_touch).touch_all
   end
   protected :touch_groups
 
@@ -191,7 +191,7 @@ class GroupMembership < ActiveRecord::Base
     Rails.cache.delete(self.user.group_membership_key)
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.save!

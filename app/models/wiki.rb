@@ -84,7 +84,7 @@ class Wiki < ActiveRecord::Base
 
     # return an implicitly created page if a page could not be found
     unless page
-      page = self.wiki_pages.scoped.new(:title => url.titleize, :url => url)
+      page = self.wiki_pages.scope.new(:title => url.titleize, :url => url)
       page.wiki = self
     end
     page
@@ -188,9 +188,6 @@ class Wiki < ActiveRecord::Base
   end
 
   def find_page(param)
-    if (match = param.match(/\Apage_id:(\d+)\z/))
-      return self.wiki_pages.where(id: match[1].to_i).first
-    end
     self.wiki_pages.not_deleted.where(url: param.to_s).first ||
       self.wiki_pages.not_deleted.where(url: param.to_url).first ||
       self.wiki_pages.not_deleted.where(id: param.to_i).first

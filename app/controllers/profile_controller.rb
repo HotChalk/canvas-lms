@@ -140,7 +140,7 @@
 #
 class ProfileController < ApplicationController
   before_filter :require_registered_user, :except => [:show, :settings, :communication, :communication_update]
-  before_filter :require_user, :only => [:settings, :communication, :communication_update, :observees, :toggle_inbox_disable]
+  before_filter :require_user, :only => [:settings, :communication, :communication_update]
   before_filter :require_user_for_private_profile, :only => :show
   before_filter :reject_student_view_student
   before_filter :require_password_session, :only => [:settings, :communication, :communication_update, :update]
@@ -236,7 +236,7 @@ class ProfileController < ApplicationController
         json[:category]             = category.category.underscore.gsub(/\s/, '_')
         json[:display_name]         = category.category_display_name
         json[:category_description] = category.category_description
-        json[:option]               = category.related_user_setting(@user)
+        json[:option]               = category.related_user_setting(@user, @domain_root_account)
       end
     end
 
@@ -447,9 +447,6 @@ class ProfileController < ApplicationController
   private :require_user_for_private_profile
 
   def observees
-    if session[:parent_registration] && session[:parent_registration][:logged_out]
-      session.delete(:parent_registration)
-    end
     if @domain_root_account.parent_registration?
       js_env(AUTH_TYPE: @domain_root_account.parent_auth_type)
     end

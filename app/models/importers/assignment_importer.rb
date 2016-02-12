@@ -24,7 +24,7 @@ module Importers
       migration.context.assignments
       assignments.each_with_index{|m, idx| cases << " WHEN migration_id=#{conn.quote(m['assignment_id'])} THEN #{max + idx + 1} " if m['assignment_id'] }
       unless cases.empty?
-        conn.execute("UPDATE assignments SET position=CASE #{cases.join(' ')} ELSE NULL END WHERE context_id=#{migration.context.id} AND context_type=#{conn.quote(migration.context.class.to_s)} AND migration_id IN (#{migration_ids.map{|id| conn.quote(id)}.join(',')})")
+        conn.execute("UPDATE #{Assignment.quoted_table_name} SET position=CASE #{cases.join(' ')} ELSE NULL END WHERE context_id=#{migration.context.id} AND context_type=#{conn.quote(migration.context.class.to_s)} AND migration_id IN (#{migration_ids.map{|id| conn.quote(id)}.join(',')})")
       end
     end
 
@@ -160,20 +160,16 @@ module Importers
       end
 
       if hash[:has_group_category]
+        item.group_category = context.group_categories.active.where(:name => hash[:group_category]).first
         item.group_category ||= context.group_categories.active.where(:name => t("Project Groups")).first_or_create
       end
 
       [:turnitin_enabled, :peer_reviews,
        :automatic_peer_reviews, :anonymous_peer_reviews,
        :grade_group_students_individually, :allowed_extensions,
-       :position, :peer_review_count, :muted
+       :position, :peer_review_count, :muted, :moderated_grading
       ].each do |prop|
         item.send("#{prop}=", hash[prop]) unless hash[prop].nil?
-      end
-
-      # ^ merge into prop list above once this feature flag is retired
-      if hash[:moderated_grading] && context.feature_enabled?(:moderated_grading)
-        item.moderated_grading = true
       end
 
       migration.add_imported_item(item)

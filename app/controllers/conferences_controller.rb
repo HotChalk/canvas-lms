@@ -216,7 +216,7 @@ class ConferencesController < ApplicationController
   end
 
   def create
-    if authorized_action(@context.web_conferences.scoped.new, @current_user, :create)
+    if authorized_action(@context.web_conferences.scope.new, @current_user, :create)
       params[:web_conference].try(:delete, :long_running)
       @conference = @context.web_conferences.build(params[:web_conference])
       @conference.settings[:default_return_url] = named_context_url(@context, :context_url, :include_host => true)
@@ -335,7 +335,7 @@ class ConferencesController < ApplicationController
   def destroy
     if authorized_action(@conference, @current_user, :delete)
       @conference.transaction do
-        @conference.web_conference_participants.scoped.delete_all
+        @conference.web_conference_participants.scope.delete_all
         @conference.destroy
       end
       respond_to do |format|
@@ -356,15 +356,22 @@ class ConferencesController < ApplicationController
 
   def get_new_members
     members = [@current_user]
+
     if params[:user] && params[:user][:all] != '1'
       ids = []
       params[:user].each do |id, val|
         ids << id.to_i if val == '1'
       end
-      members += @context.users.where(id: ids)
     else
-      members += @context.users.to_a
+      ids = @context.user_ids
     end
+
+    if @context.is_a? Course
+      members += @context.participating_users(ids).to_a
+    else
+      members += @context.participating_users_in_context(ids).to_a
+    end
+
     members - @conference.invitees
   end
 

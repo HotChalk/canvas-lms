@@ -1,7 +1,7 @@
 {
   "checksum": {
-    "previous": "348f51d5e794468e11a57af4c5fe610cc6c673a5e45538fb058946d99836c6ab",
-    "current": "348f51d5e794468e11a57af4c5fe610cc6c673a5e45538fb058946d99836c6ab"
+    "previous": "277616b4362ff66a8832ae09326b881c1b36a5708515e39187102723f8a2983c",
+    "current": "277616b4362ff66a8832ae09326b881c1b36a5708515e39187102723f8a2983c"
   },
   "fonts": [
     "public/fonts/canvas/canvas-icons.ttf",
@@ -117,6 +117,10 @@
     "collection-save": {
       "codepoint": 61722,
       "source": "public/fonts/icons/collection-save.svg"
+    },
+    "commons": {
+      "codepoint": 61879,
+      "source": "public/fonts/icons/commons.svg"
     },
     "complete": {
       "codepoint": 61723,
@@ -370,6 +374,10 @@
       "codepoint": 61781,
       "source": "public/fonts/icons/mark-as-read.svg"
     },
+    "masquerade": {
+      "codepoint": 61881,
+      "source": "public/fonts/icons/masquerade.svg"
+    },
     "materials-required": {
       "codepoint": 61782,
       "source": "public/fonts/icons/materials-required.svg"
@@ -497,6 +505,10 @@
     "plus": {
       "codepoint": 61813,
       "source": "public/fonts/icons/plus.svg"
+    },
+    "post-to-sis": {
+      "codepoint": 61880,
+      "source": "public/fonts/icons/post-to-sis.svg"
     },
     "prerequisite": {
       "codepoint": 61814,

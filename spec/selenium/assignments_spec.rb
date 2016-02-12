@@ -1,13 +1,14 @@
-﻿require File.expand_path(File.dirname(__FILE__) + '/common')
+require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignments_common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/public_courses_context')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/files_common')
 
 describe "assignments" do
+  include_context "in-process server selenium tests"
+  include FilesCommon
+  include AssignmentsCommon
 
   # note: due date testing can be found in assignments_overrides_spec
-
-  include_context "in-process server selenium tests"
 
   context "as a teacher" do
 
@@ -48,8 +49,6 @@ describe "assignments" do
       context "moderated grading assignments" do
 
         before do
-          @course.root_account.allow_feature! :moderated_grading
-          @course.enable_feature! :moderated_grading
           @assignment = @course.assignments.create({name: "Test Moderated Assignment"})
           @assignment.update_attribute(:moderated_grading, true)
           @assignment.unpublish
@@ -127,36 +126,35 @@ describe "assignments" do
       expect(driver.execute_script("return document.title")).to include_text(assignment_name + ' edit')
     end
 
-
     it "should create an assignment using main add button", priority: "1", test_id: 132582 do
       assignment_name = 'first assignment'
       # freeze for a certain time, so we don't get unexpected ui complications
-      time = Timecop.freeze(2015,1,7,2,13)
-      due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
+      time = DateTime.new(Time.now.year,1,7,2,13)
+      Timecop.freeze(time) do
+        due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
 
-      get "/courses/#{@course.id}/assignments"
-      wait_for_ajaximations
-      #create assignment
-      f(".new_assignment").click
-      wait_for_ajaximations
-      f('#assignment_name').send_keys(assignment_name)
-      f('#assignment_points_possible').send_keys('10')
-      ['#assignment_text_entry', '#assignment_online_url', '#assignment_online_upload'].each do |element|
-        f(element).click
+        get "/courses/#{@course.id}/assignments"
+        wait_for_ajaximations
+        #create assignment
+        f(".new_assignment").click
+        wait_for_ajaximations
+        f('#assignment_name').send_keys(assignment_name)
+        f('#assignment_points_possible').send_keys('10')
+        ['#assignment_text_entry', '#assignment_online_url', '#assignment_online_upload'].each do |element|
+          f(element).click
+        end
+
+        fj(".datePickerDateField[data-date-type='due_at']").send_keys(due_at)
+
+        submit_assignment_form
+        #confirm all our settings were saved and are now displayed
+        wait_for_ajaximations
+        expect(f('h1.title')).to include_text(assignment_name)
+        expect(fj('#assignment_show .points_possible')).to include_text('10')
+        expect(f('#assignment_show fieldset')).to include_text('a text entry box, a website url, or a file upload')
+
+        expect(f('.assignment_dates')).to include_text(due_at)
       end
-
-      fj(".datePickerDateField[data-date-type='due_at']").send_keys(due_at)
-
-      submit_assignment_form
-      #confirm all our settings were saved and are now displayed
-      wait_for_ajaximations
-      expect(f('h1.title')).to include_text(assignment_name)
-      expect(fj('#assignment_show .points_possible')).to include_text('10')
-      expect(f('#assignment_show fieldset')).to include_text('a text entry box, a website url, or a file upload')
-
-      expect(f('.assignment_dates')).to include_text(due_at)
-      # unfreeze time
-      Timecop.return
     end
 
     it "only allows an assignment editor to edit points and title if assignment " +
@@ -195,33 +193,33 @@ describe "assignments" do
       enable_cache do
         expected_text = "Assignment 1"
         # freeze time to avoid ui complications
-        time = Timecop.freeze(2015,1,7,2,13)
-        due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
-        points = '25'
+        time = DateTime.new(2015,1,7,2,13)
+        Timecop.freeze(time) do
+          due_at = time.strftime('%b %-d at %-l:%M') << time.strftime('%p').downcase
+          points = '25'
 
-        get "/courses/#{@course.id}/assignments"
-        group = @course.assignment_groups.first
-        AssignmentGroup.where(:id => group).update_all(:updated_at => 1.hour.ago)
-        first_stamp = group.reload.updated_at.to_i
-        f('.add_assignment').click
-        wait_for_ajaximations
-        replace_content(f("#ag_#{group.id}_assignment_name"), expected_text)
-        replace_content(f("#ag_#{group.id}_assignment_due_at"), due_at)
-        replace_content(f("#ag_#{group.id}_assignment_points"), points)
-        expect_new_page_load { f('.more_options').click }
-        expect(f('#assignment_name').attribute(:value)).to include_text(expected_text)
-        expect(f('#assignment_points_possible').attribute(:value)).to include_text(points)
-        due_at_field = fj(".date_field:first[data-date-type='due_at']")
-        expect(due_at_field.attribute(:value)).to eq due_at
-        click_option('#assignment_submission_type', 'No Submission')
-        submit_assignment_form
-        expect(@course.assignments.count).to eq 1
-        get "/courses/#{@course.id}/assignments"
-        expect(f('.assignment')).to include_text(expected_text)
-        group.reload
-        expect(group.updated_at.to_i).not_to eq first_stamp
-        # unfreeze time
-        Timecop.return
+          get "/courses/#{@course.id}/assignments"
+          group = @course.assignment_groups.first
+          AssignmentGroup.where(:id => group).update_all(:updated_at => 1.hour.ago)
+          first_stamp = group.reload.updated_at.to_i
+          f('.add_assignment').click
+          wait_for_ajaximations
+          replace_content(f("#ag_#{group.id}_assignment_name"), expected_text)
+          replace_content(f("#ag_#{group.id}_assignment_due_at"), due_at)
+          replace_content(f("#ag_#{group.id}_assignment_points"), points)
+          expect_new_page_load { f('.more_options').click }
+          expect(f('#assignment_name').attribute(:value)).to include_text(expected_text)
+          expect(f('#assignment_points_possible').attribute(:value)).to include_text(points)
+          due_at_field = fj(".date_field:first[data-date-type='due_at']")
+          expect(due_at_field.attribute(:value)).to eq due_at
+          click_option('#assignment_submission_type', 'No Submission')
+          submit_assignment_form
+          expect(@course.assignments.count).to eq 1
+          get "/courses/#{@course.id}/assignments"
+          expect(f('.assignment')).to include_text(expected_text)
+          group.reload
+          expect(group.updated_at.to_i).not_to eq first_stamp
+        end
       end
     end
 
@@ -575,6 +573,61 @@ describe "assignments" do
         wait_for_ajaximations
         expect(f('#assignment_post_to_sis')).to be_nil
       end
+
+      it 'should display post to SIS icon on assignments page when enabled' do
+        Account.default.set_feature_flag!('post_grades', 'on')
+
+        @a1 = @course.assignments.create!(:name => 'assignment 1', :post_to_sis => true)
+        @a2 = @course.assignments.create!(:name => 'assignment 2', :post_to_sis => false)
+        @a3 = @course.assignments.create!(:name => 'assignment 3', :post_to_sis => true)
+
+        get "/courses/#{@course.id}/assignments/"
+        wait_for_ajaximations
+
+        expect(find_all('.post-to-sis-status.enabled').count).to be 2
+        expect(find_all('.post-to-sis-status.disabled').count).to be 1
+
+        Account.default.set_feature_flag!('post_grades', 'off')
+
+        get "/courses/#{@course.id}/assignments/"
+        wait_for_ajaximations
+
+        expect(find_all('.post-to-sis-status.enabled').count).to be 0
+        expect(find_all('.post-to-sis-status.disabled').count).to be 0
+      end
+
+      it 'should toggle the post to SIS feature when clicked' do
+        Account.default.set_feature_flag!('post_grades', 'on')
+
+        @a1 = @course.assignments.create!(:name => 'assignment 1', :post_to_sis => true)
+        @a2 = @course.assignments.create!(:name => 'assignment 2', :post_to_sis => false)
+        @a3 = @course.assignments.create!(:name => 'assignment 3', :post_to_sis => true)
+
+        get "/courses/#{@course.id}/assignments/"
+        wait_for_ajaximations
+
+        enabled = find_all('.post-to-sis-status.enabled')
+        disabled = find_all('.post-to-sis-status.disabled')
+
+        expect(enabled.count).to be 2
+        expect(disabled.count).to be 1
+
+        enabled.each(&:click)
+        disabled.each(&:click)
+
+        wait_for_ajaximations
+
+        @a1.reload
+        @a2.reload
+        @a3.reload
+
+        expect(@a1.post_to_sis).to be_falsey
+        expect(@a2.post_to_sis).to be_truthy
+        expect(@a3.post_to_sis).to be_falsey
+
+        expect(find_all('.post-to-sis-status.enabled').count).to be 1
+        expect(find_all('.post-to-sis-status.disabled').count).to be 2
+      end
     end
 
     it 'should go to the assignment index page from left nav', priority: "1", test_id: 108724 do
@@ -601,8 +654,6 @@ describe "assignments" do
       course_with_teacher_logged_in
       @course.start_at = nil
       @course.save!
-      @course.root_account.allow_feature! :moderated_grading
-      @course.enable_feature! :moderated_grading
       @assignment = @course.assignments.create({name: "Test Moderated Assignment"})
       @assignment.update_attribute(:moderated_grading, true)
       @assignment.publish
@@ -623,6 +674,27 @@ describe "assignments" do
       @assignment.update_attribute(:moderated_grading, false)
       get "/courses/#{@course.id}/assignments/#{@assignment.id}/moderate"
       expect(f('#content h2').text).to eql "Page Not Found"
+    end
+  end
+
+  context "post to sis default setting" do
+    before do
+      account_model
+      @account.enable_feature!(:bulk_sis_grade_export)
+      course_with_teacher_logged_in(:active_all => true, :account => @account)
+    end
+
+    it "should default to post grades if account setting is enabled" do
+      @account.settings[:sis_default_grade_export] = {:locked => false, :value => true}
+      @account.save!
+
+      get "/courses/#{@course.id}/assignments/new"
+      expect(is_checked('#assignment_post_to_sis')).to be_truthy
+    end
+
+    it "should not default to post grades if account setting is not enabled" do
+      get "/courses/#{@course.id}/assignments/new"
+      expect(is_checked('#assignment_post_to_sis')).to be_falsey
     end
   end
 end

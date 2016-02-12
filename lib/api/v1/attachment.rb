@@ -112,6 +112,9 @@ module Api::V1::Attachment
     if includes.include? 'usage_rights'
       hash['usage_rights'] = usage_rights_json(attachment.usage_rights, user)
     end
+    if includes.include? "context_asset_string"
+      hash['context_asset_string'] = attachment.context.try(:asset_string)
+    end
 
     hash
   end
@@ -216,7 +219,6 @@ module Api::V1::Attachment
   end
 
   def context_files_url
-    # change if context_api_index route is expanded to other contexts besides courses
-    api_v1_course_files_url(@context)
+    polymorphic_url([:api_v1, @context, :files])
   end
 end

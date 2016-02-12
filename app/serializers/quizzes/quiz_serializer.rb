@@ -24,7 +24,7 @@ module Quizzes
                 :assignment_id, :one_time_results, :only_visible_to_overrides,
                 :assignment_group_id, :show_correct_answers_last_attempt, :version_number,
                 :submission_for_current_user, :quiz_submission_versions,
-                :question_types, :has_access_code
+                :question_types, :has_access_code, :post_to_sis
 
     def_delegators :@controller,
       # :api_v1_course_assignment_group_url,
@@ -358,6 +358,10 @@ module Quizzes
 
     def has_file_uploads?
       quiz.has_file_upload_question?
+    end
+
+    def post_to_sis
+      quiz.post_to_sis?
     end
   end
 end

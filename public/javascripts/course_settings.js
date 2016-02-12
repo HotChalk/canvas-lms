@@ -243,7 +243,23 @@ define([
       $("#nav_dynamic_list li").each(function() {
         var tab_id = dynamic_tab_id_from_el(this);
         var tab_id_arr = tab_id.split('_');
-        if (tab_id !== null) { dynamic_tabs.push({ context_id: parseInt(tab_id_arr.pop()), context_type: tab_id_arr.join('_'), label: $($(this).contents()[0]).text().trim() }); }
+        if (tab_id !== null) { 
+          var id, url;
+          var id_tmp = tab_id_arr.pop();
+          if (isFinite(id_tmp)){
+            id = parseInt(id_tmp);
+          }
+          else
+          {
+            url = id_tmp;
+          }
+          dynamic_tabs.push({ 
+            context_id: id,
+            context_type: tab_id_arr.join('_'), 
+            label: $($(this).contents()[0]).text().trim(),
+            url: url
+          }); 
+        }
       });
       $("#dynamic_tabs_json").val(JSON.stringify(dynamic_tabs));
       return true;
@@ -316,7 +332,6 @@ define([
       },
       error: function(data) {
         $(this).loadingImage('remove');
-        $(this).formErrors(data);
       },
       disableWhileLoading: 'spin_on_success'
     })
@@ -413,7 +428,7 @@ define([
       event.preventDefault();
       GradePublishing.publish();
     });
-    if (typeof(sisPublishEnabled) != 'undefined' && sisPublishEnabled) {
+    if (ENV.PUBLISHING_ENABLED) {
       GradePublishing.checkup();
     }
 
@@ -449,6 +464,9 @@ define([
             $("#nav_dynamic_list").append(li);
           }
         };
+        // clean external_url fields
+        $('#url_address').val('');
+        $('#url_title').val('');
         INST.linkContentDialog(options);
       }
     });

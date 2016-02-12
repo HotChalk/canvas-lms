@@ -121,6 +121,39 @@ describe Submission do
     @submission.save!
   end
 
+  context "#graded_anonymously" do
+    it "saves when grade changed and set explicitly" do
+      submission_spec_model
+      expect(@submission.graded_anonymously).to be_falsey
+      @submission.score = 42
+      @submission.graded_anonymously = true
+      @submission.save!
+      expect(@submission.graded_anonymously).to be_truthy
+      @submission.reload
+      expect(@submission.graded_anonymously).to be_truthy
+    end
+
+    it "retains its value when grade does not change" do
+      submission_spec_model(graded_anonymously: true, score: 3, grade: "3")
+      @submission = Submission.find(@submission.id) # need new model object
+      expect(@submission.graded_anonymously).to be_truthy
+      @submission.body = 'test body'
+      @submission.save!
+      @submission.reload
+      expect(@submission.graded_anonymously).to be_truthy
+    end
+
+    it "resets when grade changed and not set explicitly" do
+      submission_spec_model(graded_anonymously: true, score: 3, grade: "3")
+      @submission = Submission.find(@submission.id) # need new model object
+      expect(@submission.graded_anonymously).to be_truthy
+      @submission.score = 42
+      @submission.save!
+      @submission.reload
+      expect(@submission.graded_anonymously).to be_falsey
+    end
+  end
+
   context "Discussion Topic" do
     it "should use correct date for its submitted_at value" do
       course_with_student_logged_in(:active_all => true)
@@ -1140,6 +1173,32 @@ describe Submission do
       expect(a1.crocodoc_document(true)).to eq cd
       expect(a2.crocodoc_document).to eq a2.crocodoc_document
     end
+
+    it "doesn't create jobs for non-previewable documents" do
+      job_scope = Delayed::Job.where(strand: "canvadocs")
+      orig_job_count = job_scope.count
+
+      attachment = attachment_model(context: @user)
+      s = @assignment.submit_homework(@user,
+                                      submission_type: "online_upload",
+                                      attachments: [attachment])
+      expect(job_scope.count).to eq orig_job_count
+    end
+
+    it "doesn't use canvadocs for moderated grading assignments" do
+      @assignment.update_attribute :moderated_grading, true
+      Canvas::Crocodoc.stubs(:enabled?).returns true
+      Canvadocs.stubs(:enabled?).returns true
+      Canvadocs.stubs(:annotations_supported?).returns true
+
+      attachment = crocodocable_attachment_model(context: @user)
+      s = @assignment.submit_homework(@user,
+                                      submission_type: "online_upload",
+                                      attachments: [attachment])
+      run_jobs
+      expect(@attachment.canvadoc).to be_nil
+      expect(@attachment.crocodoc_document).not_to be_nil
+    end
   end
 
   describe "cross-shard attachments" do
@@ -1196,6 +1255,107 @@ describe Submission do
       expect(@a1.submission_for_student(@u2).grade).to eql "10"
       expect(@a2.submission_for_student(@u1).grade).to eql "10"
       expect(@a2.submission_for_student(@u2).grade).to eql "5"
+    end
+
+    it "should maintain grade when only updating comments" do
+      @a1.grade_student(@u1, :grade => 3)
+      Submission.process_bulk_update(@progress, @course, nil, @teacher,
+                                     {
+                                       @a1.id => {
+                                         @u1.id => {text_comment: "comment"}
+                                       }
+                                     })
+
+      expect(@a1.submission_for_student(@u1).grade).to eql "3"
+    end
+
+    it "should nil grade when receiving empty posted_grade" do
+      @a1.grade_student(@u1, :grade => 3)
+      Submission.process_bulk_update(@progress, @course, nil, @teacher,
+                                     {
+                                       @a1.id => {
+                                         @u1.id => {posted_grade: nil}
+                                       }
+                                     })
+
+      expect(@a1.submission_for_student(@u1).grade).to be_nil
+    end
+  end
+
+  describe 'crocodoc_whitelist' do
+    before(:once) do
+      submission_spec_model
+    end
+
+    context "not moderated" do
+      it "returns nil" do
+        expect(@submission.crocodoc_whitelist).to be_nil
+      end
+    end
+
+    context "moderated" do
+      before(:once) do
+        @assignment.moderated_grading = true
+        @assignment.save!
+        @submission.reload
+        @pg = @submission.find_or_create_provisional_grade!(scorer: @teacher, score: 1)
+      end
+
+      context "grades not published" do
+        context "student not in moderation set" do
+          it "returns the student alone" do
+            expect(@submission.crocodoc_whitelist).to eq([@student.reload.crocodoc_id!])
+          end
+        end
+
+        context "student in moderation set" do
+          it "returns the student alone" do
+            @assignment.moderated_grading_selections.create!(student: @student)
+            expect(@submission.crocodoc_whitelist).to eq([@student.reload.crocodoc_id!])
+          end
+        end
+      end
+
+      context "grades published" do
+        before(:once) do
+          @assignment.grades_published_at = 1.hour.ago
+          @assignment.save!
+          @submission.reload
+        end
+
+        context "student not in moderation set" do
+          it "returns nil" do
+            expect(@submission.crocodoc_whitelist).to be_nil
+          end
+        end
+
+        context "student in moderation set" do
+          before(:once) do
+            @sel = @assignment.moderated_grading_selections.create!(student: @student)
+          end
+
+          it "returns nil if no provisional grade was published" do
+            expect(@submission.crocodoc_whitelist).to be_nil
+          end
+
+          it "returns the student's and selected provisional grader's ids" do
+            @sel.provisional_grade = @pg
+            @sel.save!
+            expect(@submission.crocodoc_whitelist).to match_array([@student.reload.crocodoc_id!,
+                                                                   @teacher.reload.crocodoc_id!])
+          end
+
+          it "returns the student's, provisional grader's, and moderator's ids for a copied mark" do
+            moderator = @course.enroll_teacher(user_model, :enrollment_state => 'active').user
+            final = @pg.copy_to_final_mark!(moderator)
+            @sel.provisional_grade = final
+            @sel.save!
+            expect(@submission.crocodoc_whitelist).to match_array([@student.reload.crocodoc_id!,
+                                                                   @teacher.reload.crocodoc_id!,
+                                                                   moderator.reload.crocodoc_id!])
+          end
+        end
+      end
     end
   end
 end

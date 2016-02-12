@@ -1,7 +1,11 @@
 module CustomSeleniumActions
 
   def skip_if_ie(additional_error_text)
-    skip("skipping test, fails in IE : " + additional_error_text) if driver.browser == :internet_explorer
+    skip("skipping test, fails in IE : #{additional_error_text}") if driver.browser == :internet_explorer
+  end
+
+  def skip_if_firefox(additional_error_text)
+    skip("skipping test, fails in Firefox: #{additional_error_text}") if driver.browser == :firefox
   end
 
   def find(css)
@@ -14,6 +18,10 @@ module CustomSeleniumActions
 
   def not_found(css)
     driver.not_found(css)
+  end
+
+  def find_radio_button_by_value(value, scope = nil)
+    fj("input[type=radio][value=#{value}]", scope)
   end
 
   # f means "find" this is a shortcut to finding elements
@@ -125,6 +133,10 @@ module CustomSeleniumActions
   def hover_and_click(element_jquery_finder)
     expect(fj(element_jquery_finder.to_s)).to be_present
     driver.execute_script(%{$(#{element_jquery_finder.to_s.to_json}).trigger('mouseenter').click()})
+  end
+
+  def hover(element)
+    driver.action.move_to(element).perform
   end
 
   def set_value(input, value)
@@ -260,5 +272,14 @@ module CustomSeleniumActions
   def error_displayed?
     # after it fades out, it's still visible, just off the screen
     driver.execute_script("return $('.error_text:visible').filter(function(){ return $(this).offset().left >= 0 }).length > 0")
+  end
+
+  def double_click(selector)
+    el = driver.find_element :css, selector
+    driver.action.double_click(el).perform
+  end
+
+  def replace_value(selector, value)
+    driver.execute_script("$('#{selector}').val(#{value})")
   end
 end

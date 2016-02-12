@@ -34,9 +34,9 @@ class AssignmentGroup < ActiveRecord::Base
   acts_as_list scope: { context: self, workflow_state: 'available' }
   has_a_broadcast_policy
 
-  has_many :assignments, :order => 'position, due_at, title', :dependent => :destroy
-  has_many :active_assignments, :class_name => 'Assignment', :conditions => ['assignments.workflow_state != ?', 'deleted'], :order => 'assignments.position, assignments.due_at, assignments.title'
-  has_many :published_assignments, :class_name => 'Assignment', :conditions => "assignments.workflow_state = 'published'", :order => 'assignments.position, assignments.due_at, assignments.title'
+  has_many :assignments, -> { order('position, due_at, title') }, dependent: :destroy
+  has_many :active_assignments, -> { where("assignments.workflow_state<>'deleted'").order('assignments.position, assignments.due_at, assignments.title') }, class_name: 'Assignment'
+  has_many :published_assignments,  -> { where(workflow_state: 'published').order('assignments.position, assignments.due_at, assignments.title') }, class_name: 'Assignment'
 
   validates_presence_of :context_id, :context_type, :workflow_state
   validates_length_of :rules, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
@@ -63,7 +63,7 @@ class AssignmentGroup < ActiveRecord::Base
 
   def update_student_grades
     if self.rules_changed? || self.group_weight_changed?
-      connection.after_transaction_commit { self.context.recompute_student_scores }
+      self.class.connection.after_transaction_commit { self.context.recompute_student_scores }
     end
   end
 
@@ -84,7 +84,7 @@ class AssignmentGroup < ActiveRecord::Base
     state :deleted
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.assignments.active.include_quiz_and_topic.each{|a| a.destroy }

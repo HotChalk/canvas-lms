@@ -74,8 +74,14 @@ class ContentZipper
 
     filename    = assignment_zip_filename(assignment)
     user        = zip_attachment.user
-    students    = assignment.representatives(user).index_by(&:id)
-    submissions = assignment.submissions.where(:user_id => students.keys)
+    
+    if @context.completed?
+      submissions = assignment.submissions
+      students = User.where(id: submissions.pluck(:user_id)).index_by(&:id) # This neglects the complexity of group assignments
+    else
+      students    = assignment.representatives(user).index_by(&:id)
+      submissions = assignment.submissions.where(:user_id => students.keys)
+    end
 
     make_zip_tmpdir(filename) do |zip_name|
       @logger.debug("creating #{zip_name}")
@@ -84,9 +90,9 @@ class ContentZipper
         # prevents browser hangs when there are no submissions to download
         mark_successful! if count == 0
 
-        submissions.each_with_index do |submission, idx|
+        submissions.each_with_index do |submission, index|
           add_submission(submission, students, zipfile)
-          update_progress(zip_attachment, idx, count)
+          update_progress(zip_attachment, index, count)
         end
       end
 
@@ -107,12 +113,12 @@ class ContentZipper
     # Match on /files URLs capturing the object id.
     FILES_REGEX = %r{/files/(?<obj_id>\d+)/\w+(?:(?:[^\s"<'\?\/]*)([^\s"<']*))?}
 
-    def initialize(attachment, idx = nil)
+    def initialize(attachment, index = nil)
       @attachment = attachment
 
       @display_name = @attachment.display_name
-      @filename = idx ? "#{idx}_#{@attachment.filename}" : @attachment.filename
-      @unencoded_filename = idx ? "#{idx}_#{@attachment.unencoded_filename}" : @attachment.unencoded_filename
+      @filename = index ? "#{index}_#{@attachment.filename}" : @attachment.filename
+      @unencoded_filename = index ? "#{index}_#{@attachment.unencoded_filename}" : @attachment.unencoded_filename
       @content_type = @attachment.content_type
       @uuid = @attachment.uuid
       @id = @attachment.id
@@ -126,11 +132,12 @@ class ContentZipper
 
     portfolio_entries = portfolio.eportfolio_entries
 
-    idx = 1
+    index = 1
     portfolio_entries.each do |entry|
       entry.readonly!
 
-      idx = rewrite_eportfolio_richtext_entry(idx, rich_text_attachments, entry)
+      index = rewrite_eportfolio_richtext_entry(index, rich_text_attachments, entry)
+
       static_attachments += entry.attachments
       submissions += entry.submissions
     end
@@ -144,8 +151,8 @@ class ContentZipper
       end
     end
     static_attachments = static_attachments.uniq.map do |a|
-      obj = StaticAttachment.new(a, idx)
-      idx += 1
+      obj = StaticAttachment.new(a, index)
+      index += 1
       obj
     end
 
@@ -153,19 +160,19 @@ class ContentZipper
 
     filename = portfolio.name
     make_zip_tmpdir(filename) do |zip_name|
-      idx = 0
+      index = 0
       count = all_attachments.length + 2
       Zip::File.open(zip_name, Zip::File::CREATE) do |zipfile|
-        update_progress(zip_attachment, idx, count)
+        update_progress(zip_attachment, index, count)
         portfolio_entries.each do |entry|
           filename = "#{entry.full_slug}.html"
           content = render_eportfolio_page_content(entry, portfolio, all_attachments, submissions_hash)
           zipfile.get_output_stream(filename) {|f| f.puts content }
         end
-        update_progress(zip_attachment, idx, count)
+        update_progress(zip_attachment, index, count)
         all_attachments.each do |a|
           add_attachment_to_zip(a.attachment, zipfile, a.unencoded_filename)
-          update_progress(zip_attachment, idx, count)
+          update_progress(zip_attachment, index, count)
         end
         content = File.open(Rails.root.join('public', 'images', 'logo.png'), 'rb').read rescue nil
         zipfile.get_output_stream("logo.png") {|f| f.write content } if content
@@ -185,31 +192,6 @@ class ContentZipper
     av.extend TextHelper
     res = av.render(:partial => "eportfolios/static_page", :locals => {:page => page, :portfolio => portfolio, :static_attachments => static_attachments, :submissions_hash => submissions_hash})
     res
-  end
-
-  def rewrite_eportfolio_richtext_entry(idx, attachments, entry)
-    # In each rich_text section, find any referenced images, replace
-    # the text with the image name, and add the image to the
-    # attachments to be downloaded. If the rich_text attachment
-    # can't be found, don't modify the the HTML, live with the
-    # broken link, but have a mostly correct zip file.
-    #
-    # All other attachments toss on the static attachment pile for
-    # later processing.
-    entry.content.select { |c| c[:section_type] == "rich_text" }.each do |rt|
-      rt[:content].gsub!(StaticAttachment::FILES_REGEX) do |match|
-        att = Attachment.find_by_id(Regexp.last_match(:obj_id))
-        if att.nil?
-          match
-        else
-          sa = StaticAttachment.new(att, idx)
-          attachments << sa
-          idx += 1
-          sa.unencoded_filename
-        end
-      end
-    end
-    return idx
   end
 
   def self.zip_base_folder(*args)
@@ -285,7 +267,9 @@ class ContentZipper
         @files_added = false if @files_added.nil?
       end
     end
-    folder.active_sub_folders.select{|f| !@check_user || f.grants_right?(@user, :read_contents)}.each do |sub_folder|
+    folder.active_sub_folders.select do |f|
+      !@check_user || f.grants_right?(@user, :read_contents_for_export)
+    end.each do |sub_folder|
       new_names = Array.new(folder_names) << sub_folder.name
       if callback
         zip_folder(sub_folder, zipfile, new_names, opts, &callback)
@@ -337,9 +321,9 @@ class ContentZipper
     true
   end
 
-  def update_progress(zip_attachment, idx, count)
+  def update_progress(zip_attachment, index, count)
     return unless count && count > 0
-    zip_attachment.file_state = ((idx + 1).to_f / count.to_f * 100).to_i
+    zip_attachment.file_state = ((index + 1).to_f / count.to_f * 100).to_i
     return unless zip_attachment.file_state_changed?
     zip_attachment.save!
     @logger.debug("status for #{zip_attachment.id} updated to #{zip_attachment.file_state}")
@@ -360,6 +344,34 @@ class ContentZipper
   end
 
   private
+  def rewrite_eportfolio_richtext_entry(index, attachments, entry)
+    # In each rich_text section, find any referenced images, replace
+    # the text with the image name, and add the image to the
+    # attachments to be downloaded. If the rich_text attachment
+    # can't be found, don't modify the the HTML, live with the
+    # broken link, but have a mostly correct zip file.
+    #
+    # All other attachments toss on the static attachment pile for
+    # later processing.
+    if entry.content.present?
+      entry.content.select { |c| c[:section_type] == "rich_text" }.each do |rt|
+        rt[:content].gsub!(StaticAttachment::FILES_REGEX) do |match|
+          att = Attachment.find_by_id(Regexp.last_match(:obj_id))
+          if att.nil?
+            match
+          else
+            sa = StaticAttachment.new(att, index)
+            attachments << sa
+            index += 1
+            sa.unencoded_filename
+          end
+        end
+      end
+    end
+
+    index
+  end
+
 
   def add_file(attachment, zipfile, fn)
     if attachment.deleted?
@@ -423,7 +435,7 @@ class ContentZipper
   end
 
   def get_filename(users_name, submission)
-    filename = "#{users_name}#{submission.late? ? ' LATE' : ''}_#{submission.user_id}"
+    filename = "#{users_name}#{submission.late? ? '_LATE' : ''}_#{submission.user_id}"
     sanitize_file_name(filename)
   end
 
@@ -443,14 +455,14 @@ class ContentZipper
   end
 
   def sanitize_file_name(filename)
-    filename.gsub(/ /, "-").gsub(/[^-\w]/, "-").downcase
+    filename.gsub(/[^\w]/, '').downcase
   end
 
   def sanitize_user_name(user_name)
     # necessary because we use /_\d+_/ to infer the user/attachment
     # ids when teachers upload graded submissions
-    user_name.gsub!(/_(\d+)_/, '-\1-')
-    user_name.gsub!(/^(\d+)$/, '-\1-')
+    user_name.gsub!(/_(\d+)_/, '\1')
+    user_name.gsub!(/^(\d+)$/, '\1')
     user_name
   end
 end

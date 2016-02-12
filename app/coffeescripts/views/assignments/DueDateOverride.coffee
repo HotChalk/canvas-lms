@@ -20,15 +20,15 @@ define [
       div = @$el[0]
       return unless div
 
-      DueDates = React.createFactory(DueDates)
-      React.render(
-        DueDates(
-          overrides: @model.overrides.models,
-          syncWithBackbone: @setNewOverridesCollection,
-          sections: @model.sections.models,
-          defaultSectionId: @model.defaultDueDateSectionId,
-          showDueDate: @model.showDueDate
-        ), div)
+      DueDatesElement = React.createElement(DueDates, {
+        overrides: @model.overrides.models,
+        syncWithBackbone: @setNewOverridesCollection,
+        sections: @model.sections.models,
+        showDueDate: @model.showDueDate,
+        defaultSectionId: @model.defaultDueDateSectionId
+      })
+
+      React.render(DueDatesElement, div)
 
     validateBeforeSave: (data, errors) =>
       return errors unless data
@@ -53,7 +53,7 @@ define [
       validRowKeys = _.pluck(data.assignment_overrides, "rowKey")
       blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section selected')
       for row in $('.Container__DueDateRow-item')
-        unless $(row).is(':hidden')          
+        unless $(row).is(':hidden')
           rowKey = "#{$(row).data('row-key')}"
           continue if _.contains(validRowKeys, rowKey)
           identifier = 'tokenInputFor' + rowKey

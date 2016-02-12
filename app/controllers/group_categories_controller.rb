@@ -350,8 +350,8 @@ class GroupCategoriesController < ApplicationController
     search_params[:section_id] = params[:section_id]
 
     if search_term
-      @root_account = @context.root_account      
-      users = UserSearch.for_user_in_context(search_term, @root_account, @current_user, session, search_params)
+      context = @context.is_a?(Account) ? @context.root_account : @context
+      users = UserSearch.for_user_in_context(search_term, context, @current_user, session, search_params)
     else
       users = UserSearch.scope_for(@context, @current_user, search_params)
     end

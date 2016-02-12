@@ -25,7 +25,7 @@ class Rubric < ActiveRecord::Base
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Account']
   has_many :rubric_associations, :class_name => 'RubricAssociation', :dependent => :destroy
   has_many :rubric_assessments, :through => :rubric_associations, :dependent => :destroy
-  has_many :learning_outcome_alignments, as: :content, class_name: 'ContentTag', conditions: ['content_tags.tag_type = ? AND content_tags.workflow_state != ?', 'learning_outcome', 'deleted'], preload: :learning_outcome
+  has_many :learning_outcome_alignments, -> { where("content_tags.tag_type='learning_outcome' AND content_tags.workflow_state<>'deleted'").preload(:learning_outcome) }, as: :content, class_name: 'ContentTag'
 
   EXPORTABLE_ATTRIBUTES = [
     :id, :user_id, :rubric_id, :context_id, :context_type, :data, :points_possible, :title, :description, :created_at, :updated_at, :reusable, :public, :read_only,
@@ -94,7 +94,7 @@ class Rubric < ActiveRecord::Base
     self.context_code = "#{self.context_type.underscore}_#{self.context_id}" rescue nil
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     rubric_associations.update_all(:bookmarked => false, :updated_at => Time.now.utc)
     self.workflow_state = 'deleted'

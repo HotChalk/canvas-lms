@@ -1,6 +1,6 @@
 require 'active_support'
 
-class CanvasLogger < (CANVAS_RAILS3 ? ActiveSupport::BufferedLogger : ActiveSupport::Logger)
+class CanvasLogger < ActiveSupport::Logger
   attr_reader :log_path
 
   def initialize(log_path, level = DEBUG, options = {})
@@ -22,5 +22,16 @@ class CanvasLogger < (CANVAS_RAILS3 ? ActiveSupport::BufferedLogger : ActiveSupp
       message = "[#{context[:session_id] || "-"} #{context[:request_id] || "-"}] #{message}"
     end
     super(severity, message, progname)
+  end
+
+  def reopen(log_path)
+    unless File.exist?(log_path)
+      FileUtils.mkdir_p(File.dirname(log_path))
+    end
+    @log_path = log_path
+
+    old_logdev = @logdev
+    @logdev = ::Logger::LogDevice.new(log_path, :shift_age => 0, :shift_size => 1048576)
+    old_logdev.close
   end
 end

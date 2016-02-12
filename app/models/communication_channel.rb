@@ -24,6 +24,7 @@ class CommunicationChannel < ActiveRecord::Base
   attr_accessible :user, :path, :path_type, :build_pseudonym_on_confirm, :pseudonym
 
   serialize :last_bounce_details
+  serialize :last_transient_bounce_details
 
   belongs_to :pseudonym
   has_many :pseudonyms
@@ -60,7 +61,7 @@ class CommunicationChannel < ActiveRecord::Base
   TYPE_PUSH     = 'push'
   TYPE_YO       = 'yo'
 
-  RETIRE_THRESHOLD = 3
+  RETIRE_THRESHOLD = 1
 
   # TODO: Will need to be internationalized. Also, do we want to allow this to be specified in a config file?
   def self.country_codes
@@ -114,6 +115,15 @@ class CommunicationChannel < ActiveRecord::Base
           'T-Mobile' => 'tmomail.net',
           'Verizon' => 'vtext.com',
           'Virgin Mobile' => 'vmobl.com' }), &:first)
+  end
+
+  set_policy do
+    given { |user| self.user.grants_right?(user, :manage_user_details) }
+    can :force_confirm
+
+    given { |user| Account.site_admin.grants_right?(user, :read_messages) }
+    can :reset_bounce_count
+    can :read_bounce_details
   end
 
   def pseudonym
@@ -241,7 +251,7 @@ class CommunicationChannel < ActiveRecord::Base
   end
 
   def send_otp!(code)
-    m = self.messages.scoped.new
+    m = self.messages.scope.new
     m.to = self.path
     m.body = t :body, "Your HotChalk Ember verification code is %{verification_code}", :verification_code => code
     Mailer.create_message(m).deliver rescue nil # omg! just ignore delivery failures
@@ -268,7 +278,7 @@ class CommunicationChannel < ActiveRecord::Base
     when Notification
       eager_load(:notification_policies).where(:notification_policies => { :notification_id => context })
     else
-      scoped
+      all
     end
   }
 
@@ -328,7 +338,7 @@ class CommunicationChannel < ActiveRecord::Base
       self.save!
       if old_user_id
         Pseudonym.where(:user_id => old_user_id, :unique_id => self.path).update_all(:user_id => user)
-        User.where(:id => [old_user_id, user]).update_all(:updated_at => Time.now.utc)
+        User.where(:id => [old_user_id, user]).touch_all
       end
     end
   end
@@ -347,7 +357,7 @@ class CommunicationChannel < ActiveRecord::Base
     true
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'retired'
     self.save
@@ -441,19 +451,32 @@ class CommunicationChannel < ActiveRecord::Base
   end
   private :check_if_bouncing_changed
 
-  def self.bounce_for_path(path:, timestamp:, details:, suppression_bounce:)
+  def self.bounce_for_path(path:, timestamp:, details:, permanent_bounce:, suppression_bounce:)
     Shard.with_each_shard(CommunicationChannel.associated_shards(path)) do
       CommunicationChannel.unretired.email.by_path(path).each do |channel|
-        channel.bounce_count = channel.bounce_count + 1
+        channel.bounce_count = channel.bounce_count + 1 if permanent_bounce
+
         if suppression_bounce
           channel.last_suppression_bounce_at = timestamp
-        else
+        elsif permanent_bounce
           channel.last_bounce_at = timestamp
           channel.last_bounce_details = details
+        else
+          channel.last_transient_bounce_at = timestamp
+          channel.last_transient_bounce_details = details
         end
+
         channel.save!
       end
     end
+  end
+
+  def last_bounce_summary
+    last_bounce_details.try(:[], 'bouncedRecipients').try(:[], 0).try(:[], 'diagnosticCode')
+  end
+
+  def last_transient_bounce_summary
+    last_transient_bounce_details.try(:[], 'bouncedRecipients').try(:[], 0).try(:[], 'diagnosticCode')
   end
 
   def self.find_by_confirmation_code(code)

@@ -1,3 +1,5 @@
+require "fileutils"
+
 module SeleniumDriverSetup
   def setup_selenium
 
@@ -9,6 +11,9 @@ module SeleniumDriverSetup
       Selenium::WebDriver.const_get(browser.to_s.capitalize).path = path
     end
 
+    run_headless = ENV.key?("TEST_ENV_NUMBER")
+    set_up_display_buffer if run_headless
+
     driver = if browser == :firefox
                firefox_driver
              elsif browser == :chrome
@@ -17,8 +22,34 @@ module SeleniumDriverSetup
                ie_driver
              end
 
+    focus_viewport driver if run_headless
+
     driver.manage.timeouts.implicit_wait = 3
+    driver.manage.timeouts.script_timeout = 60
+
     driver
+  end
+
+  def set_up_display_buffer
+    require "headless"
+
+    test_number = ENV["TEST_ENV_NUMBER"]
+    # it'll be '', '2', '3', '4'...
+    test_number = test_number.blank? ? 1 : test_number.to_i
+    # start at 21 to avoid conflicts with other test runner Xvfb stuff
+
+    display = 20 + test_number
+    Headless.new(display: display, dimensions: "2000x2000x24").start
+    puts "Setting up DISPLAY=#{ENV['DISPLAY']}"
+  end
+
+  def focus_viewport(driver)
+    # force the viewport to have focus right away; otherwise certain specs
+    # will fail unless they follow another dialog accepting/dismissing spec,
+    # since they rely on focus/blur events, which don't fire if the window
+    # doesn't have focus
+    driver.execute_script "alert('yolo')"
+    driver.switch_to.alert.accept
   end
 
   def ie_driver
@@ -95,17 +126,31 @@ module SeleniumDriverSetup
   end
 
   def ruby_firefox_driver(options)
-    driver = nil
-    begin
-      tries ||= 3
-      puts "Thread: provisioning selenium ruby firefox driver"
-      driver = Selenium::WebDriver.for(:firefox, options)
-    rescue StandardError => e
-      puts "Thread #{THIS_ENV}\n try ##{tries}\nError attempting to start remote webdriver: #{e}"
+    try ||= 1
+    puts "Thread: provisioning selenium ruby firefox driver (#{options.inspect})"
+    # dup is necessary for retries because selenium deletes out of the options
+    # TODO: we could try a random port here instead of relying on the default for retries
+    # (or killing firefox may be the best move)
+    driver = Selenium::WebDriver.for(:firefox, options.dup)
+  rescue StandardError => e
+    puts <<-ERROR
+    Thread #{THIS_ENV}
+     try ##{try}
+    Error attempting to start remote webdriver: #{e}
+    ERROR
+
+    # according to https://code.google.com/p/selenium/issues/detail?id=6760,
+    # this could maybe be fixed by killing stale firefoxes?
+    system("ps aux")
+
+    if try <= 3
+      try += 1
       sleep 2
-      retry unless (tries -= 1).zero?
+      retry
+    else
+      puts "GIVING UP"
+      raise
     end
-    driver
   end
 
   def stand_alone_server_firefox_driver(caps)
@@ -126,16 +171,15 @@ module SeleniumDriverSetup
     driver
   end
 
-  def selenium_driver;
-    $selenium_driver
+  def selenium_driver
+    $selenium_driver ||= setup_selenium
   end
 
   alias_method :driver, :selenium_driver
 
   def firefox_profile
     profile = Selenium::WebDriver::Firefox::Profile.new
-    profile.load_no_focus_lib=(true)
-    profile.native_events = true
+    profile.add_extension Rails.root.join("spec/selenium/test_setup/JSErrorCollector.xpi")
 
     if $selenium_config[:firefox_profile].present?
       profile = Selenium::WebDriver::Firefox::Profile.from_name($selenium_config[:firefox_profile])
@@ -155,6 +199,44 @@ module SeleniumDriverSetup
 
   def app_host
     "http://#{$app_host_and_port}"
+  end
+
+  def self.error_template
+    @error_template ||= begin
+      layout_path = Rails.root.join("spec/selenium/test_setup/selenium_error.html.erb")
+      ActionView::Template::Handlers::Erubis.new(File.read(layout_path))
+    end
+  end
+
+  def record_errors(example)
+    js_errors = driver.execute_script("return window.JSErrorCollector_errors && window.JSErrorCollector_errors.pump()") || []
+    return unless js_errors.present? || example.exception
+
+    # always send js errors to stdout, even if the spec passed. we have to
+    # empty the JSErrorCollector anyway, so we might as well show it.
+    meta = example.metadata
+    puts meta[:location]
+    js_errors.each do |error|
+      puts "  JS Error: #{error["errorMessage"]} (#{error["sourceName"]}:#{error["lineNumber"]})"
+    end
+
+    return unless example.exception && ENV["CAPTURE_SCREENSHOTS"]
+
+    errors_path = Rails.root.join("log/seleniumfailures")
+    FileUtils.mkdir_p(errors_path)
+
+    summary_name = meta[:location].sub(/\A[.\/]+/, "").gsub(/\//, ":")
+    screenshot_name = summary_name + ".png"
+    driver.save_screenshot(errors_path.join(screenshot_name))
+
+    # make a nice little html file for jenkins
+    File.open(errors_path.join(summary_name + ".html"), "w") do |file|
+      output_buffer = nil # Erubis wants this local var
+      file.write SeleniumDriverSetup.error_template.result(binding)
+    end
+
+    puts meta[:location]
+    puts "  Screenshot: #{errors_path.join(screenshot_name)}"
   end
 
   def self.setup_host_and_port
@@ -218,7 +300,7 @@ module SeleniumDriverSetup
       run CanvasRails::Application
     end.to_app
 
-    lambda do |env|
+    spec_safe_app = lambda do |env|
       nope = [503, {}, [""]]
       return nope unless allow_requests?
 
@@ -236,6 +318,15 @@ module SeleniumDriverSetup
         result.last.close if result.last.respond_to?(:close)
         nope
       end
+    end
+
+    lambda do |env|
+      log_request = env["REQUEST_URI"] !~ %r{/(javascripts|dist)}
+      req = "#{env['REQUEST_METHOD']} #{env['REQUEST_URI']}"
+      Rails.logger.info "STARTING REQUEST #{req}" if log_request
+      result = spec_safe_app.call(env)
+      Rails.logger.info "FINISHED REQUEST #{req}: #{result[0]}" if log_request
+      result
     end
   end
 
@@ -255,7 +346,7 @@ module SeleniumDriverSetup
     end
 
     def allow_requests?
-      @allow_requests
+      @allow_requests != false
     end
 
     def request_mutex

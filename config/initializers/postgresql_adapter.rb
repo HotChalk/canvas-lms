@@ -1,3 +1,6 @@
+class QuotedValue < String
+end
+
 module PostgreSQLAdapterExtensions
   def readonly?(table = nil, column = nil)
     return @readonly unless @readonly.nil?
@@ -181,6 +184,8 @@ module PostgreSQLAdapterExtensions
   # BigDecimals, Times, etc.) into those representations. Raise
   # ActiveRecord::StatementInvalid for any other non-integer things.
   def quote(value, column = nil)
+    return value if value.is_a?(QuotedValue)
+
     if column && column.type == :integer && !value.respond_to?(:quoted_id)
       case value
         when String, ActiveSupport::Multibyte::Chars, nil, true, false
@@ -225,14 +230,12 @@ module PostgreSQLAdapterExtensions
   def initialize_type_map(*args)
     return super if Rails.version >= '4.2'
 
-    known_type_names = OID::NAMES.keys.map { |n| "'#{n}'" }
-    sql = <<-SQL % [known_type_names.join(", "), known_type_names.join(", ")]
-    SELECT t.oid, t.typname, t.typelem, t.typdelim, t.typinput
-     FROM pg_type t
-     LEFT OUTER JOIN pg_type et ON t.typelem=et.oid
-     WHERE
-       t.typname IN (%s)
-       OR et.typname IN (%s)
+    known_type_names = OID::NAMES.keys.map { |n| "'#{n}'" } + OID::NAMES.keys.map { |n| "'_#{n}'" }
+    known_type_names.concat(%w{'name' 'oidvector' 'int2vector' 'line' 'point' 'box' 'lseg'})
+    sql = <<-SQL % [known_type_names.join(", ")]
+    SELECT oid, typname, typelem, typdelim, typinput
+     FROM pg_type
+     WHERE typname IN (%s)
     SQL
     result = execute(sql, 'SCHEMA')
     leaves, nodes = result.partition { |row| row['typelem'] == '0' }
@@ -290,27 +293,3 @@ module PostgreSQLAdapterExtensions
 end
 
 ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.prepend(PostgreSQLAdapterExtensions)
-
-if CANVAS_RAILS3
-  module PostgreSQLAdapterFloatFixes
-    # Handle quoting properly for Infinity and NaN. This fix exists in Rails 4.0
-    # and can be safely removed once we upgrade.
-    #
-    # This patch is covered by tests in spec/initializers/active_record_quoting_spec.rb
-    def quote(value, column = nil) #:nodoc:
-      if value.kind_of?(Float)
-        if value.infinite? && column && column.type == :datetime
-          "'#{value.to_s.downcase}'"
-        elsif value.infinite? || value.nan?
-          "'#{value}'"
-        else
-          super
-        end
-      else
-        super
-      end
-    end
-  end
-
-  ActiveRecord::ConnectionAdapters::PostgreSQLAdapter.prepend(PostgreSQLAdapterFloatFixes)
-end

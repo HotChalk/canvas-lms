@@ -18,7 +18,7 @@
 
 class EnrollmentTerm < ActiveRecord::Base
   DEFAULT_TERM_NAME = "Default Term"
-  
+
   include Workflow
 
   attr_accessible :name, :start_at, :end_at
@@ -71,7 +71,7 @@ class EnrollmentTerm < ActiveRecord::Base
 
   def touch_all_courses
     return if new_record?
-    self.courses.update_all(:updated_at => Time.now.utc)
+    self.courses.touch_all
   end
 
   def update_courses_later
@@ -82,11 +82,11 @@ class EnrollmentTerm < ActiveRecord::Base
   def self.i18n_default_term_name
     t '#account.default_term_name', "Default Term"
   end
-  
+
   def default_term?
     read_attribute(:name) == EnrollmentTerm::DEFAULT_TERM_NAME
   end
-  
+
   def name
     if default_term?
       EnrollmentTerm.i18n_default_term_name
@@ -94,7 +94,7 @@ class EnrollmentTerm < ActiveRecord::Base
       read_attribute(:name)
     end
   end
-  
+
   def name=(new_name)
     if new_name == EnrollmentTerm.i18n_default_term_name
       write_attribute(:name, DEFAULT_TERM_NAME)
@@ -102,7 +102,7 @@ class EnrollmentTerm < ActiveRecord::Base
       write_attribute(:name, new_name)
     end
   end
-  
+
   def set_overrides(context, params)
     return unless params && context
     params.map do |type, values|
@@ -122,7 +122,7 @@ class EnrollmentTerm < ActiveRecord::Base
       override
     end
   end
-  
+
   def verify_unique_sis_source_id
     return true unless self.sis_source_id
     return true if !root_account_id_changed? && !sis_source_id_changed?
@@ -135,7 +135,7 @@ class EnrollmentTerm < ActiveRecord::Base
     self.errors.add(:sis_source_id, t('errors.not_unique', "SIS ID \"%{sis_source_id}\" is already in use", :sis_source_id => self.sis_source_id))
     false
   end
-  
+
   def self.user_counts(root_account, terms)
     # Warning: returns keys as strings, I think because of the join
     Enrollment.active.joins(:course).
@@ -151,12 +151,12 @@ class EnrollmentTerm < ActiveRecord::Base
       group(:enrollment_term_id).
       count
   end
-  
+
   workflow do
     state :active
     state :deleted
   end
-  
+
   def enrollment_dates_for(enrollment)
     # detect will cause the whole collection to load; that's fine, it's a small collection, and
     # we'll probably call enrollment_dates_for multiple times in a single request, so we want
@@ -175,7 +175,7 @@ class EnrollmentTerm < ActiveRecord::Base
     [start_dates.include?(nil) ? nil : start_dates.min, end_dates.include?(nil) ? nil : end_dates.max]
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     save!

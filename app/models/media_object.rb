@@ -34,7 +34,7 @@ class MediaObject < ActiveRecord::Base
   EXPORTABLE_ASSOCIATIONS = [:user, :context, :attachment, :root_account, :media_tracks]
 
   validates_presence_of :media_id, :workflow_state
-  has_many :media_tracks, :dependent => :destroy, :order => 'locale'
+  has_many :media_tracks, -> { order(:locale) }, dependent: :destroy
   after_create :retrieve_details_later
   after_save :update_title_on_kaltura_later
   serialize :data
@@ -264,7 +264,7 @@ class MediaObject < ActiveRecord::Base
     client.mediaDelete(self.media_id)
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.attachment.destroy if self.attachment
@@ -272,7 +272,7 @@ class MediaObject < ActiveRecord::Base
   end
 
   def data
-    self.read_attribute(:data) || self.write_attribute(:data, {})
+    self.read_or_initialize_attribute(:data, {})
   end
 
   def viewed!

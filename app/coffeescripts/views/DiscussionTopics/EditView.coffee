@@ -49,10 +49,10 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     events: _.extend(@::events,
       'click .removeAttachment' : 'removeAttachment'
       'click .save_and_publish': 'saveAndPublish'
+      'click .cancel_button' : 'handleCancel'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
       'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
       'change #discussion_topic_assignment_points_possible' : 'handlePointsChange'
-      'click .cancel_button': 'cancel'
     )
 
     messages:
@@ -100,6 +100,11 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       json
 
 
+    handleCancel: (ev) =>
+      ev.preventDefault()
+      @unwatchUnload()
+      window.location = ENV.CANCEL_REDIRECT_URL if ENV.CANCEL_REDIRECT_URL?
+
     handlePointsChange:(ev) =>
       ev.preventDefault()
       if @assignment.hasSubmittedSubmissions()
@@ -129,7 +134,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
       _.defer(@renderPeerReviewOptions)
-      _.defer(@renderPostToSisOptions) if ENV.POST_GRADES
+      _.defer(@renderPostToSisOptions) if ENV.POST_TO_SIS
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
 
@@ -258,6 +263,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       # Reply assignments copy the main assignment's overrides, except for the Due Date
       if data.due_at && model_key == 'reply_assignment' && ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
+        # Refresh the due_at date directly from the UI input, otherwise time zones won't be accounted for correctly
+        data.due_at = $('#discussion_topic_reply_assignment_due_date').data('unfudged-date')
+
         assignment_id = @model.get(model_key).id
         _.each data.assignment_overrides, (override) ->
           override.assignment_id = assignment_id
@@ -282,8 +290,9 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     submit: (event) =>
       event.preventDefault()
       event.stopPropagation()
-      if @dueDateOverrideView.containsSectionsWithoutOverrides()
-        sections = @dueDateOverrideView.sectionsWithoutOverrides()
+      overrideView = if (@model.get('set_assignment') is '1') then @dueDateOverrideView else @discussionDueDateOverrideView
+      if overrideView.containsSectionsWithoutOverrides()
+        sections = overrideView.sectionsWithoutOverrides()
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
@@ -307,10 +316,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         replyAssignmentRemovedDialog.render()
       else
         super
-
-    cancel: (e) ->
-      e.preventDefault()
-      window.location = ENV.CANCEL_TO if ENV.CANCEL_TO?
 
     fieldSelectors: _.extend({},
       AssignmentGroupSelector::fieldSelectors,
@@ -338,7 +343,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      if data.set_assignment is '0'
+      unless data.set_assignment is '1' || !@discussionDueDateOverrideView.$el.is(":visible")
         data2 =
           assignment_overrides: @discussionDueDateOverrideView.getAllDates()
         errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)

@@ -76,6 +76,10 @@ class StreamItem < ActiveRecord::Base
       res.instance_variable_set(:@participants, users)
     end
 
+    unless CANVAS_RAILS4_0
+      data = res.class.attributes_builder.build_from_database(data) # @attributes is now an AttributeSet
+    end
+
     res.instance_variable_set(:@attributes, data)
     res.instance_variable_set(:@attributes_cache, {})
     res.instance_variable_set(:@new_record, false) if data['id']
@@ -285,12 +289,7 @@ class StreamItem < ActiveRecord::Base
             user_ids_subset, stream_item_id, greatest_existing_id).delete_all
 
       # touch all the users to invalidate the cache
-      User.transaction do
-        # lock the rows in a predefined order to prevent deadlocks
-        ids_to_touch = User.where(id: user_ids_subset).not_recently_touched.
-          lock(:no_key_update).order(:id).pluck(:id)
-        User.where(id: ids_to_touch).update_all(updated_at: Time.now.utc)
-      end
+      User.where(id: user_ids_subset).touch_all
     end
 
     return [res]
@@ -312,7 +311,7 @@ class StreamItem < ActiveRecord::Base
   def self.prepare_object_for_unread(object)
     case object
       when DiscussionTopic
-        ActiveRecord::Associations::Preloader.new(object, :discussion_topic_participants).run
+        ActiveRecord::Associations::Preloader.new.preload(object, :discussion_topic_participants)
     end
   end
 
@@ -335,7 +334,7 @@ class StreamItem < ActiveRecord::Base
 
   # call destroy_stream_items using a before_date based on the global setting
   def self.destroy_stream_items_using_setting
-    ttl = Setting.get('stream_items_ttl', 4.weeks).to_i.ago
+    ttl = Setting.get('stream_items_ttl', 4.weeks).to_i.seconds.ago
     # we pass false for the touch_users argument, on the assumption that these
     # stream items that we delete aren't visible on the user's dashboard anymore
     # anyway, so there's no need to invalidate all the caches.
@@ -370,7 +369,7 @@ class StreamItem < ActiveRecord::Base
 
     unless user_ids.empty?
       # touch all the users to invalidate the cache
-      User.where(:id => user_ids.to_a).update_all(:updated_at => Time.now.utc)
+      User.where(:id => user_ids.to_a).touch_all
     end
 
     count

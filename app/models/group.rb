@@ -32,9 +32,10 @@ class Group < ActiveRecord::Base
 
   serialize :tab_configuration
   serialize :dynamic_tab_configuration
-  has_many :group_memberships, :dependent => :destroy, :conditions => ['group_memberships.workflow_state != ?', 'deleted']
-  has_many :users, :through => :group_memberships, :conditions => ['users.workflow_state != ?', 'deleted']
-  has_many :participating_group_memberships, :class_name => "GroupMembership", :conditions => ['group_memberships.workflow_state = ?', 'accepted']
+
+  has_many :group_memberships, -> { where("group_memberships.workflow_state<>'deleted'") }, dependent: :destroy
+  has_many :users, -> { where("users.workflow_state<>'deleted'") }, through: :group_memberships
+  has_many :participating_group_memberships, -> { where(workflow_state: 'accepted') }, class_name: "GroupMembership"
   has_many :participating_users, :source => :user, :through => :participating_group_memberships
   belongs_to :context, :polymorphic => true
   validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Account']
@@ -43,24 +44,24 @@ class Group < ActiveRecord::Base
   belongs_to :root_account, :class_name => "Account"
   belongs_to :course_section
   has_many :calendar_events, :as => :context, :dependent => :destroy
-  has_many :discussion_topics, as: :context, conditions: ['discussion_topics.workflow_state != ?', 'deleted'], preload: :user, dependent: :destroy, order: 'discussion_topics.position DESC, discussion_topics.created_at DESC'
-  has_many :active_discussion_topics, as: :context, class_name: 'DiscussionTopic', conditions: ['discussion_topics.workflow_state != ?', 'deleted'], preload: :user
-  has_many :all_discussion_topics, as: :context, class_name: "DiscussionTopic", preload: :user, dependent: :destroy
-  has_many :discussion_entries, through: :discussion_topics, preload: [:discussion_topic, :user], dependent: :destroy
+  has_many :discussion_topics, -> { where("discussion_topics.workflow_state<>'deleted'").preload(:user).order('discussion_topics.position DESC, discussion_topics.created_at DESC') }, dependent: :destroy, as: :context
+  has_many :active_discussion_topics, -> { where("discussion_topics.workflow_state<>'deleted'").preload(:user) }, as: :context, class_name: 'DiscussionTopic'
+  has_many :all_discussion_topics, -> { preload(:user) }, as: :context, class_name: "DiscussionTopic", dependent: :destroy
+  has_many :discussion_entries, -> { preload(:discussion_topic, :user) }, through: :discussion_topics, dependent: :destroy
   has_many :announcements, :as => :context, :class_name => 'Announcement', :dependent => :destroy
-  has_many :active_announcements, :as => :context, :class_name => 'Announcement', :conditions => ['discussion_topics.workflow_state != ?', 'deleted']
+  has_many :active_announcements, -> { where("discussion_topics.workflow_state<>'deleted'") }, as: :context, class_name: 'Announcement'
   has_many :attachments, :as => :context, :dependent => :destroy, :extend => Attachment::FindInContextAssociation
-  has_many :active_images, as: :context, class_name: 'Attachment', conditions: ["attachments.file_state != ? AND attachments.content_type LIKE 'image%'", 'deleted'], order: 'attachments.display_name', preload: :thumbnail
-  has_many :active_assignments, :as => :context, :class_name => 'Assignment', :conditions => ['assignments.workflow_state != ?', 'deleted']
+  has_many :active_images, -> { where("attachments.file_state<>'deleted' AND attachments.content_type LIKE 'image%'").order('attachments.display_name').preload(:thumbnail) }, as: :context, class_name: 'Attachment'
+  has_many :active_assignments, -> { where("assignments.workflow_state<>'deleted'") }, as: :context, class_name: 'Assignment'
   has_many :all_attachments, :as => 'context', :class_name => 'Attachment'
-  has_many :folders, :as => :context, :dependent => :destroy, :order => 'folders.name'
-  has_many :active_folders, :class_name => 'Folder', :as => :context, :conditions => ['folders.workflow_state != ?', 'deleted'], :order => 'folders.name'
+  has_many :folders, -> { order('folders.name') }, as: :context, dependent: :destroy
+  has_many :active_folders, -> { where("folders.workflow_state<>'deleted'").order('folders.name') }, class_name: 'Folder', as: :context
   has_many :collaborators
   has_many :external_feeds, :as => :context, :dependent => :destroy
   has_many :messages, :as => :context, :dependent => :destroy
   belongs_to :wiki
   has_many :web_conferences, :as => :context, :dependent => :destroy
-  has_many :collaborations, :as => :context, :order => 'title, created_at', :dependent => :destroy
+  has_many :collaborations, -> { order('title, created_at') }, as: :context, dependent: :destroy
   has_many :media_objects, :as => :context
   has_many :zip_file_imports, :as => :context
   has_many :content_migrations, :as => :context
@@ -74,7 +75,7 @@ class Group < ActiveRecord::Base
     :context_type, :category, :max_membership, :is_public, :account_id,
     :default_wiki_editing_roles, :wiki_id, :deleted_at, :join_level,
     :default_view, :storage_quota, :uuid, :root_account_id, :sis_source_id,
-    :tab_configuration, :dynamic_tab_configuration,    
+    :tab_configuration, :dynamic_tab_configuration,
     :sis_batch_id, :group_category_id, :description, :avatar_attachment_id
   ].freeze
 
@@ -127,6 +128,12 @@ class Group < ActiveRecord::Base
     user_ids ?
       participating_users_association.where(:id =>user_ids) :
       participating_users_association
+  end
+
+  def participating_users_in_context(user_ids = nil)
+    users = participating_users(user_ids)
+    return users unless self.context.is_a? Course
+    context.participating_users(users.pluck(:id))
   end
 
   def all_real_students
@@ -285,7 +292,7 @@ class Group < ActiveRecord::Base
     self.available? || self.closed?
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     self.deleted_at = Time.now.utc
@@ -526,6 +533,7 @@ class Group < ActiveRecord::Base
       can :delete and
       can :manage and
       can :manage_admin_users and
+      can :manage_calendar and
       can :manage_content and
       can :manage_files and
       can :manage_students and
@@ -686,7 +694,7 @@ class Group < ActiveRecord::Base
     # We will by default show everything in default_tabs, unless the group was configured otherwise.
     tabs = self.tab_configuration.compact
     settings_tab = default_tabs[-1]
-    
+
     tabs = tabs.map do |tab|
       default_tab = default_tabs.find {|t| t[:id] == tab[:id]}
       if default_tab
@@ -716,13 +724,15 @@ class Group < ActiveRecord::Base
       tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS && !(user && self.grants_right?(user, :read))
       tab[:hidden_unused] = true if tab[:id] == TAB_CONFERENCES && !(user && self.grants_right?(user, :read))
     end
-  
+
     unless self.grants_right?(user, opts[:session], :update)
       tabs.delete_if {|t| (t[:hidden] || t[:hidden_unused] ) }
     end
 
     # Add dynamic tabs
-    tabs += dynamic_tabs
+    unless opts[:for_reordering]
+      tabs += dynamic_tabs
+    end
 
     tabs
   end

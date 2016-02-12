@@ -31,9 +31,7 @@ class GradeCalculator
     @grading_period = opts[:grading_period]
 
     assignment_scope = @course.assignments.published.gradeable
-    @assignments = @grading_period ?
-                     @grading_period.assignments(assignment_scope) :
-                     assignment_scope.to_a
+    @assignments = assignment_scope.to_a
 
     @user_ids = Array(user_ids).map(&:to_i)
     @current_updates = {}
@@ -108,7 +106,8 @@ class GradeCalculator
     raise "Can't save scores when ignore_muted is false" unless @ignore_muted
 
     Course.where(:id => @course).update_all(:updated_at => Time.now.utc)
-    query = "updated_at=#{Enrollment.sanitize(Time.now.utc)}"
+    time = Enrollment.sanitize(Time.now.utc)
+    query = "updated_at=#{time}, graded_at=#{time}"
     query += ", computed_current_score=CASE user_id #{@current_updates.map { |user_id, grade| "WHEN #{user_id} THEN #{grade || "NULL"}"}.
       join(" ")} ELSE computed_current_score END"
     query += ", computed_final_score=CASE user_id #{@final_updates.map { |user_id, grade| "WHEN #{user_id} THEN #{grade || "NULL"}"}.
@@ -149,6 +148,11 @@ class GradeCalculator
     if differentiated_assignments_on?
       visible_assignments = visible_assignments.select{|a| assignment_ids_visible_to_user(user_id).include?(a.id)}
     end
+
+    if @grading_period
+      user = @course.users.find(user_id)
+      visible_assignments = @grading_period.assignments_for_student(visible_assignments, user)
+    end
     assignments_by_group_id = visible_assignments.group_by(&:assignment_group_id)
     submissions_by_assignment_id = Hash[
       submissions.map { |s| [s.assignment_id, s] }
@@ -168,7 +172,7 @@ class GradeCalculator
           submission: s,
           score: s && s.score,
           total: a.points_possible || 0,
-          excused: s && s.excused?,
+          excused: s && s.has_attribute?(:excused) && s.excused?,
         }
       end
 

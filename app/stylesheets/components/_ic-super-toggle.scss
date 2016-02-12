@@ -18,14 +18,15 @@ See Forms section.
 @mixin super-toggle-designer (
   $toggle-width: $ic-sp*5,
   $toggle-color-switch: $ic-color-light,
-  $toggle-background-OFF: $ic-color-dark,
-  $toggle-background-ON: $ic-brand-primary,
+  $toggle-background-OFF: lighten($ic-color-dark, 15%),
+  $toggle-background-ON: $ic-color-success,
   $toggle-color-left-unchecked: $ic-color-light,
   $toggle-color-left-checked: $ic-color-light,
   $toggle-color-right-unchecked: $ic-color-light,
   $toggle-color-right-checked: $ic-color-light
   ) {
 
+  position: relative; // or the hidden checkbox input can end up in weird places
   margin-bottom: 0; // override the default margin on labels in Canvas
 
   .ic-Form-group.ic-Form-group--horizontal & {
@@ -88,19 +89,33 @@ See Forms section.
 
   @include super-toggle-state ('focus') {
     .ic-Super-toggle__switch::after { // handle
-      box-shadow:
-        inset 0 0 0 1px $toggle-color-switch,
-        inset 0 0 0 3px $toggle-background-OFF,
-        0 3px 6px rgba(black, 0.3);
+      @if $use_high_contrast {
+        box-shadow:
+          inset 0 0 0 3px $ic-link-color,
+          0 0 0 2px $toggle-color-switch,
+          0 3px 6px rgba(black, 0.3);
+      }
+      @else {
+        box-shadow:
+          0 0 0 6px rgba($ic-link-color, 0.4),
+          0 3px 6px rgba(black, 0.3);
+      }
     }
   }
 
   @include super-toggle-state ('focus:checked') {
     .ic-Super-toggle__switch::after { // handle
-      box-shadow:
-        inset 0 0 0 1px $toggle-color-switch,
-        inset 0 0 0 3px $toggle-background-ON,
-        0 3px 6px rgba(black, 0.3);
+      @if $use_high_contrast {
+        box-shadow:
+          inset 0 0 0 3px $ic-link-color,
+          0 0 0 2px $toggle-color-switch,
+          0 3px 6px rgba(black, 0.3);
+      }
+      @else {
+        box-shadow:
+          0 0 0 6px rgba($ic-link-color, 0.4),
+          0 3px 6px rgba(black, 0.3);
+      }
     }
   }
 

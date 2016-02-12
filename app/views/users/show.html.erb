@@ -62,7 +62,8 @@
             <li>
               <a href="<%= url_for(account) %>">
                 <span class="name ellipsis"><%= account.name %></span>
-                <span class="subtitle ellipsis"></span>
+                <% @role_name_desc = t('roles_desc', "Enrolled as ") + getUserAccountRoleName(account.id) %>
+                <span class="subtitle ellipsis"><%= @role_name_desc %></span>
               </a>
             </li>
           <% end %>
@@ -94,7 +95,7 @@
   </fieldset>
   </div>
 
-  <% if page_views_enabled? %>
+  <% if can_do(@user, @current_user, :view_statistics) && page_views_enabled? %>
     <h3>
       <%= t('page_views', 'Page Views') %>
     </h3>

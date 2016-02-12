@@ -80,7 +80,7 @@ class ContextExternalTool < ActiveRecord::Base
     hash[:enabled] = Canvas::Plugin.value_to_boolean(hash[:enabled]) if hash[:enabled]
     settings[type] = {}.with_indifferent_access
 
-    extension_keys = [:custom_fields, :default, :display_type, :enabled, :icon_url,
+    extension_keys = [:custom_fields, :default, :display_type, :enabled, :icon_url, :canvas_icon_class,
                       :selection_height, :selection_width, :text, :url, :message_type]
     if custom_keys = CUSTOM_EXTENSION_KEYS[type]
       extension_keys += custom_keys
@@ -129,7 +129,7 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   def settings
-    read_attribute(:settings) || write_attribute(:settings, {})
+    read_or_initialize_attribute(:settings, {})
   end
 
   def label_for(key, lang=nil)
@@ -275,6 +275,13 @@ class ContextExternalTool < ActiveRecord::Base
   def icon_url
     settings[:icon_url]
   end
+  def canvas_icon_class=(i_url)
+    settings[:canvas_icon_class] = i_url
+  end
+
+  def canvas_icon_class
+    settings[:canvas_icon_class]
+  end
 
   def text=(val)
     settings[:text] = val
@@ -349,7 +356,7 @@ class ContextExternalTool < ActiveRecord::Base
       end
     end
 
-    settings.delete(:editor_button) if !editor_button(:icon_url)
+    settings.delete(:editor_button) unless editor_button(:icon_url) || editor_button(:canvas_icon_class)
 
     sync_placements!(EXTENSION_TYPES.select{|type| !!settings[type]}.map(&:to_s))
     true
@@ -389,7 +396,7 @@ class ContextExternalTool < ActiveRecord::Base
     res.to_s
   end
 
-  alias_method :destroy!, :destroy
+  alias_method :destroy_permanently!, :destroy
   def destroy
     self.workflow_state = 'deleted'
     save!
@@ -543,7 +550,7 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   scope :having_setting, lambda { |setting| setting ? joins(:context_external_tool_placements).
-      where("context_external_tool_placements.placement_type = ?", setting) : scoped }
+      where("context_external_tool_placements.placement_type = ?", setting) : all }
 
   scope :placements, lambda { |*placements|
     if placements.present?
@@ -559,7 +566,7 @@ class ContextExternalTool < ActiveRecord::Base
             ContextExternalToolPlacement.where(placement_type: placements).
         where("context_external_tools.id = context_external_tool_placements.context_external_tool_id"))
     else
-      scoped
+      all
     end
   }
 
@@ -624,28 +631,11 @@ class ContextExternalTool < ActiveRecord::Base
   def self.opaque_identifier_for(asset, shard)
     shard.activate do
       lti_context_id = context_id_for(asset, shard)
-      set_asset_context_id(asset, lti_context_id)
+      Lti::Asset.set_asset_context_id(asset, lti_context_id)
     end
   end
 
   private
-
-  def self.set_asset_context_id(asset, context_id)
-    lti_context_id = context_id
-    if asset.respond_to?('lti_context_id')
-      if asset.new_record?
-        asset.lti_context_id = context_id
-      else
-        asset.reload unless asset.lti_context_id?
-        unless asset.lti_context_id
-          asset.lti_context_id = context_id
-          asset.save!
-        end
-        lti_context_id = asset.lti_context_id
-      end
-    end
-    lti_context_id
-  end
 
   def self.context_id_for(asset, shard)
     str = asset.asset_string.to_s
@@ -688,6 +678,31 @@ class ContextExternalTool < ActiveRecord::Base
     Rails.cache.fetch(key) do
       tools = global_navigation_tools(root_account, visibility)
       Digest::MD5.hexdigest(tools.map(&:cache_key).join('/'))
+    end
+  end
+
+  def self.visible?(visibility, user, context, session = nil)
+    visibility = visibility.to_s
+    return true unless %w(public members admins).include?(visibility)
+    return true if visibility == 'public'
+    return true if visibility == 'members' &&
+        context.grants_any_right?(user, session, :participate_as_student, :read_as_admin)
+    return true if visibility == 'admins' && context.grants_right?(user, session, :read_as_admin)
+    false
+  end
+
+  def self.editor_button_json(tools, context, user, session=nil)
+    tools.select! {|tool| visible?(tool.editor_button['visibility'], user, context, session)}
+    tools.map do |tool|
+      {
+          :name => tool.label_for(:editor_button, I18n.locale),
+          :id => tool.id,
+          :url => tool.editor_button(:url),
+          :icon_url => tool.editor_button(:icon_url),
+          :canvas_icon_class => tool.editor_button(:canvas_icon_class),
+          :width => tool.editor_button(:selection_width),
+          :height => tool.editor_button(:selection_height)
+      }
     end
   end
 end

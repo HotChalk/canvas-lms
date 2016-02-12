@@ -2,8 +2,9 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/discussions_commo
 require File.expand_path(File.dirname(__FILE__) + '/../helpers/assignment_overrides')
 
 describe "discussions overrides" do
-  include AssignmentOverridesSeleniumHelper
   include_context "in-process server selenium tests"
+  include AssignmentOverridesSeleniumHelper
+  include DiscussionsCommon
 
   before do
     course_with_teacher_logged_in
@@ -35,8 +36,8 @@ describe "discussions overrides" do
       @assignment.due_at = default_due_at
       add_user_specific_due_date_override(@assignment, due_at: override_due_at, section: @new_section)
       @discussion_topic.save!
-      @default_due_at_time = default_due_at.strftime('%b %-d at %-l:%M') << default_due_at.strftime('%p').downcase
-      @override_due_at_time = override_due_at.strftime('%b %-d at %-l:%M') << override_due_at.strftime('%p').downcase
+      @default_due_at_time = format_time_for_view(default_due_at)
+      @override_due_at_time = format_time_for_view(override_due_at)
       get "/courses/#{@course.id}/discussion_topics/#{@discussion_topic.id}"
     end
 
@@ -113,10 +114,10 @@ describe "discussions overrides" do
 
       it "should list the discussions in course and main dashboard page", priority: "2", test_id: 114322 do
         get "/courses/#{@course.id}"
-        expect(f('.events_list .event .icon-grading-gray').text).to eq("#{@discussion_topic.title}\nMultiple Due Dates")
+        expect(f('.coming_up .event a').text).to eq("#{@discussion_topic.title}\nMultiple Due Dates")
         course_with_admin_logged_in(course: @course)
         get ""
-        expect(f('.events_list .event .icon-grading-gray').text).to eq("#{@discussion_topic.title}\nMultiple Due Dates")
+        expect(f('.coming_up .event a').text).to eq("#{@discussion_topic.title}\nMultiple Due Dates")
       end
     end
   end

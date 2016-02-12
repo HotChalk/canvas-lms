@@ -10,7 +10,7 @@ define [
 
   module 'CurrentUploads',
     setup: ->
-      @uploads = React.render(CurrentUploads(), $('<div>').appendTo('#fixtures')[0])
+      @uploads = React.render(React.createElement(CurrentUploads), $('<div>').appendTo('#fixtures')[0])
 
     teardown: ->
       React.unmountComponentAtNode(@uploads.getDOMNode().parentNode)
@@ -21,22 +21,6 @@ define [
       @stub(uploader, 'getFileName').returns(name)
       @stub(uploader, 'roundProgress').returns(progress)
       uploader
-
-  test 'announces upload progress to screen reader when queue changes', ->
-    @stub($, 'screenReaderFlashMessage')
-    uploader = @mockUploader('filename', 25)
-    @stub(UploadQueue, 'getCurrentUploader').returns(uploader)
-
-    UploadQueue.onChange()
-    equal($.screenReaderFlashMessage.calledWith('filename - 25%'), true)
-
-  test 'does not announces upload progress to screen reader if no uploader present', ->
-    @stub($, 'screenReaderFlashMessage')
-    uploader = @mockUploader('filename', 25)
-    @stub(UploadQueue, 'getCurrentUploader').returns(null)
-
-    UploadQueue.onChange()
-    equal($.screenReaderFlashMessage.called, false)
 
   test 'pulls FileUploaders from UploadQueue', ->
     allUploads = [@mockUploader('name', 0), @mockUploader('other', 0)]

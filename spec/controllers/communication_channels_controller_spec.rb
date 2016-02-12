@@ -534,7 +534,7 @@ describe CommunicationChannelsController do
 
       it "should not show users that can't have a pseudonym created for the correct account" do
         Pseudonym.any_instance.stubs(:works_for_account?).returns(false)
-        @account1.authentication_providers.scoped.delete_all
+        @account1.authentication_providers.scope.delete_all
         @account1.authentication_providers.create!(:auth_type => 'cas')
         user_with_pseudonym(:active_all => 1, :account => @account1, :username => 'jt@instructure.com')
 
@@ -713,6 +713,32 @@ describe CommunicationChannelsController do
       ensure
         User.record_timestamps = true
       end
+    end
+  end
+
+  describe "POST 'reset_bounce_count'" do
+    it 'should allow siteadmins to reset the bounce count' do
+      u = user_with_pseudonym
+      cc = u.communication_channels.create!(:path => 'test@example.com', :path_type => 'email') { |cc| cc.workflow_state = 'active'; cc.bounce_count = 3 }
+      account_admin_user(account: Account.site_admin)
+      user_session(@user)
+      session[:become_user_id] = u.id
+      post 'reset_bounce_count', :user_id => u.id, :id => cc.id
+      expect(response).to be_success
+      cc.reload
+      expect(cc.bounce_count).to eq(0)
+    end
+
+    it 'should not allow account admins to reset the bounce count' do
+      u = user_with_pseudonym
+      cc = u.communication_channels.create!(:path => 'test@example.com', :path_type => 'email') { |cc| cc.workflow_state = 'active'; cc.bounce_count = 3 }
+      account_admin_user(account: Account.default)
+      user_session(@user)
+      session[:become_user_id] = u.id
+      post 'reset_bounce_count', :user_id => u.id, :id => cc.id
+      expect(response).to have_http_status(401)
+      cc.reload
+      expect(cc.bounce_count).to eq(3)
     end
   end
 

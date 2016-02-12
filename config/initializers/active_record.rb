@@ -1,25 +1,17 @@
 require 'active_support/callbacks/suspension'
 
 class ActiveRecord::Base
-  self.cache_timestamp_format = :usec unless CANVAS_RAILS3
+  self.cache_timestamp_format = :usec
 
-  def write_attribute(attr_name, *args)
-    if CANVAS_RAILS3
-      column = column_for_attribute(attr_name)
-
-      unless column || @attributes.has_key?(attr_name)
-        raise "You're trying to create an attribute `#{attr_name}'. Writing arbitrary " \
-              "attributes on a model is deprecated. Please just use `attr_writer` etc." \
-              "from #{caller.first}"
-      end
-    end
-
-    value = super
-    value.is_a?(ActiveRecord::AttributeMethods::Serialization::Attribute) ? value.value : value
-  end
+  public :write_attribute
 
   class << self
-    delegate :distinct_on, to: :scoped
+    delegate :distinct_on, to: :all
+  end
+
+  def read_or_initialize_attribute(attr_name, default_value)
+    # have to read the attribute again because serialized attributes in Rails 4.2 get duped
+    read_attribute(attr_name) || (write_attribute(attr_name, default_value) && read_attribute(attr_name))
   end
 
   alias :clone :dup
@@ -406,16 +398,16 @@ class ActiveRecord::Base
       "((#{column} || '-00')::TIMESTAMPTZ AT TIME ZONE '#{Time.zone.tzinfo.name}')::DATE"
     end
 
-    result = count(
-      :conditions => [
+    result = where(
         "#{column} >= ? AND #{column} < ?",
         min_date,
         max_date.advance(:days => 1)
-      ],
-      :group => expression,
-      :order => expression
-    )
+      ).
+      group(expression).
+      order(expression).
+      count
     # mysql gives us date keys, sqlite/postgres don't
+
     return result if result.keys.first.is_a?(Date)
     Hash[result.map { |date, count|
       [Time.zone.parse(date).to_date, count]
@@ -554,7 +546,7 @@ class ActiveRecord::Base
   # the primary key from smallest to largest.
   def self.find_ids_in_ranges(options = {})
     batch_size = options[:batch_size].try(:to_i) || 1000
-    subquery_scope = self.scoped.except(:select).select("#{quoted_table_name}.#{primary_key} as id").reorder(primary_key).limit(batch_size)
+    subquery_scope = all.except(:select).select("#{quoted_table_name}.#{primary_key} as id").reorder(primary_key).limit(batch_size)
     ids = connection.select_rows("select min(id), max(id) from (#{subquery_scope.to_sql}) as subquery").first
     while ids.first.present?
       ids.map!(&:to_i) if columns_hash[primary_key.to_s].type == :integer
@@ -596,42 +588,26 @@ class ActiveRecord::Base
   def save_without_callbacks
     suspend_callbacks(kind: [:validation, :save, (new_record? ? :create : :update)]) { save }
   end
+end
 
-  if Rails.version < '4'
-    scope :none, -> { {:conditions => ["?", false]} }
+if CANVAS_RAILS4_0
+  ActiveRecord::Associations::Builder::Association::DEPRECATED_OPTIONS.concat([:preload, :eager_load])
+
+  module ForceDeprecationAsError
+    def initialize(*args)
+      old_behavior = ActiveSupport::Deprecation.behavior
+      ActiveSupport::Deprecation.behavior = :raise
+      super
+    ensure
+      ActiveSupport::Deprecation.behavior = old_behavior
+    end
   end
+  ActiveRecord::Associations::Builder::Association.prepend(ForceDeprecationAsError)
 end
 
 unless defined? OpenDataExport
   # allow an exportable option that we don't actually do anything with, because our open-source build may not contain OpenDataExport
-  if CANVAS_RAILS3
-    ActiveRecord::Associations::Builder::Association.class_eval do
-      ([self] + self.descendants).each { |klass| klass.valid_options << :exportable }
-    end
-  else
-    ActiveRecord::Associations::Builder::Association.valid_options << :exportable
-  end
-end
-
-module PreloadAndEagerLoadOnAssociation
-  def scope
-    result = super
-    result = result.preload(options[:preload]) if options[:preload]
-    result = result.eager_load(options[:eager_load]) if options[:eager_load]
-    result
-  end
-end
-
-ActiveRecord::Associations::AssociationScope.prepend(PreloadAndEagerLoadOnAssociation)
-
-ActiveRecord::Associations::Builder::Association.valid_options += [:preload, :eager_load]
-if CANVAS_RAILS3
-ActiveRecord::Associations::Builder::CollectionAssociation.valid_options += [:preload, :eager_load]
-ActiveRecord::Associations::Builder::SingularAssociation.valid_options += [:preload, :eager_load]
-ActiveRecord::Associations::Builder::BelongsTo.valid_options += [:preload, :eager_load]
-ActiveRecord::Associations::Builder::HasAndBelongsToMany.valid_options += [:preload, :eager_load]
-ActiveRecord::Associations::Builder::HasMany.valid_options += [:preload, :eager_load]
-ActiveRecord::Associations::Builder::HasOne.valid_options += [:preload, :eager_load]
+  ActiveRecord::Associations::Builder::Association.valid_options << :exportable
 end
 
 ActiveRecord::Relation.class_eval do
@@ -690,7 +666,7 @@ ActiveRecord::Relation.class_eval do
         klass.unscoped do
           batch = connection.uncached { klass.find_by_sql("FETCH FORWARD #{batch_size} FROM #{cursor}") }
           while !batch.empty?
-            ActiveRecord::Associations::Preloader.new(batch, includes).run if includes
+            ActiveRecord::Associations::Preloader.new.preload(batch, includes) if includes
             yield batch
             break if batch.size < batch_size
             batch = connection.uncached { klass.find_by_sql("FETCH FORWARD #{batch_size} FROM #{cursor}") }
@@ -708,7 +684,7 @@ ActiveRecord::Relation.class_eval do
       pluck = Array(options[:pluck])
       pluck_for_select = pluck.map do |column_name|
         if column_name.is_a?(Symbol) && column_names.include?(column_name.to_s)
-          "#{connection.quote_table_name(table_name)}.#{connection.quote_column_name(column_name)}"
+          "#{connection.quote_local_table_name(table_name)}.#{connection.quote_column_name(column_name)}"
         else
           column_name.to_s
         end
@@ -731,7 +707,7 @@ ActiveRecord::Relation.class_eval do
           begin
             old_proc = connection.raw_connection.set_notice_processor {}
             if pluck && pluck.any?{|p| p == primary_key.to_s}
-              connection.add_index table, primary_key, name: index
+              connection.execute("CREATE INDEX #{connection.quote_local_table_name(index)} ON #{connection.quote_local_table_name(table)}(#{connection.quote_column_name(primary_key)})")
               index = primary_key.to_s
             else
               pluck.unshift(index) if pluck
@@ -754,20 +730,27 @@ ActiveRecord::Relation.class_eval do
 
       includes = includes_values + preload_values
       klass.unscoped do
+
+        quoted_plucks = pluck && pluck.map do |column_name|
+          # Rails 4.2 is going to try to quote them anyway but unfortunately not to the temp table, so just make it explicit
+          column_names.include?(column_name) ?
+            "#{connection.quote_local_table_name(table)}.#{connection.quote_column_name(column_name)}" : column_name
+        end
+
         if pluck
-          batch = klass.from(table).order(index).limit(batch_size).pluck(*pluck)
+          batch = klass.from(table).order(index).limit(batch_size).pluck(*quoted_plucks)
         else
           sql = "SELECT * FROM #{table} ORDER BY #{index} LIMIT #{batch_size}"
           batch = klass.find_by_sql(sql)
         end
         while !batch.empty?
-          ActiveRecord::Associations::Preloader.new(batch, includes).run if includes
+          ActiveRecord::Associations::Preloader.new.preload(batch, includes) if includes
           yield batch
           break if batch.size < batch_size
 
           if pluck
             last_value = pluck.length == 1 ? batch.last : batch.last[pluck.index(index)]
-            batch = klass.from(table).order(index).where("#{index} > ?", last_value).limit(batch_size).pluck(*pluck)
+            batch = klass.from(table).order(index).where("#{index} > ?", last_value).limit(batch_size).pluck(*quoted_plucks)
           else
             last_value = batch.last[index]
             sql = "SELECT *
@@ -785,45 +768,52 @@ ActiveRecord::Relation.class_eval do
     end
   end
 
-  def update_all_with_joins(updates, conditions = nil, options = {})
+  def update_all_with_joins(updates)
     if joins_values.any?
-      if conditions
-        where(conditions).update_all
-      else
-        case connection.adapter_name
-        when 'PostgreSQL'
-          stmt = Arel::UpdateManager.new(arel.engine)
+      case connection.adapter_name
+      when 'PostgreSQL'
+        stmt = Arel::UpdateManager.new(arel.engine)
 
-          stmt.set Arel.sql(@klass.send(:sanitize_sql_for_assignment, updates))
-          stmt.table(table)
-          stmt.key = table[primary_key]
+        stmt.set Arel.sql(@klass.send(:sanitize_sql_for_assignment, updates))
+        from = from_value.try(:first)
+        stmt.table(from ? Arel::Nodes::SqlLiteral.new(from) : table)
+        stmt.key = table[primary_key]
 
-          sql = stmt.to_sql
+        sql = stmt.to_sql
 
-          tables, join_conditions = deconstruct_joins(arel.join_sql.to_s)
+        join_sql = CANVAS_RAILS4_0 ? arel.join_sql.to_s : arel.join_sources.map(&:to_sql).join(" ")
+        tables, join_conditions = deconstruct_joins(join_sql)
 
-          unless tables.empty?
-            sql.concat(' FROM ')
-            sql.concat(tables.join(', '))
-            sql.concat(' ')
-          end
+        unless tables.empty?
+          sql.concat(' FROM ')
+          sql.concat(tables.join(', '))
+          sql.concat(' ')
+        end
 
-          scope = self
-          join_conditions.each { |join| scope = scope.where(join) }
-          binds = scope.bind_values.dup
+        scope = self
+        join_conditions.each { |join| scope = scope.where(join) }
+        binds = scope.bind_values.dup
+        if CANVAS_RAILS4_0
           where_statements = scope.arel.constraints.map do |node|
             connection.visitor.accept(node) do
               connection.quote(*binds.shift.reverse)
             end
           end
           sql.concat('WHERE ' + where_statements.join(' AND '))
-          connection.update(sql, "#{name} Update")
         else
-          update_all_without_joins(updates, conditions, options)
+          sql_string = Arel::Collectors::Bind.new
+          scope.arel.constraints.map do |node|
+            connection.visitor.accept(node, sql_string)
+          end
+          sql.concat('WHERE ' + sql_string.compile(binds.map{|bvs| connection.quote(*bvs.reverse)}))
         end
+
+        connection.update(sql, "#{name} Update")
+      else
+        update_all_without_joins(updates)
       end
     else
-      update_all_without_joins(updates, conditions, options)
+      update_all_without_joins(updates)
     end
   end
   alias_method_chain :update_all, :joins
@@ -837,7 +827,8 @@ ActiveRecord::Relation.class_eval do
         when 'PostgreSQL'
           sql = "DELETE FROM #{quoted_table_name} "
 
-          tables, join_conditions = deconstruct_joins(arel.join_sql.to_s)
+          join_sql = CANVAS_RAILS4_0 ? arel.join_sql.to_s : arel.join_sources.map(&:to_sql).join(" ")
+          tables, join_conditions = deconstruct_joins(join_sql)
 
           sql.concat('USING ')
           sql.concat(tables.join(', '))
@@ -847,12 +838,20 @@ ActiveRecord::Relation.class_eval do
           join_conditions.each { |join| scope = scope.where(join) }
 
           binds = scope.bind_values.dup
-          where_statements = scope.arel.constraints.map do |node|
-            connection.visitor.accept(node) do
-              connection.quote(*binds.shift.reverse)
+          if CANVAS_RAILS4_0
+            where_statements = scope.arel.constraints.map do |node|
+              connection.visitor.accept(node) do
+                connection.quote(*binds.shift.reverse)
+              end
             end
+            sql.concat('WHERE ' + where_statements.join(' AND '))
+          else
+            sql_string = Arel::Collectors::Bind.new
+            scope.arel.constraints.map do |node|
+              connection.visitor.accept(node, sql_string)
+            end
+            sql.concat('WHERE ' + sql_string.compile(binds.map{|bvs| connection.quote(*bvs.reverse)}))
           end
-          sql.concat('WHERE ' + where_statements.join(' AND '))
         when 'MySQL', 'Mysql2'
           sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.join_sql} #{arel.where_sql}"
         else
@@ -868,17 +867,9 @@ ActiveRecord::Relation.class_eval do
   alias_method_chain :delete_all, :joins
 
   def delete_all_with_limit(conditions = nil)
-    if limit_value
-      case connection.adapter_name
-      when 'MySQL', 'Mysql2'
-        v = arel.visitor
-        sql = "DELETE #{quoted_table_name} FROM #{quoted_table_name} #{arel.where_sql}
-            ORDER BY #{arel.orders.map { |x| v.send(:visit, x) }.join(', ')} LIMIT #{v.send(:visit, arel.limit)}"
-        return connection.delete(sql, "#{name} Delete all")
-      else
-        scope = scoped.except(:select).select("#{quoted_table_name}.#{primary_key}")
-        return unscoped.where(primary_key => scope).delete_all
-      end
+    if limit_value || offset_value
+      scope = except(:select).select("#{quoted_table_name}.#{primary_key}")
+      return unscoped.where(primary_key => scope).delete_all
     end
     delete_all_without_limit(conditions)
   end
@@ -914,19 +905,24 @@ ActiveRecord::Relation.class_eval do
       personal_space -= 1
       # truncate to seconds
       bound = Time.at(Time.now.to_i - personal_space).utc
-      scope = scope.where("updated_at<?", bound)
+      scope = scope.where("#{connection.quote_local_table_name(table_name)}.updated_at<?", bound)
     end
     scope
   end
 
   def touch_all
-    not_recently_touched.update_all(updated_at: Time.now.utc)
+    self.activate do |relation|
+      relation.transaction do
+        ids_to_touch = relation.not_recently_touched.lock(:no_key_update).order(:id).pluck(:id)
+        unscoped.where(id: ids_to_touch).update_all(updated_at: Time.now.utc)
+      end
+    end
   end
 
   def distinct_on(*args)
     args.map! do |column_name|
       if column_name.is_a?(Symbol) && column_names.include?(column_name.to_s)
-        "#{connection.quote_table_name(table_name)}.#{connection.quote_column_name(column_name)}"
+        "#{connection.quote_local_table_name(table_name)}.#{connection.quote_column_name(column_name)}"
       else
         column_name.to_s
       end
@@ -935,11 +931,8 @@ ActiveRecord::Relation.class_eval do
     relation = clone
     old_select = relation.select_values
     relation.select_values = ["DISTINCT ON (#{args.join(', ')}) "]
-    if CANVAS_RAILS3
-      relation.uniq_value = false
-    else
-      relation.distinct_value = false
-    end
+    relation.distinct_value = false
+
     if old_select.empty?
       relation.select_values.first << "*"
     else
@@ -960,45 +953,11 @@ ActiveRecord::Relation.class_eval do
 end
 
 ActiveRecord::Associations::CollectionProxy.class_eval do
-  delegate :with_each_shard, :to => :scoped
-
   def respond_to?(name, include_private = false)
     return super if [:marshal_dump, :_dump, 'marshal_dump', '_dump'].include?(name)
     super ||
       (load_target && target.respond_to?(name, include_private)) ||
       proxy_association.klass.respond_to?(name, include_private)
-  end
-end
-
-ActiveRecord::Associations::CollectionAssociation.class_eval do
-  def scoped
-    scope = super
-    proxy_association = self
-    scope.extending do
-      define_method(:proxy_association) { proxy_association }
-    end
-  end
-end
-
-if CANVAS_RAILS3
-  ActiveRecord::Persistence.module_eval do
-    def nondefaulted_attribute_names
-      attribute_names.select do |attr|
-        read_attribute(attr) != column_for_attribute(attr).try(:default)
-      end
-    end
-
-    def create
-      attributes_values = arel_attributes_values(!id.nil?, true, nondefaulted_attribute_names)
-
-      new_id = self.class.unscoped.insert attributes_values
-
-      self.id ||= new_id if self.class.primary_key
-
-      ActiveRecord::IdentityMap.add(self) if ActiveRecord::IdentityMap.enabled?
-      @new_record = false
-      id
-    end
   end
 end
 
@@ -1106,7 +1065,7 @@ end
 
 ActiveRecord::Associations::HasOneAssociation.class_eval do
   def create_scope
-    scope = (CANVAS_RAILS3 ? self.scoped : self.scope).scope_for_create.stringify_keys
+    scope = self.scope.scope_for_create.stringify_keys
     scope = scope.except(klass.primary_key) unless klass.primary_key.to_s == reflection.foreign_key.to_s
     scope
   end
@@ -1136,14 +1095,6 @@ class ActiveRecord::Migration
   DEPLOY_TAGS = [:predeploy, :postdeploy]
 
   class << self
-    if CANVAS_RAILS3
-      attr_accessor :disable_ddl_transaction
-
-      def disable_ddl_transaction!
-        @disable_ddl_transaction = true
-      end
-    end
-
     def tag(*tags)
       raise "invalid tags #{tags.inspect}" unless tags - VALID_TAGS == []
       (@tags ||= []).concat(tags).uniq!
@@ -1170,12 +1121,6 @@ class ActiveRecord::Migration
     end
   end
 
-  if CANVAS_RAILS3
-    def disable_ddl_transaction
-      self.class.disable_ddl_transaction
-    end
-  end
-
   def tags
     self.class.tags
   end
@@ -1183,9 +1128,6 @@ end
 
 class ActiveRecord::MigrationProxy
   delegate :connection, :tags, to: :migration
-  if CANVAS_RAILS3
-    delegate :disable_ddl_transaction, to: :migration
-  end
 
   def runnable?
     !migration.respond_to?(:runnable?) || migration.runnable?
@@ -1194,7 +1136,7 @@ class ActiveRecord::MigrationProxy
   def load_migration
     load(filename)
     @migration = name.constantize
-    raise "#{self.name} (#{self.version}) is not tagged as predeploy or postdeploy!" if (@migration.tags & ActiveRecord::Migration::DEPLOY_TAGS).empty? && self.version > 20120217214153
+    raise "#{self.name} (#{self.version}) is not tagged as predeploy or postdeploy!" if (@migration.tags & ActiveRecord::Migration::DEPLOY_TAGS).empty?
     @migration
   end
 end
@@ -1291,20 +1233,6 @@ class ActiveRecord::Migrator
       end
     end
   end
-
-  if CANVAS_RAILS3
-    def ddl_transaction(migration)
-      if use_transaction?(migration)
-        migration.connection.transaction { yield }
-      else
-        yield
-      end
-    end
-
-    def use_transaction?(migration)
-      !migration.disable_ddl_transaction && migration.connection.supports_ddl_transactions?
-    end
-  end
 end
 
 ActiveRecord::Migrator.migrations_paths.concat Dir[Rails.root.join('vendor', 'plugins', '*', 'db', 'migrate')]
@@ -1388,26 +1316,11 @@ ActiveRecord::ConnectionAdapters::SchemaStatements.class_eval do
 
 end
 
-if CANVAS_RAILS3
-  ActiveRecord::Associations::CollectionAssociation.class_eval do
-    # CollectionAssociation implements uniq for :uniq option, in its
-    # own special way. re-implement, but as a relation if it's not an
-    # internal use of it
-    def uniq(records = true)
-      if records.is_a?(Array)
-        records.uniq
-      else
-        scoped.uniq(records)
-      end
-    end
-  end
-else
-  ActiveRecord::Associations::CollectionAssociation.class_eval do
-    # CollectionAssociation implements uniq for :uniq option, in its
-    # own special way. re-implement, but as a relation
-    def distinct
-      scope.distinct
-    end
+ActiveRecord::Associations::CollectionAssociation.class_eval do
+  # CollectionAssociation implements uniq for :uniq option, in its
+  # own special way. re-implement, but as a relation
+  def distinct
+    scope.distinct
   end
 end
 
@@ -1448,37 +1361,77 @@ if Rails.version < '4'
 end
 
 module UnscopeCallbacks
-  def run_callbacks(kind)
-    scope = CANVAS_RAILS3 ? self.class.unscoped : self.class.base_class.unscoped
-    scope.default_scoped = true
-    scope.scoping { super }
+  if CANVAS_RAILS4_0
+    def run_callbacks(kind)
+      scope = self.class.base_class.unscoped
+      scope.default_scoped = true
+      scope.scoping { super }
+    end
+  else
+    def __run_callbacks__(*args)
+      scope = self.class.base_class.unscoped
+      scope.scoping { super }
+    end
+  end
+end
+ActiveRecord::Base.send(:include, UnscopeCallbacks)
+
+ActiveRecord::DynamicMatchers::Method.class_eval do
+  class << self
+    def match_with_discard(model, name)
+      result = match_without_discard(model, name)
+      return nil if result && !result.is_a?(ActiveRecord::DynamicMatchers::FindBy)
+      result
+    end
+    alias_method_chain :match, :discard
   end
 end
 
-ActiveRecord::Base.send(:include, UnscopeCallbacks)
+if CANVAS_RAILS4_0
+  module PreloaderShim
+    def initialize(*args)
+      super unless args.empty?
+    end
 
-if CANVAS_RAILS3
-  [ActiveRecord::DynamicFinderMatch, ActiveRecord::DynamicScopeMatch].each do |klass|
-    klass.class_eval do
-      class << self
-        def match_with_discard(method)
-          result = match_without_discard(method)
-          return nil if result && (result.is_a?(ActiveRecord::DynamicScopeMatch) || result.finder != :first || result.instantiator? || result.bang?)
-          result
-        end
-        alias_method_chain :match, :discard
+    def preload(*args)
+      if args.size == 1
+        super
+      else
+        records, associations, preload_scope = args
+        @records       = Array.wrap(records).compact.uniq
+        @associations  = Array.wrap(associations)
+        @preload_scope = preload_scope || ActiveRecord::Relation.new(nil, nil)
+        run
       end
     end
   end
-else
-  ActiveRecord::DynamicMatchers::Method.class_eval do
-    class << self
-      def match_with_discard(model, name)
-        result = match_without_discard(model, name)
-        return nil if result && !result.is_a?(ActiveRecord::DynamicMatchers::FindBy)
-        result
-      end
-      alias_method_chain :match, :discard
+
+  ActiveRecord::Associations::Preloader.send(:prepend, PreloaderShim)
+end
+
+unless CANVAS_RAILS4_0
+  # see https://github.com/rails/rails/issues/18659
+  class AttributesDefiner
+    # defines attribute methods when loaded through Marshal
+    def initialize(klass)
+      @klass = klass
+    end
+
+    def marshal_dump
+      @klass
+    end
+
+    def marshal_load(klass)
+      klass.define_attribute_methods
+      @klass = klass
     end
   end
+
+  module DefineAttributeMethods
+    def init_internals
+      @define_attributes_helper = AttributesDefiner.new(self.class)
+      super
+    end
+  end
+  ActiveRecord::Base.include(DefineAttributeMethods)
 end

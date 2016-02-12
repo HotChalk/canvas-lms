@@ -369,8 +369,6 @@ describe SubmissionsController do
     context "moderated grading" do
       before :once do
         course_with_student(:active_all => true)
-        @course.root_account.allow_feature!(:moderated_grading)
-        @course.enable_feature!(:moderated_grading)
         @assignment = @course.assignments.create!(:title => "some assignment",
           :submission_types => "online_url,online_upload", :moderated_grading => true)
         @submission = @assignment.submit_homework(@user)
@@ -393,9 +391,11 @@ describe SubmissionsController do
       end
 
       it "should create a final provisional comment" do
+        @submission.find_or_create_provisional_grade!(scorer: @teacher)
         put 'update', :format => :json, :course_id => @course.id, :assignment_id => @assignment.id, :id => @user.id,
           :submission => {:comment => "provisional!", :provisional => true, :final => true}
 
+        expect(response).to be_success
         @submission.reload
         expect(@submission.submission_comments.first).to be_nil
         pg = @submission.provisional_grade(@teacher, final: true)

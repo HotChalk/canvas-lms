@@ -2,6 +2,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../helpers/discussions_commo
 
 describe "discussions" do
   include_context "in-process server selenium tests"
+  include DiscussionsCommon
 
   let(:course) { course_model.tap{|course| course.offer!} }
   let(:default_section) { course.default_section }
@@ -104,6 +105,30 @@ describe "discussions" do
           expect(visBoxes.first.text).to eq "Please select a group set for this assignment"
         end
       end
+
+      context "post to sis default setting" do
+        before do
+          @account = @course.root_account
+          @account.enable_feature!(:bulk_sis_grade_export)
+        end
+
+        it "should default to post grades if account setting is enabled" do
+          @account.settings[:sis_default_grade_export] = {:locked => false, :value => true}
+          @account.save!
+
+          get url
+          f('input[type=checkbox][name="assignment[set_assignment]"]').click
+
+          expect(is_checked('#assignment_post_to_sis')).to be_truthy
+        end
+
+        it "should not default to post grades if account setting is not enabled" do
+          get url
+          f('input[type=checkbox][name="assignment[set_assignment]"]').click
+
+          expect(is_checked('#assignment_post_to_sis')).to be_falsey
+        end
+      end
     end
 
     context "as a student" do
@@ -116,7 +141,7 @@ describe "discussions" do
         replace_content(f('input[name=title]'), "Student Delayed")
         type_in_tiny('textarea[name=message]', 'This is the discussion description.')
         target_time = 1.day.from_now
-        unlock_text = target_time.strftime('%b %-d at %-l:%M%P')
+        unlock_text = format_time_for_view(target_time)
         unlock_text_index_page = target_time.strftime('%b %-d')
         f('#delayed_post_at').send_keys(unlock_text)
         expect_new_page_load {submit_form('.form-actions')}
