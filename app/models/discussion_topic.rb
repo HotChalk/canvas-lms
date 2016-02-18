@@ -1326,19 +1326,37 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
-  def discussion_subentry_count_for_enrollment(enrollment = nil)
-    return discussion_entries.active.count unless self.context.is_a?(Course)
-    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
-    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
-      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
-      return discussion_entries.active.where(user_id: visible_user_ids).count
+  def discussion_subentry_count_for_enrollment(enrollment = nil)    
+    # return discussion_entries.active.count unless self.context.is_a?(Course)
+    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries    
+    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section            
+      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)      
+      # get the valid entries by user
+      valid_users_entries = discussion_entries.active.where(user_id: visible_user_ids)
+      # get the root_entry_id from all the valid entries
+      entries_roots_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:root_entry_id)
+      # get the not valid entries ids accourding by root entry id
+      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_roots_ids, visible_user_ids)
+      not_allowed_ids = entries_not_allowed.map{|e|e.id}
+      rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['root_entry_id'].to_i) }
+      # take out the entries not allowed
+      valid_users_entries -= rejected_entries      
+      # get the parent_id from all the valid entries
+      entries_parent_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:parent_id)
+      # get the not valid entries ids accourding by parent id
+      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)      
+      not_allowed_ids = entries_not_allowed.map{|e|e.id}
+      rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['parent_id'].to_i) }
+      # take out the entries not allowed
+      valid_users_entries -= rejected_entries      
+      return valid_users_entries.count
     end
     if enrollment && enrollment.user
       visibilities = self.context.section_visibilities_for(enrollment.user)
       if visibilities.length == 0 || visibilities.first[:admin]
         discussion_entries.active.count
       else
-        visible_user_ids = self.context.users_sections_visible_to(enrollment.user)
+        visible_user_ids = self.context.users_sections_visible_to(enrollment.user).pluck(:id)
         discussion_entries.active.where(user_id: visible_user_ids).count
       end
     else
