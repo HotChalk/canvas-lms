@@ -481,7 +481,7 @@ class DiscussionTopicsController < ApplicationController
         return
       end
       @headers = !params[:headless]
-      if @topic.is_a? Announcement and !@assignment.nil?
+      if !@topic.is_a? Announcement and !@assignment.nil?
         @locked = @assignment.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true)
       else
         @locked = @topic.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true) || @topic.locked?
