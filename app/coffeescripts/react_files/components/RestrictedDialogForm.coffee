@@ -63,6 +63,10 @@ define [
 
     setRestrictedAccess: ->
       attributes = @refs.restrictedSelection.extractFormValues()
+      if Date.parse(attributes.unlock_at) and Date.parse(attributes.lock_at)
+        if attributes.unlock_at >= attributes.lock_at          
+          return $.flashError(I18n.t('There was an error setting availability dates.'))
+
       promises = @props.models.map (item) ->
         # Calling .save like this (passing data as the 'attrs' property on
         # the 'options' argument instead of as the first argument) is so that we just send
