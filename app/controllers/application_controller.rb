@@ -1249,6 +1249,7 @@ class ApplicationController < ActionController::Base
 
     if    protect_against_forgery? &&
           !request.get? &&
+          !request.head? &&
           !api_request?
       if cookies[:_csrf_token].nil? && session.empty? && !request.xhr? && !api_request?
         # the session should have the token stored by now, but doesn't? sounds

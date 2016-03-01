@@ -33,7 +33,7 @@ define [
       if @get('groups_count') is 0 or models?.length
         @_groups.loadedAll = true
       else if @current_section_id
-        @_groups.filter(@current_section_id)
+        @_groups.filterBySection(@current_section_id)
       else
         @_groups.fetch()
       @_groups.on 'fetched:last', => @set('groups_count', @_groups.length)
