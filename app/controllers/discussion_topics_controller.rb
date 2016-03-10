@@ -412,10 +412,13 @@ class DiscussionTopicsController < ApplicationController
         hash[:ATTRIBUTES][:assignment][:has_student_submissions] = @topic.assignment.has_student_submissions?
       end
 
+      course_sections_count = @context.active_course_sections.length
       sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
+      allow_everyone = (course_sections_count == sections.length) ? true : false      
 
       js_hash = {DISCUSSION_TOPIC: hash,
                  SECTION_LIST: sections.map { |section| { id: section.id, name: section.name } },
+                 ALLOW_EVERYONE: allow_everyone,
                  GROUP_CATEGORIES: categories.
                      reject { |category| category.student_organized? }.
                      map { |category| { id: category.id, name: category.name } },
