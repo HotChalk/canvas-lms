@@ -412,7 +412,7 @@ class DiscussionTopicsController < ApplicationController
         hash[:ATTRIBUTES][:assignment][:has_student_submissions] = @topic.assignment.has_student_submissions?
       end
 
-      course_sections_count = @context.active_course_sections.length
+      course_sections_count = @context.respond_to?(:course_sections) ? @context.active_course_sections.length : 0
       sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
       allow_everyone = (course_sections_count == sections.length) ? true : false      
 
