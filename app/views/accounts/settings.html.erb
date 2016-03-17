@@ -84,6 +84,17 @@
                 </td>
               </tr>
             <% end %>
+            <% if @account.grants_right?(@current_user, :manage_site_settings) %>
+              <%= f.fields_for :settings do |settings| %>
+                <tr>
+                  <td><%= settings.blabel :help_link, :en => "Account Help link" %></td>
+                  <td><%= settings.text_field :help_link,
+                                              :value => @account.settings[:help_link],
+                                              :class => 'same-width-as-select',
+                                              :placeholder => "https://support.example.edu" %></td>
+                </tr>
+              <% end %>
+            <% end %>
             <% if available_locales.size > 1 %>
             <tr>
               <td><%= f.blabel :default_locale, :default_language, :en => "Default Language" %></td>
@@ -152,7 +163,6 @@
                       <p style="font-size: 0.9em;"><%= t("This is a comma separated list of URL's to trust.  Trusting any URL's in this list will bypass the CSRF token when logging in to HotChalk Ember.") %></p>
                     </td>
                   </tr>
-
                   <tr>
                     <td colspan="2"><%= settings.check_box :prevent_course_renaming_by_teachers, :checked => @account.settings[:prevent_course_renaming_by_teachers] %>
                     <%= settings.label :prevent_course_renaming_by_teachers, :en => "Don't let teachers rename their courses" %>
