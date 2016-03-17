@@ -822,11 +822,12 @@ define([
         }
         rubricEditing.updateRubric($rubric, rubric);
         if (data.rubric_association && data.rubric_association.use_for_grading && !data.rubric_association.skip_updating_points_possible) {
+          var association = ".association_id_" + data.rubric_association.association_id.toString();
           $("#assignment_show .points_possible").text(rubric.points_possible);
           discussion_points_text = I18n.t('discussion_points_possible',
                                           {one: '%{count} point possible', other: '%{count} points possible' },
                                           {count: rubric.points_possible || 0})
-          $(".discussion-title .discussion-points").text(discussion_points_text);
+          $(association).text(discussion_points_text);
         }
         if(!limitToOneRubric) {
           $(".add_rubric_link").show();
