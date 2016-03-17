@@ -164,6 +164,7 @@ class AccountsController < ApplicationController
   #
   # @returns Account
   def show
+    @is_filter_applied = false
     return unless authorized_action(@account, @current_user, :read)
     respond_to do |format|
       format.html do
@@ -181,6 +182,10 @@ class AccountsController < ApplicationController
                                              :course_format => @course_format)
         ActiveRecord::Associations::Preloader.new.preload(@courses, :enrollment_term)
         build_course_stats
+        if params[:focus] == 'filter_button'
+          @is_filter_applied = true
+        end
+        @filtered_courses_count = @courses.count
       end
       format.json { render :json => account_json(@account, @current_user, session, params[:includes] || [],
                                                  !@account.grants_right?(@current_user, session, :manage)) }

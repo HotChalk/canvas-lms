@@ -13,12 +13,22 @@
   <% if @term %>
     <h3 style="margin-bottom: 1em;"><%= mt(:subtitle_term, "For the term **%{term}**", :term => @term.name) %></h3>
   <% end %>
-  <% if @associated_courses_count > @maximum_courses_im_gonna_show %>
+  
+  <%if @is_filter_applied%>
+    <% if @filtered_courses_count >= @maximum_courses_im_gonna_show %>
+    <p class='ui-state-highlight' style='padding:0.7em;'>
+      <%= t(:too_many_courses_message, "Showing %{count} results. You have too many course matching the criteria. " +
+      "Please refine your search critieria.", :count => @filtered_courses_count) %>
+    </p>
+    <% end %>
+  <%else%>
+    <% if @associated_courses_count > @maximum_courses_im_gonna_show %>
     <p class='ui-state-highlight' style='padding:0.7em;'>
       <%= t(:too_many_courses_message, "There are too many courses to show (%{count}). " +
       "Please use the finder on the right to find a specific course.", :count => @associated_courses_count) %>
     </p>
-  <% end %>
+    <% end %>
+  <%end%>
 
   <ul class='courses' style="list-style-type: none;">
     <%= render :partial => "course", :collection => @courses %>
