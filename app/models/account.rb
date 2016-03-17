@@ -42,6 +42,7 @@ class Account < ActiveRecord::Base
   ]
 
   INSTANCE_GUID_SUFFIX = 'canvas-lms'
+  HELP_LINK_DEFAULT = 'https://embersupport.zendesk.com'
 
   include Workflow
   include BrandConfigHelpers
@@ -227,6 +228,7 @@ class Account < ActiveRecord::Base
   add_setting :author_email_in_notifications, boolean: true, root_only: true, default: false
   add_setting :include_students_in_global_survey, boolean: true, root_only: true, default: false
   add_setting :trusted_referers, root_only: true
+  add_setting :help_link, :default => true
 
   def use_new_styles_or_allow_global_includes?
     feature_enabled?(:use_new_styles) || allow_global_includes?
@@ -292,6 +294,11 @@ class Account < ActiveRecord::Base
 
   def mfa_settings
     settings[:mfa_settings].try(:to_sym) || :disabled
+  end
+
+  def help_link(link=HELP_LINK_DEFAULT)    
+    settings[:help_link] = link    
+    self.save!    
   end
 
   def non_canvas_auth_configured?
