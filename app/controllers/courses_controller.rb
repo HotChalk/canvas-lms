@@ -2172,7 +2172,9 @@ class CoursesController < ApplicationController
         return unless process_course_event
       end
 
-      @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
+      if params[:course].has_key?(:limit_section_visibility)
+        @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
+      end
 
       params[:course][:conclude_at] = params[:course].delete(:end_at) if api_request? && params[:course].has_key?(:end_at)
       @default_wiki_editing_roles_was = @course.default_wiki_editing_roles
