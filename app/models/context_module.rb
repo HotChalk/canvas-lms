@@ -387,7 +387,7 @@ class ContextModule < ActiveRecord::Base
       tags.select{|tag|
         case tag.content_type;
           when 'Assignment'; visible_assignments.include?(tag.content_id);
-          when 'DiscussionTopic'; visible_discussions.include?(tag.content_id) || (tag.content.assignment.present? && visible_assignments.include?(tag.content.assignment_id));
+          when 'DiscussionTopic'; visible_discussions.include?(tag.content_id) || (tag.content.assignment.present? && visible_assignments.include?(tag.content.assignment.id));
           when *Quizzes::Quiz.class_names; visible_quizzes.include?(tag.content_id);
           else; true; end
       }
