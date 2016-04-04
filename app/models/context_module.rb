@@ -386,11 +386,12 @@ class ContextModule < ActiveRecord::Base
       visible_quizzes = opts[:quiz_visibilities] || quiz_visibilities_for_users(user_ids)
       tags.select{|tag|
         case tag.content_type;
-        when 'Assignment'; visible_assignments.include?(tag.content_id);
-        when 'DiscussionTopic'; visible_discussions.include?(tag.content_id);
-        when *Quizzes::Quiz.class_names; visible_quizzes.include?(tag.content_id);
-        else; true; end
+          when 'Assignment'; visible_assignments.include?(tag.content_id);
+          when 'DiscussionTopic'; visible_discussions.include?(tag.content_id) || (tag.content.assignment.present? && visible_assignments.include?(tag.content.assignment.id));
+          when *Quizzes::Quiz.class_names; visible_quizzes.include?(tag.content_id);
+          else; true; end
       }
+
     }
 
     tags = DifferentiableAssignment.filter(tags, user, self.context, opts) do |tags, user_ids|
