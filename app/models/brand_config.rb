@@ -152,6 +152,7 @@ class BrandConfig < ActiveRecord::Base
         progress.update_completion!(total_percent)
       end
     }
+    Canvas::Cdn.push_to_s3!
   end
 
   def self.destroy_if_unused(md5)
