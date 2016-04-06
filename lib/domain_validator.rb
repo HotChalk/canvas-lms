@@ -83,55 +83,55 @@ class DomainValidator
     scope = AssessmentQuestion.active
     issues = check_scope(scope)
     self.issues += issues
-    progress.update_completion! 10
+    progress.update_completion! 20
 
     # Assignments
     scope = Assignment.active
     issues = check_scope(scope, :description)
     self.issues += issues
-    progress.update_completion! 15
+    progress.update_completion! 25
 
     # Calendar events
     scope = CalendarEvent.active
     issues = check_scope(scope, :description)
     self.issues += issues
-    progress.update_completion! 20
+    progress.update_completion! 30
 
     # Conversation messages
     scope = ConversationMessage.all
     issues = check_scope(scope, :body)
     self.issues += issues
-    progress.update_completion! 25
+    progress.update_completion! 45
 
     # Courses
     scope = Course.active.where(account_id: active_account_ids).where("conclude_at IS NULL OR conclude_at > NOW()")
     issues = check_scope(scope, :syllabus_body)
     self.issues += issues
-    progress.update_completion! 30
+    progress.update_completion! 50
 
     # Delayed messages
     scope = DelayedMessage.in_state(:pending).where(root_account_id: active_account_ids)
     issues = check_scope(scope, :link, :summary)
     self.issues += issues
-    progress.update_completion! 35
+    progress.update_completion! 55
 
     # Discussion entries
     scope = DiscussionEntry.active
     issues = check_scope(scope, :message)
     self.issues += issues
-    progress.update_completion! 40
+    progress.update_completion! 70
 
     # Discussion topics
     scope = DiscussionTopic.active
     issues = check_scope(scope, :message)
     self.issues += issues
-    progress.update_completion! 45
+    progress.update_completion! 75
 
     # Groups
     scope = Group.active.where(root_account_id: active_account_ids)
     issues = check_scope(scope, :description)
     self.issues += issues
-    progress.update_completion! 50
+    progress.update_completion! 80
 
     # Messages
     # scope = Message.where(root_account_id: active_account_ids)
@@ -143,20 +143,18 @@ class DomainValidator
     scope = Quizzes::QuizQuestion.active
     issues = check_scope(scope)
     self.issues += issues
-    progress.update_completion! 55
+    progress.update_completion! 90
 
     # Quizzes
     scope = Quizzes::Quiz.active
     issues = check_scope(scope, :description)
     self.issues += issues
-    progress.update_completion! 60
+    progress.update_completion! 95
 
     # Wiki pages
     scope = WikiPage.not_deleted
     issues = check_scope(scope, :body)
     self.issues += issues
-    progress.update_completion! 65
-
     progress.update_completion! 99
   end
 
@@ -199,14 +197,14 @@ class DomainValidator
     end
 
     if links.any?
-      hash = {:name => question.question_data[:question_name]}.merge(:invalid_links => links)
+      hash = {:id => question.id, :name => question.question_data[:question_name]}.merge(:invalid_links => links)
       case question
         when AssessmentQuestion
           hash[:type] = :assessment_question
-          hash[:content_url] = "/courses/#{self.course.id}/question_banks/#{question.assessment_question_bank_id}#question_#{question.id}_question_text"
+          # hash[:content_url] = "/courses/#{self.course.id}/question_banks/#{question.assessment_question_bank_id}#question_#{question.id}_question_text"
         when Quizzes::QuizQuestion
           hash[:type] = :quiz_question
-          hash[:content_url] = "/courses/#{self.course.id}/quizzes/#{question.quiz_id}/take?preview=1#question_#{question.id}"
+          # hash[:content_url] = "/courses/#{self.course.id}/quizzes/#{question.quiz_id}/take?preview=1#question_#{question.id}"
       end
       issues << hash
     end
