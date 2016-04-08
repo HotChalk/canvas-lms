@@ -97,6 +97,9 @@ module Api::V1::DiscussionTopics
     if context.feature_enabled?(:differentiated_assignments)
       json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
     end
+    if opts[:include_overrides_names]
+      json[:overrides_names] = get_overrides_names(topic)
+    end
 
     json
   end
