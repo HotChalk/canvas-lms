@@ -355,7 +355,8 @@ class DiscussionTopicsController < ApplicationController
           :user_can_moderate => user_can_moderate,
           :plain_messages => value_to_boolean(params[:plain_messages]),
           :include_all_dates => true,
-          :exclude_assignment_description => value_to_boolean(params[:exclude_assignment_descriptions]))
+          :exclude_assignment_description => value_to_boolean(params[:exclude_assignment_descriptions]),
+          :include_overrides_names => true)
       end
     end
   end
@@ -505,6 +506,9 @@ class DiscussionTopicsController < ApplicationController
       @padless = true
 
       log_asset_access(@topic, 'topics', 'topics')
+
+      @overrides_names = get_overrides_names(@topic)
+
       respond_to do |format|
         if @topic.deleted?
           flash[:notice] = t :deleted_topic_notice, "That topic has been deleted"
@@ -1137,15 +1141,22 @@ class DiscussionTopicsController < ApplicationController
       overrides = [] if !overrides && params.has_key?(:assignment_overrides)
       params.delete(:assignment_overrides)
       return if overrides && !overrides.is_a?(Array)
-      if overrides
-        @topic.transaction do
-          if @topic.context.feature_enabled?(:differentiated_assignments)
-            if params.has_key? "only_visible_to_overrides"
-              @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
+      do_overrides = true
+      if params.has_key? "update_overrides"
+        do_overrides = value_to_boolean(params['update_overrides'])
+      end
+
+      if do_overrides
+        if overrides
+          @topic.transaction do
+            if @topic.context.feature_enabled?(:differentiated_assignments)
+              if params.has_key? "only_visible_to_overrides"
+                @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
+              end
             end
+            @topic.save_without_broadcasting!
+            batch_update_assignment_overrides(@topic, overrides)
           end
-          @topic.save_without_broadcasting!
-          batch_update_assignment_overrides(@topic, overrides)
         end
       end
     end
@@ -1188,5 +1199,23 @@ class DiscussionTopicsController < ApplicationController
         hash[:assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
       end
     end
+  end
+
+  def get_overrides_names(topic)
+    overrides = assignment_overrides_json(topic.assignment_overrides.active)
+    if !overrides.empty?
+      students = []
+      sections = []
+      overrides.each { |override| ids = override[:student_ids] ?  override[:student_ids] : []
+      ids.each { |id| students.push(User.find(id)) }
+
+      course_section_id = override[:course_section_id] ?  override[:course_section_id] : nil
+      if !course_section_id.nil?
+        sections.push(CourseSection.find(course_section_id).display_name)
+      end
+      }
+      overrides_names = sections.sort! + students.map(&:name).sort!
+    end
+    overrides_names
   end
 end
