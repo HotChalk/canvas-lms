@@ -2999,8 +2999,8 @@ class Course < ActiveRecord::Base
         needs_publishing ||= (course.conclude_at.nil? || course.conclude_at > cutoff_time)
       end
 
-      # if a course does not have a start date but belongs to a term that is currently active, the course should be published
-      if course.start_at.nil? && course.enrollment_term && course.enrollment_term.start_at
+      # if a course belongs to a term that is currently active, the course should be published
+      if course.enrollment_term && course.enrollment_term.start_at
         needs_publishing ||= ((course.enrollment_term.start_at < cutoff_time) &&
             (course.enrollment_term.end_at.nil? || course.enrollment_term.end_at > cutoff_time))
       end
