@@ -1097,7 +1097,7 @@ class Account < ActiveRecord::Base
   end
 
   def change_password_url
-    self.settings[:change_password_url]
+    self.settings[:change_password_url] || "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support"
   end
 
   def unknown_user_url=(unknown_user_url)
