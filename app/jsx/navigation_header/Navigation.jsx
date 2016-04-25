@@ -8,12 +8,13 @@ define([
   'jsx/navigation_header/trays/GroupsTray',
   'jsx/navigation_header/trays/AccountsTray',
   'jsx/navigation_header/trays/ProfileTray',
+  'jsx/navigation_header/trays/ResourcesTray',
   'jsx/shared/SVGWrapper',
   'compiled/fn/preventDefault'
-], (_, $, I18n, React, Tray, CoursesTray, GroupsTray, AccountsTray, ProfileTray, SVGWrapper, preventDefault) => {
+], (_, $, I18n, React, Tray, CoursesTray, GroupsTray, AccountsTray, ProfileTray, ResourcesTray, SVGWrapper, preventDefault) => {
 
   var EXTERNAL_TOOLS_REGEX = /^\/accounts\/[^\/]*\/(external_tools)/;
-  var ACTIVE_ROUTE_REGEX = /^\/(courses|groups|accounts|grades|calendar|conversations|profile)/;
+  var ACTIVE_ROUTE_REGEX = /^\/(courses|groups|accounts|grades|calendar|conversations|profile|resources)/;
   var ACTIVE_CLASS = 'ic-app-header__menu-list-item--active';
 
   var UNREAD_COUNT_POLL_INTERVAL = 60000 // 60 seconds
@@ -41,7 +42,8 @@ define([
         accountsLoading: false,
         accountsAreLoaded: false,
         groupsLoading: false,
-        groupsAreLoaded: false
+        groupsAreLoaded: false,
+        resources:[]
       };
     },
 
@@ -67,7 +69,7 @@ define([
       /// Click Events
       //////////////////////////////////
 
-      ['courses', 'groups', 'accounts', 'profile'].forEach((type) => {
+      ['courses', 'groups', 'accounts', 'profile', 'resources'].forEach((type) => {
         $(`#global_nav_${type}_link`).on('click', preventDefault(this.handleMenuClick.bind(this, type)));
       });
     },
@@ -181,6 +183,9 @@ define([
           return <AccountsTray accounts={this.state.accounts} hasLoaded={this.state.accountsAreLoaded} closeTray={this.closeTray} />;
         case 'profile':
           return <ProfileTray closeTray={this.closeTray} />;
+        case 'resources':
+          this.state.resources = window.ENV.RESOURCES;
+          return <ResourcesTray resources={this.state.resources} hasLoaded={true} closeTray={this.closeTray} />;
         default:
           return null;
       }
