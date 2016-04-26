@@ -173,7 +173,16 @@ class AccountsController < ApplicationController
           flash[:notice] = t("Your custom theme has been successfully applied.")
         end
         return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
-        js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
+        resources_data = []
+        if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links]
+          acct[:settings][:resources_links].each{|key, value|
+            data = {url:value, name: key}
+            resources_data.push(data)
+          }
+        end
+        js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json),
+               :RESOURCES => resources_data
+        )
         load_course_right_side
         @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses,
                                              :states => @states, :item_type => @item_type, :date_type => @date_type,
