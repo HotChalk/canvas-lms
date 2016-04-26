@@ -1551,7 +1551,7 @@ class CoursesController < ApplicationController
       if !includes.member?("all_courses")
         scope = scope.not_deleted
       end
-      @course = api_find(scope, params[:id])
+      @course = api_find(scope, params[:id], account: @account)
 
       if authorized_action(@course, @current_user, :read)
         enrollments = @course.current_enrollments.where(:user_id => @current_user).to_a
