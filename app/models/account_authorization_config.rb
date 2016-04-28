@@ -52,7 +52,7 @@ class AccountAuthorizationConfig < ActiveRecord::Base
     case type_name
     when 'cas', 'ldap', 'saml', 'hmac'
       const_get(type_name.upcase)
-    when 'facebook', 'google', 'twitter'
+    when 'clever', 'facebook', 'google', 'microsoft', 'twitter'
       const_get(type_name.classify)
     when 'canvas'
       Canvas
@@ -88,7 +88,7 @@ class AccountAuthorizationConfig < ActiveRecord::Base
   has_many :pseudonyms, foreign_key: :authentication_provider_id
   acts_as_list scope: { account: self, workflow_state: [nil, 'active'] }
 
-  VALID_AUTH_TYPES = %w[canvas cas facebook github google hmac ldap linkedin openid_connect saml twitter].freeze
+  VALID_AUTH_TYPES = %w[canvas cas clever facebook github google hmac ldap linkedin microsoft openid_connect saml twitter].freeze
   validates_inclusion_of :auth_type, in: VALID_AUTH_TYPES, message: "invalid auth_type, must be one of #{VALID_AUTH_TYPES.join(',')}"
   validates_presence_of :account_id
 
@@ -166,6 +166,12 @@ class AccountAuthorizationConfig < ActiveRecord::Base
     uncached do
       pseudonyms.active.by_unique_id(unique_id).first!
     end
+  end
+
+  protected
+
+  def statsd_prefix
+    "auth.account_#{Shard.global_id_for(account_id)}.config_#{self.global_id}"
   end
 
   private

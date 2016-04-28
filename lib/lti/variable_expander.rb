@@ -95,6 +95,10 @@ module Lti
     register_expansion 'Canvas.api.baseUrl', [],
                        -> { "#{@request.scheme}://#{HostUrl.context_host(@root_account, @request.host)}" }
 
+    register_expansion 'Canvas.api.membershipServiceUrl', [],
+                       -> { @controller.course_membership_service_url(@context) },
+                       COURSE_GUARD
+
     register_expansion 'Canvas.account.id', [],
                        -> { lti_helper.account.id }
 
@@ -234,6 +238,10 @@ module Lti
 
     register_expansion 'Canvas.user.sisSourceId', [],
                        -> { sis_pseudonym.sis_user_id },
+                       PSEUDONYM_GUARD
+
+    register_expansion 'Canvas.user.sisIntegrationId', [],
+                       -> { sis_pseudonym.integration_id },
                        PSEUDONYM_GUARD
 
     register_expansion 'Person.sourcedId', [],

@@ -25,7 +25,6 @@ define [
   # http://emberjs.com/api/classes/Ember.ArrayController.html
   # http://emberjs.com/api/classes/Ember.ObjectController.html
 
-
   studentsUniqByEnrollments = (args...)->
     hiddenNameCounter = 1
     options =
@@ -160,9 +159,8 @@ define [
       whitelist                   = ['online_upload','online_text_entry', 'online_url']
       submissionTypes             = @get('selectedAssignment.submission_types')
       submissionTypesOnWhitelist  = _.intersection(submissionTypes, whitelist)
-      hasWhitelistedSubmissions   = submissionTypesOnWhitelist.length == submissionTypes.length
 
-      hasSubmittedSubmissions and hasWhitelistedSubmissions
+      hasSubmittedSubmissions and submissionTypesOnWhitelist != []
     ).property('selectedAssignment')
 
     hideStudentNames: false
@@ -307,7 +305,7 @@ define [
             set(submissionData.submission, 'drop', submissionData.drop)
         result = result[finalOrCurrent]
 
-        percent = round (result.score / result.possible * 100), 1
+        percent = round (result.score / result.possible * 100), 2
         percent = 0 if isNaN(percent)
         setProperties student,
           total_grade: result
@@ -814,9 +812,9 @@ define [
     fetchCorrectEnrollments: (->
       return if (@get('enrollments.isLoading'))
       if @get('showConcludedEnrollments')
-        url = ENV.GRADEBOOK_OPTIONS.students_url_with_concluded_enrollments
+        url = ENV.GRADEBOOK_OPTIONS.enrollments_with_concluded_url
       else
-        url = ENV.GRADEBOOK_OPTIONS.students_url
+        url = ENV.GRADEBOOK_OPTIONS.enrollments_url
 
       enrollments = @get('enrollments')
       enrollments.clear()

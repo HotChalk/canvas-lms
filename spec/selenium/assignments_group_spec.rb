@@ -1,6 +1,27 @@
 require File.expand_path(File.dirname(__FILE__) + '/common')
 require File.expand_path(File.dirname(__FILE__) + '/helpers/assignments_common')
 
+describe "assignment group that can't manage a course" do
+  include_context "in-process server selenium tests"
+  include AssignmentsCommon
+
+  it "does not dipsplay the manage cog menu" do
+    @domain_root_account = Account.default
+    course
+    account_admin_user_with_role_changes(:role_changes => {:manage_courses => false})
+    user_session(@user)
+    @course.require_assignment_group
+    @assignment_group = @course.assignment_groups.first
+    @course.assignments.create(name: "test", assignment_group: @assignment_group)
+    get "/courses/#{@course.id}/assignments"
+
+    cog = ff("#assignmentSettingsCog")[0]
+    wait_for_ajaximations
+
+    expect(cog).to be_nil
+  end
+end
+
 describe "assignment groups" do
   include_context "in-process server selenium tests"
   include AssignmentsCommon
@@ -341,4 +362,18 @@ describe "assignment groups" do
     end
   end
 
+  it "Should be able to delete assignments when deleting assignment Groups", priority: "2", test_id: 56007 do
+    group0 = @course.assignment_groups.create!(name: "Guybrush Group")
+    assignment = @course.assignments.create!(title: "Fine Leather Jacket", assignment_group: group0,)
+    get "/courses/#{@course.id}/assignments"
+    expect(f('#ag-list')).to include_text(assignment.name)
+
+    f("#ag_#{group0.id}_manage_link").click
+
+    f("#assignment_group_#{group0.id} .delete_group").click
+    wait_for_ajaximations
+    fj('.delete_group:visible').click
+    wait_for_ajaximations
+    expect(f('#ag-list')).not_to include_text(assignment.name)
+  end
 end

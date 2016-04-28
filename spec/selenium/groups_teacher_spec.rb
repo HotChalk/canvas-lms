@@ -179,9 +179,12 @@ describe "new groups" do
       ff(".group-name")[0].click
       ff(".group-user-actions")[0].click
       fln("Set as Leader").click
+      wait_for_ajaximations
       f(".group-user-actions[data-user-id=\"#{@students[0].id}\"]").click
+      wait_for_ajaximations
       f(".ui-menu-item .edit-group-assignment").click
-      f(".single-select option").click
+      wait_for_ajaximations
+      f("option").click
       f(".set-group").click
       wait_for_ajaximations
       f(".group[data-id=\"#{@testgroup[1].id}\"] .toggle-group").click
@@ -289,6 +292,7 @@ describe "new groups" do
     end
 
     it 'moves non-leader', priority: "1", test_id: 96024 do
+      skip_if_chrome('research')
       group_test_setup(4,1,2)
       add_user_to_group(@students[0], @testgroup.first, true)
       2.times do |n|

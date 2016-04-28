@@ -6,7 +6,6 @@ describe "help dialog" do
   context "no user logged in" do
     it "should work with no logged in user" do
       Setting.set('show_feedback_link', 'true')
-      destroy_session(true)
       get("/login")
       f('#footer .help_dialog_trigger').click
       wait_for_ajaximations
@@ -15,7 +14,6 @@ describe "help dialog" do
 
     it "should no longer show a browser warning for IE" do
       Setting.set('show_feedback_link', 'true')
-      destroy_session(true)
       get("/login")
       driver.execute_script("window.INST.browser = {ie: true, version: 8}")
       f('#footer .help_dialog_trigger').click
@@ -69,6 +67,7 @@ describe "help dialog" do
 
     it "should allow sending the teacher a message" do
       Setting.set('show_feedback_link', 'true')
+      course_with_ta(course: @course)
       get "/courses/#{@course.id}"
       expect(element_exists("#help-dialog")).to be_falsey
       trigger = f('.help_dialog_trigger')
@@ -87,6 +86,7 @@ describe "help dialog" do
       expect(feedback_form).not_to be_displayed
       cm = ConversationMessage.last
       expect(cm.recipients).to eq @course.instructors
+      expect(cm.recipients.count).to eq 2
       expect(cm.body).to match(/test message/)
     end
 

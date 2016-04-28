@@ -150,10 +150,10 @@ class AssessmentItemConverter
         @question[:question_bank_id] = bank
       end
       if score =  get_node_att(meta, 'instructureField[name=max_score]', 'value')
-        @question[:points_possible] = score.to_f
+        @question[:points_possible] = [score.to_f, 0.0].max
       end
       if score = get_node_att(meta, 'instructureField[name=points_possible]', 'value')
-        @question[:points_possible] = score.to_f
+        @question[:points_possible] = [score.to_f, 0.0].max
       end
       if ref = get_node_att(meta, 'instructureField[name=assessment_question_identifierref]', 'value')
         @question[:assessment_question_migration_id] = ref
@@ -219,7 +219,7 @@ class AssessmentItemConverter
         end
       elsif id =~ /solution/i
         @question[:example_solution] = clear_html(f.text.strip.gsub(/\s+/, " "))
-      elsif id =~ /general|all/i
+      elsif id =~ /general_|_all/i
         extract_feedback!(@question, :neutral_comments, f)
       elsif id =~ /feedback_(\d*)_fb/i
         if answer = @question[:answers].find{|a|a[:migration_id]== "RESPONSE_#{$1}"}
@@ -462,7 +462,7 @@ class AssessmentItemConverter
     end
     # Sometimes individual answers are assigned general feedback, don't return
     # the identifier if that's the case
-    id =~ /general|all|wrong|incorrect|correct|(_IC$)|(_C$)/i ? nil : id
+    id =~ /general_|_all|wrong|incorrect|correct|(_IC$)|(_C$)/i ? nil : id
   end
 
 end

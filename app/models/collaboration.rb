@@ -23,18 +23,10 @@ class Collaboration < ActiveRecord::Base
   attr_accessible :user, :title, :description
   attr_readonly   :collaboration_type
 
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Group']
+  belongs_to :context, polymorphic: [:course, :group]
   belongs_to :user
   has_many :collaborators, :dependent => :destroy
   has_many :users, :through => :collaborators
-
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :collaboration_type, :document_id, :user_id, :context_id, :context_type, :url, :uuid, :data,
-    :created_at, :updated_at, :description, :title, :workflow_state, :deleted_at, :context_code, :type
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:context, :user, :collaborators, :users]
 
   before_destroy { |record| Collaborator.where(:collaboration_id => record).destroy_all }
 
@@ -157,17 +149,29 @@ class Collaboration < ActiveRecord::Base
   # Returns an array of type hashes w/ 'name' and 'type' keys.
   def self.collaboration_types
     Canvas::Plugin.all_for_tag(:collaborations).select(&:enabled?).map do |plugin|
-      HashWithIndifferentAccess.new({ 'name' => plugin.name, 'type' => plugin.id })
+      # google_drive is really a google_docs_collaboration
+      # eventually this will go away. baby steps...
+      if plugin.id == 'google_drive'
+        type = 'google_docs'
+        name = 'Google Docs'
+      else
+        type = plugin.id
+        name = plugin.name
+      end
+
+      HashWithIndifferentAccess.new({ 'name' => name, 'type' => type })
     end
   end
 
   # Public: Determine if any collaborations plugin is enabled.
   #
   # Returns true/false.
-  def self.any_collaborations_configured?
-    collaboration_types.any? do |type|
+  def self.any_collaborations_configured?(context)
+    plugin_collabs = collaboration_types.any? do |type|
       collaboration_class(type['type'].titleize.gsub(/\s/, '')).present?
     end
+    external_tool_collabs = ContextExternalTool.all_tools_for(context, placements: :collaboration).exists?
+    plugin_collabs || external_tool_collabs
   end
 
   # Public: Declare excluded serialization fields.
@@ -226,7 +230,7 @@ class Collaboration < ActiveRecord::Base
   #
   # Returns a title string.
   def title
-    read_attribute(:title) || self.parse_data.title
+    read_attribute(:title) || self.parse_data["title"]
   rescue NoMethodError
     t('#collaboration.default_title', 'Unnamed Collaboration')
   end

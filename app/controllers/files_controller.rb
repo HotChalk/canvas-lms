@@ -103,6 +103,7 @@ class FilesController < ApplicationController
   before_filter :require_user, :only => :create_pending
   before_filter :require_context, :except => [:assessment_question_show,:image_thumbnail,:show_thumbnail,:preflight,:create_pending,:s3_success,:show,:api_create,:api_create_success,:api_show,:api_index,:destroy,:api_update,:api_file_status,:public_url]
   before_filter :check_file_access_flags, :only => [:show_relative, :show]
+  before_filter :open_cors, only: [:api_create, :api_create_success, :show_thumbnail]
   prepend_around_filter :load_pseudonym_from_policy, :only => :create
   skip_before_filter :verify_authenticity_token, :only => [:api_create, :create]
   before_filter :verify_api_id, only: [:api_show, :api_create_success, :api_file_status, :api_update, :destroy]
@@ -119,7 +120,7 @@ class FilesController < ApplicationController
 
   def quota
     get_quota
-    if authorized_action(@context.attachments.scope.new, @current_user, :create)
+    if authorized_action(@context.attachments.temp_record, @current_user, :create)
       h = ActionView::Base.new
       h.extend ActionView::Helpers::NumberHelper
       result = {
@@ -309,7 +310,7 @@ class FilesController < ApplicationController
   end
 
   def images
-    if authorized_action(@context.attachments.scope.new, @current_user, :read)
+    if authorized_action(@context.attachments.temp_record, @current_user, :read)
       if Folder.root_folders(@context).first.grants_right?(@current_user, session, :read_contents)
         if @context.grants_right?(@current_user, session, :manage_files)
           @images = @context.active_images.paginate :page => params[:page]
@@ -390,7 +391,7 @@ class FilesController < ApplicationController
     show
   end
 
-  # @API Get quota information
+  # @API Get public inline preview url
   # Determine the URL that should be used for inline preview of the file.
   #
   # @example_request
@@ -481,7 +482,8 @@ class FilesController < ApplicationController
 
     verifier_checker = Attachments::Verification.new(@attachment)
     if (params[:verifier] && verifier_checker.valid_verifier_for_permission?(params[:verifier], :read, session)) ||
-        @attachment.attachment_associations.where(:context_type => 'Submission').any? { |aa| aa.context.grants_right?(@current_user, session, :read) } ||
+        @attachment.attachment_associations.where(:context_type => 'Submission').
+          any? { |aa| aa.context && aa.context.grants_right?(@current_user, session, :read) } ||
         authorized_action(@attachment, @current_user, :read)
 
       @attachment.ensure_media_object
@@ -725,7 +727,7 @@ class FilesController < ApplicationController
       @context = @group || @current_user
       @check_quota = false
     elsif @context && intent == 'attach_discussion_file'
-      permission_object = @context.discussion_topics.scope.new
+      permission_object = @context.discussion_topics.temp_record
       permission = :attach
     elsif @context && intent == 'message'
       permission_object = @context
@@ -891,18 +893,24 @@ class FilesController < ApplicationController
           end
         end
         if params[:attachment][:uploaded_data]
-          success = @attachment.update_attributes(params[:attachment])
-          @attachment.errors.add(:base, t('errors.server_error', "Upload failed, server error, please try again.")) unless success
+          if Attachment.over_quota?(@context, params[:attachment][:uploaded_data].size)
+            @attachment.errors.add(:base, t('Upload failed, quota exceeded'))
+          else
+            success = @attachment.update_attributes(params[:attachment])
+            @attachment.errors.add(:base, t('errors.server_error', "Upload failed, server error, please try again.")) unless success
+          end
         else
           @attachment.errors.add(:base, t('errors.missing_field', "Upload failed, expected form field missing"))
         end
-        deleted_attachments = @attachment.handle_duplicates(duplicate_handling)
+        deleted_attachments = @attachment.handle_duplicates(duplicate_handling) if success
         unless @attachment.downloadable?
           success = false
-          if (params[:attachment][:uploaded_data].size == 0 rescue false)
-            @attachment.errors.add(:base, t('errors.empty_file', "That file is empty.  Please upload a different file."))
-          else
-            @attachment.errors.add(:base, t('errors.upload_failed', "Upload failed, please try again."))
+          unless @attachment.errors.any?
+            if (params[:attachment][:uploaded_data].size == 0 rescue false)
+              @attachment.errors.add(:base, t('errors.empty_file', "That file is empty.  Please upload a different file."))
+            else
+              @attachment.errors.add(:base, t('errors.upload_failed', "Upload failed, please try again."))
+            end
           end
           unless @attachment.new_record?
             @attachment.destroy rescue @attachment.delete
@@ -919,8 +927,8 @@ class FilesController < ApplicationController
           end
         else
           format.html { render :new }
-          format.json { render :json => @attachment.errors }
-          format.text { render :json => @attachment.errors }
+          format.json { render :json => @attachment.errors, :status => :bad_request }
+          format.text { render :json => @attachment.errors, :status => :bad_request }
         end
       end
     end
@@ -1102,6 +1110,14 @@ class FilesController < ApplicationController
   end
 
   private
+
+  def open_cors
+    headers['Access-Control-Allow-Origin'] = '*'
+    headers['Access-Control-Allow-Methods'] = 'POST, PUT, DELETE, GET, OPTIONS'
+    headers['Access-Control-Request-Method'] = '*'
+    headers['Access-Control-Allow-Headers'] = 'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  end
+
   def render_attachment_json(attachment, deleted_attachments, folder = attachment.folder)
     json = {
       :attachment => attachment.as_json(

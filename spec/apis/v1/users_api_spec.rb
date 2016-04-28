@@ -52,6 +52,7 @@ describe Api::V1::User do
   before :each do
     @test_api = TestUserApi.new
     @test_api.services_enabled = []
+    @test_api.request.protocol = 'http'
   end
 
   context 'user_json' do
@@ -65,6 +66,13 @@ describe Api::V1::User do
       expect(@test_api.user_json(@student, @admin, {}, ['avatar_url'], @course)["avatar_url"]).to match(
         %r{^https://secure.gravatar.com/avatar/#{Digest::MD5.hexdigest(@student.email)}.*#{CGI.escape("/images/messages/avatar-50.png")}}
       )
+    end
+
+    it 'should support optionally including group_ids' do
+      @group = @course.groups.create!(:name => "My Group")
+      @group.add_user(@student, 'accepted', true)
+      expect(@test_api.user_json(@student, @admin, {}, [], @course).has_key?("group_ids")).to be_falsey
+      expect(@test_api.user_json(@student, @admin, {}, ['group_ids'], @course)["group_ids"]).to eq([@group.id])
     end
 
     it 'should use the correct SIS pseudonym' do
@@ -477,6 +485,19 @@ describe "Users API", type: :request do
         expect((user.keys & expected_keys).sort).to eq expected_keys.sort
         expect(users.map(&:id)).to include(user['id'])
       end
+    end
+
+    it "includes last login info" do
+      @account = Account.default
+      u = User.create!(name: 'test user')
+      p = u.pseudonyms.create!(account: @account, unique_id: 'user')
+      p.current_login_at = Time.now.utc
+      p.save!
+
+      json = api_call(:get, "/api/v1/accounts/#{@account.id}/users", { :controller => 'users', :action => "index", :format => 'json', :account_id => @account.id.to_param }, { include: ['last_login'], search_term: u.id.to_s })
+
+      expect(json.count).to eq 1
+      expect(json.first['last_login']).to eq p.current_login_at.iso8601
     end
   end
 

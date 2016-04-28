@@ -248,7 +248,7 @@ describe Submission do
 
     context "Submission Graded" do
       before :once do
-        Notification.create(:name => 'Submission Graded')
+        Notification.create(:name => 'Submission Graded', :category => 'TestImmediately')
       end
 
       it "should create a message when the assignment has been graded and published" do
@@ -259,6 +259,13 @@ describe Submission do
         expect(@submission.assignment.state).to eql(:published)
         @submission.grade_it!
         expect(@submission.messages_sent).to be_include('Submission Graded')
+      end
+
+      it "notifies observers" do
+        submission_spec_model
+        course_with_observer(course: @course, associated_user_id: @user.id, active_all: true, active_cc: true)
+        @submission.grade_it!
+        expect(@observer.email_channel.messages.length).to eq 1
       end
 
       it "should not create a message when a muted assignment has been graded and published" do
@@ -438,6 +445,55 @@ describe Submission do
   end
 
   context "turnitin" do
+
+    context "Turnitin LTI" do
+      let(:lti_tii_data) do
+        {
+            "attachment_42" => {
+                :status => "error",
+                :outcome_response => {
+                    "outcomes_tool_placement_url" => "https://api.turnitin.com/api/lti/1p0/invalid?lang=en_us",
+                    "paperid" => "607954245",
+                    "lis_result_sourcedid" => "10-5-42-8-invalid"
+                },
+                :public_error_message => "Turnitin has not returned a score after 11 attempts to retrieve one."
+            }
+        }
+      end
+
+      let(:submission) { Submission.new }
+
+      describe "#turnitinable_by_lti?" do
+        it 'returns true if there is an associated lti tool and data stored' do
+          submission.turnitin_data = lti_tii_data
+          expect(submission.turnitinable_by_lti?).to be true
+        end
+      end
+
+      describe "#resubmit_lti_tii" do
+        let(:tool) do
+          @course.context_external_tools.create(
+              name: "a",
+              consumer_key: '12345',
+              shared_secret: 'secret',
+              url: 'http://example.com/launch')
+        end
+
+        it 'resubmits errored tii attachments' do
+          a = @course.assignments.create!(title: "test",
+                                          submission_types: 'external_tool',
+                                          external_tool_tag_attributes: {url: tool.url})
+          submission.assignment = a
+          submission.turnitin_data = lti_tii_data
+          submission.user = @user
+          outcome_response_processor_mock = mock('outcome_response_processor')
+          outcome_response_processor_mock.expects(:resubmit).with(submission, "attachment_42")
+          Turnitin::OutcomeResponseProcessor.stubs(:new).returns(outcome_response_processor_mock)
+          submission.retrieve_lti_tii_score
+        end
+      end
+    end
+
     context "submission" do
       def init_turnitin_api
         @turnitin_api = Turnitin::Client.new('test_account', 'sekret')
@@ -1174,6 +1230,45 @@ describe Submission do
       expect(a2.crocodoc_document).to eq a2.crocodoc_document
     end
 
+    context "canvadocs_submissions records" do
+      before(:once) do
+        @student1, @student2 = n_students_in_course(2)
+        @attachment = crocodocable_attachment_model(context: @student1)
+        @assignment = @course.assignments.create! name: "A1",
+          submission_types: "online_upload"
+      end
+
+      before do
+        Canvadocs.stubs(:enabled?).returns true
+        Canvadocs.stubs(:annotations_supported?).returns true
+        Canvadocs.stubs(:config).returns {}
+      end
+
+      it "ties submissions to canvadocs" do
+        s = @assignment.submit_homework(@student1,
+                                        submission_type: "online_upload",
+                                        attachments: [@attachment])
+        expect(s.canvadocs).to eq [@attachment.canvadoc]
+      end
+
+      it "create records for each group submission" do
+        gc = @course.group_categories.create! name: "Project Groups"
+        group = gc.groups.create! name: "A Team", context: @course
+        group.add_user(@student1)
+        group.add_user(@student2)
+
+        @assignment.update_attribute :group_category, gc
+        @assignment.submit_homework(@student1,
+                                    submission_type: "online_upload",
+                                    attachments: [@attachment])
+
+        [@student1, @student2].each do |student|
+          submission = @assignment.submission_for_student(student)
+          expect(submission.canvadocs).to eq [@attachment.canvadoc]
+        end
+      end
+    end
+
     it "doesn't create jobs for non-previewable documents" do
       job_scope = Delayed::Job.where(strand: "canvadocs")
       orig_job_count = job_scope.count
@@ -1355,6 +1450,69 @@ describe Submission do
                                                                    moderator.reload.crocodoc_id!])
           end
         end
+      end
+    end
+  end
+
+  describe '#rubric_association_with_assessing_user_id' do
+    before :once do
+      submission_model assignment: @assignment, user: @student
+      rubric_association_model association_object: @assignment, purpose: 'grading'
+    end
+    subject { @submission.rubric_association_with_assessing_user_id }
+
+    it 'sets assessing_user_id to submission.user_id' do
+      expect(subject.assessing_user_id).to eq @submission.user_id
+    end
+  end
+
+  describe '#visible_rubric_assessments_for' do
+    before :once do
+      submission_model assignment: @assignment, user: @student
+      @viewing_user = @teacher
+    end
+    subject { @submission.visible_rubric_assessments_for(@viewing_user) }
+
+    it 'returns empty if assignment is muted?' do
+      @assignment.update_attribute(:muted, true)
+      expect(@assignment.muted?).to be_truthy, 'precondition'
+      expect(subject).to be_empty
+    end
+
+    it 'returns empty if viewing user cannot :read_grade' do
+      student_in_course(active_all: true)
+      @viewing_user = @student
+      expect(@submission.grants_right?(@viewing_user, :read_grade)).to be_falsey, 'precondition'
+      expect(subject).to be_empty
+    end
+
+    context 'with rubric_assessments' do
+      before :once do
+        @assessed_user = @student
+        rubric_association_model association_object: @assignment, purpose: 'grading'
+        student_in_course(active_all: true)
+        [ @teacher, @student ].each do |user|
+          @rubric_association.rubric_assessments.create!({
+            artifact: @submission,
+            assessment_type: 'grading',
+            assessor: user,
+            rubric: @rubric,
+            user: @assessed_user
+          })
+        end
+        @teacher_assessment = @submission.rubric_assessments.where(assessor_id: @teacher).first
+        @student_assessment = @submission.rubric_assessments.where(assessor_id: @student).first
+      end
+      subject { @submission.visible_rubric_assessments_for(@viewing_user) }
+
+      it 'returns rubric_assessments for teacher' do
+        expect(subject).to include(@teacher_assessment)
+      end
+
+      it 'returns only student rubric assessment' do
+        @viewing_user = @student
+        expect(subject).not_to include(@teacher_assessment)
+        expect(subject).to include(@student_assessment)
       end
     end
   end

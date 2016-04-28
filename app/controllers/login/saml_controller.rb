@@ -19,7 +19,7 @@
 class Login::SamlController < ApplicationController
   include Login::Shared
 
-  protect_from_forgery except: [:create, :destroy]
+  protect_from_forgery except: [:create, :destroy], with: :exception
 
   before_filter :forbid_on_files_domain
   before_filter :run_login_hooks, :check_sa_delegated_cookie, only: [:new, :create]
@@ -27,7 +27,6 @@ class Login::SamlController < ApplicationController
 
   def new
     load_root_account(params[:account_id])
-    reset_session_for_login
     auth_redirect(aac)
   end
 
@@ -113,14 +112,12 @@ class Login::SamlController < ApplicationController
           return
         end
 
+        reset_session_for_login
+
         pseudonym = @domain_root_account.pseudonyms.for_auth_configuration(unique_id, aac)
         pseudonym ||= aac.provision_user(unique_id) if aac.jit_provisioning?
 
         if pseudonym
-          # We have to reset the session again here -- it's possible to do a
-          # SAML login without hitting the #new action, depending on the
-          # school's setup.
-          reset_session_for_login
           # Successful login and we have a user
           @domain_root_account.pseudonym_sessions.create!(pseudonym, false)
           user = pseudonym.login_assertions_for_user
@@ -247,36 +244,37 @@ class Login::SamlController < ApplicationController
     else
       increment_saml_stat("logout_request_received")
       saml_request = Onelogin::Saml::LogoutRequest.parse(params[:SAMLRequest])
-      if (aac = @domain_root_account.authentication_providers.active.where(idp_entity_id: saml_request.issuer).first)
-        settings = aac.saml_settings(request.host_with_port)
-        saml_request.process(settings)
+      aac = @domain_root_account.authentication_providers.active.where(idp_entity_id: saml_request.issuer).first
+      return render status: :bad_request, text: "Could not find SAML Entity" unless aac
 
-        if aac.debugging? && aac.debug_get(:logged_in_user_id) == @current_user.id
-          aac.debug_set(:idp_logout_request_encoded, params[:SAMLRequest])
-          aac.debug_set(:idp_logout_request_xml_encrypted, saml_request.request_xml)
-          aac.debug_set(:idp_logout_request_name_id, saml_request.name_id)
-          aac.debug_set(:idp_logout_request_session_index, saml_request.session_index)
-          aac.debug_set(:idp_logout_request_destination, saml_request.destination)
-          aac.debug_set(:debugging, t('debug.logout_request_redirect_from_idp', "Received LogoutRequest from IdP"))
-        end
+      settings = aac.saml_settings(request.host_with_port)
+      saml_request.process(settings)
 
-        settings.relay_state = params[:RelayState]
-        saml_response = Onelogin::Saml::LogoutResponse.generate(saml_request.id, settings)
-
-        # Seperate the debugging out because we want it to log the request even if the response dies.
-        if aac.debugging? && aac.debug_get(:logged_in_user_id) == @current_user.id
-          aac.debug_set(:idp_logout_request_encoded, saml_response.base64_assertion)
-          aac.debug_set(:idp_logout_response_xml_encrypted, saml_response.xml)
-          aac.debug_set(:idp_logout_response_status_code, saml_response.status_code)
-          aac.debug_set(:idp_logout_response_status_message, saml_response.status_message)
-          aac.debug_set(:idp_logout_response_destination, saml_response.destination)
-          aac.debug_set(:idp_logout_response_in_response_to, saml_response.in_response_to)
-          aac.debug_set(:debugging, t('debug.logout_response_redirect_to_idp', "Sending LogoutResponse to IdP"))
-        end
-
-        logout_current_user
-        redirect_to(saml_response.forward_url)
+      if aac.debugging? && aac.debug_get(:logged_in_user_id) == @current_user.id
+        aac.debug_set(:idp_logout_request_encoded, params[:SAMLRequest])
+        aac.debug_set(:idp_logout_request_xml_encrypted, saml_request.request_xml)
+        aac.debug_set(:idp_logout_request_name_id, saml_request.name_id)
+        aac.debug_set(:idp_logout_request_session_index, saml_request.session_index)
+        aac.debug_set(:idp_logout_request_destination, saml_request.destination)
+        aac.debug_set(:debugging, t('debug.logout_request_redirect_from_idp', "Received LogoutRequest from IdP"))
       end
+
+      settings.relay_state = params[:RelayState]
+      saml_response = Onelogin::Saml::LogoutResponse.generate(saml_request.id, settings)
+
+      # Seperate the debugging out because we want it to log the request even if the response dies.
+      if aac.debugging? && aac.debug_get(:logged_in_user_id) == @current_user.id
+        aac.debug_set(:idp_logout_request_encoded, saml_response.base64_assertion)
+        aac.debug_set(:idp_logout_response_xml_encrypted, saml_response.xml)
+        aac.debug_set(:idp_logout_response_status_code, saml_response.status_code)
+        aac.debug_set(:idp_logout_response_status_message, saml_response.status_message)
+        aac.debug_set(:idp_logout_response_destination, saml_response.destination)
+        aac.debug_set(:idp_logout_response_in_response_to, saml_response.in_response_to)
+        aac.debug_set(:debugging, t('debug.logout_response_redirect_to_idp', "Sending LogoutResponse to IdP"))
+      end
+
+      logout_current_user
+      redirect_to(saml_response.forward_url)
     end
   end
 
@@ -316,9 +314,7 @@ class Login::SamlController < ApplicationController
     observee_unique_id = registration_data[:observee][:unique_id]
     observee = @domain_root_account.pseudonyms.by_unique_id(observee_unique_id).first.user
     unless @current_user.user_observees.where(user_id: observee).exists?
-      @current_user.user_observees.create! do |uo|
-        uo.user_id = observee.id
-      end
+      @current_user.user_observees.create_or_restore(user_id: observee)
       @current_user.touch
     end
   end
@@ -355,7 +351,7 @@ class Login::SamlController < ApplicationController
 
     # set the new user (observer) to observe the target user (observee)
     observee = @domain_root_account.pseudonyms.active.by_unique_id(observee_unique_id).first.user
-    user.user_observees << user.user_observees.create!{ |uo| uo.user_id = observee.id }
+    user.user_observees << user.user_observees.create_or_restore(user_id: observee)
 
     notify_policy = Users::CreationNotifyPolicy.new(false, unique_id: observer_unique_id)
     notify_policy.dispatch!(user, pseudonym, cc)

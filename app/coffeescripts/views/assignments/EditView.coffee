@@ -4,7 +4,7 @@ define [
   'compiled/views/ValidatedFormView'
   'underscore'
   'jquery'
-  'wikiSidebar'
+  'jsx/shared/rce/RichContentEditor'
   'jst/assignments/EditView'
   'compiled/userSettings'
   'compiled/models/TurnitinSettings'
@@ -15,14 +15,14 @@ define [
   'compiled/views/assignments/GroupCategorySelector'
   'compiled/jquery/toggleAccessibly'
   'compiled/views/editor/KeyboardShortcuts'
-  'compiled/tinymce'
-  'tinymce.editor_box'
   'jqueryui/dialog'
   'jquery.toJSON'
   'compiled/jquery.rails_flash_notifications'
-], (INST, I18n, ValidatedFormView, _, $, wikiSidebar, template,
+], (INST, I18n, ValidatedFormView, _, $, RichContentEditor, template,
 userSettings, TurnitinSettings, TurnitinSettingsDialog, preventDefault, MissingDateDialog,
 AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardShortcuts) ->
+
+  RichContentEditor.preloadRemoteModule()
 
   class EditView extends ValidatedFormView
 
@@ -94,8 +94,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       events["click #{ADVANCED_TURNITIN_SETTINGS}"] = 'showTurnitinDialog'
       events["change #{TURNITIN_ENABLED}"] = 'toggleAdvancedTurnitinSettings'
       events["change #{ALLOW_FILE_UPLOADS}"] = 'toggleRestrictFileUploads'
-      events["click #{EXTERNAL_TOOLS_URL}"] = 'showExternalToolsDialog'
-      events["click #{EXTERNAL_TOOLS_URL}_screenreader_button"] = 'showExternalToolsDialogForScreenreader'
+      events["click #{EXTERNAL_TOOLS_URL}_find"] = 'showExternalToolsDialog'
       events["change #assignment_points_possible"] = 'handlePointsChange'
       events["change #{PEER_REVIEWS_BOX}"] = 'handleModeratedGradingChange'
       events["change #{GROUP_CATEGORY_BOX}"] = 'handleModeratedGradingChange'
@@ -197,10 +196,6 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
           @$externalToolsUrl.val(data['item[url]'])
           @$externalToolsNewTab.prop('checked', data['item[new_tab]'] == '1')
 
-    showExternalToolsDialogForScreenreader: (ev) =>
-      ev.preventDefault()
-      @showExternalToolsDialog()
-
     toggleRestrictFileUploads: =>
       @$restrictFileUploadsOptions.toggleAccessibly @$allowFileUploads.prop('checked')
 
@@ -228,7 +223,6 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       @$groupCategoryBox = $("#{GROUP_CATEGORY_BOX}")
 
       @_attachEditorToDescription()
-      $ @_initializeWikiSidebar
       @addTinyMCEKeyboardShortcuts()
       @handleModeratedGradingChange()
       if ENV?.HAS_GRADED_SUBMISSIONS
@@ -242,22 +236,18 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
         postToSISEnabled: ENV?.POST_TO_SIS or false
         isLargeRoster: ENV?.IS_LARGE_ROSTER or false
         submissionTypesFrozen: _.include(data.frozenAttributes, 'submission_types')
-        differentiatedAssignmentsEnabled: @assignment.differentiatedAssignmentsEnabled()
+
+    # separated out so we can easily stub it
+    scrollSidebar: $.scrollSidebar
 
     _attachEditorToDescription: =>
-      @$description.editorBox()
+      RichContentEditor.initSidebar(show: @scrollSidebar)
+      RichContentEditor.loadNewEditor(@$description, { focus: true })
       $('.rte_switch_views_link').click (e) =>
         e.preventDefault()
-        @$description.editorBox 'toggle'
+        RichContentEditor.callOnRCE(@$description, 'toggle')
         # hide the clicked link, and show the other toggle link.
         $(e.currentTarget).siblings('.rte_switch_views_link').andSelf().toggle()
-
-    _initializeWikiSidebar: =>
-      # $("#sidebar_content").hide()
-      unless wikiSidebar.inited
-        wikiSidebar.init()
-        $.scrollSidebar()
-      wikiSidebar.attachToEditor(@$description).show()
 
     addTinyMCEKeyboardShortcuts: =>
       keyboardShortcutsView = new RCEKeyboardShortcuts()
@@ -278,8 +268,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
       data.lock_at = defaultDates?.get('lock_at') or null
       data.unlock_at = defaultDates?.get('unlock_at') or null
       data.due_at = defaultDates?.get('due_at') or null
-      if ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
-        data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+      data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       data.published = true if @shouldPublish
       return data
@@ -295,7 +284,6 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
-          da_enabled: ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED
           success: (dateDialog) =>
             dateDialog.dialog('close').remove()
             ValidatedFormView::submit.call(this)

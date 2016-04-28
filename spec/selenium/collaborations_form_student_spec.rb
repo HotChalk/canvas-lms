@@ -16,7 +16,7 @@ describe "collaborations" do
     context "#{title} collaboration" do
       before(:each) do
         course_with_student_logged_in
-        set_up_google_docs
+        setup_google_drive
       end
 
       it 'should display the new collaboration form if there are no existing collaborations', priority: "1", test_id: 162354 do
@@ -75,8 +75,7 @@ describe "collaborations" do
 
         user_session(@student)
         get "/courses/#{@course.id}/collaborations"
-
-        fj("#groups-filter-btn-new:visible").click
+        move_to_click('#groups-filter-btn-new')
         wait_for_ajaximations
 
         expect(ffj('.available-groups:visible a').count).to eq 1

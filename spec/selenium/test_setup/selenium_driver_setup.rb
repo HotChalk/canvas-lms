@@ -1,6 +1,11 @@
 require "fileutils"
 
 module SeleniumDriverSetup
+  # Number of recent specs to show in failure pages
+  RECENT_SPEC_RUNS_LIMIT = 500
+  # Number of identical failures in a row before we abort this worker
+  RECENT_SPEC_FAILURE_LIMIT = 10
+
   def setup_selenium
 
     browser = $selenium_config[:browser].try(:to_sym) || :firefox
@@ -24,7 +29,7 @@ module SeleniumDriverSetup
 
     focus_viewport driver if run_headless
 
-    driver.manage.timeouts.implicit_wait = 3
+    driver.manage.timeouts.implicit_wait = 10
     driver.manage.timeouts.script_timeout = 60
 
     driver
@@ -98,7 +103,7 @@ module SeleniumDriverSetup
     begin
       tries ||= 3
       puts "Thread: provisioning selenium chrome ruby driver"
-      driver = Selenium::WebDriver.for :chrome
+      driver = Selenium::WebDriver.for :chrome, switches: %w[--disable-impl-side-painting]
     rescue StandardError => e
       puts "Thread #{THIS_ENV}\n try ##{tries}\nError attempting to start remote webdriver: #{e}"
       sleep 2
@@ -201,6 +206,24 @@ module SeleniumDriverSetup
     "http://#{$app_host_and_port}"
   end
 
+  def self.note_recent_spec_run(example, exception)
+    @recent_spec_runs ||= []
+    @recent_spec_runs << {
+      location: example.metadata[:location],
+      exception: exception,
+      pending: example.pending
+    }
+    @recent_spec_runs = @recent_spec_runs.last(RECENT_SPEC_RUNS_LIMIT)
+
+    if ENV["ABORT_ON_CONSISTENT_BADNESS"]
+      recent_errors = @recent_spec_runs.last(RECENT_SPEC_FAILURE_LIMIT).map { |run| run[:exception] && run[:exception].to_s }.compact
+      if recent_errors.size >= RECENT_SPEC_FAILURE_LIMIT && recent_errors.uniq.size == 1
+        $stderr.puts "ERROR: got the same failure #{RECENT_SPEC_FAILURE_LIMIT} times in a row, aborting"
+        RSpec.world.wants_to_quit = true
+      end
+    end
+  end
+
   def self.error_template
     @error_template ||= begin
       layout_path = Rails.root.join("spec/selenium/test_setup/selenium_error.html.erb")
@@ -208,9 +231,9 @@ module SeleniumDriverSetup
     end
   end
 
-  def record_errors(example)
+  def record_errors(example, exception, log_messages)
     js_errors = driver.execute_script("return window.JSErrorCollector_errors && window.JSErrorCollector_errors.pump()") || []
-    return unless js_errors.present? || example.exception
+    return unless js_errors.present? || exception
 
     # always send js errors to stdout, even if the spec passed. we have to
     # empty the JSErrorCollector anyway, so we might as well show it.
@@ -220,7 +243,7 @@ module SeleniumDriverSetup
       puts "  JS Error: #{error["errorMessage"]} (#{error["sourceName"]}:#{error["lineNumber"]})"
     end
 
-    return unless example.exception && ENV["CAPTURE_SCREENSHOTS"]
+    return unless exception && ENV["CAPTURE_SCREENSHOTS"]
 
     errors_path = Rails.root.join("log/seleniumfailures")
     FileUtils.mkdir_p(errors_path)
@@ -228,6 +251,10 @@ module SeleniumDriverSetup
     summary_name = meta[:location].sub(/\A[.\/]+/, "").gsub(/\//, ":")
     screenshot_name = summary_name + ".png"
     driver.save_screenshot(errors_path.join(screenshot_name))
+
+    recent_spec_runs = SeleniumDriverSetup.recent_spec_runs
+
+    log_message_formatter = EscapeCode::HtmlFormatter.new(log_messages.join("\n"))
 
     # make a nice little html file for jenkins
     File.open(errors_path.join(summary_name + ".html"), "w") do |file|
@@ -271,7 +298,10 @@ module SeleniumDriverSetup
     s.close() if s
   end
 
+  class ServerStartupError < RuntimeError; end
+
   def self.start_webserver(webserver)
+    attempts ||= 0
     setup_host_and_port
     case webserver
     when 'thin'
@@ -282,6 +312,11 @@ module SeleniumDriverSetup
       puts "no web server specified, defaulting to WEBrick"
       self.start_in_process_webrick_server
     end
+  rescue ServerStartupError
+    attempts += 1
+    retry if attempts <= 3
+    $stderr.puts "unable to start server, giving up :'("
+    exit! 1
   end
 
   def self.shutdown_webserver(server)
@@ -305,7 +340,10 @@ module SeleniumDriverSetup
       return nope unless allow_requests?
 
       # wrap request in a mutex so we can ensure it doesn't span spec
-      # boundaries (see clear_requests!)
+      # boundaries (see clear_requests!). we also use this mutex to
+      # synchronize db access (so both threads see stuff in the overall
+      # spec transaction, while ensuring savepoints in one don't mess
+      # up the other)
       result = request_mutex.synchronize { app.call(env) }
 
       # check if the spec just finished while we ran, and if so prevent
@@ -331,6 +369,8 @@ module SeleniumDriverSetup
   end
 
   class << self
+    attr_reader :recent_spec_runs
+
     def disallow_requests!
       # ensure the current in-flight request (if any, AJAX or otherwise)
       # finishes up its work, and prevent any subsequent requests before the
@@ -350,7 +390,7 @@ module SeleniumDriverSetup
     end
 
     def request_mutex
-      @request_mutex ||= Mutex.new
+      @request_mutex ||= Monitor.new
     end
   end
 

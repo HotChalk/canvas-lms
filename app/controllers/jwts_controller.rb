@@ -40,7 +40,8 @@ class JwtsController < ApplicationController
       )
       return false
     end
-    services_jwt = Canvas::Security::ServicesJwt.generate(@current_user.global_id)
+    services_jwt = Canvas::Security::ServicesJwt.
+      for_user(request.env['HTTP_HOST'], @current_user, real_user: @real_current_user)
     render json: { token: services_jwt }
   end
 

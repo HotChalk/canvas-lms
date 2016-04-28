@@ -1,5 +1,4 @@
 require File.expand_path(File.dirname(__FILE__) + '/../common')
-require File.expand_path(File.dirname(__FILE__) + '/../helpers/external_tools_common')
 require File.expand_path(File.dirname(__FILE__) + '/../helpers/testrail_report')
 
 
@@ -60,6 +59,10 @@ describe "account admin question bank" do
     (1..3).each do |i|
       expect(answers[i][:weight]).to eq 0
     end
+    assessment_question_id = driver.execute_script(
+      "return $('#question_#{question.id} .assessment_question_id').text()"
+    )
+    expect(assessment_question_id).to be_present
     expect(f("#question_#{question.id}")).to include_text name
     expect(f("#question_#{question.id}")).to include_text question_text
     question
@@ -237,6 +240,7 @@ describe "account admin question bank" do
     end
 
     it "should align an outcome" do
+      skip_if_chrome('issue with add_outcome_to_bank method')
       mastery_points, possible_points = @outcome.data[:rubric_criterion].values_at(:mastery_points, :points_possible)
       percentage = mastery_points.to_f / possible_points.to_f
       add_outcome_to_bank(@outcome)
@@ -247,6 +251,7 @@ describe "account admin question bank" do
     end
 
     it "should change the outcome set mastery score" do
+      skip_if_chrome('issue with add_outcome_to_bank method')
       f(".add_outcome_link").click
       wait_for_ajax_requests
       add_outcome_to_bank(@outcome, 40)

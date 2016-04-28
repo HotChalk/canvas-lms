@@ -85,7 +85,7 @@ module Importers
       ActiveRecord::Base.skip_touch_context
 
       if !migration.for_course_copy?
-        Importers::ContextModuleImporter.select_linked_module_items(data, migration)
+        Importers::ContextModuleImporter.select_all_linked_module_items(data, migration)
         Importers::GradingStandardImporter.select_course_grading_standard(data, migration)
         # These only need to be processed once
         Attachment.skip_media_object_creation do
@@ -200,8 +200,6 @@ module Importers
 
           migration.imported_migration_items_by_class(ContextModule).each do |event|
             event.unlock_at = shift_date(event.unlock_at, shift_options)
-            event.start_at = shift_date(event.start_at, shift_options)
-            event.end_at = shift_date(event.end_at, shift_options)
             event.save
           end
 

@@ -34,30 +34,49 @@ module Canvas
         original_token[:sub]
       end
 
+      def masquerading_user_global_id
+        original_token[:masq_sub]
+      end
+
       def expires_at
         original_token[:exp]
       end
 
-      def self.generate(global_user_id, base64=true)
-        payload = create_payload(global_user_id)
+      def self.generate(payload_data, base64=true)
+        payload = create_payload(payload_data)
         crypted_token = Canvas::Security.create_encrypted_jwt(payload, signing_secret, encryption_secret)
         return crypted_token unless base64
         Canvas::Security.base64_encode(crypted_token)
       end
 
+      def self.for_user(domain, user, real_user: nil)
+        if domain.blank? || user.nil?
+          raise ArgumentError, "Must have a domain and a user to build a JWT"
+        end
+
+        payload = {
+          sub: user.global_id,
+          domain: domain
+        }
+        payload[:masq_sub] = real_user.global_id if real_user
+        generate(payload)
+      end
+
       private
 
-      def self.create_payload(global_user_id)
+      def self.create_payload(payload_data)
+        if payload_data[:sub].nil?
+          raise ArgumentError, "Cannot generate a services JWT without a 'sub' entry"
+        end
         timestamp = Time.zone.now.to_i
-        {
+        payload_data.merge({
           iss: "Canvas",
           aud: ["Instructure"],
           exp: timestamp + 3600,  # token is good for 1 hour
           nbf: timestamp - 30,    # don't accept the token in the past
           iat: timestamp,         # tell when the token was issued
           jti: SecureRandom.uuid, # unique identifier
-          sub: global_user_id
-        }
+        })
       end
 
       def encryption_secret
@@ -69,11 +88,11 @@ module Canvas
       end
 
       def self.encryption_secret
-        ENV['ECOSYSTEM_KEY']
+        Canvas::DynamicSettings.from_cache("canvas")["encryption-secret"]
       end
 
       def self.signing_secret
-        ENV['ECOSYSTEM_SECRET']
+        Canvas::DynamicSettings.from_cache("canvas")["signing-secret"]
       end
     end
   end

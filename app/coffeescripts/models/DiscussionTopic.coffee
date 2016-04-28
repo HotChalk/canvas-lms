@@ -207,9 +207,6 @@ define [
 
     canGroup: -> @get('can_group')
 
-    differentiatedAssignmentsEnabled: ->
-      ENV?.DIFFERENTIATED_ASSIGNMENTS_ENABLED || false
-
     isOnlyVisibleToOverrides: (override_flag) ->
       return @get('only_visible_to_overrides') || false unless arguments.length > 0
       @set 'only_visible_to_overrides', override_flag

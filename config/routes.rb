@@ -229,12 +229,21 @@ CanvasRails::Application.routes.draw do
     get 'grades' => 'gradebooks#grade_summary', id: nil
     get 'grading_rubrics' => 'gradebooks#grading_rubrics'
     get 'grades/:id' => 'gradebooks#grade_summary', as: :student_grades
+    post 'save_assignment_order' => 'gradebooks#save_assignment_order', as: :save_assignment_order
     concerns :announcements
     get 'calendar' => 'calendars#show2', as: :old_calendar
     get :locks
     concerns :discussions
     resources :assignments do
       get 'moderate' => 'assignments#show_moderate'
+      get 'submissions/:id', to: 'submissions/previews#show',
+        constraints: ->(request) do
+          request.query_parameters.key?(:preview) && request.format == :html
+        end
+      get 'submissions/:id', to: 'submissions/downloads#show',
+        constraints: ->(request) do
+          request.query_parameters.key?(:download)
+        end
       resources :submissions do
         post 'turnitin/resubmit' => 'submissions#resubmit_to_turnitin', as: :resubmit_to_turnitin
         get 'turnitin/:asset_string' => 'submissions#turnitin_report', as: :turnitin_report
@@ -396,6 +405,7 @@ CanvasRails::Application.routes.draw do
     delete 'test_student' => 'courses#reset_test_student'
     get 'content_migrations' => 'content_migrations#index'
     get 'link_validator' => 'courses#link_validator', :as => :link_validator
+    get 'score_range_defaults', controller: 'conditional_release/score_range_defaults', action: 'index', as: :score_range_defaults
   end
     
   get 'courses/:course_id/rubrics/:rubric_id/copy' => 'rubrics#copy'
@@ -555,7 +565,7 @@ CanvasRails::Application.routes.draw do
 
     # create/delete are handled by specific routes just above
     resources :users, only: [:index, :new, :edit, :show, :update]
-    resources :account_notifications, only: [:create, :destroy]
+    resources :account_notifications, only: [:create, :update, :destroy]
     concerns :announcements
     resources :assignments
     resources :submissions
@@ -678,11 +688,18 @@ CanvasRails::Application.routes.draw do
   # routes, so we let this route exist only for tests
   get 'login/oauth2' => 'login/oauth2#new' if Rails.env.test?
 
+  get 'login/clever' => 'login/clever#new', as: :clever_login
+  # Clever gets their own callback, cause we have to add additional processing
+  # for their Instant Login feature
+  get 'login/clever/callback' => 'login/clever#create', as: :clever_callback
+  get 'login/clever/:id' => 'login/clever#new'
   get 'login/facebook' => 'login/facebook#new', as: :facebook_login
   get 'login/github' => 'login/github#new', as: :github_login
   get 'login/google' => 'login/google#new', as: :google_login
   get 'login/google/:id' => 'login/google#new'
   get 'login/linkedin' => 'login/linkedin#new', as: :linkedin_login
+  get 'login/microsoft' => 'login/microsoft#new'
+  get 'login/microsoft/:id' => 'login/microsoft#new', as: :microsoft_login
   get 'login/openid_connect' => 'login/openid_connect#new'
   get 'login/openid_connect/:id' => 'login/openid_connect#new', as: :openid_connect_login
   get 'login/twitter' => 'login/twitter#new', as: :twitter_login
@@ -848,7 +865,7 @@ CanvasRails::Application.routes.draw do
 
   post 'selection_test' => 'external_content#selection_test'
 
-  resources :quiz_submissions do
+  scope '/quizzes/quiz_submissions/:quiz_submission_id', as: 'quiz_submission' do
     concerns :files
   end
 
@@ -905,6 +922,7 @@ CanvasRails::Application.routes.draw do
 
     scope(controller: :account_notifications) do
       post 'accounts/:account_id/account_notifications', action: :create, as: 'account_notification'
+      put 'accounts/:account_id/account_notifications/:id', action: :update, as: 'account_notification_update'
       get 'accounts/:account_id/users/:user_id/account_notifications', action: :user_index, as: 'user_account_notifications'
       delete 'accounts/:account_id/users/:user_id/account_notifications/:id', action: :user_close_notification, as: 'user_account_notification'
     end
@@ -1303,6 +1321,8 @@ CanvasRails::Application.routes.draw do
       get 'users/:user_id/communication_channels', action: :index, as: 'communication_channels'
       post 'users/:user_id/communication_channels', action: :create
       post 'users/:user_id/communication_channels/:id', action: :reset_bounce_count, as: 'reset_bounce_count'
+      get 'accounts/:account_id/bouncing_communication_channels.csv', action: :bouncing_channel_report
+      post 'accounts/:account_id/bouncing_communication_channels/reset', action: :bulk_reset_bounce_counts
       delete 'users/:user_id/communication_channels/:id', action: :destroy
       delete 'users/:user_id/communication_channels/:type/:address', action: :destroy, constraints: { address: %r{[^/?]+} }
     end
@@ -1859,6 +1879,9 @@ CanvasRails::Application.routes.draw do
 
     #Tool Proxy Services
     get  "tool_proxy/:tool_proxy_guid", controller: 'lti/ims/tool_proxy', action: :show, as: "show_lti_tool_proxy"
+
+    # Membership Service
+    get "courses/:course_id/membership_service", controller: "lti/membership_service", action: :index, as: :course_membership_service
   end
 
   ApiRouteSet.draw(self, '/api/sis') do

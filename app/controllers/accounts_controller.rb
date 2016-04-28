@@ -99,8 +99,10 @@ class AccountsController < ApplicationController
   before_filter :require_user, :only => [:index]
   before_filter :reject_student_view_student
   before_filter :get_context
+  before_filter :rich_content_service_config, only: [:settings]
 
   include Api::V1::Account
+  include CustomSidebarLinksHelper
 
   INTEGER_REGEX = /\A[+-]?\d+\z/
 
@@ -609,6 +611,10 @@ class AccountsController < ApplicationController
             end
           end
         end
+
+        remove_ip_filters = params[:account].delete(:remove_ip_filters)
+        params[:account][:ip_filters] = [] if remove_ip_filters
+
         if @account.update_attributes(params[:account])
           flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted because of course associations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
@@ -652,13 +658,14 @@ class AccountsController < ApplicationController
       @account_roles = @account.available_account_roles.sort_by(&:display_sort_index).map{|role| {:id => role.id, :label => role.label}}
       @course_roles = @account.available_course_roles.sort_by(&:display_sort_index).map{|role| {:id => role.id, :label => role.label}}
 
-      @announcements = @account.announcements
+      @announcements = @account.announcements.order(:created_at).paginate(page: params[:page], per_page: 50)
       @external_integration_keys = ExternalIntegrationKey.indexed_keys_for(@account)
 
       js_env({
         APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
         LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
-        CONTEXT_BASE_URL: "/accounts/#{@context.id}"
+        CONTEXT_BASE_URL: "/accounts/#{@context.id}",
+        MASKED_APP_CENTER_ACCESS_TOKEN: @account.settings[:app_center_access_token].try(:[], 0...5)
       })
     end
   end
@@ -865,7 +872,7 @@ class AccountsController < ApplicationController
   end
 
   def sis_import
-    if authorized_action(@account, @current_user, :manage_sis)
+    if authorized_action(@account, @current_user, [:import_sis, :manage_sis])
       return redirect_to account_settings_url(@account) if !@account.allow_sis_import || !@account.root_account?
       @current_batch = @account.current_sis_batch
       @last_batch = @account.sis_batches.order('created_at DESC').first
@@ -942,8 +949,9 @@ class AccountsController < ApplicationController
     end
 
     list = UserList.new(params[:user_list],
-                        :root_account => @context.root_account,
-                        :search_method => @context.user_list_search_mode_for(@current_user))
+                        root_account: @context.root_account,
+                        search_method: @context.user_list_search_mode_for(@current_user),
+                        current_user: @current_user)
     users = list.users
     admins = users.map do |user|
       admin = @context.account_users.where(user_id: user.id, role_id: role.id).first_or_initialize
@@ -1016,4 +1024,8 @@ class AccountsController < ApplicationController
   end
   private :format_avatar_count
 
+  protected
+  def rich_content_service_config
+    rce_js_env(:basic)
+  end
 end

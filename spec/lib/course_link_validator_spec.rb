@@ -80,6 +80,30 @@ describe CourseLinkValidator do
 
   end
 
+  it "should not run on assessment questions in deleted banks" do
+    CourseLinkValidator.any_instance.stubs(:reachable_url?).returns(false) # don't actually ping the links for the specs
+    html = %{<a href='http://www.notarealsitebutitdoesntmattercauseimstubbingitanwyay.com'>linky</a>}
+
+    course
+    bank = @course.assessment_question_banks.create!(:title => 'bank')
+    aq = bank.assessment_questions.create!(:question_data => {'name' => 'test question',
+      'question_text' => html, 'answers' => [{'id' => 1}, {'id' => 2}]})
+
+    CourseLinkValidator.queue_course(@course)
+    run_jobs
+
+    issues = CourseLinkValidator.current_progress(@course).results[:issues]
+    expect(issues.count).to eq 1
+
+    bank.destroy
+
+    CourseLinkValidator.queue_course(@course)
+    run_jobs
+
+    issues = CourseLinkValidator.current_progress(@course).results[:issues]
+    expect(issues).to be_empty
+  end
+
   it "should not care if it can reach it" do
     CourseLinkValidator.any_instance.stubs(:reachable_url?).returns(true)
 
@@ -237,5 +261,43 @@ describe CourseLinkValidator do
 
     links = CourseLinkValidator.current_progress(@course).results[:issues].first[:invalid_links].map{|l| l[:url]}
     expect(links).to match_array [link]
+  end
+
+  it "should not flag links to public paths" do
+    course
+    @course.syllabus_body = %{<a href='/images/avatar-50.png'>link</a>}
+    @course.save!
+
+    CourseLinkValidator.queue_course(@course)
+    run_jobs
+
+    issues = CourseLinkValidator.current_progress(@course).results[:issues]
+    expect(issues).to be_empty
+  end
+
+  it "should flag sneaky links" do
+    course
+    @course.syllabus_body = %{<a href='/../app/models/user.rb'>link</a>}
+    @course.save!
+
+    CourseLinkValidator.queue_course(@course)
+    run_jobs
+
+    issues = CourseLinkValidator.current_progress(@course).results[:issues]
+    expect(issues.count).to eq 1
+  end
+
+  it "should not flag wiki pages with url encoding" do
+    course
+    page = @course.wiki.wiki_pages.create!(:title => "semi;colon", :body => 'sutff')
+
+    @course.syllabus_body = %{<a href='/courses/#{@course.id}/pages/#{CGI.escape(page.title)}'>link</a>}
+    @course.save!
+
+    CourseLinkValidator.queue_course(@course)
+    run_jobs
+
+    issues = CourseLinkValidator.current_progress(@course).results[:issues]
+    expect(issues).to be_empty
   end
 end

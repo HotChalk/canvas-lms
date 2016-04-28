@@ -179,7 +179,7 @@
           <%= render :partial => 'assignment_details', :locals => { :current_assignment => @topic.reply_assignment, :presenter => @reply_presenter, :is_reply_assignment => true } %>
         <% end %>
         <% if @topic.for_group_discussion? %>
-          <%= render :partial => 'group_discussion' %>
+          <%= render :partial => 'group_discussion', :locals => {show_da_note: (@topic.for_assignment? && @topic.assignment.only_visible_to_overrides)} %>
         <% end %>
         <header class="discussion-section clearfix">
           <%= avatar((@topic.user), context_code: @context.asset_string) if @topic.user %>
@@ -298,8 +298,7 @@
               </button>
               <% if @filter_sections.length > 1 %>
                 <%= select_tag :section_selected, options_for_select([[t('all_sections', 'All Sections'), 0]] + (@filter_sections.map {|s| [s.name, s.id]}), 0), :style => "width:160px" %>
-              <% end %>              
-
+              <% end %>
             </div>
 
             <div class="span3 right-align">
@@ -336,7 +335,7 @@
   </div>
 
   <% if @headers != false %>
-    <div class="ModuleSequenceFooter__Container" id="module_sequence_footer"></div>
+    <div id="module_sequence_footer"></div>
   <% else %>
     <%=
       render :partial => "shared/sequence_footer", :locals => {:asset => @sequence_asset, :context => @sequence_asset.context} if @sequence_asset
@@ -347,38 +346,5 @@
     </div>
   <% end %>
 
-  <% content_for :keyboard_navigation do %>
-    <ul class="navigation_list" tabindex="-1">
-      <li>
-        <span class="keycode">j</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :next_message, "Next Message" %></span>
-      </li>
-      <li>
-        <span class="keycode">k</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :previous_message, "Previous Message" %></span>
-      </li>
-      <li>
-        <span class="keycode">e</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :edit_current_message, "Edit Current Message" %></span>
-      </li>
-      <li>
-        <span class="keycode">d</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :delete_current_message, "Delete Current Message" %></span>
-      </li>
-      <li>
-        <span class="keycode">r</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :reply_to_message, "Reply to Current Message" %></span>
-      </li>
-      <li>
-        <span class="keycode">n</span>
-        <span class="colon">:</span>
-        <span class="description"><%= t :reply_to_topic, "Reply to Topic" %></span>
-      </li>
-    </ul>
-  <% end %>
+  <div id="keyboard-shortcut-modal"></div>
 <% end %>

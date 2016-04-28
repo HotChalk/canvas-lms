@@ -464,6 +464,40 @@ describe CalendarEventsApiController, type: :request do
         end
       end
 
+      it "returns signups in multi-context appointment groups in the student's context" do
+        @course1 = course_with_teacher(:active_all => true).course
+        @course2 = course_with_teacher(:user => @teacher, :active_all => true).course
+        @student1 = student_in_course(:course => @course1, :active_all => true).user
+        @student2 = student_in_course(:course => @course2, :active_all => true).user
+        ag = AppointmentGroup.create!(:title => "something", :participants_per_appointment => 1,
+                                      :new_appointments => [["2012-01-01 12:00:00", "2012-01-01 13:00:00"],
+                                                            ["2012-01-01 13:00:00", "2012-01-01 14:00:00"]],
+                                      :contexts => [@course1, @course2])
+        ag.appointments.first.reserve_for(@student1, @teacher)
+        ag.appointments.last.reserve_for(@student2, @teacher)
+        json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?start_date=2012-01-01&end_date=2012-01-31&context_codes[]=#{@course1.asset_string}&context_codes[]=#{@course2.asset_string}", {
+          :controller => 'calendar_events_api', :action => 'index', :format => 'json',
+          :context_codes => [@course1.asset_string, @course2.asset_string], :start_date => '2012-01-01', :end_date => '2012-01-31'})
+        expect(json.map { |event| [event['context_code'], event['child_events'][0]['user']['id']] }).to match_array(
+          [[@course1.asset_string, @student1.id], [@course2.asset_string, @student2.id]]
+        )
+      end
+
+      it "returns the teacher's context to the teacher for a student enrolled in a disparate course" do
+        @course1 = course_with_teacher(:active_all => true).course
+        @teacher1 = @teacher
+        @course2 = course_with_student(:active_all => true).course
+        ag = AppointmentGroup.create!(:title => "something", :participants_per_appointment => 1,
+                                      :new_appointments => [["2012-01-01 12:00:00", "2012-01-01 13:00:00"],
+                                                            ["2012-01-01 13:00:00", "2012-01-01 14:00:00"]],
+                                      :contexts => [@course1, @course2])
+        ag.appointments.first.reserve_for(@student, @teacher1)
+        json = api_call_as_user(@teacher1, :get, "/api/v1/calendar_events?start_date=2012-01-01&end_date=2012-01-31&context_codes[]=#{@course1.asset_string}", {
+          :controller => 'calendar_events_api', :action => 'index', :format => 'json',
+          :context_codes => [@course1.asset_string], :start_date => '2012-01-01', :end_date => '2012-01-31'})
+        expect(json.map { |event| event['context_code'] }).to eq([@course1.asset_string, @course1.asset_string])
+      end
+
       context "reservations" do
         def prepare(as_student = false)
           Notification.create! :name => 'Appointment Canceled By User', :category => "TestImmediately"
@@ -1007,11 +1041,10 @@ describe CalendarEventsApiController, type: :request do
       end
     end
 
-    context 'differentiated assignments on' do
+    context 'differentiated assignments' do
       before :once do
         Timecop.travel(Time.utc(2015)) do
           course_with_teacher(:active_course => true, :active_enrollment => true, :user => @teacher)
-          @course.enable_feature!(:differentiated_assignments)
 
           @student_in_overriden_section = User.create
           @student_in_general_section = User.create
@@ -1746,10 +1779,10 @@ describe CalendarEventsApiController, type: :request do
       assg = @course.assignments.create(workflow_state: 'published', due_at: 3.days.from_now, submission_types: "online_text_entry")
       assg.submit_homework @student, submission_type: "online_text_entry"
       json = api_call(:get,
-        "/api/v1/users/#{@student.id}/calendar_events?all_events=true&type=assignment&include[]=submissions&context_codes[]=#{@ctx_str}", {
-        controller: 'calendar_events_api', action: 'user_index', format: 'json', type: 'assignment', include: ['submissions'],
+        "/api/v1/users/#{@student.id}/calendar_events?all_events=true&type=assignment&include[]=submission&context_codes[]=#{@ctx_str}", {
+        controller: 'calendar_events_api', action: 'user_index', format: 'json', type: 'assignment', include: ['submission'],
         context_codes: @contexts, all_events: true, user_id: @student.id})
-      expect(json.first['assignment']['submission'].length).to eql 1
+      expect(json.first['assignment']['submission']).not_to be_nil
     end
   end
 

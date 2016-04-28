@@ -68,6 +68,13 @@ describe TermsApiController, type: :request do
         expect(names).to include(@term2.name)
       end
 
+      it "should not blow up for invalid state parameters" do
+        json = get_terms(workflow_state: {all: nil})
+        names = json.map { |t| t['name'] }
+        expect(names).to include(@term1.name)
+        expect(names).not_to include(@term2.name)
+      end
+
       it "should list all terms, active and deleted, with state=[all]" do
         json = get_terms(workflow_state: ['all'])
         names = json.map{ |t| t['name'] }
@@ -176,6 +183,12 @@ describe TermsController, type: :request do
         expect(json['sis_term_id']).to eq 'SIS Term 2'
         new_term = @account.reload.enrollment_terms.find(json['id'])
         expect(new_term.sis_source_id).to eq 'SIS Term 2'
+      end
+
+      it "rejects invalid sis ids" do
+        json = api_call(:post, "/api/v1/accounts/#{@account.id}/terms",
+          { controller: 'terms', action: 'create', format: 'json', account_id: @account.to_param },
+          { enrollment_term: { name: 'Term 2', sis_term_id: {:fail => true} } }, {}, {:expected_status => 400})
       end
 
       it "rejects sis_term_id without :manage_sis permission" do

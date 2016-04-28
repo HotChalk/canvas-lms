@@ -59,8 +59,7 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :child_discussion_entries, -> { preload(:user).where("discussion_entries.parent_id IS NOT NULL AND discussion_entries.workflow_state<>'deleted'") }, class_name: 'DiscussionEntry'
   has_one :external_feed_entry, :as => :asset
   belongs_to :external_feed
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Group']
+  belongs_to :context, polymorphic: [:course, :group]
   belongs_to :attachment
   belongs_to :assignment
   belongs_to :editor, :class_name => 'User'
@@ -77,14 +76,6 @@ class DiscussionTopic < ActiveRecord::Base
   belongs_to :user
   belongs_to :course_section
   has_many :discussion_topic_user_visibilities
-
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :title, :message, :context_id, :context_type, :type, :user_id, :workflow_state, :last_reply_at, :created_at, :updated_at, :delayed_post_at, :posted_at, :assignment_id,
-    :attachment_id, :deleted_at, :root_topic_id, :could_be_locked, :cloned_item_id, :context_code, :position, :subtopics_refreshed_at, :last_assignment_id, :external_feed_id,
-    :editor_id, :podcast_enabled, :podcast_has_student_posts, :require_initial_post, :discussion_type, :lock_at, :pinned, :locked, :course_section_id, :only_visible_to_overrides
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:discussion_entries, :external_feed_entry, :external_feed, :context, :assignment, :attachment, :editor, :root_topic, :child_topics, :discussion_entry_participants, :user, :course_section]
 
   validates_presence_of :context_id, :context_type
   validates_inclusion_of :discussion_type, :in => DiscussionTypes::TYPES
@@ -191,35 +182,39 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def refresh_subtopics
-    if self.root_topic_id.blank?
-      # delete any lingering child topics
-      self.shard.activate do
-        DiscussionTopic.where(:root_topic_id => self).update_all(:workflow_state => "deleted")
+    sub_topics = []
+    category = self.group_category
+
+    if category && self.root_topic_id.blank? && !self.deleted?
+      category.groups.active.each do |group|
+        sub_topics << ensure_child_topic_for(group)
       end
     end
-    return if self.deleted?
 
-    category = self.group_category
-    return unless category && self.root_topic_id.blank?
-    category.groups.active.each do |group|
-      group.shard.activate do
-        DiscussionTopic.unique_constraint_retry do
-          topic = DiscussionTopic.where(:context_id => group, :context_type => 'Group', :root_topic_id => self).first
-          topic ||= group.discussion_topics.build{ |dt| dt.root_topic = self }
-          topic.message = self.message
-          topic.title = "#{self.title} - #{group.name}"
-          topic.assignment_id = self.assignment_id
-          topic.attachment_id = self.attachment_id
-          topic.group_category_id = self.group_category_id
-          topic.user_id = self.user_id
-          topic.discussion_type = self.discussion_type
-          topic.workflow_state = self.workflow_state
-          topic.allow_rating = self.allow_rating
-          topic.only_graders_can_rate = self.only_graders_can_rate
-          topic.sort_by_rating = self.sort_by_rating
-          topic.save if topic.changed?
-          topic
-        end
+    self.shard.activate do
+      # delete any lingering child topics
+      DiscussionTopic.where(:root_topic_id => self).where.not(:id => sub_topics).update_all(:workflow_state => "deleted")
+    end
+  end
+
+  def ensure_child_topic_for(group)
+    group.shard.activate do
+      DiscussionTopic.unique_constraint_retry do
+        topic = DiscussionTopic.where(:context_id => group, :context_type => 'Group', :root_topic_id => self).first
+        topic ||= group.discussion_topics.build{ |dt| dt.root_topic = self }
+        topic.message = self.message
+        topic.title = CanvasTextHelper.truncate_text("#{self.title} - #{group.name}", {:max_length => 250}) # because of course people do this
+        topic.assignment_id = self.assignment_id
+        topic.attachment_id = self.attachment_id
+        topic.group_category_id = self.group_category_id
+        topic.user_id = self.user_id
+        topic.discussion_type = self.discussion_type
+        topic.workflow_state = self.workflow_state
+        topic.allow_rating = self.allow_rating
+        topic.only_graders_can_rate = self.only_graders_can_rate
+        topic.sort_by_rating = self.sort_by_rating
+        topic.save if topic.changed?
+        topic
       end
     end
   end
@@ -241,6 +236,9 @@ class DiscussionTopic < ActiveRecord::Base
       self.assignment.workflow_state = 'published' if self.assignment.deleted?
       unless is_announcement
         self.assignment.workflow_state = published? ? 'published' : 'unpublished'
+      end
+      if group_category_id_changed?
+        self.assignment.validate_assignment_overrides(force_override_destroy: true)
       end
       self.assignment.save
     end
@@ -838,7 +836,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def restore(from=nil)
-    self.workflow_state = is_announcement ? 'active' : 'unpublished'
+    self.workflow_state = can_unpublish? ? 'unpublished' : 'active'
     self.save
 
     if from != :assignment && self.for_assignment? && self.root_topic_id.blank?
@@ -990,8 +988,17 @@ class DiscussionTopic < ActiveRecord::Base
 
   def ensure_submission(user)
     submission = Submission.where(assignment_id: self.assignment_id, user_id: user).first
-    return if submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
-    self.assignment.submit_homework(user, :submission_type => 'discussion_topic')
+    unless submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
+      submission = self.assignment.submit_homework(user, :submission_type => 'discussion_topic')
+    end
+    topic = self.root_topic? ? self.child_topic_for(user) : self
+    if topic
+      attachment_ids = topic.discussion_entries.where(:user_id => user).where.not(:attachment_id => nil).pluck(:attachment_id)
+      if attachment_ids.any?
+        submission.attachment_ids = attachment_ids.sort.map(&:to_s).join(",")
+        submission.save! if submission.changed?
+      end
+    end
   end
 
   def ensure_submission_for_reply(user)
@@ -1051,7 +1058,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def active_participants_with_visibility
-    return active_participants unless course.is_a?(Course) && course.feature_enabled?(:differentiated_assignments)
+    return active_participants unless course.is_a?(Course)
     users_with_visibility = self.for_assignment? ?
       AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id) :
       DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id)
@@ -1076,9 +1083,9 @@ class DiscussionTopic < ActiveRecord::Base
     legacy_sub_ids &= poster_ids
     sub_ids += legacy_sub_ids
 
-    subscribed_users = participating_users(sub_ids)
+    subscribed_users = participating_users(sub_ids).to_a
 
-    if course.is_a?(Course) && course.feature_enabled?(:differentiated_assignments)
+    if course.is_a?(Course)
       users_with_visibility = self.for_assignment? ?
         AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id) :
         DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id)
@@ -1326,11 +1333,11 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
-  def discussion_subentry_count_for_enrollment(enrollment = nil)    
+  def discussion_subentry_count_for_enrollment(enrollment = nil)
     return discussion_entries.active.count unless self.context.is_a?(Course)
-    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries    
-    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section            
-      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)      
+    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
+    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
+      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
       # get the valid entries by user
       valid_users_entries = discussion_entries.active.where(user_id: visible_user_ids)
       # get the root_entry_id from all the valid entries
@@ -1340,15 +1347,15 @@ class DiscussionTopic < ActiveRecord::Base
       not_allowed_ids = entries_not_allowed.map{|e|e.id}
       rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['root_entry_id'].to_i) }
       # take out the entries not allowed
-      valid_users_entries -= rejected_entries      
+      valid_users_entries -= rejected_entries
       # get the parent_id from all the valid entries
       entries_parent_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:parent_id)
       # get the not valid entries ids accourding by parent id
-      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)      
+      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)
       not_allowed_ids = entries_not_allowed.map{|e|e.id}
       rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['parent_id'].to_i) }
       # take out the entries not allowed
-      valid_users_entries -= rejected_entries      
+      valid_users_entries -= rejected_entries
       return valid_users_entries.count
     end
     if enrollment && enrollment.user

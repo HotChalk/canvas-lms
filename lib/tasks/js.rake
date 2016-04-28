@@ -292,21 +292,15 @@ namespace :js do
     threads.each(&:join)
   end
 
-  desc "build webpack js for production"
+  desc "build webpack js"
   task :webpack do
     if CANVAS_WEBPACK
-      if ENV['RAILS_ENV'] == 'production'
+      if ENV['RAILS_ENV'] == 'production' || ENV['USE_OPTIMIZED_JS'] == 'true' || ENV['USE_OPTIMIZED_JS'] == 'True'
         puts "--> Building PRODUCTION webpack bundles"
         `npm run webpack-production`
       else
         puts "--> Building DEVELOPMENT webpack bundles"
         `npm run webpack-development`
-        if ENV['USE_OPTIMIZED_JS'] == 'true' || ENV['USE_OPTIMIZED_JS'] == 'True'
-          # if this var is set, we'll need to have optimized version of the
-          # webpack bundles available too
-          puts "--> Building OPTIMIZED webpack bundles"
-          `npm run webpack-production`
-        end
       end
       raise "Error running js:webpack: \nABORTING" if $?.exitstatus != 0
     end
@@ -341,8 +335,18 @@ namespace :js do
 
   desc "Compile React JSX to JS"
   task :jsx do
+    # Get the canvas-lms jsx and specs to compile
     dirs = [["#{Rails.root}/app/jsx", "#{Rails.root}/public/javascripts/jsx"],
             ["#{Rails.root}/spec/javascripts/jsx", "#{Rails.root}/spec/javascripts/compiled"]]
+    # Get files that need compilation in plugins
+    plugin_jsx_dirs = Dir.glob("#{Rails.root}/gems/plugins/*/**/jsx")
+    plugin_jsx_dirs.each do |directory|
+      plugin_name = directory.match(/gems\/plugins\/([^\/]+)\//)[1]
+      destination = "#{Rails.root}/public/javascripts/plugins/#{plugin_name}/compiled/jsx"
+      FileUtils.mkdir_p(destination)
+      dirs << [directory, destination]
+    end
+
     dirs.each { |source,dest|
       if Rails.env == 'development'
         msg = `node_modules/.bin/babel #{source} --out-dir #{dest} --source-maps inline 2>&1 >/dev/null`

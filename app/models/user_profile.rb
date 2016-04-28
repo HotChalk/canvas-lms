@@ -25,9 +25,6 @@ class UserProfile < ActiveRecord::Base
 
   has_many :links, :class_name => 'UserProfileLink', :dependent => :destroy
 
-  EXPORTABLE_ATTRIBUTES = [:id, :bio, :title, :user_id]
-  EXPORTABLE_ASSOCIATIONS = [:user, :links]
-
   validates_length_of :title, :maximum => maximum_string_length, :allow_blank => true
 
   TAB_PROFILE, TAB_COMMUNICATION_PREFERENCES, TAB_FILES, TAB_EPORTFOLIOS, TAB_LOGOUT,
@@ -71,7 +68,7 @@ class UserProfile < ActiveRecord::Base
         @tabs = @tabs.slice(0,2)
       end
 
-      if user && user.user_observees.exists?
+      if user && user.user_observees.active.exists?
         @tabs << { :id => TAB_OBSERVEES, :label => I18n.t('#tabs.observees', 'Observing'), :css_class => 'observees', :href => :observees_profile_path, :no_args => true }
       end
     end

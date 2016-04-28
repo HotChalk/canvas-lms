@@ -27,6 +27,7 @@ define([
   'compiled/quizzes/log_auditing',
   'compiled/quizzes/dump_events',
   'compiled/views/editor/KeyboardShortcuts',
+  'jsx/shared/rce/RichContentEditor',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.toJSON',
   'jquery.instructure_date_and_time' /* friendlyDatetime, friendlyDate */,
@@ -34,17 +35,22 @@ define([
   'jqueryui/dialog',
   'jquery.instructure_misc_helpers' /* scrollSidebar */,
   'compiled/jquery.rails_flash_notifications',
-  'compiled/tinymce',
-  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'compiled/behaviors/quiz_selectmenu'
 ], function(FileUploadQuestionView, File, I18n, $, autoBlurActiveInput, _,
             LDBLoginPopup, QuizTakingPolice, QuizLogAuditing,
-            QuizLogAuditingEventDumper, KeyboardShortcuts) {
+            QuizLogAuditingEventDumper, KeyboardShortcuts, RichContentEditor) {
+
+  RichContentEditor.preloadRemoteModule();
 
   var lastAnswerSelected = null;
   var lastSuccessfulSubmissionData = null;
   var showDeauthorizedDialog;
+
+  // need to keep a top level reference or
+  // it can get garbage collected
+  var quizTakingPoliceTopLevel = null;
+
   var quizSubmission = (function() {
     var timeMod = 0,
         endAt = $(".end_at"),
@@ -551,7 +557,14 @@ define([
         }
 
         if (tagName == "TEXTAREA") {
-          val = $this.editorBox('get_code');
+          val = RichContentEditor.callOnRCE($this, 'get_code');
+          var $tagInstance = $this;
+          $this.siblings('.rce_links').find('.toggle_question_content_views_link').click(function(event) {
+            event.preventDefault();
+            RichContentEditor.callOnRCE($tagInstance, 'toggle');
+            //  todo: replace .andSelf with .addBack when JQuery is upgraded.
+            $(this).siblings(".toggle_question_content_views_link").andSelf().toggle();
+          });
         } else if ($this.attr('type') == "text" || $this.attr('type') == 'hidden') {
           val = $this.val();
         } else if (tagName == "SELECT") {
@@ -572,11 +585,6 @@ define([
 
     $questions.find(".question_input").trigger('change', [false, {}]);
 
-    setInterval(function() {
-      $("textarea.question_input").each(function() {
-        $(this).triggerHandler('change', false);
-      });
-    }, 2500);
 
     $(".hide_time_link").click(function(event) {
       event.preventDefault();
@@ -664,20 +672,20 @@ define([
     setTimeout(function() {
       $(".question_holder textarea.question_input").each(function() {
         $(this).attr('id', 'question_input_' + quizSubmission.contentBoxCounter++);
-        $(this).editorBox();
+        RichContentEditor.loadNewEditor($(this));
       });
     }, 2000);
 
     if (QuizTakingPolice) {
-      var quizTakingPolice = new QuizTakingPolice();
+      quizTakingPoliceTopLevel = new QuizTakingPolice();
 
-      quizTakingPolice.addEventListener('message', function(e) {
+      quizTakingPoliceTopLevel.addEventListener('message', function(e) {
         if (e.data === 'stopwatchTick') {
           quizSubmission.updateTime();
         }
       });
 
-      quizTakingPolice.postMessage({
+      quizTakingPoliceTopLevel.postMessage({
         code: 'startStopwatch',
         frequency: quizSubmission.clockInterval
       });
@@ -772,5 +780,5 @@ define([
     $('.loading').hide();
   });
 
-  $('.essay_question .answers').before((new KeyboardShortcuts()).render().el);
+  $('.essay_question .answers .rce_links').append((new KeyboardShortcuts()).render().el);
 });
