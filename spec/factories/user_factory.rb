@@ -17,7 +17,10 @@
 #
 
 def user_model(opts={})
+  email = opts.delete(:email)
   @user = factory_with_protected_attributes(User, valid_user_attributes.merge(opts))
+  @user.email = email if email # set e-mail after record creation
+  @user
 end
 
 def tie_user_to_account(user, opts={})
@@ -57,6 +60,7 @@ def user(opts={})
     @user.register!
   end
   @user.update_attribute :workflow_state, opts[:user_state] if opts[:user_state]
+  @cc = communication_channel(@user, opts) if opts[:active_cc]
   @user
 end
 

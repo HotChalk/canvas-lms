@@ -173,7 +173,8 @@ module Api::V1
         scores[enrollment.id] = current_period_scores[index].merge({
           multiple_grading_periods_enabled: true,
           totals_for_all_grading_periods_option: totals_for_all_grading_periods_option,
-          current_grading_period_title: current_period.title
+          current_grading_period_title: current_period.title,
+          current_grading_period_id: current_period.id
         })
       end
       scores
@@ -187,6 +188,7 @@ module Api::V1
           multiple_grading_periods_enabled: mgp_enabled,
           totals_for_all_grading_periods_option: totals_for_all_grading_periods_option,
           current_grading_period_title: nil,
+          current_grading_period_id: nil,
           current_period_computed_current_score: nil,
           current_period_computed_final_score: nil,
           current_period_computed_current_grade: nil,
@@ -198,8 +200,8 @@ module Api::V1
 
     def mgp_scores_from_calculator(grade_calculator)
       grade_calculator.compute_scores.map do |scores|
-        current_score = scores.first.first[:grade]
-        final_score = scores.second.first[:grade]
+        current_score = scores[:current][:grade]
+        final_score = scores[:final][:grade]
         {
           current_period_computed_current_score: current_score,
           current_period_computed_final_score: final_score,

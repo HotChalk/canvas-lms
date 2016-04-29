@@ -49,7 +49,9 @@ describe Login::SamlController do
     )
 
     controller.request.env['canvas.domain_root_account'] = account1
+    session[:sentinel] = true
     post :create, :SAMLResponse => "foo"
+    expect(session[:sentinel]).to be_nil
     expect(response).to redirect_to(dashboard_url(:login_success => 1))
     expect(session[:saml_unique_id]).to eq unique_id
     expect(Pseudonym.find(session['pseudonym_credentials_id'])).to eq user1.pseudonyms.first
@@ -260,7 +262,9 @@ describe Login::SamlController do
       it "redirects to login screen with message if no AAC found" do
         @stub_hash[:issuer] = "hahahahahahaha"
 
+        session[:sentinel] = true
         post_create
+        expect(session[:sentinel]).to eq true
 
         expect(response).to redirect_to(login_url)
         expect(flash[:delegated_message]).to eq "The institution you logged in from is not configured on this account."
@@ -342,6 +346,19 @@ describe Login::SamlController do
 
           expect(response).to be_redirect
           expect(response.location).to match %r{^https://example.com/idp2/slo\?SAMLResponse=}
+        end
+
+        it "returns bad request if SAMLRequest parameter doesn't match an AAC" do
+          @stub_hash[:id] = '_42'
+          @stub_hash[:issuer] = "hahahahahahaha"
+          Onelogin::Saml::LogoutRequest.stubs(:parse).returns(
+            stub('request', @stub_hash)
+          )
+
+          controller.request.env['canvas.domain_root_account'] = @account
+          get :destroy, :SAMLRequest => "foo"
+
+          expect(response.status).to eq 400
         end
       end
     end

@@ -43,6 +43,7 @@ define [
       @trigger 'change:gradingType', gradingType
 
     showGpaDialog: (ev) =>
+      ev.preventDefault()
       $("#gpa-scale-dialog").dialog(
         title: I18n.t('titles.gpa_scale_explainer', "What is GPA Scale Grading?"),
         text: I18n.t('gpa_scale_explainer', "What is GPA Scale Grading?"),

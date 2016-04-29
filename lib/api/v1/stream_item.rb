@@ -145,7 +145,6 @@ module Api::V1::StreamItem
     items = []
 
     @current_user.shard.activate do
-
       base_scope = @current_user.visible_stream_item_instances(:contexts => contexts).joins(:stream_item)
       base_scope = StreamItemInstance.where(id: filter_stream_item_instances(base_scope).map(&:id)).joins(:stream_item)
 
@@ -231,7 +230,7 @@ module Api::V1::StreamItem
 
       if total_counts.keys.any?{|k| k[0] == 'DiscussionTopic'}
         ann_scope = StreamItem.where(:stream_items => {:asset_type => "DiscussionTopic"}).
-          joins("INNER JOIN #{DiscussionTopic.quoted_table_name} ON discussion_topics.id=stream_items.asset_id").
+          joins(:discussion_topic).
           where("discussion_topics.type = ?", "Announcement")
         ann_total = ann_scope.where(:id => stream_item_ids).count
 

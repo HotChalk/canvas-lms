@@ -20,7 +20,6 @@ require 'atom'
 
 class DiscussionEntry < ActiveRecord::Base
   include Workflow
-  include SendToInbox
   include SendToStream
   include TextHelper
   include HtmlTextHelper
@@ -41,9 +40,6 @@ class DiscussionEntry < ActiveRecord::Base
   belongs_to :editor, :class_name => 'User'
   has_one :external_feed_entry, :as => :asset
 
-  EXPORTABLE_ATTRIBUTES = [:id, :message, :discussion_topic_id, :user_id, :parent_id, :created_at, :updated_at, :attachment_id, :workflow_state, :deleted_at, :editor_id, :root_entry_id, :depth]
-  EXPORTABLE_ASSOCIATIONS = [:discussion_subentries, :discussion_entry_participants, :discussion_topic, :user, :parent_entry, :root_entry, :attachment, :editor, :external_feed_entry]
-
   before_create :infer_root_entry_id
   after_save :update_discussion
   after_save :context_module_action_later
@@ -62,25 +58,6 @@ class DiscussionEntry < ActiveRecord::Base
   workflow do
     state :active
     state :deleted
-  end
-
-  on_create_send_to_inboxes do
-    if self.context && self.context.respond_to?(:available?) && self.context.available?
-      user_id = nil
-      if self.parent_entry
-        user_id = self.parent_entry.user_id
-      else
-        user_id = self.discussion_topic.user_id unless self.discussion_topic.assignment_id
-      end
-      if user_id && user_id != self.user_id
-        {
-          :recipients => user_id,
-          :subject => t("#subject_reply_to", "Re: %{subject}", :subject => self.discussion_topic.title),
-          :html_body => self.message,
-          :sender => self.user_id
-        }
-      end
-    end
   end
 
   set_broadcast_policy do |p|
@@ -292,7 +269,10 @@ class DiscussionEntry < ActiveRecord::Base
     given { |user| self.user && self.user == user && self.discussion_topic.available_for?(user) && context.user_can_manage_own_discussion_posts?(user) }
     can :update and can :delete
 
-    given { |user, session| self.context.grants_right?(user, session, :read_forum) && self.discussion_topic.visible_for?(user) }
+    given { |user, session| self.discussion_topic.is_announcement && self.context.grants_right?(user, session, :read_announcements) && self.discussion_topic.visible_for?(user) }
+    can :read
+
+    given { |user, session| !self.discussion_topic.is_announcement && self.context.grants_right?(user, session, :read_forum) && self.discussion_topic.visible_for?(user) }
     can :read
 
     given { |user, session| self.context.grants_right?(user, session, :post_to_forum) && !self.discussion_topic.locked_for?(user) && self.discussion_topic.visible_for?(user) }

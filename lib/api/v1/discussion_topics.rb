@@ -78,10 +78,11 @@ module Api::V1::DiscussionTopics
 
     locked_json(json, topic, user, session)
     if opts[:include_assignment] && topic.assignment
+      excludes = opts[:exclude_assignment_description] ? ['description'] : []
       json[:assignment] = assignment_json(topic.assignment, user, session,
         include_discussion_topic: false, override_dates: opts[:override_dates],
-        include_all_dates: opts[:include_all_dates],                                          
-        exclude_description: opts[:exclude_assignment_description])
+        include_all_dates: opts[:include_all_dates],
+        exclude_response_fields: excludes)
     end
     if opts[:include_assignment] && topic.reply_assignment && topic.grade_replies_separately
       json[:reply_assignment] = assignment_json(topic.reply_assignment, user, session,
@@ -94,9 +95,7 @@ module Api::V1::DiscussionTopics
     if opts[:include_all_dates] && topic.assignment_overrides.present?
       json[:all_dates] = topic.dates_hash_visible_to(user)
     end
-    if context.feature_enabled?(:differentiated_assignments)
-      json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
-    end
+    json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
     if opts[:include_overrides_names]
       json[:overrides_names] = get_overrides_names(topic)
     end
@@ -132,7 +131,7 @@ module Api::V1::DiscussionTopics
       locked: topic.locked?, can_lock: topic.can_lock?,
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
-      course_sections: topic.course_section_names(context, user), context_type: topic.context_type,      
+      course_sections: topic.course_section_names(context, user), context_type: topic.context_type,
       group_category_id: topic.group_category_id, can_group: topic.can_group?(opts) }
     unless opts[:exclude_messages]
       if opts[:plain_messages]

@@ -8,7 +8,7 @@ describe "dashboard" do
 
   shared_examples_for 'load events list' do
     it "should load events list sidebar", priority: "2", test_id: 210275 do
-      driver.navigate.to(app_host)
+      get "/"
       wait_for_ajaximations
       expect(f('.events_list')).to be_displayed
     end
@@ -361,6 +361,30 @@ describe "dashboard" do
       # submission page should load
       expect(f('h2').text).to eq "Submission Details"
     end
+
+    it "should validate the functionality of soft concluded courses on courses page", priority: "1", test_id: 216374 do
+      term = EnrollmentTerm.new(:name => "Super Term", :start_at => 1.month.ago, :end_at => 1.week.ago)
+      term.root_account_id = @course.root_account_id
+      term.save!
+      c1 = @course
+      c1.name = 'a_soft_concluded_course'
+      c1.update_attributes!(:enrollment_term => term)
+      c1.reload
+      get "/courses"
+      expect(fj("#past_enrollments_table a[href='/courses/#{@course.id}']")).to include_text(c1.name)
+    end
+
+    context "course menu customization" do
+
+      it "should always have a link to the courses page (with customizations)", priority: "1", test_id: 216378 do
+        20.times { course_with_teacher({:user => @user, :active_course => true, :active_enrollment => true}) }
+        get "/"
+        driver.execute_script %{$('#courses_menu_item').addClass('hover');}
+        wait_for_ajaximations
+        expect(fj('#courses_menu_item')).to include_text('My Courses')
+        expect(fj('#courses_menu_item')).to include_text('View All or Customize')
+      end
+    end
   end
 
   context "as a teacher" do
@@ -371,39 +395,43 @@ describe "dashboard" do
 
     it_should_behave_like 'load events list'
 
-    it "should validate the functionality of soft concluded courses on courses page", priority: "1", test_id: 216374 do
-      term = EnrollmentTerm.new(:name => "Super Term", :start_at => 1.month.ago, :end_at => 1.week.ago)
-      term.root_account_id = @course.root_account_id
-      term.save!
-      c1 = @course
-      c1.name = 'a_soft_concluded_course'
-      c1.update_attributes!(:enrollment_term => term)
-      c1.reload
+    context "restricted future courses" do
+      before :once do
+        term = EnrollmentTerm.new(:name => "Super Term", :start_at => 1.week.from_now, :end_at => 1.month.from_now)
+        term.root_account_id = Account.default.id
+        term.save!
+        course_with_student(:active_all => true)
+        @c1 = @course
+        @c1.name = 'a future course'
+        @c1.update_attributes!(:enrollment_term => term)
 
-      get "/courses"
-      expect(fj("#past_enrollments_table a[href='/courses/#{@course.id}']")).to include_text(c1.name)
-    end
+        course_with_student(:active_course => true, :user => @student)
+        @c2 = @course
+        @c2.name = "a restricted future course"
+        @c2.restrict_student_future_view = true
+        @c2.update_attributes!(:enrollment_term => term)
+      end
 
-    it "should show future courses (even if restricted) to students on courses page" do
-      term = EnrollmentTerm.new(:name => "Super Term", :start_at => 1.week.from_now, :end_at => 1.month.from_now)
-      term.root_account_id = @course.root_account_id
-      term.save!
-      course_with_student_logged_in(:active_all => true)
-      c1 = @course
-      c1.name = 'a future course'
-      c1.update_attributes!(:enrollment_term => term)
+      before do
+        user_session(@student)
+      end
 
-      course_with_student(:active_course => true, :user => @student)
-      c2 = @course
-      c2.name = "a restricted future course"
-      c2.restrict_student_future_view = true
-      c2.update_attributes!(:enrollment_term => term)
+      it "should show future courses (even if restricted) to students on courses page" do
+        get "/courses"
+        expect(fj("#future_enrollments_table a[href='/courses/#{@c1.id}']")).to include_text(@c1.name)
 
-      get "/courses"
-      expect(fj("#future_enrollments_table a[href='/courses/#{c1.id}']")).to include_text(c1.name)
+        expect(fj("#future_enrollments_table a[href='/courses/#{@c2.id}']")).to be_nil # should not have a link
+        expect(f("#future_enrollments_table")).to include_text(@c2.name) # but should still show restricted future enrollment
+      end
 
-      expect(fj("#future_enrollments_table a[href='/courses/#{c2.id}']")).to be_nil # should not have a link
-      expect(f("#future_enrollments_table")).to include_text(c2.name) # but should still show restricted future enrollment
+      it "should not show restricted future courses to students on courses page if configured on account" do
+        a = @c2.account
+        a.settings[:restrict_student_future_listing] = {:value => true}
+        a.save!
+        get "/courses"
+        expect(fj("#future_enrollments_table a[href='/courses/#{@c1.id}']")).to include_text(@c1.name)
+        expect(f("#future_enrollments_table")).to_not include_text(@c2.name) # shouldn't be included at all
+      end
     end
 
     it "should display assignment to grade in to do list for a teacher", priority: "1", test_id: 216376 do
@@ -427,41 +455,6 @@ describe "dashboard" do
 
         #verify todo list is updated
         expect(f('.to-do-list > li')).to be_nil
-      end
-    end
-
-    it "should show submitted essay quizzes in the todo list", priority: "1", test_id: 216377 do
-      quiz_title = 'new quiz'
-      student_in_course(:active_all => true)
-      q = @course.quizzes.create!(:title => quiz_title)
-      q.quiz_questions.create!(:question_data => {:id => 31, :name => "Quiz Essay Question 1", :question_type => 'essay_question', :question_text => 'qq1', :points_possible => 10})
-      q.generate_quiz_data
-      q.workflow_state = 'available'
-      q.save
-      q.reload
-      qs = q.generate_submission(@user)
-      qs.mark_completed
-      qs.submission_data = {"question_31" => "<p>abeawebawebae</p>", "question_text" => "qq1"}
-      Quizzes::SubmissionGrader.new(qs).grade_submission
-      get "/"
-
-      todo_list = f('.to-do-list')
-      expect(todo_list).not_to be_nil
-      expect(todo_list).to include_text(quiz_title)
-    end
-
-    context "course menu customization" do
-
-      it "should always have a link to the courses page (with customizations)", priority: "1", test_id: 216378 do
-        20.times { course_with_teacher({:user => @user, :active_course => true, :active_enrollment => true}) }
-
-        get "/"
-
-        driver.execute_script %{$('#courses_menu_item').addClass('hover');}
-        wait_for_ajaximations
-
-        expect(fj('#courses_menu_item')).to include_text('My Courses')
-        expect(fj('#courses_menu_item')).to include_text('View All or Customize')
       end
     end
   end

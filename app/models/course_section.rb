@@ -22,13 +22,6 @@ class CourseSection < ActiveRecord::Base
   attr_protected :sis_source_id, :sis_batch_id, :course_id,
       :root_account_id, :enrollment_term_id, :integration_id
 
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :sis_source_id, :sis_batch_id, :course_id, :root_account_id, :enrollment_term_id, :name, :default_section, :accepting_enrollments, :can_manually_enroll, :start_at,
-    :end_at, :created_at, :updated_at, :workflow_state, :restrict_enrollments_to_section_dates, :nonxlist_course_id
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:course, :nonxlist_course, :root_account, :enrollments, :users, :calendar_events, :assignment_overrides]
-
   belongs_to :course
   belongs_to :nonxlist_course, :class_name => 'Course'
   belongs_to :root_account, :class_name => 'Account'
@@ -72,6 +65,10 @@ class CourseSection < ActiveRecord::Base
     end
   end
 
+  def participating_observers
+    User.observing_students_in_course(participating_students.map(&:id), course.id)
+  end
+
   def participating_students
     course.participating_students.where(:enrollments => { :course_section_id => self })
   end
@@ -80,8 +77,10 @@ class CourseSection < ActiveRecord::Base
     course.participating_admins.where("enrollments.course_section_id = ? OR NOT COALESCE(enrollments.limit_privileges_to_course_section, ?)", self, false)
   end
 
-  def participants
-    participating_students + participating_admins
+  def participants(include_observers=false)
+    ps = participating_students + participating_admins
+    ps += participating_observers if include_observers
+    ps
   end
 
   def available?

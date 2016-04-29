@@ -80,7 +80,9 @@ class LoginController < ApplicationController
     end
 
     unless flash[:delegated_message]
-      return redirect_to url_for({ controller: "login/#{auth_type}", action: :new }.merge(params.slice(:id, :account_id)))
+      return redirect_to url_for({ controller: "login/#{auth_type}", action: :new }
+                                     .merge(params.slice(:id, :account_id))
+                                     .merge(params.slice(:pseudonym_session)))
     end
 
     # we had an error from an SSO - we need to show it

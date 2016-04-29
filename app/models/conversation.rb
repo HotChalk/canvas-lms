@@ -23,11 +23,7 @@ class Conversation < ActiveRecord::Base
   has_many :conversation_messages, -> { order("created_at DESC, id DESC") }, dependent: :delete_all
   has_many :conversation_message_participants, :through => :conversation_messages
   has_one :stream_item, :as => :asset
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Account', 'Course', 'Group']
-
-  EXPORTABLE_ATTRIBUTES = [:id, :has_attachments, :has_media_objects, :tags, :root_account_ids, :subject, :context_type, :context_id]
-  EXPORTABLE_ASSOCATIONS = [:context]
+  belongs_to :context, polymorphic: [:account, :course, :group]
 
   validates_length_of :subject, :maximum => maximum_string_length, :allow_nil => true
 
@@ -125,6 +121,7 @@ class Conversation < ActiveRecord::Base
   end
 
   def add_participants(current_user, users, options={})
+    message = nil
     self.shard.activate do
       user_ids = users.map(&:id).uniq
       raise "can't add participants to a private conversation" if private?
@@ -176,10 +173,12 @@ class Conversation < ActiveRecord::Base
           SQL
 
           # announce their arrival
-          add_event_message(current_user, {:event_type => :users_added, :user_ids => user_ids}, options)
+          message = add_event_message(current_user, {:event_type => :users_added, :user_ids => user_ids}, options)
         end
       end
+      self.touch
     end
+    message
   end
 
   def add_event_message(current_user, event_data={}, options={})
@@ -379,10 +378,12 @@ class Conversation < ActiveRecord::Base
         # so we'll hard-delete them before reinserting. It would probably be better
         # to update them instead, but meh.
         inserting_user_ids = message_participant_data.map { |d| d[:user_id] }
-        ConversationMessageParticipant.where(
-          :conversation_message_id => message.id, :user_id => inserting_user_ids
-          ).delete_all
-        ConversationMessageParticipant.bulk_insert message_participant_data
+        ConversationMessageParticipant.unique_constraint_retry do
+          ConversationMessageParticipant.where(
+            :conversation_message_id => message.id, :user_id => inserting_user_ids
+            ).delete_all
+          ConversationMessageParticipant.bulk_insert message_participant_data
+        end
       end
     end
   end

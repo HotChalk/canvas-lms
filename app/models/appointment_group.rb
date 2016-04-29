@@ -30,14 +30,6 @@ class AppointmentGroup < ActiveRecord::Base
   has_many :appointment_group_contexts
   has_many :appointment_group_sub_contexts, -> { preload(:sub_context) }
 
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :title, :description, :location_name, :location_address, :context_id, :context_type, :context_code, :sub_context_id, :sub_context_type,
-    :sub_context_code, :workflow_state, :created_at, :updated_at, :start_at, :end_at, :participants_per_appointment, :max_appointments_per_participant,
-    :min_appointments_per_participant, :participant_visibility
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:appointments, :appointment_participants, :appointment_group_contexts, :appointment_group_sub_contexts]
-
   def context
     appointment_group_contexts.first.context
   end
@@ -47,7 +39,7 @@ class AppointmentGroup < ActiveRecord::Base
   end
 
   def active_contexts
-    contexts.reject { |context| context.workflow_state == 'deleted' }
+    contexts.reject { |context| context.workflow_state == 'deleted' || context.concluded? }
   end
 
   def sub_contexts
@@ -239,7 +231,7 @@ class AppointmentGroup < ActiveRecord::Base
 
     given { |user|
       next false if deleted?
-      next false unless active_contexts.all? { |c| c.grants_right? user, :manage_calendar }
+      next false unless active_contexts.any? { |c| c.grants_right? user, :manage_calendar }
       if appointment_group_sub_contexts.present? && appointment_group_sub_contexts.first.sub_context_type == 'CourseSection'
         sub_context_ids = appointment_group_sub_contexts.map(&:sub_context_id)
         user_visible_section_ids = contexts.map { |c|
@@ -472,7 +464,7 @@ class AppointmentGroup < ActiveRecord::Base
 
   def context_codes_for_user(user)
     @context_codes_for_user ||= {}
-    @context_codes_for_user[user.global_id] if @context_codes_for_user.has_key?(user.global_id)
+    return @context_codes_for_user[user.global_id] if @context_codes_for_user.has_key?(user.global_id)
     @context_codes_for_user[user.global_id] = begin
       manageable_codes = user.manageable_appointment_context_codes
       user_codes = user.appointment_context_codes[:primary] |

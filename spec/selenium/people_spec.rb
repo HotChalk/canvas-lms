@@ -309,14 +309,6 @@ describe "people" do
       expect(f('#users')).to include_text(@student_1.name)
     end
 
-    def link_to_student(enrollment, student)
-      enrollment.find_element(:css, ".link_enrollment_link").click
-      wait_for_ajax_requests
-      click_option("#student_enrollment_link_option", student.try(:name) || "[ No Link ]")
-      submit_form("#link_student_dialog_form")
-      wait_for_ajax_requests
-    end
-
     it "should deal with observers linked to multiple students" do
       @students = []
       @obs = user_model(:name => "The Observer")
@@ -341,28 +333,6 @@ describe "people" do
 
       expect(enrollments[0]).to include_text @students[0].name
       expect(enrollments[1]).to include_text @students[1].name
-
-      link_to_student(enrollments[0], @students[2])
-      expect(enrollments[0]).to include_text @students[2].name
-      expect(enrollments[1]).to include_text @students[1].name
-
-      link_to_student(enrollments[1], @students[3])
-      expect(enrollments[0]).to include_text @students[2].name
-      expect(enrollments[1]).to include_text @students[3].name
-
-      @obs.reload
-      expect(@obs.enrollments.map { |e| e.associated_user_id }.sort).to eq [@students[2].id, @students[3].id]
-
-      link_to_student(enrollments[0], nil)
-      expect(enrollments[0].find_element(:css, ".associated_user")).not_to be_displayed
-
-      link_to_student(enrollments[0], @students[0])
-      link_to_student(enrollments[1], @students[1])
-      expect(enrollments[0]).to include_text @students[0].name
-      expect(enrollments[1]).to include_text @students[1].name
-
-      @obs.reload
-      expect(@obs.enrollments.map { |e| e.associated_user_id }.sort).to eq [@students[0].id, @students[1].id]
     end
   end
 
@@ -519,8 +489,19 @@ describe "people" do
       admin_logged_in
     end
 
-    it "should not let observers have their roles changed" do
+    it "should let observers have their roles changed if they don't have associated users" do
       @course.enroll_user(@teacher, "ObserverEnrollment", :allow_multiple_enrollments => true)
+
+      get "/courses/#{@course.id}/users"
+
+      open_dropdown_menu("#user_#{@teacher.id}")
+      expect(dropdown_item_exists?('editRoles', "#user_#{@teacher.id}")).to be true
+    end
+
+    it "should not let observers with associated users have their roles changed" do
+      student = user
+      @course.enroll_student(student)
+      @course.enroll_user(@teacher, "ObserverEnrollment", :allow_multiple_enrollments => true, :associated_user_id => student.id)
 
       get "/courses/#{@course.id}/users"
 
@@ -533,14 +514,14 @@ describe "people" do
       f("#user_#{user.id} .admin-links a[data-event='editRoles']").click
     end
 
-    it "should not let users change to an observer role" do
+    it "should let users change to an observer role" do
       get "/courses/#{@course.id}/users"
 
       open_role_dialog(@teacher)
 
       expect(f("#edit_roles #role_id option[selected]")).to include_text("Teacher")
       expect(f("#edit_roles #role_id option[value='#{student_role.id}']")).to be_present
-      expect(f("#edit_roles #role_id option[value='#{observer_role.id}']")).to be_nil
+      expect(f("#edit_roles #role_id option[value='#{observer_role.id}']")).to be_present
     end
 
     it "should not let users change to a type they don't have permission to manage" do
@@ -558,7 +539,7 @@ describe "people" do
       role = @course.account.roles.create(:name => role_name)
       role.base_role_type = 'TeacherEnrollment'
       role.save!
-      @enrollment.inactivate
+      @enrollment.deactivate
 
       get "/courses/#{@course.id}/users"
 
@@ -631,6 +612,29 @@ describe "people" do
 
       new_enrollment = @teacher.enrollments.not_deleted.first
       expect(new_enrollment.role).to eq student_role
+    end
+
+    it "should not show the option to edit roles for a soft-concluded course" do
+      @course.conclude_at = 2.days.ago
+      @course.restrict_enrollments_to_course_dates = true
+      @course.save!
+
+      get "/courses/#{@course.id}/users"
+      open_dropdown_menu("#user_#{@teacher.id}")
+      expect(dropdown_item_exists?('editRoles', "#user_#{@teacher.id}")).to be false
+    end
+
+    it "should not show the option to edit roles for a SIS imported enrollment" do
+      student = user_with_pseudonym(:active_all => true)
+      enrollment = @course.enroll_teacher(student)
+      enrollment.sis_source_id = "something"
+      enrollment.save!
+
+      user_session(@teacher)
+
+      get "/courses/#{@course.id}/users"
+      open_dropdown_menu("#user_#{student.id}")
+      expect(dropdown_item_exists?('editRoles', "#user_#{student.id}")).to be false
     end
   end
 end

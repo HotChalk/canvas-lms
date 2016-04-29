@@ -58,17 +58,17 @@ describe "calendar2" do
         create_middle_day_assignment
       end
 
-      it 'should translate time string in event details', priority: "2", test_id: 467482 do
+      it 'should translate am/pm time strings in assignment event datepicker', priority: "2", test_id: 467482 do
         @user.locale = 'fa-IR'
         @user.save!
-        create_course_event
-        # course event created with pm timestamp
         load_month_view
-        fj('.fc-content').click
+        f('#create_new_event_link').click
+        f('#edit_event .edit_assignment_option').click
+        f('#assignment_title').send_keys('test assignment')
+        f('#edit_assignment_form .ui-datepicker-trigger.btn').click
         wait_for_ajaximations
-        event_details = fj('.event-details')
-        # literal translation of expectation is afternoon and pm when applied to a time
-        expect(event_details.find('.date-range')).to include_text('بعد از ظهر')
+        expect(f('#ui-datepicker-div .ui-datepicker-time-ampm')).to include_text('قبل از ظهر')
+        expect(f('#ui-datepicker-div .ui-datepicker-time-ampm')).to include_text('بعد از ظهر')
       end
 
       context "drag and drop" do
@@ -191,6 +191,20 @@ describe "calendar2" do
           event1.reload
           expect(event1.start_at).to eql(@three_days_earlier)
         end
+
+        it "should extend event to multiple days by draging", priority: "2", test_id: 419527 do
+          create_middle_day_event
+          date_of_middle_day = find_middle_day.attribute('data-date')
+          date_of_next_day = (date_of_middle_day.to_datetime + 1.day).strftime('%Y-%m-%d')
+          f('.fc-content-skeleton .fc-event-container .fc-resizer')
+          next_day = fj("[data-date = #{date_of_next_day}]")
+          drag_and_drop_element(f('.fc-content-skeleton .fc-event-container .fc-resizer'), next_day)
+          fj('.fc-event:visible').click
+          # observe the event details show date range from event start to date to end date
+          original_day_text = date_of_middle_day.to_datetime.strftime('%b %-d at %-l:%M%P')
+          extended_day_text = (date_of_next_day.to_datetime + 1.day).strftime('%b %-d at %-l:%M%P')
+          expect(f('.event-details-timestring .date-range').text).to eq("#{original_day_text} - #{extended_day_text}")
+        end
       end
 
       it "more options link should go to calendar event edit page" do
@@ -207,12 +221,12 @@ describe "calendar2" do
         name = 'special assignment'
         create_middle_day_assignment(name)
         keep_trying_until do
-          fj('.fc-event.assignment').click
+          f('.fc-event.assignment').click
           wait_for_ajaximations
-          if (fj('.view_event_link').displayed?)
+          if f('.view_event_link').displayed?
             expect_new_page_load { driver.execute_script("$('.view_event_link').hover().click()") }
           end
-          fj('h1.title').displayed?
+          f('h1.title').displayed?
         end
 
         expect(find('h1.title').text).to include(name)
@@ -253,9 +267,9 @@ describe "calendar2" do
       it "should delete an assignment" do
         create_middle_day_assignment
         keep_trying_until do
-          fj('.fc-event').click()
+          f('.fc-event').click()
           driver.execute_script("$('.delete_event_link').hover().click()")
-          fj('.ui-dialog .ui-dialog-buttonset').displayed?
+          f('.ui-dialog .ui-dialog-buttonset').displayed?
         end
         wait_for_ajaximations
         driver.execute_script("$('.ui-dialog:visible .btn-primary').hover().click()")

@@ -52,6 +52,7 @@ class CourseLinkValidator
 
     # Assessment questions
     self.course.assessment_questions.active.each do |aq|
+      next if aq.assessment_question_bank.deleted?
       check_question(aq)
     end
     progress.update_completion! 15
@@ -224,7 +225,7 @@ class CourseLinkValidator
     path = path.chomp("/")
 
     @route_set ||= ::Rails.application.routes.set.routes.select{|r| r.verb === "GET"}
-    @route_set.any?{|r| r.path.match(path)}
+    @route_set.any?{|r| r.path.match(path)} || (!Pathname(path).each_filename.include?('..') && File.exists?(File.join(Rails.root, "public", path)))
   end
 
   # makes sure that links to course objects exist and are in a visible state
@@ -237,7 +238,7 @@ class CourseLinkValidator
         result = :missing_file
       end
     when /\/courses\/\d+\/(pages|wiki)\/([^\s"<'\?\/#]*)/
-      if obj = self.course.wiki.find_page($2)
+      if obj = self.course.wiki.find_page(CGI.unescape($2))
         if obj.workflow_state == 'unpublished'
           result = :unpublished_item
         end
@@ -272,7 +273,7 @@ class CourseLinkValidator
   # ping the url and make sure we get a 200
   def reachable_url?(url)
     begin
-      response = CanvasHttp.get(url)
+      response = CanvasHttp.head(url, { "Accept-Encoding" => "gzip" }, 9)
 
       case response.code
       when /^2/ # 2xx code

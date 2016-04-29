@@ -20,7 +20,7 @@
       @show_left_side ||= (section_tabs.length > 0 || left_side_custom.try(:length))
     end
     @body_classes << "with-left-side" if @show_left_side
-    @body_classes << "course-menu-expanded" if @body_classes.include? "with-left-side"
+    @body_classes << "course-menu-expanded" if @body_classes.include?("with-left-side") && !@collapse_course_menu
     #we dont want to render a right side unless there is actually content in it.
     @body_classes << "with-right-side" if right_side and not right_side.strip.empty?
     @body_classes << "padless-content" if @padless
@@ -28,6 +28,7 @@
     @body_classes << 'with-fixed-bottom' if @show_fixed_bottom
     @body_classes << 'pages' if controller.js_env[:WIKI_PAGE].present?
     @body_classes << @active_tab
+    @body_classes << 'is-masquerading-or-student-view' if @real_current_user && @real_current_user != @current_user
   end
 
   css_bundle(:instructure_eportfolio) if @eportfolio_view === true
@@ -81,7 +82,7 @@
     <div id="wrapper" <% if use_new_styles? %>class="ic-app-main-layout-vertical"<% end %>>
       <% #Start new styles div %>
       <% if crumbs.length > 1 && use_new_styles? %>
-        <div class="ic-app-nav-toggle-and-crumbs">
+        <div class="ic-app-nav-toggle-and-crumbs no-print">
           <% if @show_left_side %>
             <button type="button" aria-hidden="true" id="courseMenuToggle" class="Button Button--link Button--small ic-app-course-nav-toggle" title="<%= t('Show and hide courses menu') %>"><i class="icon-hamburger"></i></button>
             <div class="ic-app-crumbs">
@@ -144,7 +145,9 @@
         </div>
       <% #End new styles div %>
       <% if use_new_styles? %></div><% end %>
-      <%= render :partial => 'shared/canvas_footer' %>
+      <% if (use_new_styles? && @show_footer) or !use_new_styles? %>
+        <%= render :partial => 'shared/canvas_footer' %>
+      <% end %>
     </div>
   </div>
 
@@ -160,7 +163,7 @@
     <div id="wizard_box" tabindex="-1">
       <div class="wizard_content">
         <div class="links">
-          <a href="#" class="close_wizard_link"><i class="icon-x"></i><span class="screen-reader-text"><%= t('links.close', 'Close') %></span></a>
+          <a href="#" class="close_wizard_link"><i class="icon-x"></i><span class="screenreader-only"><%= t('links.close', 'Close') %></span></a>
         </div>
         <%= wizard %>
       </div>

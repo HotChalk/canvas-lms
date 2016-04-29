@@ -18,7 +18,7 @@ require "rails/test_unit/railtie"
 
 Bundler.require(*Rails.groups)
 
-if Rails.version < '4.1'
+if CANVAS_RAILS4_0
   ActiveRecord::Base.class_eval do
     mattr_accessor :dump_schema_after_migration, instance_writer: false
     self.dump_schema_after_migration = true
@@ -91,12 +91,19 @@ module CanvasRails
 
     config.active_record.whitelist_attributes = false
 
+    unless CANVAS_RAILS4_0
+      config.active_record.raise_in_transactional_callbacks = true # may as well opt into the new behavior
+    end
+    config.active_support.encode_big_decimal_as_string = false
+
     config.autoload_paths += %W(#{Rails.root}/app/middleware
                             #{Rails.root}/app/observers
                             #{Rails.root}/app/presenters
                             #{Rails.root}/app/services
                             #{Rails.root}/app/serializers
                             #{Rails.root}/app/presenters)
+
+    config.autoload_once_paths << Rails.root.join("app/middleware")
 
     # prevent directory->module inference in these directories from wreaking
     # havoc on the app (e.g. stylesheets/base -> ::Base)
@@ -110,7 +117,7 @@ module CanvasRails
       app.config.middleware.insert_before(config.session_store, 'SessionsTimeout')
       app.config.middleware.swap('ActionDispatch::RequestId', 'RequestContextGenerator')
       app.config.middleware.insert_after(config.session_store, 'RequestContextSession')
-      app.config.middleware.insert_before('ActionDispatch::ParamsParser', 'Canvas::RequestThrottle')
+      app.config.middleware.insert_before('ActionDispatch::ParamsParser', 'RequestThrottle')
       app.config.middleware.insert_before('Rack::MethodOverride', 'PreventNonMultipartParse')
       app.config.middleware.insert_before(0, 'Rack::Cors') do
         cors_config = (File.exist?(Rails.root+"config/cors.yml") && YAML.load_file(Rails.root+"config/cors.yml")[Rails.env]) || {}
@@ -155,6 +162,14 @@ module CanvasRails
     # safe_yaml can't whitelist specific instances of scalar values, so just override the loading
     # here, and do a weird check
     YAML.add_ruby_type("object:Class") do |_type, val|
+      if SafeYAML.safe_parsing && !Canvas::Migration.valid_converter_classes.include?(val)
+        raise "Cannot load class #{val} from YAML"
+      end
+      val.constantize
+    end
+
+    # TODO: Use this instead of the above block when we switch to Psych
+    Psych.add_domain_type("ruby/object", "Class") do |_type, val|
       if SafeYAML.safe_parsing && !Canvas::Migration.valid_converter_classes.include?(val)
         raise "Cannot load class #{val} from YAML"
       end

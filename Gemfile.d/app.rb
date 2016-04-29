@@ -5,11 +5,12 @@ if CANVAS_RAILS4_0
   gem 'protected_attributes', '1.0.8'
   gem 'rails-observers', '0.1.2'
   gem 'tzinfo', '0.3.43'
+  gem 'foreigner', '0.9.2'
 else
-  gem 'rails', '4.2.5'
+  gem 'rails', '4.2.5.2'
   gem 'rack', '1.6.4'
   gem 'builder', '3.1.4'
-  gem 'protected_attributes', '1.0.8'
+  gem 'protected_attributes', '1.1.3'
   gem 'rails-observers', '0.1.2'
   gem 'tzinfo', '1.2.2'
   gem 'oj_mimic_json', require: false
@@ -20,11 +21,12 @@ gem 'encrypted_cookie_store-instructure', '1.1.12', require: 'encrypted_cookie_s
 gem 'active_model_serializers',   '0.9.0alpha1',
   github: 'rails-api/active_model_serializers', ref: '61882e1e4127facfe92e49057aec71edbe981829'
 gem 'authlogic', '3.4.6'
+  gem 'scrypt', '2.1.1'
 gem 'active_model-better_errors', '1.6.7', require: 'active_model/better_errors'
 gem 'dynamic_form', '1.1.4', require: false
 gem 'rails-patch-json-encode', '0.0.1'
-gem 'switchman', '1.3.14-1'
-gem 'folio-pagination', '0.0.9', require: 'folio/rails'
+gem 'switchman', '1.5.3'
+gem 'folio-pagination', '0.0.11', require: 'folio/rails'
   # for folio, see the folio README
   gem 'will_paginate', '3.0.7', require: false
 
@@ -38,7 +40,7 @@ gem 'bcrypt-ruby', '3.0.1'
 gem 'canvas_connect', '0.3.10'
   gem 'adobe_connect', '1.0.3', require: false
 gem 'canvas_webex', '0.17'
-gem 'canvas-jobs', '0.10.3'
+gem 'canvas-jobs', '0.10.5'
   gem 'rufus-scheduler', '3.1.2', require: false
 gem 'ffi', '1.1.5', require: false
 gem 'hairtrigger', '0.2.15'
@@ -52,7 +54,7 @@ gem 'i18n', '0.7.0'
 gem 'i18nema', '0.0.8'
 gem 'i18nliner', '0.0.12'
 gem 'icalendar', '1.5.4', require: false
-gem 'ims-lti', '2.0.0.beta.33'
+gem 'ims-lti', '2.0.0.beta.37', require: 'ims'
 gem 'json', '1.8.2'
 gem 'oj', '2.14.1'
 gem 'jwt', '1.2.1', require: false
@@ -77,7 +79,7 @@ gem 'parallel', '1.4.1', require: false
 gem 'rack-mini-profiler', '0.9.2', require: false
 gem 'flamegraph', '0.1.0', require: false
   gem 'stackprof', '0.2.7', require: false
-gem 'rake', '10.4.2'
+gem 'rake', '10.5.0'
 gem 'rdoc', '3.12'
 gem 'ratom-nokogiri', '0.10.4', require: false
 gem 'rdiscount', '1.6.8', require: false
@@ -91,16 +93,15 @@ gem 'rubycas-client', '2.3.9', require: false
 gem 'rubyzip', '1.1.1', require: 'zip'
 gem 'safe_yaml', '1.0.4', require: false
 gem 'sanitize', '2.0.6', require: false
-gem 'shackles', '1.0.10'
+gem 'shackles', '1.1.0'
 
 gem 'useragent', '0.13.3', require: false
 
-gem 'foreigner', '0.9.2'
 gem 'crocodoc-ruby', '0.0.1', require: false
 gem 'hey', '1.3.0', require: false
-gem 'sentry-raven', '0.15.3', require: false
+gem 'sentry-raven', '0.15.6', require: false
 gem 'canvas_statsd', '1.0.3'
-gem 'diplomat', '0.14.0', require: false
+gem 'diplomat', '0.15.0', require: false
 
 gem 'activesupport-suspend_callbacks', path: 'gems/activesupport-suspend_callbacks'
 gem 'acts_as_list', path: 'gems/acts_as_list'
@@ -128,7 +129,6 @@ gem 'canvas_text_helper', path: 'gems/canvas_text_helper'
 gem 'canvas_time', path: 'gems/canvas_time'
 gem 'canvas_unzip', path: 'gems/canvas_unzip'
 gem 'csv_diff', path: 'gems/csv_diff'
-gem 'google_docs', path: 'gems/google_docs'
 gem 'google_drive', path: 'gems/google_drive'
 gem 'html_text_helper', path: 'gems/html_text_helper'
 gem 'incoming_mail_processor', path: 'gems/incoming_mail_processor'
@@ -145,8 +145,12 @@ gem 'workflow', path: 'gems/workflow'
 gem 'gepub'
 
 # New Relic Monitoring
-gem 'newrelic_rpm', '3.14.0.305'
+# NOTE: Commenting out the NewRelic gem for now because it causes the delayed jobs script to fail with a 'StackLevelTooDeep' error
+# See:
+# - https://groups.google.com/forum/?fromgroups#!topic/canvas-lms-users/pYKylftHfQw
+# - https://github.com/instructure/canvas-lms/issues/752
+#gem 'newrelic_rpm', '3.15.2.317'
 # Lograge Logging
-gem "lograge", '0.3.5'
+gem "lograge", '0.3.6'
 # Rack CORS middleware
 gem 'rack-cors', '0.4.0', require: 'rack/cors'

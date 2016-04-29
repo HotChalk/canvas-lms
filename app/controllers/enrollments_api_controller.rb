@@ -170,12 +170,12 @@
 #           "computed_current_score": {
 #             "description": "optional: The student's score in the course, ignoring ungraded assignments. (applies only to student enrollments, and only available in course endpoints)",
 #             "example": 90.25,
-#             "type": "float"
+#             "type": "number"
 #           },
 #           "computed_final_score": {
 #             "description": "optional: The student's score in the course including ungraded assignments with a score of 0. (applies only to student enrollments, and only available in course endpoints)",
 #             "example": 80.67,
-#             "type": "float"
+#             "type": "number"
 #           },
 #           "computed_current_grade": {
 #             "description": "optional: The letter grade equivalent of computed_current_score, if available. (applies only to student enrollments, and only available in course endpoints)",
@@ -202,15 +202,20 @@
 #             "example": "Fall Grading Period",
 #             "type": "string"
 #           },
+#           "current_grading_period_id": {
+#             "description": "optional: The id of the currently active grading period, if one exists. If the course the enrollment belongs to does not have Multiple Grading Periods enabled, or if no currently active grading period exists, the value will be null. (applies only to student enrollments, and only available in course endpoints)",
+#             "example": 5,
+#             "type": "integer"
+#           },
 #           "current_period_computed_current_score": {
 #             "description": "optional: The student's score in the course for the current grading period, ignoring ungraded assignments. If the course the enrollment belongs to does not have Multiple Grading Periods enabled, or if no currently active grading period exists, the value will be null. (applies only to student enrollments, and only available in course endpoints)",
 #             "example": 95.80,
-#             "type": "float"
+#             "type": "number"
 #           },
 #           "current_period_computed_final_score": {
 #             "description": "optional: The student's score in the course for the current grading period, including ungraded assignments with a score of 0. If the course the enrollment belongs to does not have Multiple Grading Periods enabled, or if no currently active grading period exists, the value will be null. (applies only to student enrollments, and only available in course endpoints)",
 #             "example": 85.25,
-#             "type": "float"
+#             "type": "number"
 #           },
 #           "current_period_computed_current_grade": {
 #             "description": "optional: The letter grade equivalent of current_period_computed_current_score, if available. If the course the enrollment belongs to does not have Multiple Grading Periods enabled, or if no currently active grading period exists, the value will be null. (applies only to student enrollments, and only available in course endpoints)",
@@ -271,6 +276,10 @@ class EnrollmentsApiController < ApplicationController
   #   argument or via user enrollments endpoint), the following additional
   #   synthetic states are supported: "current_and_invited"|"current_and_future"|"current_and_concluded"
   #
+  # @argument include[] [String, "avatar_url"|"group_ids"|"locked"|"observed_users"|"can_be_removed"]
+  #   Array of additional information to include on the enrollment or user records.
+  #   "avatar_url" and "group_ids" will be returned on the user record.
+  #
   # @argument user_id [String]
   #   Filter by user_id (only valid for course or section enrollment
   #   queries). If set to the current user's id, this is a way to
@@ -326,9 +335,11 @@ class EnrollmentsApiController < ApplicationController
       self, send("api_v1_#{endpoint_scope}_enrollments_url"))
 
     ActiveRecord::Associations::Preloader.new.preload(enrollments, [:user, :course, :course_section])
-    includes = [:user] + Array(params[:include])
 
-    user_json_preloads(enrollments.map(&:user))
+    include_group_ids = Array(params[:include]).include?("group_ids")
+    includes = [:user] + Array(params[:include])
+    user_json_preloads(enrollments.map(&:user), false, {group_memberships: include_group_ids})
+
     render :json => enrollments.map { |e|
       enrollment_json(e, @current_user, session, includes,
                       grading_period: grading_period)
@@ -341,14 +352,13 @@ class EnrollmentsApiController < ApplicationController
   # @argument id [Required, Integer]
   #  The ID of the enrollment object
   # @returns Enrollment
-
   def show
-    enrollment = Enrollment.find(params[:id])
-    if enrollment.user_id == @current_user.id || enrollment.root_account == @context && authorized_action(@context, @current_user, [:read_roster])
-      #render enrollment object if requesting user is the current_user or user is authorized to read enrollment.
+    enrollment = @context.all_enrollments.find(params[:id])
+    if enrollment.user_id == @current_user.id || authorized_action(@context, @current_user, :read_roster)
       render :json => enrollment_json(enrollment, @current_user, session)
     end
   end
+
   # @API Enroll a user
   # Create a new user enrollment for a course or section.
   #
@@ -556,12 +566,13 @@ class EnrollmentsApiController < ApplicationController
     render :json => enrollment_json(@enrollment, @current_user, session)
   end
 
-  # @API Conclude or inactivate an enrollment
-  # Delete, conclude or inactivate an enrollment.
+  # @API Conclude or deactivate an enrollment
+  # Delete, conclude or deactivate an enrollment.
   #
-  # @argument task [String, "conclude"|"delete"|"inactivate"]
+  # @argument task [String, "conclude"|"delete"|"inactivate"|"deactivate"]
   #   The action to take on the enrollment.
   #   When inactive, a user will still appear in the course roster to admins, but be unable to participate.
+  #   ("inactivate" and "deactivate" are equivalent tasks)
   #
   # @example_request
   #   curl https://<canvas>/api/v1/courses/:course_id/enrollments/:enrollment_id \
@@ -571,21 +582,33 @@ class EnrollmentsApiController < ApplicationController
   # @returns Enrollment
   def destroy
     @enrollment = @context.enrollments.find(params[:id])
-    task = %w{conclude delete inactivate}.include?(params[:task]) ? params[:task] : 'conclude'
+    permission =
+      case params[:task]
+      when 'conclude'
+        :can_be_concluded_by
+      when 'delete', 'deactivate', 'inactivate'
+        :can_be_deleted_by
+      else
+        :can_be_concluded_by
+      end
 
-    permission = case task
-                 when 'conclude'
-                   :can_be_concluded_by
-                 when 'delete', 'inactivate'
-                   :can_be_deleted_by
-                 end
+    action =
+      case params[:task]
+      when 'conclude'
+        :conclude
+      when 'delete'
+        :destroy
+      when 'deactivate', 'inactivate'
+        :deactivate
+      else
+        :conclude
+      end
 
     unless @enrollment.send(permission, @current_user, @context, session)
       return render_unauthorized_action
     end
 
-    task = 'destroy' if task == 'delete'
-    if @enrollment.send(task)
+    if @enrollment.send(action)
       render :json => enrollment_json(@enrollment, @current_user, session)
     else
       render :json => @enrollment.errors, :status => :bad_request

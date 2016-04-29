@@ -31,8 +31,7 @@ class Folder < ActiveRecord::Base
   MY_FILES_FOLDER_NAME = "my files"
   CONVERSATION_ATTACHMENTS_FOLDER_NAME = "conversation attachments"
 
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['User', 'Group', 'Account', 'Course']
+  belongs_to :context, polymorphic: [:user, :group, :account, :course]
   belongs_to :cloned_item
   belongs_to :parent_folder, :class_name => "Folder"
   has_many :file_attachments, :class_name => "Attachment"
@@ -40,13 +39,6 @@ class Folder < ActiveRecord::Base
   has_many :visible_file_attachments, -> { where(file_state: ['available', 'public']) }, class_name: 'Attachment'
   has_many :sub_folders, :class_name => "Folder", :foreign_key => "parent_folder_id", :dependent => :destroy
   has_many :active_sub_folders, -> { where("folders.workflow_state<>'deleted'") }, class_name: "Folder", foreign_key: "parent_folder_id", dependent: :destroy
-
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :name, :full_name, :context_id, :context_type, :parent_folder_id, :workflow_state, :created_at, :updated_at, :deleted_at, :locked,
-    :lock_at, :unlock_at, :last_lock_at, :last_unlock_at, :cloned_item_id, :position
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:context, :cloned_item, :parent_folder, :file_attachments, :sub_folders]
 
   acts_as_list :scope => :parent_folder
 
@@ -154,7 +146,7 @@ class Folder < ActiveRecord::Base
     # TODO i18n
     t :default_folder_name, 'New Folder'
     self.name = 'New Folder' if self.name.blank?
-    self.name = self.name.rstrip.gsub(/\//, "_")
+    self.name = self.name.strip.gsub(/\//, "_")
     folder = self
     @update_sub_folders = false
     self.parent_folder_id = nil if !self.parent_folder || self.parent_folder.context != self.context || self.parent_folder_id == self.id

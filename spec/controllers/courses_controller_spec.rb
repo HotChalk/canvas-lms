@@ -65,6 +65,8 @@ describe CoursesController do
         ens << @course.enroll_teacher(@user, :section => sec2, :allow_multiple_enrollments => true)
         ens.each(&:accept!)
 
+        ens[1].conclude # the current enrollment should take precedence over the concluded one
+
         user_session(@user)
         get 'index'
         expect(response).to be_success
@@ -195,7 +197,6 @@ describe CoursesController do
         expect(assigns[:current_enrollments]).to be_empty
         expect(assigns[:future_enrollments]).to be_empty
 
-        $bloo = true
         user_session(teacher)
         get 'index'
         expect(response).to be_success
@@ -1116,7 +1117,7 @@ describe CoursesController do
       expect(@course.students).to be_empty
       expect(@course.observers.map{|s| s.name}).to be_include("Sam")
       expect(@course.observers.map{|s| s.name}).to be_include("Fred")
-      expect(@course.observer_enrollments.map(&:workflow_state)).to eql(['active', 'active'])
+      expect(@course.observer_enrollments.map(&:workflow_state)).to eql(['invited', 'invited'])
     end
 
     it "will use json for limit_privileges_to_course_section param" do
@@ -1797,6 +1798,18 @@ describe CoursesController do
       test_student = @course.student_view_student
       assignment = @course.assignments.create!(:workflow_state => 'published')
       assignment.grade_student test_student, { :grade => 1, :grader => @teacher }
+      expect(test_student.submissions.size).not_to be_zero
+      delete 'reset_test_student', course_id: @course.id
+      test_student.reload
+      expect(test_student.submissions.size).to be_zero
+    end
+
+    it "removes provisional grades for by the test student" do
+      user_session(@teacher)
+      post 'student_view', course_id: @course.id
+      test_student = @course.student_view_student
+      assignment = @course.assignments.create!(:workflow_state => 'published', :moderated_grading => true)
+      assignment.grade_student test_student, { :grade => 1, :grader => @teacher, :provisional => true }
       expect(test_student.submissions.size).not_to be_zero
       delete 'reset_test_student', course_id: @course.id
       test_student.reload

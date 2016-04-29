@@ -23,7 +23,7 @@ class Login::CanvasController < ApplicationController
   before_filter :run_login_hooks, only: [:new, :create]
   before_filter :fix_ms_office_redirects, only: :new
 
-  protect_from_forgery except: :create
+  protect_from_forgery except: :create, with: :exception
 
   def new
     @pseudonym_session = PseudonymSession.new
@@ -36,8 +36,6 @@ class Login::CanvasController < ApplicationController
   end
 
   def create
-    # reset the session id cookie to prevent session fixation.
-    reset_session_for_login
     load_root_account(params[:account_id])
 
     # Check referer and authenticity token.  If the token is invalid but the referer is trusted
@@ -50,6 +48,9 @@ class Login::CanvasController < ApplicationController
         return unsuccessful_login(t("Invalid Authenticity Token"))
       end
     end
+
+    # reset the session id cookie to prevent session fixation.
+    reset_session_for_login
 
     if params[:pseudonym_session].blank? || params[:pseudonym_session][:password].blank?
       return unsuccessful_login(t("No password was given"))
