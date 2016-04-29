@@ -145,7 +145,11 @@ gem 'workflow', path: 'gems/workflow'
 gem 'gepub'
 
 # New Relic Monitoring
-gem 'newrelic_rpm', '3.15.2.317'
+# NOTE: Commenting out the NewRelic gem for now because it causes the delayed jobs script to fail with a 'StackLevelTooDeep' error
+# See:
+# - https://groups.google.com/forum/?fromgroups#!topic/canvas-lms-users/pYKylftHfQw
+# - https://github.com/instructure/canvas-lms/issues/752
+#gem 'newrelic_rpm', '3.15.2.317'
 # Lograge Logging
 gem "lograge", '0.3.6'
 # Rack CORS middleware
