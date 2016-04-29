@@ -65,6 +65,8 @@ require [
       @editProfile = @showEditForm
 
     showEditForm: ->
+      @$form = $('#edit_profile_form')
+      @$form.find('.rich_text_area').editorBox()        
       @$el.addClass('editing').removeClass('not-editing')
       @$('.profile_links').removeClass('span6')
 
