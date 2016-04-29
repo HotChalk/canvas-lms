@@ -22,30 +22,6 @@ class AccountNotification < ActiveRecord::Base
     end
   end
 
-  def self.for_user_all_accounts(user, account)
-    @notifications = []
-    @account_associations = UserAccountAssociation.where(user_id: user.id)
-    @account_associations.each do |a|
-      @account_data = Account.find(a.account_id)
-      @notifications += self.for_user_and_account(user, @account_data)
-    end
-    @notifications = self.clean_closed_notifications(user, @notifications)
-    @notifications
-  end
-
-  def self.clean_closed_notifications(user, notifications)
-    closed_ids = user.preferences[:closed_notifications] || []
-    # If there are ids marked as 'closed' that are no longer
-    # applicable, they probably need to be cleared out.
-    current_ids = notifications.map(&:id)
-    if !(closed_ids - current_ids).empty?
-      closed_ids = user.preferences[:closed_notifications] &= current_ids
-      user.save!
-    end
-    notifications.reject! { |announcement| closed_ids.include?(announcement.id) }
-    notifications
-  end
-
   def self.for_user_and_account(user, account)
     if account.site_admin?
       current = self.for_account(account)
@@ -89,6 +65,16 @@ class AccountNotification < ActiveRecord::Base
     end
 
     user.shard.activate do
+      closed_ids = user.preferences[:closed_notifications] || []
+      # If there are ids marked as 'closed' that are no longer
+      # applicable, they probably need to be cleared out.
+      current_ids = current.map(&:id)
+      if !(closed_ids - current_ids).empty?
+        closed_ids = user.preferences[:closed_notifications] &= current_ids
+        user.save!
+      end
+      current.reject! { |announcement| closed_ids.include?(announcement.id) }
+
       # filter out announcements that have a periodic cycle of display,
       # and the user isn't in the set of users to display it to this month (based
       # on user id)
