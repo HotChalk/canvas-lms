@@ -2,7 +2,8 @@ class AddGroupsToAssignmentVisibilityView < ActiveRecord::Migration
   tag :predeploy
 
   def up
-    self.connection.execute "DROP VIEW #{connection.quote_table_name('assignment_student_visibilities')};"
+    # HOTCHALK -- Added CASCADE to the drop command because the assignment_user_visibilities view depends on assignment_student_visibilities
+    self.connection.execute "DROP VIEW #{connection.quote_table_name('assignment_student_visibilities')} CASCADE;"
     self.connection.execute %Q(CREATE VIEW #{connection.quote_table_name('assignment_student_visibilities')} AS
       SELECT DISTINCT a.id as assignment_id,
       e.user_id as user_id,
