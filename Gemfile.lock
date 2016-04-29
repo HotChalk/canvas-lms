@@ -607,7 +607,7 @@ GEM
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
       rb-kqueue (>= 0.2)
-    lograge (0.3.5)
+    lograge (0.3.6)
       actionpack (>= 3)
       activesupport (>= 3)
       railties (>= 3)
@@ -639,7 +639,7 @@ GEM
     net-http-persistent (2.9.4)
     net-ldap (0.10.1)
     netaddr (1.5.0)
-    newrelic_rpm (3.14.0.305)
+    newrelic_rpm (3.15.2.317)
     oauth-instructure (0.4.10)
     oauth2 (1.0.0)
       faraday (>= 0.8, < 0.10)
@@ -988,7 +988,7 @@ DEPENDENCIES
   linked_in!
   listen (~> 1.3)
   live_events!
-  lograge (= 0.3.5)
+  lograge (= 0.3.6)
   lti_outbound!
   mail (= 2.5.4)
   marginalia (= 1.3.0)
@@ -1003,7 +1003,7 @@ DEPENDENCIES
   mysql2 (= 0.3.15)
   net-ldap (= 0.10.1)
   netaddr (= 1.5.0)
-  newrelic_rpm (= 3.14.0.305)
+  newrelic_rpm (= 3.15.2.317)
   nokogiri (= 1.6.6.2.20150813143452)!
   oauth-instructure (= 0.4.10)
   oauth2 (= 1.0.0)

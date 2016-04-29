@@ -145,8 +145,8 @@ gem 'workflow', path: 'gems/workflow'
 gem 'gepub'
 
 # New Relic Monitoring
-gem 'newrelic_rpm', '3.14.0.305'
+gem 'newrelic_rpm', '3.15.2.317'
 # Lograge Logging
-gem "lograge", '0.3.5'
+gem "lograge", '0.3.6'
 # Rack CORS middleware
 gem 'rack-cors', '0.4.0', require: 'rack/cors'
