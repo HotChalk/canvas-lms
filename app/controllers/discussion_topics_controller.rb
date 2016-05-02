@@ -592,12 +592,6 @@ class DiscussionTopicsController < ApplicationController
                                                                       :speed_grader_context_gradebook_url,
                                                                       :assignment_id => @topic.assignment.id,
                                                                       :anchor => {:student_id => ":student_id"}.to_json)
-              if @topic.for_reply_assignment?
-                env_hash[:SPEEDGRADER_REPLY_URL_TEMPLATE] = named_context_url(@topic.reply_assignment.context,
-                                                                              :speed_grader_context_gradebook_url,
-                                                                              :assignment_id => @topic.reply_assignment.id,
-                                                                              :anchor => {:student_id => ":student_id"}.to_json)
-              end
             end
 
             js_hash = {:DISCUSSION => env_hash}
@@ -936,7 +930,6 @@ class DiscussionTopicsController < ApplicationController
         apply_positioning_parameters
         apply_attachment_parameters
         apply_assignment_parameters
-        apply_reply_assignment_parameters
         apply_override_parameters
         if publish_later
           @topic.publish!
@@ -1124,30 +1117,6 @@ class DiscussionTopicsController < ApplicationController
         assignment_params = params[:assignment].except('anonymous_peer_reviews')
         update_api_assignment(@assignment.reload, assignment_params, @current_user)
 
-        @topic.save!
-      end
-    end
-  end
-
-  def apply_reply_assignment_parameters
-    # handle creating/deleting assignment
-    if params[:reply_assignment] && !@topic.root_topic_id?
-      if params[:assignment].has_key?(:set_reply_assignment) && !value_to_boolean(params[:assignment][:set_reply_assignment])
-        if @topic.assignment && @topic.assignment.grants_right?(@current_user, session, :update)
-          reply_assignment = @topic.reply_assignment
-          @topic.reply_assignment = nil
-          @topic.grade_replies_separately = false
-          @topic.save!
-          reply_assignment.discussion_topic = nil
-          reply_assignment.destroy
-        end
-      elsif (@reply_assignment = @topic.reply_assignment || (@topic.reply_assignment = @context.assignments.build)) &&
-             @reply_assignment.grants_right?(@current_user, session, :update)
-        update_api_assignment(@reply_assignment, params[:reply_assignment], @current_user)
-        @reply_assignment.submission_types = 'discussion_topic'
-        @reply_assignment.saved_by = :discussion_topic
-        @topic.reply_assignment = @reply_assignment
-        @topic.grade_replies_separately = true
         @topic.save!
       end
     end

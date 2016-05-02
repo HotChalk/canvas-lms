@@ -33,7 +33,6 @@ define [
     @optionProperty 'parentModel'
     @optionProperty 'nested'
     @optionProperty 'preventNotGraded'
-    @optionProperty 'basePrefix'
 
     handleGradingTypeChange: (ev) =>
       gradingType = @$gradingType.val()
@@ -74,4 +73,3 @@ define [
       frozenAttributes: @parentModel.frozenAttributes()
       nested: @nested
       preventNotGraded: @preventNotGraded
-      basePrefix: @basePrefix || 'assignment'

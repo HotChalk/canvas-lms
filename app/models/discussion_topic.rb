@@ -38,7 +38,7 @@ class DiscussionTopic < ActiveRecord::Base
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
     :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked,
-    :grade_replies_separately, :reply_assignment, :course_section_id, :only_visible_to_overrides,
+    :course_section_id, :only_visible_to_overrides,
     :group_category, :allow_rating, :only_graders_can_rate, :sort_by_rating
   )
   attr_accessor :user_has_posted, :saved_by
@@ -64,7 +64,6 @@ class DiscussionTopic < ActiveRecord::Base
   belongs_to :assignment
   belongs_to :editor, :class_name => 'User'
   belongs_to :old_assignment, :class_name => 'Assignment'
-  belongs_to :reply_assignment, :class_name => 'Assignment'
   belongs_to :root_topic, :class_name => 'DiscussionTopic'
   belongs_to :group_category
   has_many :child_topics, :class_name => 'DiscussionTopic', :foreign_key => :root_topic_id, :dependent => :destroy
@@ -91,7 +90,6 @@ class DiscussionTopic < ActiveRecord::Base
   before_save :default_values
   before_save :set_schedule_delayed_transitions
   after_save :update_assignment
-  after_save :update_reply_assignment
   after_save :update_subtopics
   after_save :touch_context
   after_save :schedule_delayed_transitions
@@ -253,34 +251,6 @@ class DiscussionTopic < ActiveRecord::Base
   end
   protected :update_assignment
 
-  def update_reply_assignment
-    return if self.deleted?
-    if self.grade_replies_separately && self.reply_assignment && @saved_by != :assignment && !self.root_topic_id
-      self.reply_assignment.title = "Reply To: #{self.title}"
-      self.reply_assignment.description = self.message
-      self.reply_assignment.submission_types = "discussion_topic"
-      self.reply_assignment.saved_by = :discussion_topic
-      self.reply_assignment.workflow_state = 'published' if self.reply_assignment.deleted?
-      self.reply_assignment.workflow_state = published? ? 'published' : 'unpublished'
-      self.reply_assignment.save
-    end
-
-    # make sure that if the topic has a new reply assignment (either by going from
-    # ungraded to graded, or from one assignment to another; we ignore the
-    # transition from graded to ungraded) we acknowledge that the users that
-    # have posted have contributed to the topic
-
-    # we won't use self.context_module_action as is used in update_assignment because
-    # student contributions to the discussion topic should relate to the main assignment,
-    # not the reply
-    if self.reply_assignment_id && self.reply_assignment_id_changed? && self.for_reply_assignment?
-      reply_posters.each do |user|
-        self.ensure_submission_for_reply(user) if context.grants_right?(user, :participate_as_student) && self.reply_assignment.visible_to_user?(user)
-      end
-    end
-  end
-  protected :update_reply_assignment
-
   def restore_old_assignment
     return nil unless self.old_assignment && self.old_assignment.deleted?
     self.old_assignment.workflow_state = 'published'
@@ -307,10 +277,6 @@ class DiscussionTopic < ActiveRecord::Base
 
   def for_assignment?
     self.assignment && self.assignment.submission_types =~ /discussion_topic/
-  end
-
-  def for_reply_assignment?
-    self.reply_assignment && self.reply_assignment.submission_types =~ /discussion_topic/
   end
 
   def for_group_discussion?
@@ -826,10 +792,6 @@ class DiscussionTopic < ActiveRecord::Base
       self.assignment.destroy unless self.assignment.deleted?
     end
 
-    if self.for_reply_assignment? && self.root_topic_id.blank?
-      self.reply_assignment.destroy unless self.reply_assignment.deleted?
-    end
-
     self.child_topics.each do |child|
       child.destroy
     end
@@ -843,10 +805,6 @@ class DiscussionTopic < ActiveRecord::Base
       self.assignment.restore(:discussion_topic)
     end
 
-    if from != :assignment && self.for_reply_assignment? && self.root_topic_id.blank?
-      self.reply_assignment.restore(:discussion_topic)
-    end
-
     self.child_topics.each do |child|
       child.restore
     end
@@ -856,11 +814,9 @@ class DiscussionTopic < ActiveRecord::Base
     @saved_by = type
     if self.discussion_entries.empty?
       self.assignment = nil
-      self.reply_assignment = nil
       self.destroy
     else
       self.assignment = nil
-      self.reply_assignment = nil
       self.save
     end
     self.child_topics.each{|t| t.unlink_from(:assignment) }
@@ -1001,13 +957,6 @@ class DiscussionTopic < ActiveRecord::Base
     end
   end
 
-  def ensure_submission_for_reply(user)
-    return unless self.for_assignment? && assignment.grants_right?(user, :submit) && self.reply_assignment.present?
-    submission = Submission.find_by_assignment_id_and_user_id(self.reply_assignment_id, user.id)
-    return if submission && submission.submission_type == 'discussion_topic' && submission.workflow_state != 'unsubmitted'
-    self.reply_assignment.submit_homework(user, :submission_type => 'discussion_topic')
-  end
-
   def send_notification_for_context?
     notification_context =
       if self.context.is_a?(Group) && self.context.context.is_a?(Course)
@@ -1106,11 +1055,6 @@ class DiscussionTopic < ActiveRecord::Base
 
   def posters
     user_ids = discussion_entries.map(&:user_id).push(self.user_id).uniq
-    participating_users(user_ids)
-  end
-
-  def reply_posters
-    user_ids = child_discussion_entries.map(&:user_id).push(self.user_id).uniq
     participating_users(user_ids)
   end
 

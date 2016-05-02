@@ -52,12 +52,6 @@ define [
       json.publishable = json.can_publish
       json.unpublishable = !json.published or json.can_unpublish
 
-      json.set_reply_assignment = json.reply_assignment?
-      reply_assign_attributes = json.reply_assignment || {}
-      reply_assign_attributes.assignment_overrides or= []
-      reply_assign_attributes.turnitin_settings or= {}
-      json.reply_assignment = @createAssignment(reply_assign_attributes)
-
       json.assignment_overrides or= []
       json.all_dates or= []
 
@@ -93,14 +87,12 @@ define [
     toJSON: ->
       json = super
       delete json.assignment unless json.set_assignment
-      delete json.reply_assignment unless json.set_reply_assignment
       json.assignment_overrides = json.assignment_overrides.toJSON() if json.assignment_overrides
       _.extend json,
         summary: @summary()
         unread_count_tooltip: @unreadTooltip()
         reply_count_tooltip: @replyTooltip()
         assignment: json.assignment?.toJSON()
-        reply_assignment: json.reply_assignment?.toJSON()
         defaultDates: @defaultDates().toJSON()
         multipleDueDates: @multipleDueDates()
         allDates: @allDates()

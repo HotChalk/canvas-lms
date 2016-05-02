@@ -479,7 +479,7 @@ class Assignment < ActiveRecord::Base
       quiz.saved_by = :assignment
       quiz.workflow_state = published? ? 'available' : 'unpublished'
       quiz.save if quiz.changed?
-    elsif self.submission_types == "discussion_topic" && @saved_by != :discussion_topic && !reply_assignment?
+    elsif self.submission_types == "discussion_topic" && @saved_by != :discussion_topic
       topic = self.discussion_topic || self.context.discussion_topics.build(:user => @updating_user)
       topic.assignment_id = self.id
       topic.title = self.title
@@ -612,15 +612,6 @@ class Assignment < ActiveRecord::Base
     self.save!
 
     self.discussion_topic.destroy if self.discussion_topic && !self.discussion_topic.deleted?
-    if self.reply_assignment?
-      # Reply assignments can be deleted without deleting the parent discussion topic
-      discussion_topic = DiscussionTopic.find_by_reply_assignment_id(self.id)
-      unless discussion_topic.deleted?
-        discussion_topic.reply_assignment = nil
-        discussion_topic.grade_replies_separately = false
-        discussion_topic.save!
-      end
-    end
     self.quiz.destroy if self.quiz && !self.quiz.deleted?
     refresh_course_content_participation_counts
   end
@@ -2165,10 +2156,6 @@ class Assignment < ActiveRecord::Base
     else
       raise "Assignment#available? is deprecated. Use #published?"
     end
-  end
-
-  def reply_assignment?
-    self.submission_types == "discussion_topic" && DiscussionTopic.find_by_reply_assignment_id(self.id)
   end
 
   def has_student_submissions?

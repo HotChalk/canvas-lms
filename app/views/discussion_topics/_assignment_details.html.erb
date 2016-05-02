@@ -2,39 +2,22 @@
   <div class="row-fluid">
     <div class="span6">
       <p class="discussion-title">
-        <% if @topic.grade_replies_separately %>
-          <% if is_reply_assignment %>
-            <% @points = "<span class='discussion-points association_id_" + current_assignment.id.to_s + " '>\\1</span>" %>
-            <%= t('reply_post',
-                  'Reply Posts: *%{count} points possible*',
-                  :count => current_assignment.points_possible || 0,
-                  :wrapper => @points )%>
-          <% else %>
-          <% @points = "<span class='discussion-points association_id_" + current_assignment.id.to_s + " '>\\1</span>" %>
-            <%= t('initial_post',
-                  'Initial Post: *%{count} points possible*',
-                  :count => current_assignment.points_possible || 0,
-                  :wrapper => @points )%>
-          <% end %>
-        <% else %>
-        <% @points = "<span class='discussion-points association_id_" + current_assignment.id.to_s + " '>\\1</span>" %>
-          <%= t('graded_discussion_and_points',
-                { :one => 'This is a graded discussion: *1 point possible*',
-                  :other => 'This is a graded discussion: *%{count} points possible*' },
-                :count => current_assignment.points_possible || 0,
-                :wrapper => @points )%>
-        <% end %>
+        <%= t('graded_discussion_and_points',
+              { :one => 'This is a graded discussion: *1 point possible*',
+                :other => 'This is a graded discussion: *%{count} points possible*' },
+              :count => @assignment.points_possible || 0,
+              :wrapper => "<span class='discussion-points'>\\1</span>") %>
       </p>
     </div>
 
     <div class="span6 right-align">
       <div class="discussion-pubdate">
-        <% if current_assignment.has_active_overrides? && presenter.can_grade?  %>
+        <% if @assignment.has_active_overrides? && @presenter.can_grade?  %>
           <a href="#" class="toggle_due_dates"><%= t(:show_due_dates, 'Show Due Dates') %></a>
 
         <% else %>
-          <b <%= context_sensitive_datetime_title(current_assignment.due_at, current_assignment.context) %> >
-            <%= t(:due_date, 'due %{date}', :date => OverrideListPresenter.new.due_at(current_assignment)) %>
+          <b <%= context_sensitive_datetime_title(@assignment.due_at, @assignment.context) %> >
+            <%= t(:due_date, 'due %{date}', :date => OverrideListPresenter.new.due_at(@assignment)) %>
           </b>
         <% end %>
       </div>
@@ -54,7 +37,7 @@
             </tr>
           </thead>
 
-          <%= render 'shared/override_list', :assignment => current_assignment,
+          <%= render 'shared/override_list', :assignment => @assignment,
             :user => @current_user %>
 
         </table>

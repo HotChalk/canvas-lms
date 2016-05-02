@@ -270,9 +270,6 @@
           <% end %>
           <% discussion_topics.each do |topic| %>
             <option value="<%= topic.id %>"><%= topic.title %></option>
-            <% if topic.grade_replies_separately && topic.reply_assignment %>
-              <option value="<%= topic.id %>"><%= topic.reply_assignment.title %></option>
-            <% end %>
           <% end %>
         </select>
         </div>

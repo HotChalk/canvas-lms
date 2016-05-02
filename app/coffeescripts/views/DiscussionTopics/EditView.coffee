@@ -16,14 +16,12 @@ define [
   'jquery'
   'compiled/fn/preventDefault'
   'compiled/views/calendar/MissingDateDialogView'
-  'compiled/views/DiscussionTopics/ReplyAssignmentRemovedDialogView'
   'compiled/views/editor/KeyboardShortcuts'
-  'timezone'
   'jquery.instructure_misc_helpers' # $.scrollSidebar
   'compiled/jquery.rails_flash_notifications' #flashMessage
 ], (I18n, ValidatedFormView, AssignmentGroupSelector, GradingTypeSelector,
 GroupCategorySelector, PeerReviewsSelector, PostToSisSelector, _, template, RichContentEditor,
-htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, ReplyAssignmentRemovedDialog, KeyboardShortcuts, tz) ->
+htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, MissingDateDialog, KeyboardShortcuts) ->
 
   RichContentEditor.preloadRemoteModule()
 
@@ -39,10 +37,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     els:
       '#availability_options': '$availabilityOptions'
-      '#reply_grading_options': '$replyGradingOptions'
-      '#reply_assignment_options': '$replyAssignmentOptions'
       '#use_for_grading': '$useForGrading'
-      '#use_for_grading_replies': '$useForGradingReplies'
       '#discussion_topic_assignment_points_possible' : '$assignmentPointsPossible'
       '#discussion_point_change_warning' : '$discussionPointPossibleWarning'
 
@@ -51,7 +46,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       'click .save_and_publish': 'saveAndPublish'
       'click .cancel_button' : 'handleCancel'
       'change #use_for_grading' : 'toggleAvailabilityOptions'
-      'change #use_for_grading_replies' : 'toggleReplyGradeOptions'
       'change #discussion_topic_assignment_points_possible' : 'handlePointsChange'
     )
 
@@ -64,7 +58,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
     initialize: (options) ->
       @assignment = @model.get("assignment")
-      @replyAssignment = @model.get("reply_assignment")
       @initialPointsPossible = @assignment.pointsPossible()
       @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
@@ -84,7 +77,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       data = super
       json = _.extend data, @options,
         showAssignment: !!@assignmentGroupCollection
-        showReplyAssignment: @model.get('reply_assignment')?
         useForGrading: @model.get('assignment')?
         isTopic: @isTopic()
         isAnnouncement: @isAnnouncement()
@@ -95,7 +87,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         isLargeRoster: ENV?.IS_LARGE_ROSTER || false
         threaded: data.discussion_type is "threaded"
       json.assignment = json.assignment.toView()
-      json.reply_assignment = json.reply_assignment.toView()
       json
 
 
@@ -127,10 +118,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           # todo: replace .andSelf with .addBack when JQuery is upgraded.
           $(event.currentTarget).siblings('.rte_switch_views_link').andSelf().toggle()
       if @assignmentGroupCollection
-        _this = this
-        (@assignmentGroupFetchDfd ||= @assignmentGroupCollection.fetch()).done =>
-          _this.renderAssignmentGroupOptions(null, null, null)
-          _this.renderAssignmentGroupOptions('#reply_assignment_group_options', 'reply_assignment', @replyAssignment)
+        (@assignmentGroupFetchDfd ||= @assignmentGroupCollection.fetch()).done @renderAssignmentGroupOptions
 
       _.defer(@renderGradingTypeOptions)
       _.defer(@renderGroupCategoryOptions)
@@ -139,8 +127,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
 
-      _.defer(@renderGradingTypeOptions, '#reply_grading_type_options', 'reply_assignment')
-
       @$(".datetime_field").datetime_field({alwaysShowTime: true, datepicker:{hour: '12', min: '00', ampm: 'am'}})
 
       this
@@ -148,23 +134,21 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     attachKeyboardShortcuts: =>
         $('.rte_switch_views_link').first().before((new KeyboardShortcuts()).render().$el)
 
-    renderAssignmentGroupOptions: (el, basePrefix, parentModel) =>
+    renderAssignmentGroupOptions: =>
       @assignmentGroupSelector = new AssignmentGroupSelector
-        el: el || '#assignment_group_options'
+        el: '#assignment_group_options'
         assignmentGroups: @assignmentGroupCollection.toJSON()
-        parentModel: parentModel || @assignment
+        parentModel: @assignment
         nested: true
-        basePrefix: basePrefix || 'assignment'
 
       @assignmentGroupSelector.render()
 
-    renderGradingTypeOptions: (el, basePrefix) =>
+    renderGradingTypeOptions: =>
       @gradingTypeSelector = new GradingTypeSelector
-        el: el || '#grading_type_options'
+        el: '#grading_type_options'
         parentModel: @assignment
         nested: true
         preventNotGraded: true
-        basePrefix: basePrefix || 'assignment'
 
       @gradingTypeSelector.render()
 
@@ -178,7 +162,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         fieldLabel: @messages.group_category_field_label
         lockedMessage: @messages.group_locked_message
 
-#      @groupCategorySelector.render()
+      @groupCategorySelector.render()
 
     renderPeerReviewOptions: =>
       @peerReviewSelector = new PeerReviewsSelector
@@ -187,7 +171,7 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
         nested: true
         hideAnonymousPeerReview: true
 
-#      @peerReviewSelector.render()
+      @peerReviewSelector.render()
 
     renderPostToSisOptions: =>
       @postToSisSelector = new PostToSisSelector
@@ -211,17 +195,12 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       assign_data = data.assignment
       delete data.assignment
-      reply_assign_data = data.reply_assignment
-      delete data.reply_assignment
 
       if assign_data?.set_assignment is '1'
         data.set_assignment = '1'
-        data.assignment = @updateAssignment('assignment', assign_data)
+        data.assignment = @updateAssignment(assign_data)
         data.delayed_post_at = ''
         data.lock_at = ''
-        if assign_data?.set_reply_assignment is '1'
-          data.set_reply_assignment = '1'
-          data.reply_assignment = @updateAssignment('reply_assignment', reply_assign_data)
       else
         # Announcements don't have assignments.
         # DiscussionTopics get a model created for them in their
@@ -244,32 +223,15 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
 
       data
 
-    updateAssignment: (model_key, data) =>
+    updateAssignment: (data) =>
       defaultDate = @dueDateOverrideView.getDefaultDueDate()
       data.lock_at = defaultDate?.get('lock_at') or null
       data.unlock_at = defaultDate?.get('unlock_at') or null
-      if !data.due_at
-        data.due_at = defaultDate?.get('due_at') or null
+      data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
       data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
 
-      # Reply assignments copy the main assignment's overrides, except for the Due Date
-      if data.due_at && model_key == 'reply_assignment'
-        # Refresh the due_at date directly from the UI input, otherwise time zones won't be accounted for correctly
-        data.due_at = $('#discussion_topic_reply_assignment_due_date').data('unfudged-date')
-
-        assignment_id = @model.get(model_key).id
-        _.each data.assignment_overrides, (override) ->
-          override.assignment_id = assignment_id
-          is_all_day = tz.isMidnight data.due_at, {timezone: ENV.CONTEXT_TIMEZONE}
-          data.due_at = tz.changeToTheSecondBeforeMidnight(data.due_at) if is_all_day
-          override.due_at = data.due_at.toISOString()
-          override.all_day = is_all_day
-          override.all_day_date = data.due_at.toISOString().substr(0,10) # need only YYYY-MM-DD
-          override.due_at_overridden = true
-          delete override.id
-
-      assignment = @model.get(model_key)
+      assignment = @model.get('assignment')
       assignment or= @model.createAssignment()
       assignment.set(data)
 
@@ -296,15 +258,6 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
           missingDateDialog.$dialog.dialog('close').remove()
 
         missingDateDialog.render()
-      else if @model.get('assignment') && (@model.get('assignment').previous('set_reply_assignment') is '1') && !this.getFormData().set_reply_assignment
-        replyAssignmentRemovedDialog = new ReplyAssignmentRemovedDialog
-          success: =>
-            replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
-            ValidatedFormView::submit.call(this)
-        replyAssignmentRemovedDialog.cancel = (e) ->
-          replyAssignmentRemovedDialog.$dialog.dialog('close').remove()
-
-        replyAssignmentRemovedDialog.render()
       else
         super
 
@@ -376,13 +329,5 @@ htmlEscape, DiscussionTopic, Announcement, Assignment, $, preventDefault, Missin
     toggleAvailabilityOptions: ->
       if @$useForGrading.is(':checked')
         @$availabilityOptions.hide()
-        @$replyGradingOptions.show()
       else
         @$availabilityOptions.show()
-        @$replyGradingOptions.hide()
-
-    toggleReplyGradeOptions: ->
-      if @$useForGradingReplies.is(':checked')
-        @$replyAssignmentOptions.show()
-      else
-        @$replyAssignmentOptions.hide()

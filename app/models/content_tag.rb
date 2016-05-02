@@ -190,8 +190,6 @@ class ContentTag < ActiveRecord::Base
     if self.content_type == 'Assignment'
       self.content
     elsif can_have_assignment?
-      # Ugly hack to support having Reply Assignments show up in the Modules page
-      return self.content.reply_assignment if self.content_type == 'DiscussionTopic' && self.content.grade_replies_separately && self.content.reply_assignment.title == self.title
       self.content.assignment
     else
       nil
