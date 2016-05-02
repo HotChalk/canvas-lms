@@ -23,6 +23,8 @@ define [
   'jst/profiles/addLinkRow'
   'compiled/util/AvatarWidget'
   'jquery.instructure_forms'
+  'compiled/tinymce'
+  'tinymce.editor_box'
 ], (I18n, Backbone, $, addLinkRow, AvatarWidget) ->
 
   class ProfileShow extends Backbone.View
@@ -63,6 +65,8 @@ define [
       @editProfile = @showEditForm
 
     showEditForm: ->
+      @$form = $('#edit_profile_form')
+      @$form.find('.rich_text_area').editorBox()
       @$el.addClass('editing').removeClass('not-editing')
       @$('.profile_links').removeClass('span6')
 

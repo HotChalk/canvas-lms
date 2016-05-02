@@ -596,6 +596,7 @@ class ContextExternalTool < ActiveRecord::Base
     end
 
     context = context.context if context.is_a?(Group)
+    context = context.account if context.is_a?(User)
 
     tool = context.context_external_tools.having_setting(type).where(id: id).first
     tool ||= ContextExternalTool.having_setting(type).where(context_type: 'Account', context_id: context.account_chain, id: id).first

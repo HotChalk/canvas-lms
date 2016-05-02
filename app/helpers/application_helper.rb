@@ -479,6 +479,7 @@ module ApplicationHelper
   end
 
   def editor_buttons
+    @context = @current_pseudonym.account if @context.is_a?(UserProfile)
     contexts = ContextExternalTool.contexts_to_search(@context)
     return [] if contexts.empty?
     cached_tools = Rails.cache.fetch((['editor_buttons_for'] + contexts.uniq).cache_key) do

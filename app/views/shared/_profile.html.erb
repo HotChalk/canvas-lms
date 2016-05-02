@@ -100,13 +100,13 @@
   <div class="v-gutter">
     <h2 class="h1 border border-b"><label for="profile_bio" style="font-size: 22px"><%= t :bio, "Bio" %></label></h2>
     <% if @user_data[:bio] %>
-      <div class="hide-if-editing"><%= raw format_message(@user_data[:bio]).first %></div>
+      <div id="bio_data" class="hide-if-editing"><%= user_content(@user_data[:bio]) %></div>
     <% else %>
       <p class="hide-if-editing"><%= t('user_has_no_bio', "%{user} hasn't added a bio", :user => @user_data[:short_name]) %></p>
     <% end %>
     <% if @user_data[:can_edit] %>
       <div class="show-if-editing">
-        <textarea id="profile_bio" name="user_profile[bio]"><%= @user_data[:bio] %></textarea>
+        <textarea id="profile_bio" name="user_profile[bio]" class="rich_text_area"><%= @user_data[:bio] %></textarea>
       </div>
     <% end %>
   </div>

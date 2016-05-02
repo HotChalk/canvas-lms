@@ -36,12 +36,13 @@
       <% end %>
     </li>    
     <%
+      account_link = Account::HELP_LINK_DEFAULT
       if @context
-        account = (@context.is_a?(Account)) ? @context : @context.account        
-        account_link = account.settings[:help_link].blank? ? Account::HELP_LINK_DEFAULT : account.settings[:help_link]
-      else
-        account_link = Account::HELP_LINK_DEFAULT
-      end      
+        account = (@context.is_a?(Account)) ? @context : ( @context.try(:account) || nil)
+        if !account.nil?
+          account_link = account.settings[:help_link].blank? ? Account::HELP_LINK_DEFAULT : account.settings[:help_link]
+        end
+      end
     %>  
     <li class="top_help"><a href="<%=account_link%>" target="_blank">Help</a></li>
   <% end %>

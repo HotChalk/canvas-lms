@@ -760,6 +760,11 @@ CanvasRails::Application.routes.draw do
     resources :messages, only: [:index, :create] do
       get :html_message
     end
+
+    resources :external_tools do
+      get :resource_selection
+    end
+
   end
 
   get 'show_message_template' => 'messages#show_message_template'
