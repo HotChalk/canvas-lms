@@ -1140,7 +1140,7 @@ class DiscussionTopicsController < ApplicationController
               @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
             end
             @topic.save_without_broadcasting!
-            batch_update_assignment_overrides(@topic, overrides)
+            batch_update_assignment_overrides(@topic, overrides, @current_user)
           end
         end
       end
