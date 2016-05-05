@@ -2417,7 +2417,7 @@ class Course < ActiveRecord::Base
           :css_class => 'pages',
           :href => :course_wiki_page_path,
           :args => [self.id, wiki_page.url]
-        })
+        }) unless wiki_page.nil?
       when 'external_url'
         page_url = tab[:url]
         hash.merge!({
