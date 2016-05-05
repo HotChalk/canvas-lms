@@ -307,7 +307,7 @@ module Api::V1::AssignmentOverride
     raise ActiveRecord::RecordInvalid.new(assignment) unless assignment.valid?
     overrides.each(&:save!)
 
-    assignment.send_later_if_production(:run_if_overrides_changed!)
+    assignment.send_later_if_production(:run_if_overrides_changed!) if assignment.respond_to?(:run_if_overrides_changed!)
   end
 
   def destroy_defunct_overrides(assignment, override_param_ids, existing_overrides)
