@@ -180,7 +180,7 @@ module AuthenticationMethods
     session[:user_id] = @current_user.global_id if @current_user
 
     # loads an alternate domain root account for the current user if required
-    if @current_user && @current_pseudonym && ![Account.site_admin, Account.default].include?(@current_pseudonym.account)
+    if !Rails.env.test? && @current_user && @current_pseudonym && ![Account.site_admin, Account.default].include?(@current_pseudonym.account)
       @domain_root_account = @current_pseudonym.account.root_account || @current_pseudonym.account
     end
 
