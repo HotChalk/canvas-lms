@@ -26,13 +26,11 @@ module Api::V1::CalendarEvent
   include Api::V1::Group
 
   def event_json(event, user, session, options={})
-    context  = Context.find_asset_by_asset_string(event.context_code)
     hash = if event.is_a?(::CalendarEvent)
       calendar_event_json(event, user, session, options)
     else
       assignment_event_json(event, user, session, options)
     end
-    hash[:context_name] = context && context.name
     hash
   end
 
