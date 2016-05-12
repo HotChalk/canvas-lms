@@ -1209,6 +1209,7 @@ class CoursesController < ApplicationController
       :show_total_grade_as_points,
       :allow_student_organized_groups,
       :hide_final_grades,
+      :limit_section_visibility,
       :hide_distribution_graphs,
       :lock_all_announcements,
       :restrict_student_past_view,
