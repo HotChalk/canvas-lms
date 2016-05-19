@@ -495,6 +495,20 @@ class DiscussionTopic < ActiveRecord::Base
     SQL
   }
 
+  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
+    with_discussion_topic_overrides(user_ids, course_ids).union(joins_assignment_user_visibilities(user_ids, course_ids))
+  }
+
+  scope :with_discussion_topic_overrides, lambda { |user_ids, course_ids|
+    joins(:discussion_topic_user_visibilities).
+      where(:discussion_topic_user_visibilities => { :user_id => user_ids, :course_id => course_ids })
+  }
+
+  scope :joins_assignment_user_visibilities, lambda { |user_ids, course_ids|
+    joins(:assignment_user_visibilities)
+      .where(assignment_user_visibilities: { user_id: user_ids, course_id: course_ids })
+  }
+
   alias_attribute :available_from, :delayed_post_at
   alias_attribute :unlock_at, :delayed_post_at
   alias_attribute :available_until, :lock_at
