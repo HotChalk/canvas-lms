@@ -461,26 +461,6 @@ class RoleOverride < ActiveRecord::Base
           'AccountAdmin'
         ]
       },
-      :view_ember => {
-        :label => lambda { t('permissions.view_ember', "View Ember Data") },
-        :available_to => [
-          'StudentEnrollment',
-          'TaEnrollment',
-          'DesignerEnrollment',
-          'TeacherEnrollment',
-          'TeacherlessStudentEnrollment',
-          'ObserverEnrollment',
-          'AccountAdmin',
-          'AccountMembership'
-        ],
-        :true_for => [
-          'TaEnrollment',
-          'DesignerEnrollment',
-          'ObserverEnrollment',
-          'TeacherEnrollment',
-          'AccountAdmin'
-        ]
-      },
       :manage_announcements => {
         :label => lambda { t('permissions.manage_nonglobal_announcements', "Manage (add / edit / delete) announcements") },
         :available_to => [

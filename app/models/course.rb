@@ -2255,7 +2255,6 @@ class Course < ActiveRecord::Base
   TAB_ANNOUNCEMENTS = 14
   TAB_OUTCOMES = 15
   TAB_COLLABORATIONS = 16
-  TAB_EMBER = 17
 
   def self.default_tabs
     [{
@@ -2322,11 +2321,6 @@ class Course < ActiveRecord::Base
         :label => t('#tabs.quizzes', "Quizzes"),
         :css_class => 'quizzes',
         :href => :course_quizzes_path
-      }, {
-        :id => TAB_EMBER,
-        :label => t('#tabs.ember', "Ember Data"),
-        :css_class => 'ember',
-        :href => :course_ember_path
       }, {
         :id => TAB_MODULES,
         :label => t('#tabs.modules', "Modules"),
@@ -2531,7 +2525,6 @@ class Course < ActiveRecord::Base
         tabs.delete_if { |t| t[:id] == TAB_DISCUSSIONS } unless self.grants_any_right?(user, opts[:session], :read_forum, :moderate_forum, :post_to_forum)
         tabs.detect { |t| t[:id] == TAB_DISCUSSIONS }[:manageable] = true if self.grants_right?(user, opts[:session], :moderate_forum)
         tabs.delete_if { |t| t[:id] == TAB_SETTINGS } unless self.grants_right?(user, opts[:session], :read_as_admin)
-        tabs.delete_if { |t| t[:id] == TAB_EMBER } unless self.grants_right?(user, opts[:session], :view_ember)
 
         if !user || !self.grants_right?(user, :manage_content)
           # remove some tabs for logged-out users or non-students

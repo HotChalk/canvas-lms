@@ -107,6 +107,8 @@ $ic-brand-course-nav-link--active: $ic-brand-primary;
     border-top: 1px solid $ic-border-light;
   }
 
+  .ember{display:none;}
+
   a.active {
     @if $use_new_styles {
       background-color: $ic-brand-course-nav-link--active;
