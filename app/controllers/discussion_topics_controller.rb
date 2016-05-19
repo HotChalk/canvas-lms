@@ -244,6 +244,7 @@ class DiscussionTopicsController < ApplicationController
   include Api::V1::AssignmentOverride
   include KalturaHelper
   include ApplicationHelper
+  include SubmittableHelper
 
   # @API List discussion topics
   #
@@ -453,6 +454,9 @@ class DiscussionTopicsController < ApplicationController
       js_hash[:CANCEL_REDIRECT_URL] = cancel_redirect_url
       append_sis_data(js_hash)
       js_env(js_hash)
+
+      conditional_release_js_env(@topic.assignment)
+
       render :edit
     end
   end
@@ -483,13 +487,7 @@ class DiscussionTopicsController < ApplicationController
     end
 
     if authorized_action(@topic, @current_user, :read)
-      if @current_user && @topic.for_assignment? && !@topic.assignment.visible_to_user?(@current_user)
-        respond_to do |format|
-          flash[:error] = t "You do not have access to the requested discussion."
-          format.html { redirect_to named_context_url(@context, :context_discussion_topics_url) }
-        end
-        return
-      end
+      return unless enforce_assignment_visible(@topic)
       @headers = !params[:headless]
       if !@topic.is_a? Announcement and !@assignment.nil?
         @locked = @assignment.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true)
@@ -929,7 +927,9 @@ class DiscussionTopicsController < ApplicationController
 
         apply_positioning_parameters
         apply_attachment_parameters
-        apply_assignment_parameters
+        unless @topic.root_topic_id?
+          apply_assignment_parameters(params[:assignment], @topic)
+        end
         apply_override_parameters
         if publish_later
           @topic.publish!
@@ -1086,38 +1086,6 @@ class DiscussionTopicsController < ApplicationController
         @attachment = @context.attachments.create!(:uploaded_data => attachment)
         @topic.attachment = @attachment
         @topic.save
-      end
-    end
-  end
-
-  def apply_assignment_parameters
-    # handle creating/deleting assignment
-    if params[:assignment] && !@topic.root_topic_id?
-      if params[:assignment].has_key?(:set_assignment) && !value_to_boolean(params[:assignment][:set_assignment])
-        if @topic.assignment && @topic.assignment.grants_right?(@current_user, session, :update)
-          assignment = @topic.assignment
-          @topic.assignment = nil
-          @topic.save!
-          assignment.discussion_topic = nil
-          assignment.destroy
-        end
-
-      elsif (@assignment = @topic.assignment || @topic.restore_old_assignment || (@topic.assignment = @context.assignments.build)) &&
-             @assignment.grants_right?(@current_user, session, :update)
-        params[:assignment][:group_category_id] = nil unless @topic.group_category_id || @assignment.has_submitted_submissions?
-        params[:assignment][:published] = @topic.published?
-        params[:assignment][:name] = @topic.title
-
-        @assignment.submission_types = 'discussion_topic'
-        @assignment.saved_by = :discussion_topic
-        @assignment.workflow_state = @topic.published? ? "published" : "unpublished"
-        @topic.assignment = @assignment
-        @topic.save_without_broadcasting!
-
-        assignment_params = params[:assignment].except('anonymous_peer_reviews')
-        update_api_assignment(@assignment.reload, assignment_params, @current_user)
-
-        @topic.save!
       end
     end
   end

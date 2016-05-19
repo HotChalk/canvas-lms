@@ -11,12 +11,12 @@
 
   assignment = assignment.overridden_for(@current_user)
 
-  if assignment.discussion_topic != nil 
+  if assignment.discussion_topic != nil
     icon_class = "icon-discussion"
-  elsif assignment.quiz != nil    
+  elsif assignment.quiz != nil
     icon_class = "icon-quiz"
   else
-    icon_class = "icon-assignment"  
+    icon_class = "icon-assignment"
   end
 %>
 <% cache(['assignment_render',
@@ -50,6 +50,7 @@
                                     :tabindex => 0 %>
         <% end %>
       </div>
+
       <div class="data assignment_title ellipsis">
         <i class="<%= icon_class  %>" style="opacity: 0.5;"></i>
         <a href="<%= assignment_url %>" class="title" title="<%= assignment.title %>">
@@ -95,7 +96,7 @@
           <% else %>
             <% ot(:points_out_of, '%{points} out of %{possible}', :points => capture { %>
             <a href="<%= submission_url %>" class="grade" style="display: none;">--</a><% }, :possible => capture { %>
-            <span class="points_possible"><%= assignment.points_possible %></span><% }) %>
+            <span class="points_possible"><%= round_if_whole(assignment.points_possible)%></span><% }) %>
           <% end %>
           <a title="<%= t 'links.submission_comments', 'Submission Comments' %>"
              style="display: none;"

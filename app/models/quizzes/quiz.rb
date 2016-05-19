@@ -78,7 +78,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   after_save :touch_context
   after_save :regrade_if_published
 
-  serialize_utf8_safe :quiz_data
+  serialize :quiz_data
 
   simply_versioned
 
@@ -274,7 +274,7 @@ class Quizzes::Quiz < ActiveRecord::Base
     self.assignment.restore(:quiz) if self.for_assignment?
   end
 
-  def unlink_from(type)
+  def unlink!(type)
     @saved_by = type
     if self.root_entries.empty? && !self.available?
       self.assignment = nil
@@ -428,14 +428,7 @@ class Quizzes::Quiz < ActiveRecord::Base
   def update_quiz_submission_end_at_times
     new_end_at = time_limit * 60.0
 
-    update_sql = case ActiveRecord::Base.connection.adapter_name
-                 when 'PostgreSQL'
-                   "started_at + INTERVAL '+? seconds'"
-                 when 'MySQL', 'Mysql2'
-                   "started_at + INTERVAL ? SECOND"
-                 when /sqlite/
-                   "DATETIME(started_at, '+? seconds')"
-                 end
+    update_sql = "started_at + INTERVAL '+? seconds'"
 
     # only update quiz submissions that:
     # 1. belong to this quiz;
@@ -1310,5 +1303,9 @@ class Quizzes::Quiz < ActiveRecord::Base
   def run_if_overrides_changed!
     self.relock_modules!
     self.assignment.relock_modules! if self.assignment
+  end
+
+  def run_if_overrides_changed_later!
+    self.send_later_if_production_enqueue_args(:run_if_overrides_changed!, {:singleton => "quiz_overrides_changed_#{self.global_id}"})
   end
 end
