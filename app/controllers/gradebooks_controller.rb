@@ -21,7 +21,6 @@ class GradebooksController < ApplicationController
   include GradebooksHelper
   include KalturaHelper
   include Api::V1::AssignmentGroup
-  include Api::V1::Assignment
   include Api::V1::Submission
   include Api::V1::CustomGradebookColumn
   include Api::V1::Section
@@ -47,7 +46,7 @@ class GradebooksController < ApplicationController
       return render_unauthorized_action
     end
 
-    if authorized_action(@presenter.student_enrollment, @current_user, :read_grades)
+    if authorized_action(@context, @current_user, :read) && authorized_action(@presenter.student_enrollment, @current_user, :read_grades)
       log_asset_access([ "grades", @context ], "grades", "other")
       if @presenter.student
         add_crumb(@presenter.student_name, named_context_url(@context, :context_student_grades_url, @presenter.student_id))
@@ -72,53 +71,32 @@ class GradebooksController < ApplicationController
           @presenter.assignment_stats
         end
 
-        respond_to do |format|
-          format.html {
-            submissions_json = @presenter.submissions.
-              reject { |s| s.pending_review? || !s.user_can_read_grade?(@current_user) }.
-              map { |s| { "assignment_id" => s.assignment_id, "score" => s.score, "excused" => s.excused? } }
-
-            ags_json = light_weight_ags_json(@presenter.groups, {student: @presenter.student})
-            js_env submissions: submissions_json,
-                   assignment_groups: ags_json,
-                   group_weighting_scheme: @context.group_weighting_scheme,
-                   show_total_grade_as_points: @context.settings[:show_total_grade_as_points],
-                   grading_scheme: @context.grading_standard.try(:data) || GradingStandard.default_grading_standard,
-                   grading_period: @grading_periods && @grading_periods.find { |period| period[:id] == gp_id },
-                   exclude_total: @exclude_total,
-                   student_outcome_gradebook_enabled: @context.feature_enabled?(:student_outcome_gradebook),
-                   student_id: @presenter.student_id
-            render :action => 'grade_summary'
-          }
-          format.json {
-            hash = @presenter.assignment_presenters.map { |s|
-              {
-                'assignment' => s.assignment.is_a?(Assignment) ? assignment_json(s.assignment, @current_user, session, include_group: true) : assignment_group_json(s.assignment),
-                'submission' => s.submission.is_a?(Submission) ? submission_json(s.submission, s.assignment, @current_user, session) : s.submission
-              }
+        submissions_json = @presenter.submissions.
+          select { |s| s.user_can_read_grade?(@current_user) }.
+          map do |s|
+            {
+              assignment_id: s.assignment_id,
+              score: s.score,
+              excused: s.excused?,
+              workflow_state: s.workflow_state,
             }
-            render :json => hash
-          }
-        end
+          end
+
+
+        ags_json = light_weight_ags_json(@presenter.groups, {student: @presenter.student})
+        js_env submissions: submissions_json,
+               assignment_groups: ags_json,
+               group_weighting_scheme: @context.group_weighting_scheme,
+               show_total_grade_as_points: @context.settings[:show_total_grade_as_points],
+               grading_scheme: @context.grading_standard.try(:data) || GradingStandard.default_grading_standard,
+               grading_period: @grading_periods && @grading_periods.find { |period| period[:id] == gp_id },
+               exclude_total: @exclude_total,
+               student_outcome_gradebook_enabled: @context.feature_enabled?(:student_outcome_gradebook),
+               student_id: @presenter.student_id
       else
         render :grade_summary_list
       end
     end
-  end
-
-  def assignment_group_json(assignment_group)
-    ag = {
-      'id' => assignment_group.id,
-      'rules' => assignment_group.rules,
-      'title' => assignment_group.title,
-      'points_possible' => assignment_group.points_possible,
-      'score' => assignment_group.score,
-      'hard_coded' => assignment_group.hard_coded,
-      'special_class' => assignment_group.special_class,
-      'assignment_group_id' => assignment_group.assignment_group_id,
-      'group_weight' => assignment_group.group_weight,
-      'asset_string' => assignment_group.asset_string
-    }
   end
 
   def save_assignment_order
@@ -320,7 +298,12 @@ class GradebooksController < ApplicationController
     end
     js_env  :GRADEBOOK_OPTIONS => {
       :chunk_size => chunk_size,
-      :assignment_groups_url => api_v1_course_assignment_groups_url(@context, :include => ag_includes, :override_assignment_dates => "false"),
+      :assignment_groups_url => api_v1_course_assignment_groups_url(
+        @context,
+        include: ag_includes,
+        override_assignment_dates: "false",
+        exclude_assignment_submission_types: ['wiki_page']
+      ),
       :sections_url => api_v1_course_sections_url(@context),
       :course_url => api_v1_course_url(@context),
       :enrollments_url => custom_course_enrollments_api_url(per_page: per_page),
@@ -383,6 +366,8 @@ class GradebooksController < ApplicationController
       :gradebook_performance_enabled => @context.feature_enabled?(:gradebook_performance),
       :all_grading_periods_totals => @context.feature_enabled?(:all_grading_periods_totals),
       :sections => sections_json(@context.active_course_sections, @current_user, session),
+      :settings_update_url => api_v1_course_gradebook_settings_update_url(@context),
+      :settings => @current_user.preferences.fetch(:gradebook_settings, {}).fetch(@context.id, {}),
     }
   end
 
@@ -500,6 +485,7 @@ class GradebooksController < ApplicationController
   end
 
   def submissions_zip_upload
+    return unless authorized_action(@context, @current_user, :manage_grades)
     unless @context.allows_gradebook_uploads?
       flash[:error] = t('errors.not_allowed', "This course does not allow score uploads.")
       redirect_to named_context_url(@context, :context_assignment_url, @assignment.id)
