@@ -192,7 +192,6 @@ CanvasRails::Application.routes.draw do
     post :enroll_users
     post :link_enrollment
     post :update_nav
-    get 'ember' => 'courses#ember'
     resource :gradebook do
       post 'submissions_upload/:assignment_id' => 'gradebooks#submissions_zip_upload', as: :submissions_upload
       collection do
