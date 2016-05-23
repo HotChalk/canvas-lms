@@ -640,8 +640,7 @@ module ApplicationHelper
   end
 
   def support_url
-    (@domain_root_account && @domain_root_account.settings[:support_url]) ||
-      (Account.default && Account.default.settings[:support_url])
+    Account.default.settings[:help_link].blank? ? Account::HELP_LINK_DEFAULT : Account.default.settings[:help_link]
   end
 
   def help_link_url
