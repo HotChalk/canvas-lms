@@ -28,7 +28,7 @@ class Login::CanvasController < ApplicationController
   def new
     @pseudonym_session = PseudonymSession.new
     @headers = false
-    @is_prelogin = true unless params[:direct]
+    @is_prelogin = true unless params[:direct] || !@is_prelogin.nil?
     @aacs_with_buttons = @domain_root_account.authentication_providers.active.select { |aac| aac.class.login_button? }
     flash.now[:error] = params[:message] if params[:message]
 
@@ -52,7 +52,8 @@ class Login::CanvasController < ApplicationController
     # reset the session id cookie to prevent session fixation.
     reset_session_for_login
 
-    if params[:pseudonym_session].blank? || params[:pseudonym_session][:password].blank?
+    prelogin = params[:prelogin] == '1'
+    if !prelogin && (params[:pseudonym_session].blank? || params[:pseudonym_session][:password].blank?)
       return unsuccessful_login(t("No password was given"))
     end
 
@@ -61,6 +62,12 @@ class Login::CanvasController < ApplicationController
     # autocomplete. this would prevent us from recognizing someone's username,
     # making them unable to login.
     params[:pseudonym_session][:unique_id].try(:strip!)
+
+    # Process pre-login requests before attempting to create a session
+    if prelogin
+      resolve
+      return
+    end
 
     # Try to use authlogic's built-in login approach first
     @pseudonym_session = @domain_root_account.pseudonym_sessions.new(params[:pseudonym_session])
@@ -125,21 +132,10 @@ class Login::CanvasController < ApplicationController
   end
 
   def resolve
-    if params[:prelogin].blank? || params[:prelogin][:unique_id].blank?
-      render :json => {:errors => {:unique_id => t('errors.invalid_unique_id', "No email was given")}}, :status => :bad_request
-      return
-    end
-
-    # strip leading and trailing whitespace off the entered unique id. some
-    # mobile clients (e.g. android) will add a space after the login when using
-    # autocomplete. this would prevent us from recognizing someone's username,
-    # making them unable to login.
-    params[:prelogin][:unique_id].try(:strip!)
-
     # find the user associated to the supplied email address
     possible_users = []
     Account.root_accounts.each do |root_account|
-      user_list = UserList.new(params[:prelogin][:unique_id], :root_account => root_account, :search_method => :closed).users
+      user_list = UserList.new(params[:pseudonym_session][:unique_id], :root_account => root_account, :search_method => :closed).users
       possible_users.concat(user_list)
       break unless user_list.empty?
     end
@@ -148,34 +144,36 @@ class Login::CanvasController < ApplicationController
     # find the pseudonym associated to the user, giving preference to a matching unique id. If a matching unique id is not found,
     # fall back to the first active pseudonym for the user
     if user
-      pseudonym = user.pseudonyms.active.select { |p| p.unique_id == params[:prelogin][:unique_id] }.first
+      pseudonym = user.pseudonyms.active.select { |p| p.unique_id == params[:pseudonym_session][:unique_id] }.first
       pseudonym = user.pseudonyms.active.first unless pseudonym
     end
     unless user && pseudonym
-      render :json => {:errors => {:unique_id => t('errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => params[:prelogin][:unique_id])}}, :status => :not_found
+      @is_prelogin = true
+      unsuccessful_login t('errors.no_matching_user', "HotChalk Ember doesn't have an account for user: %{user}", :user => params[:pseudonym_session][:unique_id])
       return
     end
 
     # check authentication type for the pseudonym's root account
-    root_account = Account.find(pseudonym.root_account_id)
-    aac = root_account.authentication_providers.active.first
-    response = {:account_id => pseudonym.root_account_id}
+    @domain_root_account = pseudonym.account.root_account
+    aac = @domain_root_account.authentication_providers.active.first
     if aac.nil?
-      response[:auth_type] = 'canvas'
+      @auth_type = 'canvas'
     else
-      response[:auth_type] = aac.auth_type
-      response[:account_name] = root_account.name
+      @auth_type = aac.auth_type
       if aac.auth_type == 'cas'
-        response.merge!({:auth_url => "/login?account_id=#{root_account.id}"})
+        @auth_url = "/login?account_id=#{@domain_root_account.id}"
       elsif aac.auth_type == 'hmac'
-        response.merge!({:auth_url => aac.log_in_url})
+        @auth_url = aac.log_in_url
       elsif aac.auth_type == 'saml'
-        response.merge!({:auth_url => "/login?account_id=#{root_account.id}"})
+        @auth_url = "/login?account_id=#{@domain_root_account.id}"
       elsif aac.auth_type == 'ldap'
-        response[:auth_type] = 'canvas'
+        @auth_type = 'canvas'
       end
     end
-    render :json => response
+
+    params[:pseudonym_session][:account_id] = @domain_root_account.id
+    @is_prelogin = false
+    new
   end
 
   protected
