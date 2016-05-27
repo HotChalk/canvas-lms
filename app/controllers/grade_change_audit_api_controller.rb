@@ -130,10 +130,10 @@ class GradeChangeAuditApiController < AuditorApiController
   #
   def for_assignment
     @assignment = Assignment.active.find(params[:assignment_id])
-    unless @assignment.context.root_account == @domain_root_account
+    unless @assignment
       raise ActiveRecord::RecordNotFound, "Couldn't find assignment with API id '#{params[:assignment_id]}'"
     end
-    if authorize
+    if authorized_accounts.include?(@assignment.context.root_account)
       events = Auditors::GradeChange.for_assignment(@assignment, query_options)
       render_events(events, polymorphic_url([:api_v1, :audit_grade_change, @assignment]))
     else
@@ -154,8 +154,8 @@ class GradeChangeAuditApiController < AuditorApiController
   # @returns [GradeChangeEvent]
   #
   def for_course
-    @course = @domain_root_account.all_courses.active.find(params[:course_id])
-    if authorize
+    @course = Course.where(root_account_id: authorized_accounts, id: params[:course_id]).active.first
+    if @course
       events = Auditors::GradeChange.for_course(@course, query_options)
       render_events(events, polymorphic_url([:api_v1, :audit_grade_change, @course]))
     else
@@ -177,11 +177,11 @@ class GradeChangeAuditApiController < AuditorApiController
   #
   def for_student
     @student = User.active.find(params[:student_id])
-    unless @domain_root_account.associated_user?(@student)
+    unless @student
       raise ActiveRecord::RecordNotFound, "Couldn't find user with API id '#{params[:student_id]}'"
     end
-    if authorize
-      events = Auditors::GradeChange.for_root_account_student(@domain_root_account, @student, query_options)
+    if (student_account = authorized_accounts.find {|a| a.associated_user?(@student)})
+      events = Auditors::GradeChange.for_root_account_student(student_account, @student, query_options)
       render_events(events, api_v1_audit_grade_change_student_url(@student))
     else
       render_unauthorized_action
@@ -202,11 +202,11 @@ class GradeChangeAuditApiController < AuditorApiController
   #
   def for_grader
     @grader = User.active.find(params[:grader_id])
-    unless @domain_root_account.associated_user?(@grader)
+    unless @grader
       raise ActiveRecord::RecordNotFound, "Couldn't find user with API id '#{params[:grader_id]}'"
     end
-    if authorize
-      events = Auditors::GradeChange.for_root_account_grader(@domain_root_account, @grader, query_options)
+    if (grader_account = authorized_accounts.find {|a| a.associated_user?(@grader)})
+      events = Auditors::GradeChange.for_root_account_grader(grader_account, @grader, query_options)
       render_events(events, api_v1_audit_grade_change_grader_url(@grader))
     else
       render_unauthorized_action
@@ -214,6 +214,10 @@ class GradeChangeAuditApiController < AuditorApiController
   end
 
   private
+
+  def authorized_accounts
+    Account.root_accounts.select {|a| a.grants_right?(@current_user, session, :view_grade_changes)}
+  end
 
   def authorize
     @domain_root_account.grants_right?(@current_user, session, :view_grade_changes)

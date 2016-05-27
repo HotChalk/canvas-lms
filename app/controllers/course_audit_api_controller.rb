@@ -182,8 +182,8 @@ class CourseAuditApiController < AuditorApiController
   # @returns [CourseEvent]
   #
   def for_course
-    @course = @domain_root_account.all_courses.find(params[:course_id])
-    if authorize
+    @course = Course.where(root_account_id: authorized_accounts, id: params[:course_id]).first
+    if @course
       events = Auditors::Course.for_course(@course, query_options)
       render_events(events, api_v1_audit_course_for_course_url(@course))
     else
@@ -192,6 +192,10 @@ class CourseAuditApiController < AuditorApiController
   end
 
   private
+
+  def authorized_accounts
+    Account.root_accounts.select {|a| a.grants_right?(@current_user, session, :view_course_changes)}
+  end
 
   def authorize
     @domain_root_account.grants_right?(@current_user, session, :view_course_changes)
