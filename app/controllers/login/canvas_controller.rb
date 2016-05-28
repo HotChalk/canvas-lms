@@ -37,6 +37,7 @@ class Login::CanvasController < ApplicationController
 
   def create
     load_root_account(params[:account_id])
+    params[:pseudonym_session][:account_id] = params[:account_id]
 
     # Check referer and authenticity token.  If the token is invalid but the referer is trusted
     # and one is not provided then continue.  If the referer is trusted and they provide a token
@@ -154,31 +155,38 @@ class Login::CanvasController < ApplicationController
     end
 
     # check authentication type for the pseudonym's root account
-    @domain_root_account = pseudonym.account.root_account
-    aac = @domain_root_account.authentication_providers.active.first
+    pseudonym_root_account = pseudonym.account.root_account
+    aac = pseudonym_root_account.authentication_providers.active.first
+    @auth_label = pseudonym_root_account.name
     if aac.nil?
       @auth_type = 'canvas'
     else
       @auth_type = aac.auth_type
       if aac.auth_type == 'cas'
-        @auth_url = "/login?account_id=#{@domain_root_account.id}"
+        @auth_url = "/login?account_id=#{pseudonym_root_account.id}"
       elsif aac.auth_type == 'hmac'
         @auth_url = aac.log_in_url
       elsif aac.auth_type == 'saml'
-        @auth_url = "/login?account_id=#{@domain_root_account.id}"
+        @auth_url = "/login?account_id=#{pseudonym_root_account.id}"
       elsif aac.auth_type == 'ldap'
         @auth_type = 'canvas'
       end
     end
 
-    params[:pseudonym_session][:account_id] = @domain_root_account.id
+    params[:pseudonym_session][:account_id] = pseudonym_root_account.id
+    @pseudonym_session = PseudonymSession.new
+    @headers = false
     @is_prelogin = false
-    new
+    @aacs_with_buttons = pseudonym_root_account.authentication_providers.active.select { |aac| aac.class.login_button? }
+    flash.now[:error] = params[:message] if params[:message]
+
+    maybe_render_mobile_login
   end
 
   protected
 
   def unsuccessful_login(message)
+    load_root_account(Account.default.id)
     if request.format.json?
       return render :json => {:errors => [message]}, :status => :bad_request
     end

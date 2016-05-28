@@ -47,7 +47,7 @@
             <% unless @is_prelogin %>
               <% if @auth_url.present? %>
                 <label class="ic-Label"><%= t('Click below to login:') %></label>
-                <a id="external_login_link" href="<%= @auth_url %>"><%= @domain_root_account.name %></a>
+                <a id="external_login_link" href="<%= @auth_url %>"><%= @auth_label %></a>
               <% else %>
                 <div class="ic-Form-control ic-Form-control--login">
                   <%= f.label :password, :en => "Password", :class => "ic-Label" %>
