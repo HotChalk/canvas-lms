@@ -147,6 +147,24 @@ class RoleOverride < ActiveRecord::Base
           'AccountAdmin'
         ]
       },
+      :time_restricted => {
+          :label => lambda { t('permissions.assignment_time_locked', "Access time restricted assignments") },
+          :available_to => [
+              'TaEnrollment',
+              'DesignerEnrollment',
+              'TeacherEnrollment',
+              'TeacherlessStudentEnrollment',
+              'ObserverEnrollment',
+              'AccountAdmin',
+              'AccountMembership'
+          ],
+          :true_for => [
+              'TaEnrollment',
+              'DesignerEnrollment',
+              'TeacherEnrollment',
+              'AccountAdmin'
+          ]
+      },
       :read_announcements => {
         :label => lambda { t('View announcements') },
         :available_to => [

@@ -33,7 +33,7 @@
   css_bundle :tinymce, :discussions, :learning_outcomes
 %>
 
-<% if @unlock_at && @unlock_at > Time.now && !can_do(@context, @current_user, :moderate_forum) && @topic.user != @current_user %>
+<% if @unlock_at && @unlock_at > Time.now && !can_do(@context, @current_user, :time_restricted) && @topic.user != @current_user %>
   <div id="discussion-managebar" class="toolbarView">
     <div class="headerBar">
       <div class="topic">
