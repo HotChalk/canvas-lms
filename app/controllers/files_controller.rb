@@ -306,8 +306,7 @@ class FilesController < ApplicationController
 
       url = @context ? context_files_url : api_v1_list_files_url(@folder)
       if @folder.context.is_a?(Course)
-        files = filter_by_section(scope, @folder.context)
-        scope = Attachment.where(id: files.map(&:id))
+        scope = filter_by_section(scope, @folder.context)
       end
       @files = Api.paginate(scope, self, url)
       render json: attachments_json(@files, @current_user, {}, {

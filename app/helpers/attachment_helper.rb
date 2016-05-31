@@ -57,15 +57,16 @@ module AttachmentHelper
     }
   end
 
-  def filter_by_section(files, context)
+  def filter_by_section(scope, context)
     unless @current_user.account_admin?(context) || !context.respond_to?(:sections_visible_to)
-      files.select! { |file|
+      filtered_ids = scope.select { |file|
         file.user.nil? ||
           ((sections_current_user = context.sections_visible_to(@current_user).map(&:id)) &&
             (sections_file_user = context.sections_visible_to(file.user).map(&:id)) &&
             ((sections_current_user & sections_file_user).count > 0))
-      }
+      }.map(&:id)
+      scope.merge(-> { where(id: filtered_ids) })
     end
-    files
+    scope
   end
 end
