@@ -149,7 +149,7 @@ gem 'gepub'
 # See:
 # - https://groups.google.com/forum/?fromgroups#!topic/canvas-lms-users/pYKylftHfQw
 # - https://github.com/instructure/canvas-lms/issues/752
-#gem 'newrelic_rpm', '3.15.2.317'
+gem 'newrelic_rpm', '3.15.2.317'
 # Lograge Logging
 gem "lograge", '0.3.6'
 # Rack CORS middleware
