@@ -55,7 +55,9 @@ describe "new account user search" do
 
     email = 'someemail@example.com'
     f('input.user_email').send_keys(email)
-    f('input.user_send_confirmation').click
+
+    input = f('input.user_send_confirmation')
+    move_to_click("label[for=#{input['id']}]")
 
     f('.ReactModalPortal button[type="submit"]').click
     wait_for_ajaximations

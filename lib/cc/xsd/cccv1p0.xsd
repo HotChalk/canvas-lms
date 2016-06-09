@@ -149,6 +149,9 @@
         <xs:element name="attachment_identifierref" type="xs:string" minOccurs="0"/>
         <xs:element name="workflow_state" type="xs:string" minOccurs="0"/>
         <xs:element name="has_group_category" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="allow_rating" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="only_graders_can_rate" type="xs:boolean" minOccurs="0"/>
+        <xs:element name="sort_by_rating" type="xs:boolean" minOccurs="0"/>
         <xs:element name="discussion_type" minOccurs="0">
           <xs:simpleType>
             <xs:restriction base="xs:string">
@@ -166,8 +169,6 @@
             </xs:restriction>
           </xs:simpleType>
         </xs:element>
-        <xs:element name="reply_assignment" type="assignmentType" minOccurs="0"/>
-        <xs:element name="grade_replies_separately" type="xs:boolean" minOccurs="0"/>
       </xs:all>
       <xs:attribute name="identifier" type="xs:ID" use="required"/>
     </xs:complexType>

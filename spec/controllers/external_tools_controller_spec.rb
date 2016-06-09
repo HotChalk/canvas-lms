@@ -397,6 +397,19 @@ describe ExternalToolsController do
         expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.lti.v1.ltilink'
       end
 
+      it "sets proper return data for collaboration" do
+        user_session(@teacher)
+        @tool.collaboration = { message_type: 'ContentItemSelectionRequest' }
+        @tool.save!
+        get :show, course_id: @course.id, id: @tool.id, launch_type: 'collaboration'
+        expect(response).to be_success
+
+        lti_launch = assigns[:lti_launch]
+        expect(lti_launch.params['accept_copy_advice']).to eq nil
+        expect(lti_launch.params['accept_presentation_document_targets']).to eq 'window'
+        expect(lti_launch.params['accept_media_types']).to eq 'application/vnd.ims.lti.v1.ltilink'
+      end
+
       it "sets proper return data for homework_submission" do
         user_session(@teacher)
         assignment = @course.assignments.create!(name: 'an assignment')
@@ -521,6 +534,17 @@ describe ExternalToolsController do
       get :retrieve, {url: tool.url, account_id:account.id}
       expect(assigns[:lti_launch].resource_url).to eq 'http://www.example.com/basic_lti?first=john&last=smith'
     end
+
+    it "lets you specify the selection_type" do
+      u = user(active_all: true)
+      account.account_users.create!( user: u)
+      user_session u
+      tool.collaboration = { message_type: 'ContentItemSelectionRequest' }
+      tool.save!
+      get :retrieve, {url: tool.url, account_id: account.id, placement: 'collaboration'}
+      expect(assigns[:lti_launch].params['lti_message_type']).to eq "ContentItemSelectionRequest"
+    end
+
   end
 
   describe "GET 'resource_selection'" do

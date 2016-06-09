@@ -26,7 +26,7 @@ module AccountsAuthConfigsCommon
     ldap_form = f("#new_ldap")
     ldap_form.find_element(:id, 'authentication_provider_auth_host').send_keys('host.example.dev')
     ldap_form.find_element(:id, 'authentication_provider_auth_port').send_keys('1')
-    ldap_form.find_element(:id, 'simple_tls_').click
+    f("label[for=simple_tls_]").click
     ldap_form.find_element(:id, 'authentication_provider_auth_base').send_keys('base')
     ldap_form.find_element(:id, 'authentication_provider_auth_filter').send_keys('filter')
     ldap_form.find_element(:id, 'authentication_provider_auth_username').send_keys('username')
@@ -39,7 +39,7 @@ module AccountsAuthConfigsCommon
     ldap_form = f("#edit_ldap#{config_id}")
     ldap_form.find_element(:id, 'authentication_provider_auth_host').clear
     ldap_form.find_element(:id, 'authentication_provider_auth_port').clear
-    ldap_form.find_element(:id, "no_tls_#{config_id}").click
+    f("label[for=no_tls_#{config_id}]").click
     ldap_form.find_element(:id, 'authentication_provider_auth_base').clear
     ldap_form.find_element(:id, 'authentication_provider_auth_filter').clear
     ldap_form.find_element(:id, 'authentication_provider_auth_username').clear
@@ -105,6 +105,14 @@ module AccountsAuthConfigsCommon
     submit_form(linkedin_form)
   end
 
+  def add_microsoft_config
+    get "/accounts/#{Account.default.id}/authentication_providers"
+    add_auth_type('Microsoft')
+    microsoft_form = f('#new_microsoft')
+    microsoft_form.find_element(:id, 'authentication_provider_application_id').send_keys('1234')
+    submit_form(microsoft_form)
+  end
+
   def add_openid_connect_config
     get "/accounts/#{Account.default.id}/authentication_providers"
     add_auth_type('OpenID Connect')
@@ -113,7 +121,7 @@ module AccountsAuthConfigsCommon
     set_value(f("#authentication_provider_authorize_url"), 'http://authorize.url.dev')
     set_value(f("#authentication_provider_token_url"), 'http://token.url.dev')
     set_value(f("#authentication_provider_scope"), 'scope')
-    openid_connect_form.find_element(:id, 'authentication_provider_login_attribute').send_keys('sub')
+    replace_content(openid_connect_form.find_element(:id, 'authentication_provider_login_attribute'), 'sub')
     submit_form(openid_connect_form)
   end
 

@@ -33,33 +33,46 @@
         <div class="ic-Login__body">
           <%= form_for :pseudonym_session, :url => url_for({ action: :create }.merge(params.slice(:id))), :html => {:id => "login_form"} do |f| %>
             <h2 class="ui-helper-hidden-accessible">
-              <%= t('log_in', 'Log In') %>
+              <%= @is_prelogin ? t('submit', 'Submit') : t('log_in', 'Log In') %>
             </h2>
             <% login_inner_dialog = yield :login_inner_dialog %>
             <%= login_inner_dialog if login_inner_dialog && !login_inner_dialog.strip.empty? %>
             <input type="hidden" name="redirect_to_ssl" value="1"/>
+            <input type="hidden" name="prelogin" value="<%= @is_prelogin ? 1 : 0%>"/>
+            <input type="hidden" name="account_id" value="<%= params[:pseudonym_session].try(:[], :account_id) %>"/>
             <div class="ic-Form-control ic-Form-control--login">
               <%= f.label :unique_id, login_handle_name, :class => "ic-Label" %>
-              <%= f.text_field :unique_id, :class => "ic-Input text", :value => params[:pseudonym_session].try(:[], :unique_id), :autofocus => !params[:previewing_from_themeeditor] %>
+              <%= f.text_field :unique_id, :class => "ic-Input text", :value => params[:pseudonym_session].try(:[], :unique_id), :autofocus => !params[:previewing_from_themeeditor] && @is_prelogin, :readonly => (@is_prelogin ? false : "readonly" ) %>
             </div>
-            <div class="ic-Form-control ic-Form-control--login">
-              <%= f.label :password, :en => "Password", :class => "ic-Label" %>
-              <%= f.password_field :password, :class => "ic-Input text" %>
-            </div>
+            <% unless @is_prelogin %>
+              <% if @auth_url.present? %>
+                <div class="ic-Form-control ic-Form-control--login">
+                  <label class="ic-Label"><%= t('Click below to login:') %></label>
+                  <a id="external_login_link" href="<%= @auth_url %>"><%= @auth_label %></a>
+                </div>
+              <% else %>
+                <div class="ic-Form-control ic-Form-control--login">
+                  <%= f.label :password, :en => "Password", :class => "ic-Label" %>
+                  <%= f.password_field :password, :class => "ic-Input text", :autofocus => !@is_prelogin %>
+                </div>
+              <% end %>
+            <% end %>
             <div class="ic-Login__actions">
               <div class="ic-Login__actions-timeout">
-                <% unless session_timeout_enabled? %>
+                <% unless session_timeout_enabled? || @is_prelogin || @auth_url.present? %>
                     <%= f.check_box :remember_me, :checked => session[:used_remember_me_token] %>
                     <%= f.label :remember_me, :en => "Stay signed in" %>
                 <% end %>
 
                 <div class="ic-Login__forgot">
-                  <%= render "login/canvas/forgot_password_link" %>
+                  <% if @is_prelogin || @auth_url.blank? %>
+                    <%= render "login/canvas/forgot_password_link" %>
+                  <% end %>
                 </div>
               </div>
-              <div class="ic-Form-control ic-Form-control--login">
+              <div class="ic-Form-control ic-Form-control--login <%= @auth_url.present? ? 'hidden' : '' %>">
                 <button type="<%= login_btn_type %>" class="Button Button--primary Button--login">
-                  <%= t('log_in', 'Log In') %>
+                  <%= @is_prelogin ? t('submit', 'Submit') : t('log_in', 'Log In') %>
                 </button>
               </div>
             </div> <!-- ic-Login__actions -->
@@ -71,7 +84,7 @@
             </p>
             <div class="ic-Form-control ic-Form-control--login">
               <label for="pseudonym_session_unique_id_forgot" class="ic-Label">
-                <%= t("Email") %>
+                <%= login_handle_name %>
               </label>
               <input aria-describedby="forgot_password_instructions" class="ic-Input email_address text" type="text" name="pseudonym_session[unique_id_forgot]" value="<%= @unauthorized_user.email rescue '' %>" id="pseudonym_session_unique_id_forgot" />
 
@@ -88,7 +101,7 @@
         </div> <!-- end ic-Login__body -->
       </div> <!-- end ic-Login__innerContent  -->
       <footer role="contentinfo" id="footer" class="ic-Login-footer">
-
+<!--
         <div id="footer-links" class="ic-Login-footer__links">
           <% if Setting.get("show_opensource_linkback", "false") == "true" %>
             <a href="http://instructure.com">
@@ -104,6 +117,7 @@
         <a href="http://www.instructure.com" class="ic-Login-footer__logo-link">
           <%= render "login/canvas/instructure_logo.svg" %>
         </a>
+-->
     </footer>
     </div> <!-- end ic-Login__content -->
   </div>

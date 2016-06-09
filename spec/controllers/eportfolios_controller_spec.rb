@@ -52,6 +52,23 @@ describe EportfoliosController do
     describe "with logged in user" do
       before{ user_session(@user) }
 
+      let(:fake_signing_secret){ "asdfasdfasdfasdfasdfasdfasdfasdf" }
+      let(:fake_encryption_secret){ "jkl;jkl;jkl;jkl;jkl;jkl;jkl;jkl;" }
+      let(:fake_secrets){
+        {
+          "signing-secret" => fake_signing_secret,
+          "encryption-secret" => fake_encryption_secret
+        }
+      }
+
+      before do
+        Canvas::DynamicSettings.stubs(:find).with("canvas").returns(fake_secrets)
+      end
+
+      after do
+        Canvas::DynamicSettings.unstub(:find)
+      end
+
       it "assigns variables" do
         get 'user_index'
         expect(assigns[:portfolios]).not_to be_nil
@@ -339,6 +356,18 @@ describe EportfoliosController do
       @portfolio.reload
       expect(@portfolio.attachments.count).to eq 2
       expect(@portfolio.attachments.map(&:file_state)).to include "deleted"
+    end
+
+    it "should not fail on export if there is an empty entry" do
+      @portfolio.ensure_defaults
+      @portfolio.update_attribute :name, "test"
+      ee = EportfolioEntry.create!({eportfolio: @portfolio, eportfolio_category: @portfolio.eportfolio_categories[0]})
+      ee.parse_content({})
+      ee.save!
+
+      to_zip = @portfolio.attachments[0]
+      ContentZipper.zip_eportfolio(to_zip, @portfolio)
+      expect(@portfolio.attachments[0].workflow_state).to include "zipped"
     end
   end
 end

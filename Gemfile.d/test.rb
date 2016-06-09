@@ -15,6 +15,7 @@ group :test do
   gem 'rspec', '3.2.0'
   gem 'rspec-rails', '3.2.3'
   gem 'rspec-legacy_formatters', '1.0.0'
+  gem 'rspec_junit_formatter', '0.2.3'
   gem 'rspec-collection_matchers', '1.1.2'
   gem 'shoulda-matchers', '2.8.0'
 
@@ -25,11 +26,13 @@ group :test do
   gem 'once-ler', '0.0.15'
 
   gem 'sequel', '4.5.0', require: false
-  gem 'selenium-webdriver', '2.46.2'
+  gem 'selenium-webdriver', '2.53.0'
     gem 'childprocess', '0.5.0', require: false
     gem 'websocket', '1.0.7', require: false
   gem 'selinimum', '0.0.1', require: false, path: 'gems/selinimum'
   gem 'test_after_commit', '0.4.2'
+  gem 'testrailtagging', '~> 0.3.1', git: 'https://github.com/instructure/testrailtagging', ref: '002c483ad2f0d2a288c96bde30ff70ed92f1fa50', require: false
+
   gem 'webmock', '1.22.3', require: false
     gem 'addressable', '2.3.8', require: false
     gem 'crack', '0.4.3', require: false
@@ -38,6 +41,7 @@ group :test do
   gem 'timecop', '0.6.3'
   gem 'jira_ref_parser', '1.0.0'
   gem 'headless', '2.2.0', require: false
+  gem 'escape_code', '0.2'
 
   unless CANVAS_RAILS4_0
     gem 'rails-dom-testing', '1.0.7'

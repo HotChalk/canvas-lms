@@ -14,8 +14,6 @@
   link_to_headless ||= false
   headless_param = {:headless => 1, :hide_student_names => hide_student_names, :student_id => user_id} if link_to_headless
   hide_student_names = hide_student_names
-  initial_posts_only ||= false
-  reply_posts_only ||= false
  %>
 <% cache([
     'entry_message_render_2_',
@@ -25,9 +23,7 @@
     @topic_agglomerated,
     Time.zone.utc_offset,
     read_state,
-    link_to_headless,
-    initial_posts_only,
-    reply_posts_only
+    link_to_headless
   ].join('/')) do %>
 <div class="discussion_entry communication_message can_be_marked_as_read <%= read_state %>" <%= hidden(true) unless entry_exists %> id="entry_<%= entry_exists ? entry.id : "blank" %>" data-mark-read-url="<%= entry_exists && entry_id && context_url(entry_context, :api_v1_context_discussion_topic_discussion_entry_mark_read_url, discussion_topic_id, entry_id) %>">
   <div class="header clearfix">
@@ -36,7 +32,7 @@
     <% else %>
       <div class="header_title">
         <% if out_of_context %>
-          <span style="font-size: 0.8em; padding-left: 20px;"><%= "Posts " if initial_posts_only %><%= "Replies " if reply_posts_only %>from
+          <span style="font-size: 0.8em; padding-left: 20px;">from
             <% if assignment_visible_to_user %>
               <a href="<%= context_url(entry_context, :context_discussion_topic_url, (entry ? entry.discussion_topic_id : '{{ topic_id }}'), headless_param) %>" style="font-size: 1.2em; font-weight: bold;"><%= entry.discussion_topic.title %></a>
             <% else %>
@@ -94,7 +90,7 @@
           </div>
         <% end %>
         <% entries.each_with_index do |entry, idx| %>
-          <%= render :partial => "discussion_topics/sub_entry", :locals => {:entry => entry, :hide_entry => entries.length > 3 && idx < entries.length - 2 && !@context.try_rescue(:show_all_discussion_entries)} %>
+          <%= render :partial => "discussion_topics/sub_entry", :locals => {:entry => entry, :hide_entry => entries.length > 3 && idx < entries.length - 2} %>
         <% end %>
       <% end %>
       <% if entry && entry.editor_id && entry.editor_id != entry.user_id %>

@@ -65,9 +65,9 @@ module Importers
       topic = DiscussionTopic.where(context_type: context.class.to_s, context_id: context.id).
         where(['id = ? OR (migration_id IS NOT NULL AND migration_id = ?)', options[:id], options[:migration_id]]).first
       topic ||= if options[:type] =~ /announcement/i
-                  context.announcements.scope.new
+                  context.announcements.temp_record
                 else
-                  context.discussion_topics.scope.new
+                  context.discussion_topics.temp_record
                 end
       topic.saved_by = :migration
       topic
@@ -78,7 +78,7 @@ module Importers
       # not seeing where this is used, so I'm commenting it out for now
       # options[:skip_replies] = true unless options.importable_entries?
       [:migration_id, :title, :discussion_type, :position, :pinned,
-       :require_initial_post].each do |attr|
+       :require_initial_post, :allow_rating, :only_graders_can_rate, :sort_by_rating].each do |attr|
         item.send("#{attr}=", options[attr])
       end
 
@@ -95,7 +95,7 @@ module Importers
       item.last_reply_at   = nil if item.new_record?
 
       if options[:workflow_state].present?
-        item.workflow_state = options[:workflow_state]
+        item.workflow_state = options[:workflow_state] if (options[:workflow_state] != 'unpublished') || item.new_record?
       elsif item.should_not_post_yet
         item.workflow_state = 'post_delayed'
       else
@@ -109,10 +109,6 @@ module Importers
         item.external_feed = context.external_feeds.where(migration_id: options[:external_feed_migration_id]).first
       end
       item.assignment = fetch_assignment
-      item.grade_replies_separately = options[:grade_replies_separately]
-      if item.grade_replies_separately
-        item.reply_assignment = fetch_reply_assignment
-      end
 
       if options[:attachment_ids].present?
         item.message += Attachment.attachment_list_from_migration(context, options[:attachment_ids])
@@ -140,13 +136,6 @@ module Importers
           submission_format: 'discussion_topic', due_date: options.due_date,
           title: options[:grading][:title]
         }, context, migration)
-      end
-    end
-
-    def fetch_reply_assignment
-      return nil unless context.respond_to?(:assignments)
-      if options[:reply_assignment]
-        Importers::AssignmentImporter.import_from_migration(options[:reply_assignment], context, migration)
       end
     end
 

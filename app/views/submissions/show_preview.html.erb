@@ -1,24 +1,25 @@
+<% css_bundle :submission %>
+
 <% user_name = params[:hide_student_name] ? t(:anonymous_username, "This Student") : submission_author_name_for(@assessment_request) %>
 <% content_for :page_title do %><%= join_title @assignment.title, submission_author_name_for(@assessment_request) %><% end %>
 
-<% if @assignment.submission_types == 'discussion_topic' && (@assignment.discussion_topic || @assignment.reply_assignment?) %>
+<% if @assignment.submission_types == 'discussion_topic' && @assignment.discussion_topic %>
   <div style="width: 600px; margin: 10px auto;">
     <p>
-      <% discussion_topic = @assignment.discussion_topic || @assignment.reply_assignment? %>
       <% if assignment_visible_to_user = @assignment.visible_to_user?(@current_user)%>
-        <% if discussion_topic.for_group_discussion? && (group = discussion_topic.group_category.group_for(@user)) %>
+        <% if @assignment.discussion_topic.for_group_discussion? && (group = @assignment.discussion_topic.group_category.group_for(@user)) %>
           <%= t('group_discussion_submission_description',
                   "The submissions for this assignment are posts in the assignment's discussion for this group. Below are the discussion posts for %{user}, or you can *view the full group discussion*.",
                   :user => user_name,
-                  :wrapper => "<a id='discussion_view_link' href=\"#{context_url(group, :context_discussion_topics_url, :root_discussion_topic_id => discussion_topic.id, :hide_student_names => params[:hide_student_name], :student_id => @submission.user.id, :headless => 1)}\"><b>\\1</b></a>") %>
+                  :wrapper => "<a id='discussion_view_link' href=\"#{context_url(group, :context_discussion_topics_url, :root_discussion_topic_id => @assignment.discussion_topic.id, :hide_student_names => params[:hide_student_name], :student_id => @submission.user.id, :headless => 1)}\"><b>\\1</b></a>") %>
         <% else %>
           <%= t('discussion_submission_description',
                   "The submissions for this assignment are posts in the assignment's discussion. Below are the discussion posts for %{user}, or you can *view the full discussion*.",
                   :user => user_name,
-                  :wrapper => "<a id='discussion_view_link' href=\"#{context_url(@assignment.context, :context_discussion_topic_url, discussion_topic.id, :hide_student_names => params[:hide_student_name], :student_id => @submission.user.id, :headless => 1)}\"><b>\\1</b></a>") %>
+                  :wrapper => "<a id='discussion_view_link' href=\"#{context_url(@assignment.context, :context_discussion_topic_url, @assignment.discussion_topic.id, :hide_student_names => params[:hide_student_name], :student_id => @submission.user.id, :headless => 1)}\"><b>\\1</b></a>") %>
         <% end %>
       <% else %>
-        <% if discussion_topic.for_group_discussion? && (group = discussion_topic.group_category.group_for(@user)) %>
+        <% if @assignment.discussion_topic.for_group_discussion? && (group = @assignment.discussion_topic.group_category.group_for(@user)) %>
           <%= t('group_discussion_submission_description_without_link',
                   "The submissions for this assignment are posts in the assignment's discussion for this group. Below are the discussion posts for %{user}.",
                   :user => user_name) %>
@@ -29,39 +30,15 @@
         <% end %>
       <% end %>
     </p>
-    <% if discussion_topic.grade_replies_separately %>
-      <% @initial_posts = discussion_topic.discussion_entries.active.initial_posts.for_user(@user) %>
-      <% @reply_posts = discussion_topic.discussion_entries.active.reply_posts.for_user(@user) %>
-      <% if discussion_topic.for_group_discussion? %>
-        <% @initial_posts = discussion_topic.child_topics.map{|t| t.discussion_entries.active.initial_posts.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
-        <% @reply_posts = discussion_topic.child_topics.map{|t| t.discussion_entries.active.reply_posts.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
-      <% end %>
-      <% if @assignment.id == discussion_topic.assignment_id %>        
-        <% @initial_posts.each do |entry| %>
-          <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user, :initial_posts_only => true} %>
-        <% end %>
-        <% @reply_posts.each do |entry| %>
-          <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user, :reply_posts_only => true} %>
-        <% end %>
-      <% else %>
-        <% @reply_posts.each do |entry| %>
-          <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user, :reply_posts_only => true} %>
-        <% end %>
-        <% @initial_posts.each do |entry| %>
-          <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user, :initial_posts_only => true} %>
-        <% end %>        
-      <% end %>
-    <% else %>
-      <% @entries = discussion_topic.discussion_entries.active.for_user(@user) %>
-      <% if discussion_topic.for_group_discussion? %>
-        <% @entries = discussion_topic.child_topics.map{|t| t.discussion_entries.active.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
-      <% end %>
-      <% @entries.each do |entry| %>
-        <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user} %>
-      <% end %>
+    <% @entries = @assignment.discussion_topic.discussion_entries.active.for_user(@user) %>
+    <% if @assignment.discussion_topic.for_group_discussion? %>
+      <% @entries = @assignment.discussion_topic.child_topics.map{|t| t.discussion_entries.active.for_user(@user) }.flatten.sort_by{|e| e.created_at} %>
+    <% end %>
+    <% @entries.each do |entry| %>
+      <%= render :partial => 'discussion_topics/entry', :object => entry, :locals => {:out_of_context => true, :skip_sub_entries => true, :link_to_headless => true, :hide_student_names => params[:hide_student_name], :assignment_visible_to_user => assignment_visible_to_user} %>
     <% end %>
     <div style="text-align: center; font-size: 1.2em; margin-top: 10px; display: none;">
-      <a href="<%= context_url(@assignment.context, :context_discussion_topic_url, discussion_topic.id, :headless => 1, :combined => 1) %>" class="forward"><%= t('show_entire_discussion', 'Show the Entire Discussion') %></a>
+      <a href="<%= context_url(@assignment.context, :context_discussion_topic_url, @assignment.discussion_topic.id, :headless => 1, :combined => 1) %>" class="forward"><%= t('show_entire_discussion', 'Show the Entire Discussion') %></a>
     </div>
   </div>
 <% elsif @submission.submission_type == "online_url" %>
@@ -106,61 +83,53 @@
   </div>
 <% elsif @submission.submission_type == "online_upload" %>
 
-  <div class="content-box">
+  <% if @submission.attachments.empty? %>
+    <div class="file-upload-submission">
+      <span>
+        <%= t('no_files', 'No files were uploaded for this submission') %>
+      </span>
+    </div>
+  <% else %>
 
-    <% if @submission.attachments.empty? %>
-      <div class="pad-box-mini border border-trbl border-round grid-row center" style="margin-left:0; margin-right: 0; background-color: white;">
-        <span>
-          <%= t('no_files', 'No files were uploaded for this submission') %>
-        </span>
-      </div>
-    <% else %>
+    <% @submission.attachments.each do |attachment| %>
+      <div class="file-upload-submission">
 
-      <% @submission.attachments.each do |attachment| %>
-        <div class="pad-box-mini border border-trbl border-round grid-row" style="margin-left:0; margin-right: 0; background-color: white;">
+        <div class="file-upload-submission-info">
+          <% preview_url = context_url(@context, :context_assignment_submission_url, @assignment.id, @submission.user_id, :download => attachment.id) %>
+          <a href="<%= preview_url %>" class="<%= attachment.mime_class %> file-upload-submission-info__link">
+            <%= attachment.display_name %>
+          </a>
+          <span class="file-upload-submission-info__filesize"><%= number_to_human_size(attachment.size) %></span>
+        </div>
 
-          <div class="col-xs-3">
-            <% preview_url = context_url(@context, :context_assignment_submission_url, @assignment.id, @submission.user_id, :download => attachment.id) %>
-            <a href="<%= preview_url %>" class="<%= attachment.mime_class %>">
-              <%= attachment.display_name %>
-            </a>
-          </div>
-
-          <div class="col-xs-2">
-            <%= number_to_human_size(attachment.size) %>
-          </div>
-
-          <div class="col-xs-2">
+        <div class="file-upload-submission-turnitin">
           <% if can_do(@submission, @current_user, :view_turnitin_report) && (turnitin_score = @submission.turnitin_data[attachment.asset_string]) && turnitin_score[:similarity_score] %>
-            <span class="turnitin_score_container">
-              <span class="turnitin_score_container_caret <%= turnitin_score[:state] %>_score"></span>
-              <a href="<%= context_url(@context, :context_assignment_submission_turnitin_report_url, @submission.assignment_id, @submission.user_id, attachment.asset_string) %>" target="_blank" class="not_external turnitin_similarity_score <%= turnitin_score[:state] %>_score"><%= turnitin_score[:similarity_score] %>%</a>
-            </span>
+              <span class="turnitin_score_container">
+                <span class="turnitin_score_container_caret <%= turnitin_score[:state] %>_score"></span>
+                <a href="<%= context_url(@context, :context_assignment_submission_turnitin_report_url, @submission.assignment_id, @submission.user_id, attachment.asset_string) %>" target="_blank" class="not_external turnitin_similarity_score <%= turnitin_score[:state] %>_score"><%= turnitin_score[:similarity_score] %>%</a>
+              </span>
           <% end %>
-          </div>
+        </div>
 
-          <div class="col-xs-5 align-right">
-            <% if attachment.crocodoc_available? || attachment.canvadoc.try(:has_annotations?) %>
+        <div class="file-upload-submission-attachment">
+          <% if attachment.crocodoc_available? || attachment.canvadoc.try(:has_annotations?) %>
               <% preview_document = t('preview_crocodoc_document', 'Preview your submission and view teacher feedback, if available')
                  button_text = t('view_feedback_button', 'View Feedback')
               %>
-            <% elsif attachment.canvadocable? %>
-              <% preview_document = t('preview_submission', 'Preview your submission')
-                 button_text = t('view_preview_button', 'Preview')
-              %>
-            <% end %>
-            <% if attachment.crocodoc_available? || attachment.canvadocable? %>
-              <a href=<%= preview_url %> data-tooltip title="<%= preview_document %>" class="modal_preview_link Button--link" role="button" data-attachment_id="<%= attachment.id %>" data-submission_id="<%= @submission.id %>" data-dialog-title="<%= attachment.display_name %>" <%= doc_preview_attributes(attachment, crocodoc_ids: @crocodoc_ids) %>><%= button_text %></a>
-            <% end %>
-          </div>
-
+          <% elsif attachment.canvadocable? %>
+            <% preview_document = t('preview_submission', 'Preview your submission')
+               button_text = t('view_preview_button', 'Preview')
+            %>
+          <% end %>
+          <% if attachment.crocodoc_available? || attachment.canvadocable? %>
+            <a href=<%= preview_url %> data-tooltip title="<%= preview_document %>" class="modal_preview_link Button--link" role="button" data-attachment_id="<%= attachment.id %>" data-submission_id="<%= @submission.id %>" data-dialog-title="<%= attachment.display_name %>" <%= doc_preview_attributes(attachment, crocodoc_ids: @crocodoc_ids) %>><%= button_text %></a>
+          <% end %>
         </div>
-        <br/>
-      <% end %>
 
+      </div>
     <% end %>
 
-  </div>
+  <% end %>
 
   <% js_bundle 'legacy/submissions_show_preview_upload' %>
 <% elsif @submission.submission_type == "online_quiz" %>

@@ -98,6 +98,11 @@ require 'atom'
 #           "description": "DEPRECATED: The SIS login ID associated with the user. Please use the sis_user_id or login_id. This field will be removed in a future version of the API.",
 #           "type": "string"
 #         },
+#         "integration_id": {
+#           "description": "The integration_id associated with the user.  This field is only included if the user came from a SIS import and has permissions to view SIS information.",
+#           "example": "ABC59802",
+#           "type": "string"
+#         },
 #         "login_id": {
 #           "description": "The unique login id for the user.  This is what the user uses to log in to Canvas.",
 #           "example": "sheldon@caltech.example.com",
@@ -202,7 +207,7 @@ class UsersController < ApplicationController
       }
     }
     calculator = grade_calculator([enrollment.user_id], course, grading_periods)
-    totals = calculator.compute_scores.first.first.first
+    totals = calculator.compute_scores.first[:current]
     totals[:hide_final_grades] = course.hide_final_grades?
     render json: totals
   end
@@ -213,19 +218,7 @@ class UsersController < ApplicationController
       return redirect_to(user_profile_url(@current_user))
     end
     return_to_url = params[:return_to] || user_profile_url(@current_user)
-    if params[:service] == "google_docs"
-      request_token = GoogleDocs::Connection.request_token(oauth_success_url(:service => 'google_docs'))
-      OauthRequest.create(
-        :service => 'google_docs',
-        :token => request_token.token,
-        :secret => request_token.secret,
-        :user_secret => CanvasSlug.generate(nil, 16),
-        :return_url => return_to_url,
-        :user => @real_current_user || @current_user,
-        :original_host_with_port => request.host_with_port
-      )
-      redirect_to request_token.authorize_url
-    elsif params[:service] == "google_drive"
+    if params[:service] == "google_drive"
       redirect_uri = oauth_success_url(:service => 'google_drive')
       session[:oauth_gdrive_nonce] = SecureRandom.hex
       state = Canvas::Security.create_jwt(redirect_uri: redirect_uri, return_to_url: return_to_url, nonce: session[:oauth_gdrive_nonce])
@@ -273,7 +266,12 @@ class UsersController < ApplicationController
         client = google_drive_client
         client.authorization.code = params[:code]
         client.authorization.fetch_access_token!
-        drive = client.discovered_api('drive', 'v2')
+
+        # we should look into consolidating this and connection.rb
+        drive = Rails.cache.fetch(['google_drive_v2'].cache_key) do
+          client.discovered_api('drive', 'v2')
+        end
+
         result = client.execute!(:api_method => drive.about.get)
 
         if result.status == 200
@@ -318,32 +316,7 @@ class UsersController < ApplicationController
       url = url_for request.parameters.merge(:host => oauth_request.original_host_with_port, :only_path => false)
       redirect_to url
     else
-      if params[:service] == "google_docs"
-        begin
-          access_token = GoogleDocs::Connection.get_access_token(oauth_request.token, oauth_request.secret, params[:oauth_verifier])
-          google_docs = GoogleDocs::Connection.new(oauth_request.token, oauth_request.secret)
-          service_user_id, service_user_name = google_docs.get_service_user_info access_token
-          if oauth_request.user
-            UserService.register(
-              :service => "google_docs",
-              :access_token => access_token,
-              :user => oauth_request.user,
-              :service_domain => "google.com",
-              :service_user_id => service_user_id,
-              :service_user_name => service_user_name
-            )
-            oauth_request.destroy
-          else
-            session[:oauth_gdocs_access_token_token] = access_token.token
-            session[:oauth_gdocs_access_token_secret] = access_token.secret
-          end
-
-          flash[:notice] = t('google_docs_added', "Google Docs access authorized!")
-        rescue => e
-          Canvas::Errors.capture_exception(:oauth, e)
-          flash[:error] = t('google_docs_fail', "Google Docs authorization failed. Please try again")
-        end
-      elsif params[:service] == "linked_in"
+     if params[:service] == "linked_in"
         begin
           linkedin_connection = LinkedIn::Connection.new
           token = session.delete(:oauth_linked_in_request_token_token)
@@ -449,7 +422,7 @@ class UsersController < ApplicationController
             users = UserSearch.scope_for(@context, @current_user)
           end
 
-          includes = (params[:include] || []) & %w{avatar_url email last_login}
+          includes = (params[:include] || []) & %w{avatar_url email last_login time_zone}
           users = users.with_last_login if includes.include?('last_login')
           users = Api.paginate(users, self, api_v1_account_users_url, page_opts)
           user_json_preloads(users, includes.include?('email'))
@@ -508,6 +481,8 @@ class UsersController < ApplicationController
     # trail back to home if you are already home
     clear_crumbs
 
+    @show_footer = true
+
     if request.path =~ %r{\A/dashboard\z}
       return redirect_to(dashboard_url, :status => :moved_permanently)
     end
@@ -521,7 +496,7 @@ class UsersController < ApplicationController
       }
     })
 
-    @announcements = AccountNotification.for_user_all_accounts(@current_user, @domain_root_account)    
+    @announcements = AccountNotification.for_user_and_account(@current_user, @domain_root_account)
     @pending_invitations = @current_user.cached_current_enrollments(:include_enrollment_uuid => session[:enrollment_uuid], :preload_dates => true).select { |e| e.invited? }
     @stream_items = @current_user.try(:cached_recent_stream_items) || []
   end
@@ -534,12 +509,12 @@ class UsersController < ApplicationController
   end
 
   def cached_submissions(user, upcoming_events)
-    Rails.cache.fetch(['cached_user_submissions', user].cache_key,
+    Rails.cache.fetch(['cached_user_submissions2', user].cache_key,
       :expires_in => 3.minutes) do
       assignments = upcoming_events.select{ |e| e.is_a?(Assignment) }
       Shard.partition_by_shard(assignments) do |shard_assignments|
         Submission.
-          select([:id, :assignment_id, :score, :workflow_state, :updated_at]).
+          select([:id, :assignment_id, :score, :grade, :workflow_state, :updated_at]).
           where(:assignment_id => shard_assignments, :user_id => user)
       end
     end
@@ -967,8 +942,8 @@ class UsersController < ApplicationController
 
   def delete_user_service
     deleted = @current_user.user_services.find(params[:id]).destroy
-    if deleted.service == "google_docs"
-      Rails.cache.delete(['google_docs_tokens', @current_user].cache_key)
+    if deleted.service == "google_drive"
+      Rails.cache.delete(['google_drive_tokens', @current_user].cache_key)
     end
     render :json => {:deleted => true}
   end
@@ -1081,7 +1056,7 @@ class UsersController < ApplicationController
   #
   # @returns User
   def api_show
-    @user = params[:id] && params[:id] != 'self' ? api_find(User, params[:id]) : @current_user
+    @user = api_find(User, params[:id])
     if @user.grants_any_right?(@current_user, session, :manage, :manage_user_details)
       render :json => user_json(@user, @current_user, session, %w{locale avatar_url permissions}, @current_user.pseudonym.account)
     else
@@ -1188,6 +1163,11 @@ class UsersController < ApplicationController
   # @argument pseudonym[sis_user_id] [String]
   #   SIS ID for the user's account. To set this parameter, the caller must be
   #   able to manage SIS permissions.
+  #
+  # @argument pseudonym[integration_id] [String]
+  #   Integration ID for the login. To set this parameter, the caller must be able to
+  #   manage SIS permissions. The Integration ID is a secondary
+  #   identifier useful for more complex SIS integrations.
   #
   # @argument pseudonym[send_confirmation] [Boolean]
   #   Send user notification of account creation if true.
@@ -1602,7 +1582,7 @@ class UsersController < ApplicationController
           end
           format.html { redirect_to user_url(@user) }
           format.json {
-            render :json => user_json(@user, @current_user, session, %w{locale avatar_url email},
+            render :json => user_json(@user, @current_user, session, %w{locale avatar_url email time_zone},
               @current_user.pseudonym.account) }
         else
           format.html { render :edit }
@@ -1873,7 +1853,9 @@ class UsersController < ApplicationController
   # @API Merge user into another user
   #
   # Merge a user into another user.
-  # To merge users, the caller must have permissions to manage both users.
+  # To merge users, the caller must have permissions to manage both users. This
+  # should be considered irreversible. This will delete the user and move all
+  # the data into the destination user.
   #
   # When finding users by SIS ids in different accounts the
   # destination_account_id is required.
@@ -1912,6 +1894,39 @@ class UsersController < ApplicationController
                                   %w{locale},
                                   destination_account))
       end
+    end
+  end
+
+  # @API Split merged users into separate users
+  #
+  # Merged users cannot be fully restored to their previous state, but this will
+  # attempt to split as much as possible to the previous state.
+  # To split a merged user, the caller must have permissions to manage all of
+  # the users logins. If there are multiple users that have been merged into one
+  # user it will split each merge into a separate user.
+  # A split can only happen within 90 days of a user merge. A user merge deletes
+  # the previous user and may be permanently deleted. In this scenario we create
+  # a new user object and proceed to move as much as possible to the new user.
+  # The user object will not have preserved the name or settings from the
+  # previous user. Some items may have been deleted during a user_merge that
+  # cannot be restored, and/or the data has become stale because of other
+  # changes to the objects since the time of the user_merge.
+  #
+  # @example_request
+  #     curl https://<canvas>/api/v1/users/<user_id>/split \
+  #          -X POST \
+  #          -H 'Authorization: Bearer <token>'
+  #
+  # @returns [User]
+  def split
+    user = api_find(User, params[:id])
+    unless UserMergeData.active.where(user_id: user).where('created_at > ?', 90.days.ago).exists?
+      return render json: {message: t('Nothing to split off of this user')}, status: :bad_request
+    end
+
+    if authorized_action(user, @current_user, :merge)
+      users = SplitUsers.split_db_users(user)
+      render :json => users.map { |u| user_json(u, @current_user, session) }
     end
   end
 
@@ -2031,9 +2046,9 @@ class UsersController < ApplicationController
     calculator = grade_calculator(user_ids, course, grading_periods)
     grades = {}
     calculator.compute_scores.each_with_index do |score, index|
-     computed_score = score.first.first[:grade]
-     user_id = user_ids[index]
-     grades[user_id] = computed_score
+      computed_score = score[:current][:grade]
+      user_id = user_ids[index]
+      grades[user_id] = computed_score
     end
     grades
   end
@@ -2094,10 +2109,12 @@ class UsersController < ApplicationController
     # Look for an incomplete registration with this pseudonym
 
     sis_user_id = nil
+    integration_id = nil
     params[:pseudonym] ||= {}
 
     if @context.grants_right?(@current_user, session, :manage_sis)
       sis_user_id = params[:pseudonym].delete(:sis_user_id)
+      integration_id = params[:pseudonym].delete(:integration_id)
     end
 
     @pseudonym = nil
@@ -2223,14 +2240,17 @@ class UsersController < ApplicationController
     end
     @pseudonym.attributes = params[:pseudonym]
     @pseudonym.sis_user_id = sis_user_id
+    @pseudonym.integration_id = integration_id
 
     @pseudonym.account = @context
     @pseudonym.workflow_state = 'active'
-    @cc =
+    if cc_addr.present?
+      @cc =
         @user.communication_channels.where(:path_type => cc_type).by_path(cc_addr).first ||
             @user.communication_channels.build(:path_type => cc_type, :path => cc_addr)
-    @cc.user = @user
-    @cc.workflow_state = skip_confirmation ? 'active' : 'unconfirmed' unless @cc.workflow_state == 'confirmed'
+      @cc.user = @user
+      @cc.workflow_state = skip_confirmation ? 'active' : 'unconfirmed' unless @cc.workflow_state == 'confirmed'
+    end
 
     if @user.valid? && @pseudonym.valid? && @invalid_observee_creds.nil?
       # saving the user takes care of the @pseudonym and @cc, so we can't call
@@ -2245,14 +2265,14 @@ class UsersController < ApplicationController
       end
       @user.save!
       if @observee && !@user.user_observees.where(user_id: @observee).exists?
-        @user.user_observees << @user.user_observees.create!{ |uo| uo.user_id = @observee.id }
+        @user.user_observees << @user.user_observees.create_or_restore(user_id: @observee)
       end
 
       if notify_policy.is_self_registration?
         registration_params = params.fetch(:user, {}).merge(remote_ip: request.remote_ip, cookies: cookies)
         @user.new_registration(registration_params)
       end
-      message_sent = notify_policy.dispatch!(@user, @pseudonym, @cc)
+      message_sent = notify_policy.dispatch!(@user, @pseudonym, @cc) if @cc
 
       data = { :user => @user, :pseudonym => @pseudonym, :channel => @cc, :message_sent => message_sent, :course => @user.self_enrollment_course }
       if api_request?

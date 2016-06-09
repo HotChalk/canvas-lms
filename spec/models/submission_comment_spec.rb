@@ -38,7 +38,7 @@ describe SubmissionComment do
 
   describe 'notifications' do
     before(:once) do
-      Notification.create(:name => 'Submission Comment')
+      Notification.create(:name => 'Submission Comment', category: 'TestImmediately')
       Notification.create(:name => 'Submission Comment For Teacher')
     end
 
@@ -50,10 +50,23 @@ describe SubmissionComment do
       expect(comment.messages_sent.keys.sort).to eq ["Submission Comment For Teacher"]
     end
 
+    it "dispatches notifications to observers" do
+      course_with_observer(active_all: true, active_cc: true, course: @course, associated_user_id: @student.id)
+      @submission.add_comment(:author => @teacher, :comment => "some comment")
+      expect(@observer.email_channel.messages.length).to eq 1
+    end
+
     it "should not dispatch notification on create if course is unpublished" do
       @course.complete
       @comment = @submission.add_comment(:author => @teacher, :comment => "some comment")
       expect(@course).to_not be_available
+      expect(@comment.messages_sent.keys).to_not be_include('Submission Comment')
+    end
+
+    it "should not dispatch notification on create if student is inactive" do
+      @student.enrollments.first.deactivate
+
+      @comment = @submission.add_comment(:author => @teacher, :comment => "some comment")
       expect(@comment.messages_sent.keys).to_not be_include('Submission Comment')
     end
 
@@ -245,6 +258,51 @@ This text has a http://www.google.com link in it...
         @submission.add_comment(:author => @teacher, :comment => 'wat', :provisional => true)
       }.to change(ContentParticipation, :count).by(0)
       expect(@submission.read?(@student)).to eq true
+    end
+  end
+
+  describe 'after_destroy #delete_other_comments_in_this_group' do
+    context 'given a submission with several group comments' do
+      let!(:assignment) { @course.assignments.create! }
+      let!(:unrelated_assignment) { @course.assignments.create! }
+      let!(:submission) { assignment.submissions.create!(user: @user) }
+      let!(:unrelated_submission) { unrelated_assignment.submissions.create!(user: @user) }
+      let!(:first_comment) do
+        submission.submission_comments.create!(
+          group_comment_id: 'uuid',
+          comment: 'first comment'
+        )
+      end
+      let!(:second_comment) do
+        submission.submission_comments.create!(
+          group_comment_id: 'uuid',
+          comment: 'second comment'
+        )
+      end
+      let!(:ungrouped_comment) do
+        submission.submission_comments.create!(
+          comment: 'third comment (ungrouped)'
+        )
+      end
+      let!(:unrelated_comment) do
+        unrelated_submission.submission_comments.create!(
+          comment: 'unrelated: first comment'
+        )
+      end
+      let!(:unrelated_group_comment) do
+        unrelated_submission.submission_comments.create!(
+          group_comment_id: 'uuid',
+          comment: 'unrelated: second comment (grouped)'
+        )
+      end
+
+      it 'deletes other group comments on destroy' do
+        expect {
+          first_comment.destroy
+        }.to change { submission.submission_comments.count }.from(3).to(1)
+        expect(submission.submission_comments).to_not include [first_comment, second_comment]
+        expect(submission.submission_comments).to include ungrouped_comment
+      end
     end
   end
 end

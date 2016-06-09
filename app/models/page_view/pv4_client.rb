@@ -32,11 +32,14 @@ class PageView
       end_time ||= Time.now.utc
       start_time ||= Time.at(0).utc
 
-      params = "start_time=#{start_time.iso8601(PRECISION)}&end_time=#{end_time.iso8601(PRECISION)}"
+      params = "start_time=#{start_time.utc.iso8601(PRECISION)}"
+      params << "&end_time=#{end_time.utc.iso8601(PRECISION)}"
       params << "&last_page_view_id=#{last_page_view_id}" if last_page_view_id
       params << "&limit=#{limit}" if limit
-      response = CanvasHttp.get(@uri.merge("users/#{user_id}/page_views?#{params}").to_s,
-        "Authorization" => "Bearer #{@access_token}")
+      response = CanvasHttp.get(
+        @uri.merge("users/#{user_id}/page_views?#{params}").to_s,
+        "Authorization" => "Bearer #{@access_token}"
+      )
 
       json = JSON.parse(response.body)
       raise response.body unless json['page_views']
@@ -56,17 +59,17 @@ class PageView
       end
     end
 
-    def for_user(user_id, start_time: nil, end_time: nil)
+    def for_user(user_id, oldest: nil, newest: nil)
       bookmarker = Bookmarker.new(self)
       BookmarkedCollection.build(bookmarker) do |pager|
         bookmark = pager.current_bookmark
         if bookmark
           end_time, last_page_view_id = bookmark
-          end_time = Time.zone.parse(end_time)
+          newest = Time.zone.parse(end_time)
         end
         pager.replace(fetch(user_id,
-              start_time: start_time,
-              end_time: end_time,
+              start_time: oldest,
+              end_time: newest,
               last_page_view_id: last_page_view_id,
               limit: pager.per_page))
         pager.has_more! unless pager.empty?

@@ -27,10 +27,10 @@ describe "self enrollment" do
     it "should register a new user" do
       get "/enroll/#{@course.self_enrollment_code}"
       f("#student_email").send_keys('new@example.com')
-      f('#initial_action input[value=create]').click
+      move_to_click('#initial_action label[for=selfEnrollmentAuthRegCreate]')
       wait_for_ajaximations
       f("#student_name").send_keys('new guy')
-      f('#enroll_form input[name="user[terms_of_use]"]').click
+      driver.execute_script("$('#enroll_form label[for=selfEnrollmentAuthRegLoginAgreeTerms]').click()") # because clicking the label clicks on the links in the label
       expect_new_page_load {
         submit_form("#enroll_form")
       }
@@ -47,7 +47,7 @@ describe "self enrollment" do
       get "/enroll/#{@course.self_enrollment_code}"
       expect(f("label[for='student_email']").text).to include(custom_label)
       f("#student_email").send_keys("existing@example.com")
-      f('#initial_action input[value=log_in]').click
+      move_to_click('#initial_action label[for=selfEnrollmentAuthRegLogin]') # have to click the label for selenium-webdriver 2.53.0
       wait_for_ajaximations
       f("#student_password").send_keys("asdfasdf")
       expect_new_page_load {
@@ -57,7 +57,7 @@ describe "self enrollment" do
       get "/"
       assert_valid_dashboard
     end
-  
+
     it "should register an authenticated user" do
       user_logged_in
       get "/enroll/#{@course.self_enrollment_code}"
@@ -77,13 +77,13 @@ describe "self enrollment" do
 
       get "/enroll/#{@course.self_enrollment_code}"
       f("#student_email").send_keys("existing@example.com")
-      f('#initial_action input[value=log_in]').click
+      move_to_click('#initial_action label[for=selfEnrollmentAuthRegLogin]')
       wait_for_ajaximations
       f("#student_password").send_keys("asdfasdf")
       expect_new_page_load {
         submit_form("#enroll_form")
       }
-      expect(f('.form-horizontal p').text).to include("You are already enrolled")
+      expect(f('#enroll_form p').text).to include("You are already enrolled")
       expect(f('.btn-primary').text).to eq primary_action
       get "/"
       assert_valid_dashboard
@@ -121,7 +121,7 @@ describe "self enrollment" do
       get "/"
       assert_valid_dashboard
     end
-  
+
     it "should register an authenticated user" do
       user_logged_in
       get "/enroll/#{@course.self_enrollment_code}"
@@ -145,7 +145,7 @@ describe "self enrollment" do
       expect_new_page_load {
         submit_form("#enroll_form")
       }
-      expect(f('.form-horizontal p').text).to include("You are already enrolled")
+      expect(f('#enroll_form p').text).to include("You are already enrolled")
       expect(f('.btn-primary').text).to eq primary_action
       get "/"
       assert_valid_dashboard
@@ -159,7 +159,7 @@ describe "self enrollment" do
     let(:assert_valid_dashboard) {
       expect(f('#courses_menu_item')).to include_text("Courses")
     }
-    
+
     context "with open registration" do
       include_examples "open registration"
     end

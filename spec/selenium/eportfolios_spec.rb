@@ -81,12 +81,12 @@ describe "eportfolios" do
     it "should edit ePortfolio settings", priority: "2", test_id: 220021 do
       get "/eportfolios/#{@eportfolio.id}"
       f('#section_list_manage .portfolio_settings_link').click
-      replace_content f('#edit_eportfolio_form #eportfolio_name'), "new ePortfolio name"
+      replace_content f('#edit_eportfolio_form #eportfolio_name'), "new ePortfolio name1"
       f('#edit_eportfolio_form #eportfolio_public').click
       submit_form('#edit_eportfolio_form')
       wait_for_ajax_requests
       @eportfolio.reload
-      expect(@eportfolio.name).to eq "new ePortfolio name"
+      expect(@eportfolio.name).to include_text("new ePortfolio name1")
     end
 
     it "should validate time stamp on ePortfolio", priority: "2" do
@@ -182,7 +182,7 @@ describe "eportfolios" do
     end
 
     it "should be viewable with a shared link" do
-      destroy_session false
+      destroy_session
       get "/eportfolios/#{@eportfolio.id}?verifier=#{@eportfolio.uuid}"
       expect(f('#content h2').text).to eq "page"
     end
@@ -213,7 +213,8 @@ describe "eportfolios file upload" do
     wait_for_ajaximations
     driver.execute_script "$('.add_file_link').click()"
     fj(".file_upload:visible").send_keys(fullpath)
-    fj(".upload_file_button").click
+    wait_for_ajaximations
+    f(".upload_file_button").click
     wait_for_ajaximations
     submit_form(".form_content")
     wait_for_ajax_requests

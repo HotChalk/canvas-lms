@@ -192,6 +192,37 @@ describe FilesController do
       expect(assigns[:js_env][:FILES_CONTEXTS][0][:file_menu_tools]).to eq []
     end
 
+    context "file menu tool visibility" do
+      before do
+        course(:active_all => true)
+        @tool = @course.context_external_tools.create!(:name => "a", :url => "http://google.com", :consumer_key => '12345', :shared_secret => 'secret')
+        @tool.file_menu = {
+          :visibility => "admins"
+        }
+        @tool.save!
+        Account.default.enable_feature!(:lor_for_account)
+      end
+
+      before :each do
+        user(:active_all => true)
+        user_session(@user)
+      end
+
+      it "should show restricted external tools to teachers" do
+        @course.enroll_teacher(@user).accept!
+
+        get 'index', :course_id => @course.id
+        expect(assigns[:js_env][:FILES_CONTEXTS][0][:file_menu_tools].count).to eq 1
+      end
+
+      it "should not show restricted external tools to students" do
+        @course.enroll_student(@user).accept!
+
+        get 'index', :course_id => @course.id
+        expect(assigns[:js_env][:FILES_CONTEXTS][0][:file_menu_tools]).to eq []
+      end
+    end
+
     describe 'across shards' do
       specs_require_sharding
 
@@ -445,6 +476,16 @@ describe FilesController do
         expect(response.status).to eq(404)
         expect(assigns(:not_found_message)).to eq("This file has been deleted")
       end
+
+      it "should view file when student's submission was deleted" do
+        @assignment = @course.assignments.create!(title: 'upload_assignment', submission_types: 'online_upload')
+        attachment_model context: @student
+        @assignment.submit_homework @student, attachments: [@attachment]
+        # create an orphaned attachment_association
+        @assignment.submissions.delete_all
+        get 'show', user_id: @student.id, id: @attachment.id, download_frd: 1
+        expect(response).to be_success
+      end
     end
 
     describe "as a teacher" do
@@ -532,24 +573,16 @@ describe FilesController do
       expect(response).to render_template("shared/errors/file_not_found")
     end
 
+    it "should render file_not_found even if the format is non-html" do
+      get "show_relative", :file_id => @file.id, :course_id => @course.id, :file_path => @file.full_display_path+".css", :format => 'css'
+      expect(response).to render_template("shared/errors/file_not_found")
+    end
+
     it "should ignore bad file_ids" do
       get "show_relative", :file_id => @file.id + 1, :course_id => @course.id, :file_path => @file.full_display_path
       expect(response).to be_redirect
       get "show_relative", :file_id => "blah", :course_id => @course.id, :file_path => @file.full_display_path
       expect(response).to be_redirect
-    end
-  end
-
-  describe "GET 'new'" do
-    it "should require authorization" do
-      get 'new', :course_id => @course.id
-      assert_unauthorized
-    end
-
-    it "should assign variables" do
-      user_session(@teacher)
-      get 'new', :course_id => @course.id
-      expect(assigns[:attachment]).not_to be_nil
     end
   end
 
@@ -573,6 +606,14 @@ describe FilesController do
       user_session(@teacher)
       post 'create', :course_id => @course.id, :attachment => {:display_name => "wat", :uploaded_data => io}
       expect(assigns[:attachment]).to be_locked
+    end
+
+    it "should reject an upload that would exceed quota" do
+      user_session(@teacher)
+      Setting.set('user_default_quota', 7) # seven... seven bytes.
+      post 'create', :user_id => @teacher.id, :format => :json, :attachment => {:display_name => "bob", :uploaded_data => io}
+      expect(response.status).to eq 400
+      expect(response.body).to include 'quota exceeded'
     end
 
     context "sharding" do
@@ -915,13 +956,24 @@ describe FilesController do
       expect(@attachment.open.read).to eq File.read(File.join(ActionController::TestCase.fixture_path, 'courses.yml'))
     end
 
+    it "opens up cors headers" do
+      params = @attachment.ajax_upload_params(@teacher.pseudonym, "", "")
+      post "api_create", params[:upload_params].merge(:file => @content)
+      expect(response.header["Access-Control-Allow-Origin"]).to eq "*"
+    end
+
+    it "has a preflight point for options requests (mostly safari)" do
+      process :api_create_success_cors, 'OPTIONS', id: ""
+      expect(response.header['Access-Control-Allow-Headers']).to eq('Origin, X-Requested-With, Content-Type, Accept, Authorization, Accept-Encoding')
+    end
+
     it "should reject a blank policy" do
       post "api_create", { :file => @content }
       assert_status(400)
     end
 
     it "should reject an expired policy" do
-      params = @attachment.ajax_upload_params(@teacher.pseudonym, "", "", :expiration => -60)
+      params = @attachment.ajax_upload_params(@teacher.pseudonym, "", "", :expiration => -60.seconds)
       post "api_create", params[:upload_params].merge({ :file => @content })
       assert_status(400)
     end

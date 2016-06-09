@@ -255,7 +255,7 @@ class CommunicationChannelsController < ApplicationController
       # load merge opportunities
       merge_users = cc.merge_candidates
       merge_users << @current_user if @current_user && !@user.registered? && !merge_users.include?(@current_user)
-      user_observers = UserObserver.where("user_id = ? OR observer_id = ?", @user.id, @user.id)
+      user_observers = UserObserver.active.where("user_id = ? OR observer_id = ?", @user.id, @user.id)
       merge_users = merge_users.reject { |u| user_observers.any?{|uo| uo.user == u || uo.observer == u} }
       # remove users that don't have a pseudonym for this account, or one can't be created
       merge_users = merge_users.select { |u| u.find_or_initialize_pseudonym_for_account(@root_account, @domain_root_account) }
@@ -337,8 +337,8 @@ class CommunicationChannelsController < ApplicationController
         # User chose to continue with this cc/pseudonym/user combination on confirmation page
         if @pseudonym && params[:register]
           @user.require_acceptance_of_terms = require_terms?
-          @user.attributes = params[:user]
-          @pseudonym.attributes = params[:pseudonym]
+          @user.attributes = params[:user] if params[:user]
+          @pseudonym.attributes = params[:pseudonym] if params[:pseudonym]
           @pseudonym.communication_channel = cc
 
           # ensure the password gets validated, but don't require confirmation
@@ -471,7 +471,51 @@ class CommunicationChannelsController < ApplicationController
     end
   end
 
+  def bouncing_channel_report
+    generate_bulk_report do
+      CommunicationChannel::BulkActions::ResetBounceCounts.new(bulk_action_args)
+    end
+  end
+
+  def bulk_reset_bounce_counts
+    perform_bulk_action do
+      CommunicationChannel::BulkActions::ResetBounceCounts.new(bulk_action_args)
+    end
+  end
+
+  def unconfirmed_channel_report
+    generate_bulk_report do
+      CommunicationChannel::BulkActions::Confirm.new(bulk_action_args)
+    end
+  end
+
+  def bulk_confirm
+    perform_bulk_action do
+      CommunicationChannel::BulkActions::Confirm.new(bulk_action_args)
+    end
+  end
+
   protected
+  def bulk_action_args
+    account = params[:account_id] == 'self' ? @domain_root_account : Account.find(params[:account_id])
+    args = params.slice(:after, :before, :pattern, :with_invalid_paths, :path_type).symbolize_keys
+    args.merge!({account: account})
+  end
+
+  def generate_bulk_report
+    if authorized_action(Account.site_admin, @current_user, :read_messages)
+      action = yield
+      send_data(action.report, type: 'text/csv')
+    end
+  end
+
+  def perform_bulk_action
+    if authorized_action(Account.site_admin, @current_user, :read_messages)
+      action = yield
+      render json: action.perform!
+    end
+  end
+
   def has_api_permissions?
     @user == @current_user ||
       @user.grants_right?(@current_user, session, :manage_user_details)

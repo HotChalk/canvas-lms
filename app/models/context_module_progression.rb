@@ -23,9 +23,6 @@ class ContextModuleProgression < ActiveRecord::Base
   belongs_to :user
   before_save :set_completed_at
 
-  EXPORTABLE_ATTRIBUTES = [:id, :context_module_id, :user_id, :requirements_met, :workflow_state, :created_at, :updated_at, :collapsed, :current_position, :completed_at]
-  EXPORTABLE_ASSOCIATIONS = [:context_module, :user]
-
   after_save :touch_user
 
   serialize :requirements_met, Array
@@ -242,7 +239,9 @@ class ContextModuleProgression < ActiveRecord::Base
       if requirement_met
         remove_incomplete_requirement(requirement[:id])
       else
-        self.update_incomplete_requirement!(requirement, score) # hold onto the score if requirement not met
+        unless sub.is_a?(Submission) && sub.unsubmitted?
+          self.update_incomplete_requirement!(requirement, score) # hold onto the score if requirement not met
+        end
       end
       requirement_met
     end

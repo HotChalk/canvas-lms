@@ -97,7 +97,7 @@ module CC
       doc.text(html, :texttype=>'text/html')
       if topic.attachment
         doc.attachments do |atts|
-          folder = topic.attachment.folder.full_name.gsub("course files", CCHelper::WEB_CONTENT_TOKEN)
+          folder = topic.attachment.folder.full_name.sub("course files", CCHelper::WEB_CONTENT_TOKEN)
           path = "#{folder}/#{topic.attachment.unencoded_filename}"
           atts.attachment(:href=>path)
         end
@@ -124,17 +124,13 @@ module CC
       doc.has_group_category topic.has_group_category?
       doc.workflow_state topic.workflow_state
       doc.module_locked topic.locked_by_module_item?(@user, true).present?
+      doc.allow_rating topic.allow_rating
+      doc.only_graders_can_rate topic.only_graders_can_rate
+      doc.sort_by_rating topic.sort_by_rating
       if topic.assignment && !topic.assignment.deleted?
         assignment_migration_id = CCHelper.create_key(topic.assignment)
         doc.assignment(:identifier=>assignment_migration_id) do |a|
           AssignmentResources.create_canvas_assignment(a, topic.assignment, @manifest)
-        end
-      end
-      if topic.grade_replies_separately && topic.reply_assignment && !topic.reply_assignment.deleted?
-        doc.grade_replies_separately 'true'
-        reply_assignment_migration_id = CCHelper.create_key(topic.reply_assignment)
-        doc.reply_assignment(:identifier=>reply_assignment_migration_id) do |a|
-          AssignmentResources.create_canvas_assignment(a, topic.reply_assignment, @manifest)
         end
       end
     end

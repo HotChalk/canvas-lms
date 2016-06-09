@@ -148,7 +148,6 @@ window.addEventListener('message', function(e) {
     switch (message.subject) {
       case 'lti.frameResize':
         var height = message.height;
-        if (height >= 5000) height = 5000;
         if (height <= 0) height = 1;
 
         tool_content_wrapper().data('height_overridden', true);
@@ -173,6 +172,10 @@ window.addEventListener('message', function(e) {
 
       case 'lti.removeUnloadMessage':
         removeUnloadMessage();
+        break;
+
+      case 'lti.screenReaderAlert':
+        $.screenReaderFlashMessageExclusive(message.body)
         break;
     }
   } catch(err) {

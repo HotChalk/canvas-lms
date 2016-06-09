@@ -2,12 +2,13 @@ define [
   'compiled/handlebars_helpers'
   'jquery'
   'underscore'
+  'helpers/assertions'
   'helpers/fakeENV'
   'timezone'
   'vendor/timezone/America/Detroit'
   'vendor/timezone/America/Chicago'
   'vendor/timezone/America/New_York'
-], ({helpers}, $, _, fakeENV, tz, detroit, chicago, newYork) ->
+], ({helpers}, $, _, {contains}, fakeENV, tz, detroit, chicago, newYork) ->
 
   module 'handlebars_helpers'
 
@@ -67,6 +68,7 @@ define [
     equal helpers.toPrecision(3.6666666, 2), '3.7'
 
   module 'truncate'
+
   test 'default truncates 30 characters', ->
     text = "asdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdfasdf"
     truncText = helpers.truncate text
@@ -90,16 +92,24 @@ define [
     teardown: -> tz.restore(@snapshot)
 
   test 'can take an ISO string', ->
-    equal helpers.friendlyDatetime('1970-01-01 00:00:00Z', hash: {pubDate: false}).string,
-      "<time data-tooltip data-html-tooltip-title='Dec 31, 1969 at 7:00pm' datetime='1970-01-01T00:00:00.000Z' undefined>Dec 31, 1969</time>"
+    contains helpers.friendlyDatetime('1970-01-01 00:00:00Z', hash: {pubDate: false}).string,
+      "Dec 31, 1969 at 7:00pm"
 
   test 'can take a date object', ->
-    equal helpers.friendlyDatetime(new Date(0), hash: {pubDate: false}).string,
-      "<time data-tooltip data-html-tooltip-title='Dec 31, 1969 at 7:00pm' datetime='1970-01-01T00:00:00.000Z' undefined>Dec 31, 1969</time>"
+    contains helpers.friendlyDatetime(new Date(0), hash: {pubDate: false}).string,
+      "Dec 31, 1969 at 7:00pm"
 
   test 'should parse non-qualified string relative to profile timezone', ->
-    equal helpers.friendlyDatetime('1970-01-01 00:00:00', hash: {pubDate: false}).string,
-      "<time data-tooltip data-html-tooltip-title='Jan 1, 1970 at 12:00am' datetime='1970-01-01T05:00:00.000Z' undefined>Jan 1, 1970</time>"
+    contains helpers.friendlyDatetime('1970-01-01 00:00:00', hash: {pubDate: false}).string,
+      "Jan 1, 1970 at 12:00am"
+
+  test 'includes a screenreader accessible version', ->
+    contains helpers.friendlyDatetime(new Date(0), hash: {pubDate: false}).string,
+      "<span class='screenreader-only'>Dec 31, 1969 at 7:00pm</span>"
+
+  test 'includes a visible version', ->
+    contains helpers.friendlyDatetime(new Date(0), hash: {pubDate: false}).string,
+      "<span aria-hidden='true'>Dec 31, 1969</span>"
 
   module 'contextSensitive FriendlyDatetime',
     setup: ->
@@ -115,25 +125,23 @@ define [
 
   test 'displays both zones data from an ISO string', ->
     timeTag = helpers.friendlyDatetime('1970-01-01 00:00:00Z', hash: {pubDate: false, contextSensitive: true}).string
-    ok(timeTag.indexOf("Local: Dec 31, 1969 at 7:00pm") > -1)
-    ok(timeTag.indexOf("Course: Dec 31, 1969 at 6:00pm") > -1)
+    contains timeTag, "Local: Dec 31, 1969 at 7:00pm"
+    contains timeTag, "Course: Dec 31, 1969 at 6:00pm"
 
   test 'displays both zones data from a date object', ->
     timeTag = helpers.friendlyDatetime(new Date(0), hash: {pubDate: false, contextSensitive: true}).string
-    ok(timeTag.indexOf("Local: Dec 31, 1969 at 7:00pm") > -1)
-    ok(timeTag.indexOf("Course: Dec 31, 1969 at 6:00pm") > -1)
+    contains timeTag, "Local: Dec 31, 1969 at 7:00pm"
+    contains timeTag, "Course: Dec 31, 1969 at 6:00pm"
 
   test 'should parse non-qualified string relative to both timezones', ->
     timeTag = helpers.friendlyDatetime('1970-01-01 00:00:00', hash: {pubDate: false, contextSensitive: true}).string
-    ok(timeTag.indexOf("Local: Jan 1, 1970 at 12:00am") > -1)
-    ok(timeTag.indexOf("Course: Dec 31, 1969 at 11:00pm") > -1)
+    contains timeTag, "Local: Jan 1, 1970 at 12:00am"
+    contains timeTag, "Course: Dec 31, 1969 at 11:00pm"
 
   test 'reverts to friendly display when there is no contextual timezone', ->
     ENV.CONTEXT_TIMEZONE = null
     timeTag = helpers.friendlyDatetime('1970-01-01 00:00:00Z', hash: {pubDate: false, contextSensitive: true}).string
-    equal timeTag, "<time data-tooltip data-html-tooltip-title='Dec 31, 1969 at 7:00pm' datetime='1970-01-01T00:00:00.000Z' undefined>Dec 31, 1969</time>"
-
-
+    contains timeTag, "<span aria-hidden='true'>Dec 31, 1969</span>"
 
   module 'contextSensitiveDatetimeTitle',
     setup: ->
@@ -181,8 +189,6 @@ define [
     titleText = helpers.contextSensitiveDatetimeTitle('1970-01-01 00:00:00Z', hash: {justText: undefined})
     equal titleText, "data-tooltip data-html-tooltip-title=\"Dec 31, 1969 at 7:00pm\""
 
-
-
   module 'datetimeFormatted',
     setup: -> @snapshot = tz.snapshot()
     teardown: -> tz.restore(@snapshot)
@@ -192,57 +198,58 @@ define [
     equal helpers.datetimeFormatted('1970-01-01 00:00:00'),
       "Jan 1, 1970 at 12:00am"
 
-  module 'ifSettingIs',
+  module 'ifSettingIs'
 
-    test 'it runs primary case if setting matches', ->
-      ENV.SETTINGS = {key: 'value'}
-      semaphore = false
-      funcs = {
-        fn: (()-> semaphore = true ),
-        inverse: (()-> throw new Error("Dont call this!"))
-      }
-      helpers.ifSettingIs('key', 'value', funcs)
-      equal semaphore, true
+  test 'it runs primary case if setting matches', ->
+    ENV.SETTINGS = {key: 'value'}
+    semaphore = false
+    funcs = {
+      fn: (()-> semaphore = true ),
+      inverse: (()-> throw new Error("Dont call this!"))
+    }
+    helpers.ifSettingIs('key', 'value', funcs)
+    equal semaphore, true
 
-    test 'it runs inverse case if setting does not match', ->
-      ENV.SETTINGS = {key: 'NOTvalue'}
-      semaphore = false
-      funcs = {
-        inverse: (()-> semaphore = true ),
-        fn: (()-> throw new Error("Dont call this!"))
-      }
-      helpers.ifSettingIs('key', 'value', funcs)
-      equal semaphore, true
+  test 'it runs inverse case if setting does not match', ->
+    ENV.SETTINGS = {key: 'NOTvalue'}
+    semaphore = false
+    funcs = {
+      inverse: (()-> semaphore = true ),
+      fn: (()-> throw new Error("Dont call this!"))
+    }
+    helpers.ifSettingIs('key', 'value', funcs)
+    equal semaphore, true
 
-    test 'it runs inverse case if setting does not exist', ->
-      ENV.SETTINGS = {}
-      semaphore = false
-      funcs = {
-        inverse: (()-> semaphore = true ),
-        fn: (()-> throw new Error("Dont call this!"))
-      }
-      helpers.ifSettingIs('key', 'value', funcs)
-      equal semaphore, true
+  test 'it runs inverse case if setting does not exist', ->
+    ENV.SETTINGS = {}
+    semaphore = false
+    funcs = {
+      inverse: (()-> semaphore = true ),
+      fn: (()-> throw new Error("Dont call this!"))
+    }
+    helpers.ifSettingIs('key', 'value', funcs)
+    equal semaphore, true
 
-   module 'accessible date pickers',
-     test 'it provides a format', ->
-       equal(typeof(helpers.accessibleDateFormat()), "string")
+   module 'accessible date pickers'
 
-     test 'it can shorten the format for dateonly purposes',->
-       shortForm = helpers.accessibleDateFormat('date')
-       equal(shortForm.indexOf("hh:mm"), -1)
-       ok(shortForm.indexOf("YYYY") > -1)
+   test 'it provides a format', ->
+     equal(typeof(helpers.accessibleDateFormat()), "string")
 
-     test 'it can shorten the format for time-only purposes',->
-       shortForm = helpers.accessibleDateFormat('time')
-       ok(shortForm.indexOf("hh:mm") > -1)
-       equal(shortForm.indexOf("YYYY"), -1)
+   test 'it can shorten the format for dateonly purposes',->
+     shortForm = helpers.accessibleDateFormat('date')
+     equal(shortForm.indexOf("hh:mm"), -1)
+     ok(shortForm.indexOf("YYYY") > -1)
 
-     test 'it provides a common format prompt wrapped around the format', ->
-       formatPrompt = helpers.datepickerScreenreaderPrompt()
-       ok(formatPrompt.indexOf(helpers.accessibleDateFormat()) > -1)
+   test 'it can shorten the format for time-only purposes',->
+     shortForm = helpers.accessibleDateFormat('time')
+     ok(shortForm.indexOf("hh:mm") > -1)
+     equal(shortForm.indexOf("YYYY"), -1)
 
-     test 'it passes format info through to date format', ->
-       shortFormatPrompt = helpers.datepickerScreenreaderPrompt('date')
-       equal(shortFormatPrompt.indexOf(helpers.accessibleDateFormat()), -1)
-       ok(shortFormatPrompt.indexOf(helpers.accessibleDateFormat('date')) > -1)
+   test 'it provides a common format prompt wrapped around the format', ->
+     formatPrompt = helpers.datepickerScreenreaderPrompt()
+     ok(formatPrompt.indexOf(helpers.accessibleDateFormat()) > -1)
+
+   test 'it passes format info through to date format', ->
+     shortFormatPrompt = helpers.datepickerScreenreaderPrompt('date')
+     equal(shortFormatPrompt.indexOf(helpers.accessibleDateFormat()), -1)
+     ok(shortFormatPrompt.indexOf(helpers.accessibleDateFormat('date')) > -1)

@@ -26,13 +26,11 @@ module Api::V1::CalendarEvent
   include Api::V1::Group
 
   def event_json(event, user, session, options={})
-    context  = Context.find_asset_by_asset_string(event.context_code)
     hash = if event.is_a?(::CalendarEvent)
       calendar_event_json(event, user, session, options)
     else
       assignment_event_json(event, user, session, options)
     end
-    hash[:context_name] = context && context.name
     hash
   end
 
@@ -58,17 +56,6 @@ module Api::V1::CalendarEvent
     appointment_group ||= AppointmentGroup.find(options[:appointment_group_id]) if options[:appointment_group_id]
     appointment_group ||= event.appointment_group
 
-    if event.effective_context_code
-      if appointment_group
-        codes_for_user = appointment_group.context_codes_for_user(user)
-        hash['context_code'] = (event.effective_context_code.split(',') & codes_for_user).first
-        hash['effective_context_code'] = hash['context_code']
-      else
-        hash['effective_context_code'] = event.effective_context_code
-      end
-    end
-    hash['context_code'] ||= event.context_code
-
     # force it to load
     include_child_events = include.include?('child_events')
     if include_child_events
@@ -76,6 +63,26 @@ module Api::V1::CalendarEvent
     else
       hash["child_events_count"] = options[:child_events_count] || event.child_events.size
     end
+
+    if event.effective_context_code
+      if appointment_group && include_child_events
+        common_context_codes = common_ag_context_codes(appointment_group, user, event)
+        effective_context_code = (event.effective_context_code.split(',') & common_context_codes).first
+        if effective_context_code
+          hash['context_code'] = hash['effective_context_code'] = effective_context_code
+        else
+          # the teacher has no courses in common with the signups
+          include_child_events = false
+          hash["child_events"] = []
+          hash["child_events_count"] = 0
+          hash['effective_context_code'] = event.effective_context_code
+        end
+      else
+        hash['effective_context_code'] = event.effective_context_code
+      end
+    end
+    hash['context_code'] ||= event.context_code
+
     hash['parent_event_id'] = event.parent_calendar_event_id
     # events are hidden when section-specific events override them
     # but if nobody is logged in, no sections apply, so show the base event
@@ -155,7 +162,7 @@ module Api::V1::CalendarEvent
     if excludes.include?('assignment')
       hash['html_url'] = course_assignment_url(assignment.context_id, assignment)
     else
-      hash['assignment'] = assignment_json(assignment, user, session, override_dates: false, submission: options[:submissions])
+      hash['assignment'] = assignment_json(assignment, user, session, override_dates: false, submission: options[:submission])
       hash['html_url'] = hash['assignment']['html_url'] if hash['assignment'].include?('html_url')
     end
     hash['context_code'] = assignment.context_code
@@ -206,4 +213,28 @@ module Api::V1::CalendarEvent
   ensure
     @context = orig_context
   end
+
+  private
+
+  # find context codes shared by the viewing user and the user signed up,
+  # falling back on the viewing user's contexts if no users are signed up
+  def common_ag_context_codes(appointment_group, user, event)
+    codes_for_user = appointment_group.context_codes_for_user(user)
+
+    event_user = event.user || infer_user_from_child_events(event.child_events)
+    if event_user
+      codes_for_event_user = appointment_group.context_codes_for_user(event_user)
+      return codes_for_user & codes_for_event_user
+    end
+    codes_for_user
+  end
+
+  # for an AG in multiple courses, if all students signing up for a slot are in the same course,
+  # put the event on that course's calendar
+  def infer_user_from_child_events(child_events)
+    unique_user_ids = child_events.map(&:user_id).uniq
+    return child_events.first.user if unique_user_ids.length == 1
+    nil
+  end
+
 end

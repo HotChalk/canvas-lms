@@ -22,11 +22,8 @@ class LearningOutcomeGroup < ActiveRecord::Base
   belongs_to :learning_outcome_group
   has_many :child_outcome_groups, :class_name => 'LearningOutcomeGroup', :foreign_key => "learning_outcome_group_id"
   has_many :child_outcome_links, -> { where(tag_type: 'learning_outcome_association', content_type: 'LearningOutcome') }, class_name: 'ContentTag', as: :associated_asset
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Account', 'Course']
+  belongs_to :context, polymorphic: [:account, :course]
 
-  EXPORTABLE_ATTRIBUTES = [:id, :context_id, :context_type, :title, :learning_outcome_group_id, :root_learning_outcome_group_id, :workflow_state, :description, :created_at, :updated_at, :vendor_guid, :low_grade, :high_grade]
-  EXPORTABLE_ASSOCIATIONS = [:learning_outcome_group, :child_outcome_groups, :child_outcome_links]
   before_save :infer_defaults
   validates_length_of :description, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => true, :allow_blank => true

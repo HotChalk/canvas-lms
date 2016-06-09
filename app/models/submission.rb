@@ -61,25 +61,6 @@ class Submission < ActiveRecord::Base
   has_and_belongs_to_many :canvadocs,
     join_table: :canvadocs_submissions
 
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :body, :url, :attachment_id, :grade, :score, :submitted_at,
-    :assignment_id, :user_id, :submission_type, :workflow_state,
-    :created_at, :updated_at, :group_id, :attachment_ids, :processed,
-    :process_attempts, :grade_matches_current_submission, :published_score,
-    :published_grade, :graded_at, :student_entered_score, :grader_id,
-    :media_comment_id, :media_comment_type, :quiz_submission_id,
-    :submission_comments_count, :has_rubric_assessment, :attempt,
-    :context_code, :media_object_id, :turnitin_data, :has_admin_comment,
-    :cached_due_date, :graded_anonymously
-  ].freeze
-
-  EXPORTABLE_ASSOCIATIONS = [
-    :attachment, :assignment, :user, :grader, :group, :media_object,
-    :student, :submission_comments, :assessment_requests,
-    :assigned_assessments, :quiz_submission, :rubric_assessment,
-    :rubric_assessments, :attachments, :content_participations
-  ].freeze
-
   serialize :turnitin_data, Hash
 
   validates_presence_of :assignment_id, :user_id
@@ -237,7 +218,7 @@ class Submission < ActiveRecord::Base
     given { |user| user && user.id == self.user_id && !self.assignment.muted? }
     can :read_grade
 
-    given {|user, session| self.assignment.published? && self.assignment.context.grants_right?(user, session, :manage_grades) }#admins.include?(user) }
+    given {|user, session| self.assignment.published? && self.assignment.context.grants_right?(user, session, :manage_grades) }
     can :read and can :comment and can :make_group_comment and can :read_grade and can :grade
 
     given {|user, session| self.assignment.user_can_read_grades?(user, session) }
@@ -481,7 +462,15 @@ class Submission < ActiveRecord::Base
     self.save
 
     @submit_to_turnitin = true
-    submit_to_turnitin_later
+    turnitinable_by_lti? ? retrieve_lti_tii_score : submit_to_turnitin_later
+  end
+
+  def retrieve_lti_tii_score
+    if (tool = ContextExternalTool.tool_for_assignment(self.assignment))
+      turnitin_data.select {|_,v| v.key?(:outcome_response) }.each do |k, v|
+        Turnitin::OutcomeResponseProcessor.new(tool, self.assignment, self.user, v[:outcome_response].as_json).resubmit(self, k)
+      end
+    end
   end
 
   def turnitinable?
@@ -489,9 +478,13 @@ class Submission < ActiveRecord::Base
       assignment.turnitin_enabled?
   end
 
+  def turnitinable_by_lti?
+    turnitin_data.select{|_, v| v.is_a?(Hash) && v.key?(:outcome_response)}.any?
+  end
+
   def touch_graders
-    if self.assignment && self.user && self.assignment.context.is_a?(Course)
-      self.class.connection.after_transaction_commit do
+    self.class.connection.after_transaction_commit do
+      if self.assignment && self.user && self.assignment.context.is_a?(Course)
         self.assignment.context.touch_admins_later
       end
     end
@@ -550,6 +543,7 @@ class Submission < ActiveRecord::Base
   end
 
   def attachment_fake_belongs_to_group(attachment)
+    return false if submission_type == 'discussion_topic'
     return false unless attachment.context_type == "User" &&
       assignment.has_group_category?
     gc = assignment.group_category
@@ -558,7 +552,7 @@ class Submission < ActiveRecord::Base
   private :attachment_fake_belongs_to_group
 
   def submit_attachments_to_canvadocs
-    if attachment_ids_changed?
+    if attachment_ids_changed? && submission_type != 'discussion_topic'
       attachments.preload(:crocodoc_document, :canvadoc).each do |a|
         # moderated grading annotations are only supported in crocodoc right now
         dont_submit_to_canvadocs = assignment.moderated_grading?
@@ -566,10 +560,16 @@ class Submission < ActiveRecord::Base
         # associate previewable-document and submission for permission checks
         if a.canvadocable? && Canvadocs.annotations_supported? && !dont_submit_to_canvadocs
           submit_to_canvadocs = true
-          canvadocs << a.create_canvadoc unless a.canvadoc
+          a.create_canvadoc! unless a.canvadoc
+          unless canvadocs.exists?(attachment: a)
+            canvadocs << a.canvadoc
+          end
         elsif a.crocodocable?
           submit_to_canvadocs = true
-          crocodoc_documents << a.create_crocodoc_document unless a.crocodoc_document
+          a.create_crocodoc_document! unless a.crocodoc_document
+          unless crocodoc_documents.exists?(attachment: a)
+            crocodoc_documents << a.crocodoc_document
+          end
         end
 
         if submit_to_canvadocs
@@ -592,12 +592,7 @@ class Submission < ActiveRecord::Base
     self.quiz_submission.reload if self.quiz_submission_id
     self.workflow_state = 'unsubmitted' if self.submitted? && !self.has_submission?
     self.workflow_state = 'graded' if self.grade && self.score && self.grade_matches_current_submission
-
-    if self.submission_type == 'online_quiz' &&
-       self.quiz_submission.try(:latest_submitted_attempt).try(:pending_review?)
-      self.workflow_state = 'pending_review'
-    end
-
+    self.workflow_state = 'pending_review' if self.submission_type == 'online_quiz' && self.quiz_submission.try(:latest_submitted_attempt).try(:pending_review?)
     if self.workflow_state_changed? && self.graded?
       self.graded_at = Time.now
     end
@@ -619,7 +614,7 @@ class Submission < ActiveRecord::Base
       self.quiz_submission ||= Quizzes::QuizSubmission.where(submission_id: self).first
       self.quiz_submission ||= Quizzes::QuizSubmission.where(user_id: self.user_id, quiz_id: self.assignment.quiz).first rescue nil
     end
-    @just_submitted = self.submitted? && self.submission_type && (self.new_record? || self.workflow_state_changed?)
+    @just_submitted = (self.submitted? || self.pending_review?) && self.submission_type && (self.new_record? || self.workflow_state_changed?)
     if score_changed?
       self.grade = assignment ?
         assignment.score_to_grade(score, grade) :
@@ -715,8 +710,7 @@ class Submission < ActiveRecord::Base
   end
 
   def versioned_attachments=(attachments)
-    attachments.compact!
-    @versioned_attachments = Array(attachments).select { |a|
+    @versioned_attachments = Array(attachments).compact.select { |a|
       (a.context_type == 'User' && a.context_id == user_id) ||
       (a.context_type == 'Group' && a.context_id == group_id) ||
       (a.context_type == 'Assignment' && a.context_id == assignment_id && a.available?)
@@ -791,14 +785,14 @@ class Submission < ActiveRecord::Base
     }
 
     p.dispatch :submission_graded
-    p.to { student }
+    p.to { [student] + User.observing_students_in_course(student, assignment.context) }
     p.whenever { |submission|
       BroadcastPolicies::SubmissionPolicy.new(submission).
         should_dispatch_submission_graded?
     }
 
     p.dispatch :submission_grade_changed
-    p.to { student }
+    p.to { [student] + User.observing_students_in_course(student, assignment.context) }
     p.whenever { |submission|
       BroadcastPolicies::SubmissionPolicy.new(submission).
         should_dispatch_submission_grade_changed?
@@ -1041,7 +1035,7 @@ class Submission < ActiveRecord::Base
     end
     valid_keys = [:comment, :author, :media_comment_id, :media_comment_type,
                   :group_comment_id, :assessment_request, :attachments,
-                  :anonymous, :hidden, :recipient, :provisional_grade_id]
+                  :anonymous, :hidden, :provisional_grade_id]
     if opts[:comment].present?
       comment = submission_comments.create!(opts.slice(*valid_keys))
     end
@@ -1386,6 +1380,26 @@ class Submission < ActiveRecord::Base
     !self.has_submission? && !self.graded?
   end
 
+  def visible_rubric_assessments_for(viewing_user)
+    return [] if self.assignment.muted? && !grants_right?(viewing_user, :read_grade)
+    filtered_assessments = self.rubric_assessments.select do |a|
+      a.grants_right?(viewing_user, :read)
+    end
+    filtered_assessments.sort_by do |a|
+      if a.assessment_type == 'grading'
+        [CanvasSort::First]
+      else
+        [CanvasSort::Last, Canvas::ICU.collation_key(a.assessor_name)]
+      end
+    end
+  end
+
+  def rubric_association_with_assessing_user_id
+    self.assignment.rubric_association.tap do |association|
+      association.assessing_user_id = self.user_id if association
+    end
+  end
+
   def self.queue_bulk_update(context, section, grader, grade_data)
     progress = Progress.create!(:context => context, :tag => "submissions_update")
     progress.process_job(self, :process_bulk_update, {}, context, section, grader, grade_data)
@@ -1401,7 +1415,7 @@ class Submission < ActiveRecord::Base
     grade_data.each do |assignment_id, user_grades|
       assignment = preloaded_assignments[assignment_id.to_i]
 
-      scope = assignment.students_with_visibility(context.students_visible_to(grader))
+      scope = assignment.students_with_visibility(context.students_visible_to(grader, include: :inactive))
       if section
         scope = scope.where(:enrollments => { :course_section_id => section })
       end

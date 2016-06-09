@@ -24,6 +24,7 @@ define([
   'jst/assignments/homework_submission_tool',
   'compiled/external_tools/HomeworkSubmissionLtiContainer',
   'compiled/views/editor/KeyboardShortcuts' /* TinyMCE Keyboard Shortcuts for a11y */,
+  'jsx/shared/rce/RichContentEditor',
   'compiled/jquery.rails_flash_notifications',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.inst_tree' /* instTree */,
@@ -32,13 +33,14 @@ define([
   'jquery.instructure_misc_plugins' /* fragmentChange, showIf, /\.log\(/ */,
   'jquery.templateData' /* getTemplateData */,
   'media_comments' /* mediaComment */,
-  'compiled/tinymce',
-  'tinymce.editor_box' /* editorBox */,
   'vendor/jquery.scrollTo' /* /\.scrollTo/ */,
   'jqueryui/tabs' /* /\.tabs/ */
-], function(I18n, $, _, GoogleDocsTreeView, homework_submission_tool, HomeworkSubmissionLtiContainer, RCEKeyboardShortcuts) {
+], function(I18n, $, _, GoogleDocsTreeView, homework_submission_tool,
+     HomeworkSubmissionLtiContainer, RCEKeyboardShortcuts, RichContentEditor) {
 
   window.submissionAttachmentIndex = -1;
+
+  RichContentEditor.preloadRemoteModule();
 
   $(document).ready(function() {
     var submitting = false,
@@ -206,7 +208,7 @@ define([
 
     $(".switch_text_entry_submission_views").click(function(event) {
       event.preventDefault();
-      $("#submit_online_text_entry_form textarea:first").editorBox('toggle');
+      RichContentEditor.callOnRCE($("#submit_online_text_entry_form textarea:first"), 'toggle')
       //  todo: replace .andSelf with .addBack when JQuery is upgraded.
       $(this).siblings(".switch_text_entry_submission_views").andSelf().toggle();
     });
@@ -228,7 +230,9 @@ define([
         activate: function(event, ui) {
           if (ui.newTab.find('a').hasClass('submit_online_text_entry_option')) {
             $el = $("#submit_online_text_entry_form textarea:first");
-            if (!$el.editorBox('exists?')) { $el.editorBox(); }
+            if (!RichContentEditor.callOnRCE($el, 'exists?')) {
+              RichContentEditor.loadNewEditor($el);
+            }
           }
 
           if (ui.newTab.attr("aria-controls") === "submit_google_doc_form") {
@@ -238,7 +242,9 @@ define([
         create: function(event, ui) {
           if (ui.tab.find('a').hasClass('submit_online_text_entry_option')) {
             $el = $("#submit_online_text_entry_form textarea:first");
-            if (!$el.editorBox('exists?')) { $el.editorBox(); }
+            if (!RichContentEditor.callOnRCE($el, 'exists?')) {
+              RichContentEditor.loadNewEditor($el);
+            }
           }
 
           //list Google Docs if Google Docs tab is active
@@ -349,7 +355,16 @@ define([
       // disable the submit button if any extensions are bad
       $('#submit_online_upload_form button[type=submit]').attr('disabled', !!$(".bad_ext_msg:visible").length);
     }
+    function updateRemoveLinkAltText(fileInput) {
+      var altText = I18n.t("remove empty attachment");
+      if(fileInput.val()){
+        var filename = fileInput.val().replace(/^.*?([^\\\/]*)$/, '$1');
+        altText = I18n.t("remove %{filename}", {filename: filename})
+      }
+      fileInput.parent().find('img').attr("alt", altText)
+    }
     $(".submission_attachment input[type=file]").live('change', function() {
+      updateRemoveLinkAltText($(this));
       if (ENV.SUBMIT_ASSIGNMENT.ALLOWED_EXTENSIONS.length < 1 || $(this).val() == "")
         return;
 

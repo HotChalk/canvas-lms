@@ -27,15 +27,8 @@ class PageView < ActiveRecord::Base
 
   before_save :ensure_account
   before_save :cap_interaction_seconds
-  belongs_to :context, :polymorphic => true
-  validates_inclusion_of :context_type, :allow_nil => true, :in => ['Course', 'Account', 'Group', 'User', 'UserProfile']
+  belongs_to :context, polymorphic: [:course, :account, :group, :user, :user_profile], polymorphic_prefix: true
 
-  EXPORTABLE_ATTRIBUTES = [
-    :request_id, :session_id, :user_id, :url, :context_id, :context_type, :asset_id, :asset_type, :controller, :action, :interaction_seconds, :created_at, :updated_at,
-    :user_request, :render_time, :user_agent, :asset_user_access_id, :participated, :summarized, :account_id, :real_user_id, :http_method, :remote_ip
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:user, :account, :real_user, :asset_user_access, :context]
   attr_accessor :generated_by_hand
   attr_accessor :is_update
 
@@ -182,9 +175,8 @@ class PageView < ActiveRecord::Base
     end
   end
 
-  def self.find(ids, options={})
+  def self.find(ids)
     return super unless PageView.cassandra?
-    raise(NotImplementedError, "options not implemented: #{options.inspect}") if options.present?
 
     case ids
     when Array
@@ -242,7 +234,7 @@ class PageView < ActiveRecord::Base
   def do_update(params = {})
     # nothing currently in the block is shard-sensitive, but to prevent
     # accidents in the future, we'll add the correct shard activation now
-    shard = PageView.cassandra? ? Shard.default : Shard.current
+    shard = PageView.db? ? Shard.current : Shard.default
     shard.activate do
       updated_at = params['updated_at'] || self.updated_at || Time.now
       updated_at = Time.parse(updated_at) if updated_at.is_a?(String)
@@ -390,7 +382,7 @@ class PageView < ActiveRecord::Base
     export_columns(format).map { |c| self.send(c).presence }
   end
 
-  # utility class to migrate a postgresql/mysql/sqlite3 page_views table to cassandra
+  # utility class to migrate a postgresql/sqlite3 page_views table to cassandra
   class CassandraMigrator < Struct.new(:start_at, :logger, :migration_data)
     # if you interrupt and re-start the migrator, start_at cannot be changed,
     # since it's saved in cassandra to persist the migration state

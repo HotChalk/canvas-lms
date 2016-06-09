@@ -13,7 +13,7 @@
 <% content_for :right_side do %>
   <div id="course_show_secondary">
     <% @can_manage = can_do(@context, @current_user, :manage_content) %>
-    <% @can_create_announcements = @context.announcements.scope.new.grants_right?(@current_user, session, :create) %>
+    <% @can_create_announcements = @context.announcements.temp_record.grants_right?(@current_user, session, :create) %>
       <div id="course_status" <% unless use_new_styles? %>class="text-center"<% end %>>
         <h3>
           <%= t('headers.course_status', %{Course Status}) %>
@@ -89,6 +89,10 @@
           <a class="btn button-sidebar-wide" href="<%= context_url(@context, :new_context_discussion_topic_url, :is_announcement => true) %>"><i class="icon-announcement"></i> <%= t('links.new_announcement', %{New Announcement}) %>
           </a>
         <% end %>
+
+        <% course_custom_links.each do |link| %>
+          <a class="btn button-sidebar-wide" href="<%= link[:url] %>"><i class="<%= link[:icon_class] %>" role="presentation"></i> <%= link[:text] %></a>
+        <% end %>
       </div>
     <% end %>
 
@@ -109,7 +113,7 @@
         </div>
       </div>
     <% end %>
-    <%= render :partial => 'assignments_needing_grading', :locals => {:contexts => [@context]} %>
+    <%= render :partial => 'to_do_list', :locals => {:contexts => [@context]} %>
     <%= render :partial => "group_list", :locals => {:group_list => @user_groups} %>
     <%= nbsp unless @current_user %>
   </div>
@@ -163,7 +167,7 @@
     </h2>
     <% unless @disable_checklist %>
     <div class="body Reminder__course-setup-body">
-      <p>Need help setting up your course?</p>
+      <p><%= t('Need help setting up your course?') %></p>
       <br/>
       <a href="#" class="btn btn-primary wizard_popup_link  <%= 'auto_open' if @context.created? || @context.claimed? %>">
         <%= t("Setup Checklist") %>

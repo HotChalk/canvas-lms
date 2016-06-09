@@ -622,8 +622,13 @@ define([
       if(limitToOneRubric && $("#rubrics .rubric:visible").length > 0) { return; }
       var $rubric = rubricEditing.addRubric();
       $("#rubrics").append($rubric.show());
-      $rubric.find('.find_rubric_link:visible:first').focus();
       $(".add_rubric_link").hide();
+      var $target = $rubric.find('.find_rubric_link:visible:first');
+      if ($target.length > 0) {
+        $target.focus();
+      } else {
+        $rubric.find(":text:first").focus().select();
+      }
     });
 
     $("#rubric_dialog")
@@ -822,11 +827,12 @@ define([
         }
         rubricEditing.updateRubric($rubric, rubric);
         if (data.rubric_association && data.rubric_association.use_for_grading && !data.rubric_association.skip_updating_points_possible) {
+          var association = ".association_id_" + data.rubric_association.association_id.toString();
           $("#assignment_show .points_possible").text(rubric.points_possible);
           discussion_points_text = I18n.t('discussion_points_possible',
                                           {one: '%{count} point possible', other: '%{count} points possible' },
                                           {count: rubric.points_possible || 0})
-          $(".discussion-title .discussion-points").text(discussion_points_text);
+          $(association).text(discussion_points_text);
         }
         if(!limitToOneRubric) {
           $(".add_rubric_link").show();
@@ -939,7 +945,7 @@ define([
     }).delegate('.rating', 'mouseout', function(event) {
       $(this).data('hover_offset', null).data('hover_width', null);
     }).delegate('.delete_rating_link', 'click', function(event) {
-      var $target = $(this).closest('tr');
+      var $target = $(this).closest('td').next().find('.edit_rating_link');
       event.preventDefault();
       rubricEditing.hideCriterionAdd($(this).parents(".rubric"));
       $(this).parents(".rating").fadeOut(function() {
@@ -960,7 +966,6 @@ define([
     $(".criterion_points").keydown(function(event) {
       if(event.keyCode == 13) {
         rubricEditing.updateCriterionPoints($(this).parents(".criterion"));
-        $(this).blur();
       }
     }).blur(function(event) {
       rubricEditing.updateCriterionPoints($(this).parents(".criterion"));

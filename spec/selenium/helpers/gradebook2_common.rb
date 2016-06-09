@@ -1,6 +1,67 @@
 require File.expand_path(File.dirname(__FILE__) + '/../common')
 
 module Gradebook2Common
+  shared_context 'gradebook_components' do
+    let(:gradebook_settings_cog) { f('#gradebook_settings') }
+    let(:group_weights_menu) { f('[aria-controls="assignment_group_weights_dialog"]') }
+  end
+  shared_context 'reusable_course' do
+    let(:test_course) { course() }
+    let(:teacher)     { user(active_all: true) }
+    let(:student)     { user(active_all: true) }
+    let(:enroll_teacher_and_students) do
+      test_course.enroll_user(teacher, 'TeacherEnrollment', enrollment_state: 'active')
+      test_course.enroll_user(student, 'StudentEnrollment', enrollment_state: 'active')
+    end
+    let(:assignment_group_1) { test_course.assignment_groups.create! name: 'Group 1' }
+    let(:assignment_group_2) { test_course.assignment_groups.create! name: 'Group 2' }
+    let(:assignment_1) do
+      test_course.assignments.create!(
+        title: 'Points Assignment',
+        grading_type: 'points',
+        points_possible: 10,
+        submission_types: 'online_text_entry',
+        due_at: 2.days.ago,
+        assignment_group: assignment_group_1
+      )
+    end
+    let(:assignment_2) do
+      test_course.assignments.create!(
+        title: 'Percent Assignment',
+        grading_type: 'percent',
+        points_possible: 10,
+      )
+    end
+    let(:assignment_3) do
+      test_course.assignments.create!(
+        title: 'Complete/Incomplete Assignment',
+        grading_type: 'pass_fail',
+        points_possible: 10
+      )
+    end
+    let(:assignment_4) do
+      test_course.assignments.create!(
+        title: 'Letter Grade Assignment',
+        grading_type: 'letter_grade',
+        points_possible: 10
+      )
+    end
+    let(:assignment_5) do
+      test_course.assignments.create!(
+        title: 'Zero Points Possible',
+        grading_type: 'points',
+        points_possible: 0,
+        assignment_group: assignment_group_2
+      )
+    end
+    let(:student_submission) do
+      assignment_1.submit_homework(
+        student,
+        submission_type: 'online_text_entry',
+        body: 'Hello!'
+      )
+    end
+  end
   def init_course_with_students(num = 1)
     course_with_teacher_logged_in
 
@@ -65,21 +126,6 @@ module Gradebook2Common
     set_value(grade_input, grade)
     grade_input.send_keys(:return)
     wait_for_ajaximations
-  end
-
-  def validate_cell_text(cell, text)
-    expect(cell.text).to eq text
-    cell.text
-  end
-
-  def open_gradebook_settings(element_to_click = nil)
-    keep_trying_until do
-      f('#gradebook_settings').click
-      expect(ff('#gradebook-toolbar ul.ui-kyle-menu').last).to be_displayed
-      true
-    end
-    yield(f('#gradebook_settings')) if block_given?
-    element_to_click.click unless element_to_click.nil?
   end
 
   def open_comment_dialog(x=0, y=0)
@@ -285,7 +331,6 @@ module Gradebook2Common
 
   def set_group_weight(assignment_group, weight_number)
     f('#gradebook_settings').click
-    wait_for_ajaximations
     f('[aria-controls="assignment_group_weights_dialog"]').click
 
     dialog = f('#assignment_group_weights_dialog')

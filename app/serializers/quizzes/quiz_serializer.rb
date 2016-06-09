@@ -40,6 +40,7 @@ module Quizzes
       :course_quiz_moderate_url,
       :course_quiz_take_url,
       :course_quiz_quiz_submissions_url,
+      :course_quiz_quiz_submission_url,
       :course_quiz_submission_versions_url
 
     def_delegators :@object,
@@ -267,7 +268,6 @@ module Quizzes
         hash['links']['quiz_statistics'] = hash.delete(:quiz_statistics_url)
         hash['links']['quiz_reports'] = hash.delete(:quiz_reports_url)
       end
-      hash.delete(:only_visible_to_overrides) unless quiz.context.feature_enabled?(:differentiated_assignments)
       hash
     end
 

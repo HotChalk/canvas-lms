@@ -6,8 +6,8 @@ describe "context modules" do
   include ContextModulesCommon
 
   context "as a teacher", priority: "1" do
-    before(:each) do
-      course_with_teacher_logged_in
+    before(:once) do
+      course(:active_course => true)
       # have to add quiz and assignment to be able to add them to a new module
       @quiz = @course.assignments.create!(:title => 'quiz assignment', :submission_types => 'online_quiz')
       @assignment = @course.assignments.create!(:title => 'assignment 1', :submission_types => 'online_text_entry')
@@ -23,12 +23,17 @@ describe "context modules" do
       @course.reload
     end
 
+    before(:each) do
+      course_with_teacher_logged_in(:course => @course, :active_enrollment => true)
+    end
+
     def module_with_two_items
       modules = create_modules(1, true)
       modules[0].add_item({id: @assignment.id, type: 'assignment'})
       modules[0].add_item({id: @assignment2.id, type: 'assignment'})
       get "/courses/#{@course.id}/modules"
       ff(".icon-mini-arrow-down")[1].click
+      wait_for_ajaximations
     end
 
     it "should show all module items", priority: "1", test_id: 126743 do
@@ -44,13 +49,25 @@ describe "context modules" do
       expect(f('.context_module .content')).not_to be_displayed
     end
 
+    it "should create a new module using enter key", priority: "2", test_id: 126705 do
+      get "/courses/#{@course.id}/modules"
+      add_form = new_module_form
+      replace_content(add_form.find_element(:id, 'context_module_name'), "module 1")
+      3.times do
+        driver.action.send_keys(:tab).perform
+        wait_for_ajaximations
+      end
+      driver.action.send_keys(:return).perform
+      wait_for_ajaximations
+      expect(f('.name')).to be_present
+    end
+
     it "should rearrange child objects in same module", priority: "1", test_id: 126733  do
       modules = create_modules(1, true)
       #attach 1 assignment to module 1 and 2 assignments to module 2 and add completion reqs
       item1 = modules[0].add_item({:id => @assignment.id, :type => 'assignment'})
       item2 = modules[0].add_item({:id => @assignment2.id, :type => 'assignment'})
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
       #setting gui drag icons to pass to driver.action.drag_and_drop
       selector1 = "#context_module_item_#{item1.id} .move_item_link"
       selector2 = "#context_module_item_#{item2.id} .move_item_link"
@@ -71,7 +88,6 @@ describe "context modules" do
       item1_mod1 = modules[0].add_item({:id => @assignment.id, :type => 'assignment'})
       item1_mod2 = modules[1].add_item({:id => @assignment2.id, :type => 'assignment'})
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
       #setting gui drag icons to pass to driver.action.drag_and_drop
       selector1 = "#context_module_item_#{item1_mod1.id} .move_item_link"
       selector2 = "#context_module_item_#{item1_mod2.id} .move_item_link"
@@ -150,6 +166,7 @@ describe "context modules" do
       expect(edit_form).to be_displayed
       f('.add_completion_criterion_link', edit_form).click
       wait_for_ajaximations
+      check_element_has_focus f("#add_context_module_form .assignment_picker")
       expect(f('#add_context_module_form .assignment_requirement_picker option[value=must_contribute]').attribute('disabled')).to be_present
       click_option('#add_context_module_form .assignment_picker', @assignment.title, :text)
       click_option('#add_context_module_form .assignment_requirement_picker', 'must_submit', :value)
@@ -275,7 +292,6 @@ describe "context modules" do
       tag = mod.add_item({:id => page.id, :type => 'wiki_page'})
 
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
 
       item = f("#context_module_item_#{tag.id}")
       edit_module_item(item) do |edit_form|
@@ -332,7 +348,6 @@ describe "context modules" do
       tag2 = mod.add_item(title: 'Second text header', type: 'sub_header')
 
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
       item2 = f("#context_module_item_#{tag2.id}")
       edit_module_item(item2) do |edit_form|
         replace_content(edit_form.find_element(:id, 'content_tag_title'), 'Renamed!')
@@ -349,7 +364,6 @@ describe "context modules" do
       tag2 = mod.add_item(title: 'B', type: 'external_tool', id: tool.id, url: 'http://what.example.org/B')
 
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
       item2 = f("#context_module_item_#{tag2.id}")
       edit_module_item(item2) do |edit_form|
         replace_content(edit_form.find_element(:id, 'content_tag_title'), 'Renamed!')
@@ -449,8 +463,8 @@ describe "context modules" do
 
       mod1 = @course.context_modules.where(:name => first_module_name).first
       mod3 = @course.context_modules.where(:name => third_module_name).first
-      context_module = f("#context_module_#{mod3.id}")
-      driver.action.move_to(context_module).perform
+
+      move_to_click("#context_module_#{mod3.id}")
       f("#context_module_#{mod3.id} .ig-header-admin .al-trigger").click
       f("#context_module_#{mod3.id} .edit_module_link").click
       expect(add_form).to be_displayed
@@ -470,7 +484,6 @@ describe "context modules" do
 
     it "does not have a prerequisites section when creating the first module" do
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
 
       form = new_module_form
       expect(f('.prerequisites_entry', form)).not_to be_displayed
@@ -485,7 +498,6 @@ describe "context modules" do
     it "does not have a prerequisites section when editing the first module" do
       modules = create_modules(2)
       get "/courses/#{@course.id}/modules"
-      wait_for_modules_ui
 
       mod0 = f("#context_module_#{modules[0].id}")
       f(".ig-header-admin .al-trigger", mod0).click
@@ -500,6 +512,24 @@ describe "context modules" do
       f('.edit_module_link', mod1).click
       edit_form = f('#add_context_module_form')
       expect(f('.prerequisites_entry', edit_form)).to be_displayed
+    end
+
+    it "retains focus when deleting prerequisites" do
+      modules = create_modules(2)
+      get "/courses/#{@course.id}/modules"
+      mod1 = f("#context_module_#{modules[1].id}")
+      f(".ig-header-admin .al-trigger", mod1).click
+      f('.edit_module_link', mod1).click; wait_for_ajaximations
+      add_button = f(".add_prerequisite_link")
+      2.times { add_button.click; wait_for_animations }
+      links = ff(".prerequisites_list .criteria_list .delete_criterion_link")
+      expect(links.size).to eq 2
+      links[1].click
+      wait_for_animations
+      check_element_has_focus(links[0])
+      links[0].click
+      wait_for_animations
+      check_element_has_focus(add_button)
     end
 
     it "should save the requirement count chosen in the Edit Module form" do
@@ -521,7 +551,8 @@ describe "context modules" do
       wait_for_ajaximations
 
       # Select other radio button
-      fj('#context_module_requirement_count_1').click
+      move_to_click('label[for=context_module_requirement_count_1]')
+
       submit_form(edit_form)
       wait_for_ajaximations
 
@@ -552,11 +583,11 @@ describe "context modules" do
     it "should validate locking a module item display functionality" do
       get "/courses/#{@course.id}/modules"
       add_form = new_module_form
-      lock_check = add_form.find_element(:id, 'unlock_module_at')
-      lock_check.click
+      lock_check_click(add_form)
       wait_for_ajaximations
       expect(add_form.find_element(:css, '.unlock_module_at_details')).to be_displayed
-      lock_check.click
+      # verify unlock
+      lock_check_click(add_form)
       wait_for_ajaximations
       expect(add_form.find_element(:css, '.unlock_module_at_details')).not_to be_displayed
     end
@@ -566,15 +597,12 @@ describe "context modules" do
 
       get "/courses/#{@course.id}/modules"
 
-      keep_trying_until do
-        f(".ig-header-admin .al-trigger").click
-        f(".edit_module_link").click
-        expect(f('#add_context_module_form')).to be_displayed
-      end
-      edit_form = f('#add_context_module_form')
+      f(".ig-header-admin .al-trigger").click
+      f(".edit_module_link").click
+      expect(f('#add_context_module_form')).to be_displayed
 
-      lock_check = edit_form.find_element(:id, 'unlock_module_at')
-      lock_check.click
+      edit_form = f('#add_context_module_form')
+      lock_check_click(edit_form)
       wait_for_ajaximations
       unlock_date = edit_form.find_element(:id, 'context_module_unlock_at')
       unlock_date.send_keys((Date.today + 2.days).to_s)
@@ -720,6 +748,7 @@ describe "context modules" do
       end
 
       it "should use the keyboard shortcuts to navigate through modules and module items" do
+        skip_if_chrome('research - focus on HTML')
         # Test these shortcuts (access menu by pressing comma key):
         # Up : Previous Module/Item
         # Down : Next Module/Item
@@ -967,10 +996,14 @@ describe "context modules" do
   end
 
   context "as a teacher", priority: "1" do
-    before(:each) do
-      course_with_teacher_logged_in
+    before(:once) do
+      course(:active_course => true)
       @course.default_view = 'modules'
       @course.save!
+    end
+
+    before(:each) do
+      course_with_teacher_logged_in(:course => @course, :active_enrollment => true)
       get "/courses/#{@course.id}"
     end
 
@@ -1026,6 +1059,7 @@ describe "context modules" do
       submit_form(edit_form)
       expect(edit_form).not_to be_displayed
       wait_for_ajaximations
+      check_element_has_focus(f('.ig-header-admin .al-trigger'))
       expect(f('.context_module > .header')).to include_text(edit_text)
     end
 
@@ -1038,6 +1072,7 @@ describe "context modules" do
       expect(driver.switch_to.alert).not_to be_nil
       driver.switch_to.alert.accept
       wait_for_ajaximations
+      check_element_has_focus(f(".add_module_link"))
       refresh_page
       expect(f('#no_context_modules_message')).to be_displayed
       wait_for_ajaximations
@@ -1099,6 +1134,30 @@ describe "context modules" do
       expect(fln('Google')).to be_displayed
     end
 
+    it "should require a url for external url items" do
+      get "/courses/#{@course.id}/modules"
+      add_module('Module')
+      f('.ig-header-admin .al-trigger').click
+      wait_for_ajaximations
+      f('.add_module_item_link').click
+      wait_for_ajaximations
+
+      click_option('#add_module_item_select', 'external_url', :value)
+      wait_for_ajaximations
+
+      title_input = fj('input[name="title"]:visible')
+      replace_content(title_input, 'some title')
+
+      fj('.add_item_button.ui-button').click
+      wait_for_ajaximations
+
+      keep_trying_until do
+        expect(ff('.errorBox').any?(&:displayed?)).to be_truthy
+      end
+
+      expect(f("#select_context_content_dialog")).to be_displayed
+    end
+
     it "should add an external tool item to a module from apps", priority: "1", test_id: 126706 do
       get "/courses/#{@course.id}/settings"
       make_full_screen
@@ -1126,10 +1185,14 @@ describe "context modules" do
   end
 
   context 'adds existing items to modules' do
-    before do
-      course_with_teacher_logged_in
+    before(:once) do
+      course(:active_course => true)
       @course.context_modules.create! name: 'Module 1'
       @mod = @course.context_modules.first
+    end
+
+    before(:each) do
+      course_with_teacher_logged_in(:course => @course, :active_enrollment => true)
     end
 
      it 'should add an unpublished page to a module', priority: "1", test_id: 126709 do
@@ -1241,16 +1304,79 @@ describe "context modules" do
       expect(f('.points_possible_display').text).to include_text "10 pts"
     end
   end
+  context 'edit inline items on module page' do
+    before(:once) do
+      course(:active_course => true)
+      @course.context_modules.create! name: 'Module 2'
+      @mod = @course.context_modules.first
+    end
+
+    before(:each) do
+      course_with_teacher_logged_in(:course => @course, :active_enrollment => true)
+    end
+
+    it 'edit text header module item inline', priority: "2", test_id: 132487 do
+      @mod.add_item(title: 'EditMe text header', type: 'sub_header')
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit assignment module item inline', priority: "2", test_id: 132485 do
+      @edit_assignment = Assignment.create!(context: @course, title: 'EditMe Assignment')
+      @mod.add_item(type: 'assignment', id: @edit_assignment.id)
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit quiz module item inline', priority: "2", test_id: 132486 do
+      @edit_quiz = Quizzes::Quiz.create!(context: @course, title: 'EditMe Quiz')
+      @mod.add_item(type: 'quiz', id: @edit_quiz.id)
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit content page module item inline', priority: "2", test_id: 132491 do
+      @edit_page = @course.wiki.wiki_pages.create!(title: 'EditMe Page')
+      @mod.add_item(type: 'wiki_page', id: @edit_page.id)
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit discussion module item inline', priority: "2", test_id: 132490 do
+      @edit_discussion = @course.discussion_topics.create!(title: 'EditMe Discussion')
+      @mod.add_item(type: 'discussion_topic', id: @edit_discussion.id)
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit external tool module item inline', priority: "2", test_id: 132488 do
+      @edit_tool = @course.context_external_tools.create! name: 'WHAT', consumer_key: 'what', shared_secret: 'what', url: 'http://what.example.org'
+      @mod.add_item(title: 'EditMe Tool', type: 'external_tool', id: @edit_tool.id, url: 'http://what.example.org/')
+      go_to_modules
+      verify_edit_item_form
+    end
+
+    it 'edit external URL module item inline', priority: "2", test_id: 132489 do
+      go_to_modules
+      add_new_external_item('External URL', 'www.google.com', 'Google')
+      verify_edit_item_form
+    end
+  end
+
   describe "files" do
     FILE_NAME = 'some test file'
 
-    before(:each) do
-      course_with_teacher_logged_in
+    before(:once) do
+      course(:active_course => true)
       Account.default.enable_feature!(:usage_rights_required)
       #adding file to course
       @file = @course.attachments.create!(:display_name => FILE_NAME, :uploaded_data => default_uploaded_data)
       @file.context = @course
       @file.save!
+    end
+
+    before(:each) do
+      course_with_teacher_logged_in(:course => @course, :active_enrollment => true)
     end
 
     it "should add a file item to a module", priority: "1", test_id: 126728 do
@@ -1286,25 +1412,28 @@ describe "context modules" do
       icon_class = 'icon-files-copyright'
       expect(f(".UsageRightsIndicator__openModal i.#{icon_class}")).to be_displayed
     end
+
+    it 'edit file module item inline', priority: "2", test_id: 132492 do
+      get "/courses/#{@course.id}/modules"
+      add_existing_module_item('#attachments_select', 'File', FILE_NAME)
+      verify_edit_item_form
+    end
   end
 
   context "logged out", priority: "2" do
-    before(:each) do
+    before(:once) do
       @course = course(:active_all => true)
       course_module
       @course.is_public = true
       @course.save!
       @course.reload
+    end
+
+    before(:each) do
       remove_user_session
     end
 
-    it "loads page with differentiated assignments on" do
-      @course.enable_feature!(:differentiated_assignments)
-      assert_page_loads
-    end
-
-    it "loads page with differentiated assignments on" do
-      @course.disable_feature!(:differentiated_assignments)
+    it "loads page with differentiated assignments" do
       assert_page_loads
     end
   end

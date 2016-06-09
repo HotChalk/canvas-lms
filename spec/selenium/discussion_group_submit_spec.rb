@@ -27,7 +27,7 @@ describe "discussion assignments" do
       f("#discussion-title").send_keys("New Discussion Title")
       type_in_tiny('textarea[name=message]', 'Discussion topic message body')
       f("#has_group_category").click
-      drop_down = get_options('#assignment_group_category_id').map(&:text)
+      drop_down = get_options('#assignment_group_category_id').map(&:text).map(&:strip)
       expect(drop_down).to include('category 1')
       click_option('#assignment_group_category_id', 'category 1')
     end
@@ -73,6 +73,7 @@ describe "discussion assignments" do
       assignment_form = f('#submit_online_text_entry_form')
       type_in_tiny 'textarea', 'something to submit'
       submit_form(assignment_form)
+      wait_for_ajaximations
       user_session(@teacher)
       get "/courses/#{@course.id}/discussion_topics/#{@discussion_topic.id}"
       expect(f('.new-and-total-badge .new-items').text).to include "1"

@@ -70,7 +70,7 @@ class TermsApiController < ApplicationController
   #
   # Return all of the terms in the account.
   #
-  # @argument workflow_state[] [String, 'active'| 'deleted'| 'all']
+  # @argument workflow_state[] [String, "active"|"deleted"|"all"]
   #   If set, only returns terms that are in the given state.
   #   Defaults to 'active'.
   # @argument sis_term_id [Optional, String]
@@ -82,7 +82,8 @@ class TermsApiController < ApplicationController
   def index
     terms = @context.enrollment_terms.order('start_at ASC, end_at ASC, id ASC')
 
-    state = params[:workflow_state] || 'active'
+    state = Array(params[:workflow_state])&['all', 'active', 'deleted']
+    state = 'active' if state == []
     state = nil if Array(state).include?('all')
     terms = terms.where(workflow_state: state) if state.present?
 
@@ -96,44 +97,5 @@ class TermsApiController < ApplicationController
       terms = Api.paginate(terms, self, api_v1_enrollment_terms_url)
       render json: { enrollment_terms: enrollment_terms_json(terms, @current_user, session) }
     end
-  end
-
-  def create
-    overrides = params[:enrollment_term].delete(:overrides) rescue nil
-    @term = @context.enrollment_terms.active.build(params[:enrollment_term])
-    @term.sis_source_id = params[:enrollment_term].delete(:sis_term_id)
-    if @term.save
-      @term.set_overrides(@context, overrides)
-      render :json => enrollment_term_json(@term, @current_user, session, [], [:enrollment_dates_overrides])
-    else
-      render :json => @term.errors, :status => :bad_request
-    end
-  end
-
-  def update
-    overrides = params[:enrollment_term].delete(:overrides) rescue nil
-    @term = @context.enrollment_terms.active.find(params[:id])
-    root_account = @context.root_account
-    if sis_id = params[:enrollment_term].delete(:sis_term_id)
-      if sis_id != @account.sis_source_id && root_account.grants_right?(@current_user, session, :manage_sis)
-        if sis_id == ''
-          @term.sis_source_id = nil
-        else
-          @term.sis_source_id = sis_id
-        end
-      end
-    end
-    if @term.update_attributes(params[:enrollment_term])
-      @term.set_overrides(@context, overrides)
-      render :json => enrollment_term_json(@term, @current_user, session, [], [:enrollment_dates_overrides])
-    else
-      render :json => @term.errors, :status => :bad_request
-    end
-  end
-
-  def destroy
-    @term = @context.enrollment_terms.find(params[:id])
-    @term.destroy
-    render :json => enrollment_term_json(@term, @current_user, session)
   end
 end

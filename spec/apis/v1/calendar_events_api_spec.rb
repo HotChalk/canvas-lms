@@ -27,7 +27,7 @@ describe CalendarEventsApiController, type: :request do
   context 'events' do
     expected_fields = [
       'all_day', 'all_day_date', 'child_events', 'child_events_count', 'comments',
-      'context_code', 'created_at', 'description', 'duplicates', 'end_at', 'hidden', 'html_url',
+      'context_code', 'course_section_id', 'created_at', 'description', 'duplicates', 'end_at', 'hidden', 'html_url',
       'id', 'location_address', 'location_name', 'parent_event_id', 'start_at',
       'title', 'type', 'updated_at', 'url', 'workflow_state'
     ]
@@ -464,6 +464,49 @@ describe CalendarEventsApiController, type: :request do
         end
       end
 
+      it "returns signups in multi-context appointment groups in the student's context" do
+        @course1 = course_with_teacher(:active_all => true).course
+        @course2 = course_with_teacher(:user => @teacher, :active_all => true).course
+        @student1 = student_in_course(:course => @course1, :active_all => true).user
+        @student2 = student_in_course(:course => @course2, :active_all => true).user
+        ag = AppointmentGroup.create!(:title => "something", :participants_per_appointment => 1,
+                                      :new_appointments => [["2012-01-01 12:00:00", "2012-01-01 13:00:00"],
+                                                            ["2012-01-01 13:00:00", "2012-01-01 14:00:00"]],
+                                      :contexts => [@course1, @course2])
+        ag.appointments.first.reserve_for(@student1, @teacher)
+        ag.appointments.last.reserve_for(@student2, @teacher)
+        json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?start_date=2012-01-01&end_date=2012-01-31&context_codes[]=#{@course1.asset_string}&context_codes[]=#{@course2.asset_string}", {
+          :controller => 'calendar_events_api', :action => 'index', :format => 'json',
+          :context_codes => [@course1.asset_string, @course2.asset_string], :start_date => '2012-01-01', :end_date => '2012-01-31'})
+        expect(json.map { |event| [event['context_code'], event['child_events'][0]['user']['id']] }).to match_array(
+          [[@course1.asset_string, @student1.id], [@course2.asset_string, @student2.id]]
+        )
+      end
+
+      it "excludes signups in courses the teacher isn't enrolled in" do
+        te1 = course_with_teacher(:active_all => true)
+        te2 = course_with_teacher(:active_all => true)
+        student1 = student_in_course(:course => te1.course, :active_all => true).user
+        student2 = student_in_course(:course => te2.course, :active_all => true).user
+        ag = AppointmentGroup.create!(:title => "something", :participants_per_appointment => 1,
+                                      :new_appointments => [["2012-01-01 12:00:00", "2012-01-01 13:00:00"],
+                                                            ["2012-01-01 13:00:00", "2012-01-01 14:00:00"]],
+                                      :contexts => [te1.course, te2.course])
+        ag.appointments.first.reserve_for(student1, te1.user)
+        ag.appointments.last.reserve_for(student2, te2.user)
+        json = api_call_as_user(te1.user, :get, "/api/v1/calendar_events?start_date=2012-01-01&end_date=2012-01-31&context_codes[]=#{te1.course.asset_string}", {
+          :controller => 'calendar_events_api', :action => 'index', :format => 'json',
+          :context_codes => [te1.course.asset_string], :start_date => '2012-01-01', :end_date => '2012-01-31'})
+
+        a1 = json.detect { |h| h['id'] == ag.appointments.first.id }
+        expect(a1['child_events_count']).to eq 1
+        expect(a1['child_events'][0]['user']['id']).to eq student1.id
+
+        a2 = json.detect { |h| h['id'] == ag.appointments.last.id }
+        expect(a2['child_events_count']).to eq 0
+        expect(a2['child_events']).to be_empty
+      end
+
       context "reservations" do
         def prepare(as_student = false)
           Notification.create! :name => 'Appointment Canceled By User', :category => "TestImmediately"
@@ -804,6 +847,24 @@ describe CalendarEventsApiController, type: :request do
         expect(json['hidden']).to be_falsey
       end
 
+      describe "visibility" do
+        before(:once) do
+          student_in_course(:course => @course, :active_all => true)
+        end
+
+        it "should include children of hidden events for teachers" do
+          json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events/#{event.id}",
+                    {:controller => 'calendar_events_api', :action => 'show', :id => event.to_param, :format => 'json'})
+          expect(json['child_events'].map { |e| e['id'] }).to match_array(event.child_events.map(&:id))
+        end
+
+        it "should omit children of hidden events for students" do
+          json = api_call_as_user(@student, :get, "/api/v1/calendar_events/#{event.id}",
+                    {:controller => 'calendar_events_api', :action => 'show', :id => event.to_param, :format => 'json'})
+          expect(json['child_events']).to be_empty
+        end
+      end
+
       it "allows media comments in the event description" do
         event.description = '<a href="/media_objects/abcde" class="instructure_inline_media_comment audio_comment" id="media_comment_abcde"><img></a>'
         event.save!
@@ -1007,11 +1068,10 @@ describe CalendarEventsApiController, type: :request do
       end
     end
 
-    context 'differentiated assignments on' do
+    context 'differentiated assignments' do
       before :once do
         Timecop.travel(Time.utc(2015)) do
           course_with_teacher(:active_course => true, :active_enrollment => true, :user => @teacher)
-          @course.enable_feature!(:differentiated_assignments)
 
           @student_in_overriden_section = User.create
           @student_in_general_section = User.create
@@ -1093,7 +1153,15 @@ describe CalendarEventsApiController, type: :request do
       end
 
       context 'as a teacher' do
+        it "shows events for active assignments in a section" do
+          json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
+            :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
+            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
+          expect(json.size).to eql 1
+        end
+
         it "shows events for all active assignment" do
+          @course.enroll_teacher(@teacher, :enrollment_state => 'active', :section => @section, :limit_privileges_to_course_section => true)
           json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
             :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
             :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
@@ -1746,10 +1814,10 @@ describe CalendarEventsApiController, type: :request do
       assg = @course.assignments.create(workflow_state: 'published', due_at: 3.days.from_now, submission_types: "online_text_entry")
       assg.submit_homework @student, submission_type: "online_text_entry"
       json = api_call(:get,
-        "/api/v1/users/#{@student.id}/calendar_events?all_events=true&type=assignment&include[]=submissions&context_codes[]=#{@ctx_str}", {
-        controller: 'calendar_events_api', action: 'user_index', format: 'json', type: 'assignment', include: ['submissions'],
+        "/api/v1/users/#{@student.id}/calendar_events?all_events=true&type=assignment&include[]=submission&context_codes[]=#{@ctx_str}", {
+        controller: 'calendar_events_api', action: 'user_index', format: 'json', type: 'assignment', include: ['submission'],
         context_codes: @contexts, all_events: true, user_id: @student.id})
-      expect(json.first['assignment']['submission'].length).to eql 1
+      expect(json.first['assignment']['submission']).not_to be_nil
     end
   end
 

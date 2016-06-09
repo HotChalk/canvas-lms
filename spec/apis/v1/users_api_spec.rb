@@ -52,6 +52,7 @@ describe Api::V1::User do
   before :each do
     @test_api = TestUserApi.new
     @test_api.services_enabled = []
+    @test_api.request.protocol = 'http'
   end
 
   context 'user_json' do
@@ -65,6 +66,13 @@ describe Api::V1::User do
       expect(@test_api.user_json(@student, @admin, {}, ['avatar_url'], @course)["avatar_url"]).to match(
         %r{^https://secure.gravatar.com/avatar/#{Digest::MD5.hexdigest(@student.email)}.*#{CGI.escape("/images/messages/avatar-50.png")}}
       )
+    end
+
+    it 'should support optionally including group_ids' do
+      @group = @course.groups.create!(:name => "My Group")
+      @group.add_user(@student, 'accepted', true)
+      expect(@test_api.user_json(@student, @admin, {}, [], @course).has_key?("group_ids")).to be_falsey
+      expect(@test_api.user_json(@student, @admin, {}, ['group_ids'], @course)["group_ids"]).to eq([@group.id])
     end
 
     it 'should use the correct SIS pseudonym' do
@@ -477,6 +485,19 @@ describe "Users API", type: :request do
         expect((user.keys & expected_keys).sort).to eq expected_keys.sort
         expect(users.map(&:id)).to include(user['id'])
       end
+    end
+
+    it "includes last login info" do
+      @account = Account.default
+      u = User.create!(name: 'test user')
+      p = u.pseudonyms.create!(account: @account, unique_id: 'user')
+      p.current_login_at = Time.now.utc
+      p.save!
+
+      json = api_call(:get, "/api/v1/accounts/#{@account.id}/users", { :controller => 'users', :action => "index", :format => 'json', :account_id => @account.id.to_param }, { include: ['last_login'], search_term: u.id.to_s })
+
+      expect(json.count).to eq 1
+      expect(json.first['last_login']).to eq p.current_login_at.iso8601
     end
   end
 
@@ -978,7 +999,8 @@ describe "Users API", type: :request do
           'login_id' => 'student@example.com',
           'email' => 'student@example.com',
           'sis_login_id' => 'student@example.com',
-          'locale' => 'en'
+          'locale' => 'en',
+          'time_zone' => "Tijuana"
         })
         expect(user.birthdate.to_date).to eq birthday.to_date
         expect(user.time_zone.name).to eql 'Tijuana'
@@ -1331,7 +1353,7 @@ describe "Users API", type: :request do
     end
   end
 
-  describe "user merge" do
+  describe "user merge and split" do
     before :once do
       @account = Account.default
       @user1 = user_with_managed_pseudonym(
@@ -1345,17 +1367,23 @@ describe "Users API", type: :request do
       @user = account_admin_user(account: @account)
     end
 
-    it "should merge users" do
-      json = api_call(
+    it "should merge and split users" do
+      api_call(
         :put, "/api/v1/users/#{@user2.id}/merge_into/#{@user1.id}",
-        { controller: 'users', action: 'merge_into', format: 'json',
-          id: @user2.to_param, destination_user_id: @user1.to_param }
+        {controller: 'users', action: 'merge_into', format: 'json',
+         id: @user2.to_param, destination_user_id: @user1.to_param}
       )
       expect(Pseudonym.where(sis_user_id: 'user_sis_id_02').first.user_id).to eq @user1.id
       expect(@user2.pseudonyms).to be_empty
+      api_call(
+        :post, "/api/v1/users/#{@user1.id}/split/",
+        {controller: 'users', action: 'split', format: 'json', id: @user1.to_param}
+      )
+      expect(Pseudonym.where(sis_user_id: 'user_sis_id_01').first.user_id).to eq @user1.id
+      expect(Pseudonym.where(sis_user_id: 'user_sis_id_02').first.user_id).to eq @user2.id
     end
 
-    it "should merge users cross accounts" do
+    it "should merge and split users cross accounts" do
       account = Account.create(name: 'new account')
       @user1.pseudonym.account_id = account.id
       @user1.pseudonym.save!
@@ -1364,14 +1392,20 @@ describe "Users API", type: :request do
       api_call(
         :put,
         "/api/v1/users/sis_user_id:user_sis_id_02/merge_into/accounts/#{account.id}/users/sis_user_id:user_sis_id_01",
-        { controller: 'users', action: 'merge_into', format: 'json',
-          id: 'sis_user_id:user_sis_id_02',
-          destination_user_id: 'sis_user_id:user_sis_id_01',
-          destination_account_id: account.to_param
+        {controller: 'users', action: 'merge_into', format: 'json',
+         id: 'sis_user_id:user_sis_id_02',
+         destination_user_id: 'sis_user_id:user_sis_id_01',
+         destination_account_id: account.to_param
         }
       )
       expect(Pseudonym.where(sis_user_id: 'user_sis_id_02').first.user_id).to eq @user1.id
       expect(@user2.pseudonyms).to be_empty
+      api_call(
+        :post, "/api/v1/users/#{@user1.id}/split/",
+        {controller: 'users', action: 'split', format: 'json', id: @user1.to_param}
+      )
+      expect(Pseudonym.where(sis_user_id: 'user_sis_id_01').first.user_id).to eq @user1.id
+      expect(Pseudonym.where(sis_user_id: 'user_sis_id_02').first.user_id).to eq @user2.id
     end
 
     it "should fail to merge users cross accounts without permissions" do
@@ -1382,10 +1416,16 @@ describe "Users API", type: :request do
       raw_api_call(
         :put,
         "/api/v1/users/#{@user2.id}/merge_into/#{@user1.id}",
-        { controller: 'users', action: 'merge_into', format: 'json',
-          id: @user2.to_param, destination_user_id: @user1.to_param}
+        {controller: 'users', action: 'merge_into', format: 'json',
+         id: @user2.to_param, destination_user_id: @user1.to_param}
       )
       assert_status(401)
+    end
+
+    it "should fail to split users that have not been merged" do
+      raw_api_call(:post, "/api/v1/users/#{@user2.id}/split/",
+                   {controller: 'users', action: 'split', format: 'json', id: @user2.to_param})
+      assert_status(400)
     end
   end
 

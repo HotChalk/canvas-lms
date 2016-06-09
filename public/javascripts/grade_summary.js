@@ -345,9 +345,13 @@ define([
       }
     });
 
-    $("#show_all_details_link").click(function(event) {
+    $("#assignment_order").change(function() {
+        this.form.submit();
+    });
+
+    $("#show_all_details_button").click(function(event) {
       event.preventDefault();
-      $button = $('#show_all_details_link');
+      $button = $('#show_all_details_button');
       $button.toggleClass('showAll');
 
       if ($button.hasClass('showAll')) {
@@ -379,7 +383,6 @@ define([
       ENV.submissions.push({assignment_id: assignmentId, score: score});
     }
   }
-
 
   $(document).on('change', '.grading_periods_selector', function(e){
     var newGP = $(this).val();

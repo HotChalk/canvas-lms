@@ -10,14 +10,6 @@ define([
   'compiled/jquery.rails_flash_notifications'
 ], function(I18n, $, htmlEscape, signupDialog) {
 
-  var loginUtils = {
-    validResetEmail: function(email){
-      var emailRegexp = new RegExp("[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?");
-      var regexMatch = email.match(emailRegexp);
-      return regexMatch !== null;
-    }
-  };
-
   $("#coenrollment_link").click(function(event) {
     event.preventDefault();
     var template = $(this).data('template');
@@ -32,15 +24,6 @@ define([
   $("#forgot_password_form").formSubmit({
     object_name: 'pseudonym_session',
     required: ['unique_id_forgot'],
-    property_validations: {
-      unique_id_forgot: function(email){
-        if(!loginUtils.validResetEmail(email)){
-          return I18n.t("invalid_user_email", "Oops! This doesn't quite look " +
-                          "like an email address, make sure you're using your " +
-                          "email address affiliated with your Canvas account.");
-        }
-      }
-    },
     beforeSubmit: function(data) {
       $(this).loadingImage();
     },
@@ -73,7 +56,7 @@ define([
           unique_id: I18n.t("invalid_login", 'Invalid login')
         });
         success = false;
-      } else if(!data.password || data.password.length < 1) {
+      } else if(data.prelogin != '1' && (!data.password || data.password.length < 1)) {
         $(this).formErrors({
           password: I18n.t("invalid_password", 'Invalid password')
         });
@@ -81,45 +64,4 @@ define([
       }
       return success;
     });
-
-  $("#resolve_login_form")
-    .submit(function(event) {
-      var data = $(this).getFormData({object_name: 'prelogin'});
-      if(!data.unique_id || data.unique_id.length < 1) {
-        $(this).formErrors({
-          unique_id: I18n.t("invalid_login", 'Invalid login')
-        });
-        return false;
-      }
-      $.ajax({
-        url: $(this).attr('action'),
-        type: 'GET',
-        data: $(this).serialize(),
-        success: function(response) {
-          if (response.auth_type == 'canvas') {
-            $("#pseudonym_session_unique_id").val($("#prelogin_unique_id").val());
-            $("#account_id").val(response.account_id);
-            $("#resolve_login_form").hide();
-            $("#login_form").show();
-          } else if (response.auth_type == 'cas' || response.auth_type == 'hmac' || response.auth_type == 'saml') {
-            $("#external_login_link").attr('href', response.auth_url).text(response.account_name)
-            $("#resolve_login_form button").hide();
-            $("#external_login").show();
-          }
-        },
-        error: function(response) {
-          try {
-            var json = $.parseJSON(response.responseText);
-            if (json && json.errors) {
-              $("#resolve_login_form").formErrors(json)
-            }
-          } catch(e) {}
-        }
-      });
-      event.preventDefault();
-    })
-    .find(":text:first")
-      .focus().select();
-
-  return loginUtils;
 });

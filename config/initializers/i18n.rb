@@ -1,6 +1,7 @@
 # loading all the locales has a significant (>30%) impact on the speed of initializing canvas
 # so we skip it in situations where we don't need the locales, such as in development mode and in rails console
-skip_locale_loading = (Rails.env.development? || Rails.env.test? || $0 == 'irb') && !ENV['RAILS_LOAD_ALL_LOCALES']
+skip_locale_loading = (Rails.env.development? || Rails.env.test? || $0 == 'irb') &&
+    !ENV['RAILS_LOAD_ALL_LOCALES'] && !ENV['RAILS_LOAD_LOCAL_LOCALES']
 load_path = Rails.application.config.i18n.railties_load_path
 if skip_locale_loading
   load_path.replace(load_path.grep(%r{/(locales|en)\.yml\z}))
@@ -8,11 +9,25 @@ else
   load_path << (Rails.root + "config/locales/locales.yml").to_s # add it at the end, to trump any weird/invalid stuff in locale-specific files
 end
 
-I18n.backend = I18nema::Backend.new
-I18nema::Backend.send(:include, I18n::Backend::Fallbacks)
-I18n.backend.init_translations
+if ENV['RAILS_LOAD_LOCAL_LOCALES']
+  load_path.reject! { |x| x =~ %r{gems/plugins} }
+end
 
-I18n.enforce_available_locales = true
+Rails.application.config.i18n.backend = I18nema::Backend.new
+Rails.application.config.i18n.enforce_available_locales = true
+Rails.application.config.i18n.fallbacks = true
+
+module CalculateDeprecatedFallbacks
+  def reload!
+    super
+    I18n.available_locales.each do |locale|
+      if (deprecated_for = I18n.backend.direct_lookup(locale.to_s, 'deprecated_for'))
+        I18n.fallbacks[locale] = I18n.fallbacks[deprecated_for.to_sym]
+      end
+    end
+  end
+end
+I18n.singleton_class.prepend CalculateDeprecatedFallbacks
 
 I18nliner.infer_interpolation_values = false
 
@@ -131,8 +146,16 @@ I18n.send(:extend, Module.new {
   end
   alias :t :translate
 
-  def qualified_locale
-    backend.direct_lookup(locale.to_s, "qualified_locale") || "en-US"
+  def bigeasy_locale
+    backend.direct_lookup(locale.to_s, "bigeasy_locale") || locale.to_s.tr('-', '_')
+  end
+
+  def fullcalendar_locale
+    backend.direct_lookup(locale.to_s, "fullcalendar_locale") || locale.to_s.downcase
+  end
+
+  def moment_locale
+    backend.direct_lookup(locale.to_s, "moment_locale") || locale.to_s.downcase
   end
 })
 

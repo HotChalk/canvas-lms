@@ -33,31 +33,13 @@ describe "profile" do
     end
   end
 
-  it "should give error - wrong old password" do
-    user_with_pseudonym({:active_user => true})
+  def log_in_to_settings
+    user_with_pseudonym({active_user: true})
     create_session(@pseudonym)
     get '/profile/settings'
-    wrong_old_password = 'wrongoldpassword'
-    new_password = 'newpassword'
-    edit_form = click_edit
-    edit_form.find_element(:id, 'change_password_checkbox').click
-    edit_form.find_element(:id, 'old_password').send_keys(wrong_old_password)
-    edit_form.find_element(:id, 'pseudonym_password').send_keys(new_password)
-    edit_form.find_element(:id, 'pseudonym_password_confirmation').send_keys(new_password)
-    submit_form(edit_form)
-    wait_for_ajaximations
-    # check to see if error box popped up
-    errorboxes = ff('.error_text')
-    expect(errorboxes.length).to be > 1
-    expect(errorboxes.any? { |errorbox| errorbox.text =~ /Invalid old password for the login/ }).to be_truthy
   end
 
-  it "should change the password" do
-    user_with_pseudonym({:active_user => true})
-    create_session(@pseudonym)
-    get '/profile/settings'
-    old_password = 'asdfasdf'
-    new_password = 'newpassword'
+  def change_password(old_password, new_password)
     edit_form = click_edit
     edit_form.find_element(:id, 'change_password_checkbox').click
     edit_form.find_element(:id, 'old_password').send_keys(old_password)
@@ -65,13 +47,41 @@ describe "profile" do
     edit_form.find_element(:id, 'pseudonym_password_confirmation').send_keys(new_password)
     submit_form(edit_form)
     wait_for_ajaximations
-    #login with new password
-    expect(@pseudonym.reload).to be_valid_password(new_password)
+  end
+
+  it "should give error - wrong old password" do
+    log_in_to_settings
+    change_password('wrongoldpassword', 'newpassword')
+    # check to see if error box popped up
+    errorboxes = ff('.error_text')
+    expect(errorboxes.length).to be > 1
+    expect(errorboxes.any? { |errorbox| errorbox.text =~ /Invalid old password for the login/ }).to be_truthy
+  end
+
+  it "should change the password" do
+    log_in_to_settings
+    change_password('asdfasdf', 'newpassword')
+    # login with new password
+    expect(@pseudonym.reload).to be_valid_password('newpassword')
+  end
+
+  it "rejects passwords longer than 255 characters", priority: "2", test_id: 840136 do
+    log_in_to_settings
+    change_password('asdfasdf', SecureRandom.hex(128))
+    errorboxes = ff('.error_text')
+    expect(errorboxes.any? { |errorbox| errorbox.text =~ /Can't exceed 255 characters/ }).to be_truthy
+  end
+
+  it "rejects passwords shorter than 6 characters", priority: "2", test_id: 1055503 do
+    log_in_to_settings
+    change_password('asdfasdf', SecureRandom.hex(2))
+    errorboxes = ff('.error_text')
+    expect(errorboxes.any? { |errorbox| errorbox.text =~ /Must be at least 6 characters/ }).to be_truthy
   end
 
   context "non password tests" do
 
-    before (:each) do
+    before(:each) do
       course_with_teacher_logged_in
     end
 
@@ -123,7 +133,7 @@ describe "profile" do
       new_user_name = 'new user name'
       get "/profile/settings"
       edit_form = click_edit
-      edit_form.find_element(:id, 'user_name').send_keys(new_user_name)
+      replace_content(edit_form.find_element(:id, 'user_name'), new_user_name)
       submit_form(edit_form)
       wait_for_ajaximations
       keep_trying_until { expect(f('.full_name').text).to eq new_user_name }
@@ -133,7 +143,7 @@ describe "profile" do
       new_display_name = 'test name'
       get "/profile/settings"
       edit_form = click_edit
-      edit_form.find_element(:id, 'user_short_name').send_keys(new_display_name)
+      replace_content(edit_form.find_element(:id, 'user_short_name'), new_display_name)
       submit_form(edit_form)
       wait_for_ajaximations
       refresh_page
@@ -171,6 +181,7 @@ describe "profile" do
       register_form.find_element(:css, '.sms_number').send_keys(test_cell_number)
       click_option('select.user_selected.carrier', 'AT&T')
       submit_form(register_form)
+      sleep 1 # wait a moment before we close any dialogs, since this spec fails intermittently ... this way we can catch any formError thingies in the video capture
       wait_for_ajaximations
       close_visible_dialog
       keep_trying_until { expect(f('.other_channels .path')).to include_text(test_cell_number) }
@@ -196,15 +207,17 @@ describe "profile" do
     it "should toggle service visibility" do
       get "/profile/settings"
       add_skype_service
-      initial_state = @user.show_user_services
-
-      f('#show_user_services').click
+      selector = "#show_user_services"
+      expect(f(selector).selected?).to be_truthy
+      f(selector).click
       wait_for_ajaximations
-      expect(@user.reload.show_user_services).not_to eq initial_state
+      refresh_page
+      expect(f(selector).selected?).to be_falsey
 
-      f('#show_user_services').click
+      f(selector).click
       wait_for_ajaximations
-      expect(@user.reload.show_user_services).to eq initial_state
+      refresh_page
+      expect(f(selector).selected?).to be_truthy
     end
 
     it "should generate a new access token" do
@@ -237,6 +250,18 @@ describe "profile" do
       driver.switch_to.alert.accept
       wait_for_ajaximations
       expect(f('#access_tokens')).not_to be_displayed
+      check_element_has_focus f(".add_access_token_link")
+    end
+
+    it "should set focus to the previous access token when deleting and multiple exist" do
+      @token1 = @user.access_tokens.create! purpose: 'token_one'
+      @token2 = @user.access_tokens.create! purpose: 'token_two'
+      get "/profile/settings"
+      fj(".delete_key_link[rel$=#{@token2.id}]").click
+      expect(driver.switch_to.alert).not_to be_nil
+      driver.switch_to.alert.accept
+      wait_for_ajaximations
+      check_element_has_focus fj(".delete_key_link[rel$=#{@token1.id}]")
     end
   end
 
@@ -413,4 +438,3 @@ describe "profile" do
     end
   end
 end
-

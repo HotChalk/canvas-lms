@@ -82,15 +82,21 @@ describe ActiveRecord::Base do
       @e6 = @c2.enroll_student(u3, :enrollment_state => 'active')
     end
 
+    it "should raise an error when not in a transaction" do
+      expect { User.find_in_batches_with_temp_table }.to raise_error
+    end
+
     it "should find all enrollments from course join in batches" do
       e = Course.active.where(id: [@c1, @c2]).select("enrollments.id AS e_id").
                         joins(:enrollments).order("e_id asc")
       batch_size = 2
       es = []
-      e.find_in_batches_with_temp_table(:batch_size => batch_size) do |batch|
-        expect(batch.size).to eq batch_size
-        batch.each do |r|
-          es << r["e_id"].to_i
+      Course.transaction do
+        e.find_in_batches_with_temp_table(:batch_size => batch_size) do |batch|
+          expect(batch.size).to eq batch_size
+          batch.each do |r|
+            es << r["e_id"].to_i
+          end
         end
       end
       expect(es.length).to eq 6
@@ -100,8 +106,10 @@ describe ActiveRecord::Base do
     it "should pluck" do
       scope = Course.where(id: [@c1, @c2])
       cs = []
-      scope.find_in_batches_with_temp_table(batch_size: 1, pluck: :id) do |batch|
-        cs.concat(batch)
+      Course.transaction do
+        scope.find_in_batches_with_temp_table(batch_size: 1, pluck: :id) do |batch|
+          cs.concat(batch)
+        end
       end
       expect(cs.sort).to eq [@c1.id, @c2.id].sort
     end
@@ -109,8 +117,10 @@ describe ActiveRecord::Base do
     it "should multi-column pluck" do
       scope = Course.where(id: [@c1, @c2])
       cs = []
-      scope.find_in_batches_with_temp_table(batch_size: 1, pluck: [:id, :name]) do |batch|
-        cs.concat(batch)
+      Course.transaction do
+        scope.find_in_batches_with_temp_table(batch_size: 1, pluck: [:id, :name]) do |batch|
+          cs.concat(batch)
+        end
       end
       expect(cs.sort).to eq [[@c1.id, @c1.name], [@c2.id, @c2.name]].sort
     end
@@ -118,8 +128,10 @@ describe ActiveRecord::Base do
     it "should pluck with join" do
       scope = Enrollment.joins(:course).where(courses: { id: [@c1, @c2] })
       es = []
-      scope.find_in_batches_with_temp_table(batch_size: 2, pluck: :id) do |batch|
-        es.concat(batch)
+      Course.transaction do
+        scope.find_in_batches_with_temp_table(batch_size: 2, pluck: :id) do |batch|
+          es.concat(batch)
+        end
       end
       expect(es.sort).to eq [@e1.id, @e2.id, @e3.id, @e4.id, @e5.id, @e6.id].sort
     end
@@ -325,70 +337,6 @@ describe ActiveRecord::Base do
     end
   end
 
-  context "add_polymorphs" do
-    class OtherPolymorphyThing; end
-    before :all do
-      # it already has :submission
-      ConversationMessage.add_polymorph_methods :asset, [:other_polymorphy_thing]
-    end
-
-    before :once do
-      @conversation = Conversation.create
-      @user = user_model
-      @assignment = assignment_model
-    end
-
-    context "getter" do
-      it "should return the polymorph" do
-        sub = @user.submissions.create!(:assignment => @assignment)
-        m = @conversation.conversation_messages.build
-        m.asset = sub
-
-        expect(m.submission).to be_an_instance_of(Submission)
-      end
-
-      it "should not return the polymorph if the type is wrong" do
-        m = @conversation.conversation_messages.build
-        m.asset = @user.submissions.create!(:assignment => @assignment)
-
-        expect(m.other_polymorphy_thing).to be_nil
-      end
-    end
-
-    context "setter" do
-      it "should set the underlying association" do
-        m = @conversation.conversation_messages.build
-        s = @user.submissions.create!(:assignment => @assignment)
-        m.submission = s
-
-        expect(m.asset_type).to eql 'Submission'
-        expect(m.asset_id).to eql s.id
-        expect(m.asset).to eql s
-        expect(m.submission).to eql s
-
-        m.submission = nil
-
-        expect(m.asset_type).to be_nil
-        expect(m.asset_id).to be_nil
-        expect(m.asset).to be_nil
-        expect(m.submission).to be_nil
-      end
-
-      it "should not change the underlying association if it's another object and we're setting nil" do
-        m = @conversation.conversation_messages.build
-        s =  @user.submissions.create!(:assignment => @assignment)
-        m.submission = s
-        m.other_polymorphy_thing = nil
-
-        expect(m.asset_type).to eql 'Submission'
-        expect(m.asset_id).to eql s.id
-        expect(m.asset).to eql s
-        expect(m.submission).to eql s
-        expect(m.other_polymorphy_thing).to be_nil
-      end
-    end
-  end
-
   context "bulk_insert" do
     it "should work" do
       User.bulk_insert [
@@ -405,7 +353,7 @@ describe ActiveRecord::Base do
     end
   end
 
-  context "distinct" do
+  context "distinct_values" do
     before :once do
       User.create()
       User.create()
@@ -415,11 +363,11 @@ describe ActiveRecord::Base do
     end
 
     it "should return distinct values" do
-      expect(User.distinct(:locale)).to eql ["en", "es"]
+      expect(User.distinct_values(:locale)).to eql ["en", "es"]
     end
 
     it "should return distinct values with nil" do
-      expect(User.distinct(:locale, :include_nil => true)).to eql [nil, "en", "es"]
+      expect(User.distinct_values(:locale, include_nil: true)).to eql [nil, "en", "es"]
     end
   end
 
@@ -436,16 +384,19 @@ describe ActiveRecord::Base do
   end
 
   describe "find_ids_in_ranges" do
+    before :once do
+      @ids = []
+      10.times { @ids << User.create!().id }
+    end
+
     it "should return ids from the table in ranges" do
-      ids = []
-      10.times { ids << User.create!().id }
       batches = []
-      User.where(id: ids).find_ids_in_ranges(:batch_size => 4) do |*found_ids|
+      User.where(id: @ids).find_ids_in_ranges(:batch_size => 4) do |*found_ids|
         batches << found_ids
       end
-      expect(batches).to eq [ [ids[0], ids[3]],
-                          [ids[4], ids[7]],
-                          [ids[8], ids[9]] ]
+      expect(batches).to eq [ [@ids[0], @ids[3]],
+                          [@ids[4], @ids[7]],
+                          [@ids[8], @ids[9]] ]
     end
 
     it "should work with scopes" do
@@ -455,6 +406,30 @@ describe ActiveRecord::Base do
       User.active.where(id: [user, user2]).find_ids_in_ranges do |*found_ids|
         expect(found_ids).to eq [user.id, user.id]
       end
+    end
+
+    it "should accept an option to start searching at a given id" do
+      batches = []
+      User.where(id: @ids).find_ids_in_ranges(:batch_size => 4, :start_at => @ids[3]) do |*found_ids|
+        batches << found_ids
+      end
+      expect(batches).to eq [ [@ids[3], @ids[6]], [@ids[7], @ids[9]] ]
+    end
+
+    it "should accept an option to end at a given id" do
+      batches = []
+      User.where(id: @ids).find_ids_in_ranges(:batch_size => 4, :end_at => @ids[5]) do |*found_ids|
+        batches << found_ids
+      end
+      expect(batches).to eq [ [@ids[0], @ids[3]], [@ids[4], @ids[5]] ]
+    end
+
+    it "should accept both options to start and end at given ids" do
+      batches = []
+      User.where(id: @ids).find_ids_in_ranges(:batch_size => 4, :start_at => @ids[2], :end_at => @ids[7]) do |*found_ids|
+        batches << found_ids
+      end
+      expect(batches).to eq [ [@ids[2], @ids[5]], [@ids[6], @ids[7]] ]
     end
   end
 
@@ -500,7 +475,7 @@ describe ActiveRecord::Base do
     end
 
     before do
-      skip "MySQL and Postgres only" unless %w{PostgreSQL MySQL Mysql2}.include?(ActiveRecord::Base.connection.adapter_name)
+      skip "Postgres only" unless ActiveRecord::Base.connection.adapter_name == 'PostgreSQL'
     end
 
     it "should do an update all with a join" do
@@ -554,7 +529,7 @@ describe ActiveRecord::Base do
       p1 = u.pseudonyms.create!(unique_id: 'a', account: Account.default)
       p2 = u.pseudonyms.create!(unique_id: 'b', account: Account.default)
       p3 = u.pseudonyms.create!(unique_id: 'c', account: Account.default)
-      u.pseudonyms.scoped.reorder("unique_id DESC").limit(1).offset(1).delete_all
+      u.pseudonyms.reorder("unique_id DESC").limit(1).offset(1).delete_all
       p1.reload
       expect { p2.reload }.to raise_error(ActiveRecord::RecordNotFound)
       p3.reload
@@ -658,6 +633,83 @@ describe ActiveRecord::Base do
       Setting.set('touch_personal_space', '1')
       group_model
       expect(@group.users.not_recently_touched.to_a).to be_empty
+    end
+  end
+
+  context "polymorphic associations" do
+    it "allows joins to specific classes" do
+      # no error
+      sql = StreamItem.joins(:discussion_topic).to_sql
+      # and the sql
+      expect(sql).to include('asset_type')
+      expect(sql).to include('DiscussionTopic')
+    end
+
+    it "validates the type field" do
+      si = StreamItem.new
+      si.asset_type = 'Submission'
+      si.data = {}
+      expect(si.valid?).to eq true
+
+      si.context_type = 'User'
+      expect(si.valid?).to eq false
+    end
+
+    it "doesn't allow mismatched assignment" do
+      si = StreamItem.new
+      expect { si.discussion_topic = Course.new }.to raise_error(ActiveRecord::AssociationTypeMismatch)
+      expect { si.asset = Course.new }.to raise_error(ActiveRecord::AssociationTypeMismatch)
+      si.asset = DiscussionTopic.new
+      si.asset = nil
+    end
+
+    it "has the same backing store for both generic and specific accessors" do
+      si = StreamItem.new
+      dt = DiscussionTopic.new
+      si.discussion_topic = dt
+      expect(si.asset_type).to eq 'DiscussionTopic'
+      expect(si.asset_id).to eq dt.id
+      expect(si.asset.object_id).to eq si.discussion_topic.object_id
+    end
+
+    it "returns nil for the specific type if it's not that type" do
+      si = StreamItem.new
+      si.discussion_topic = DiscussionTopic.new
+      expect(si.conversation).to eq nil
+    end
+
+    it "doesn't ignores specific type if we're setting nil" do
+      si = StreamItem.new
+      dt = DiscussionTopic.new
+      si.discussion_topic = dt
+      si.conversation = nil
+      expect(si.asset).to eq dt
+      si.discussion_topic = nil
+      expect(si.asset).to eq nil
+    end
+
+    it "prefixes specific associations" do
+      expect(AssessmentRequest.reflections.keys).to be_include(CANVAS_RAILS4_0 ? :assessor_asset_user : 'assessor_asset_user')
+    end
+
+    it "prefixes specific associations with an explicit name" do
+      expect(LearningOutcomeResult.reflections.keys).to be_include(CANVAS_RAILS4_0 ? :association_assignment : 'association_assignment')
+    end
+
+    it "passes the correct foreign key down to specific associations" do
+      expect(LearningOutcomeResult.reflections[CANVAS_RAILS4_0 ? :association_assignment : 'association_assignment'].foreign_key).to eq :association_id
+    end
+
+    it "handles class resolution that doesn't match the association name" do
+      expect(Attachment.reflections[CANVAS_RAILS4_0 ? :quiz : 'quiz'].klass).to eq Quizzes::Quiz
+    end
+
+    it "doesn't validate the type field for non-exhaustive associations" do
+      u = User.create!
+      v = Version.new
+      v.versionable = u
+      expect(v.versionable_type).to eq 'User'
+      expect(v).to be_valid
     end
   end
 end

@@ -78,14 +78,11 @@ module Api::V1::DiscussionTopics
 
     locked_json(json, topic, user, session)
     if opts[:include_assignment] && topic.assignment
+      excludes = opts[:exclude_assignment_description] ? ['description'] : []
       json[:assignment] = assignment_json(topic.assignment, user, session,
         include_discussion_topic: false, override_dates: opts[:override_dates],
-        include_all_dates: opts[:include_all_dates],                                          
-        exclude_description: opts[:exclude_assignment_description])
-    end
-    if opts[:include_assignment] && topic.reply_assignment && topic.grade_replies_separately
-      json[:reply_assignment] = assignment_json(topic.reply_assignment, user, session,
-        include_discussion_topic: false, override_dates: opts[:override_dates])
+        include_all_dates: opts[:include_all_dates],
+        exclude_response_fields: excludes)
     end
     if opts[:include_overrides]
       active_overrides = topic.assignment_overrides.active
@@ -94,8 +91,9 @@ module Api::V1::DiscussionTopics
     if opts[:include_all_dates] && topic.assignment_overrides.present?
       json[:all_dates] = topic.dates_hash_visible_to(user)
     end
-    if context.feature_enabled?(:differentiated_assignments)
-      json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
+    json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
+    if opts[:include_overrides_names]
+      json[:overrides_names] = get_overrides_names(topic)
     end
 
     json
@@ -129,7 +127,7 @@ module Api::V1::DiscussionTopics
       locked: topic.locked?, can_lock: topic.can_lock?,
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
-      course_sections: topic.course_section_names(context, user), context_type: topic.context_type,      
+      course_sections: topic.course_section_names(context, user), context_type: topic.context_type,
       group_category_id: topic.group_category_id, can_group: topic.can_group?(opts) }
     unless opts[:exclude_messages]
       if opts[:plain_messages]
@@ -155,7 +153,7 @@ module Api::V1::DiscussionTopics
   #   Recognized fields: user_name, subentries.
   #
   # Returns an array of hashes ready to be serialized.
-  def discussion_entry_api_json(entries, context, user, session, includes = [:user_name, :subentries])
+  def discussion_entry_api_json(entries, context, user, session, includes = [:user_name, :subentries, :display_user])
     entries.map do |entry|
       serialize_entry(entry, user, context, session, includes)
     end
@@ -184,6 +182,8 @@ module Api::V1::DiscussionTopics
     else
       json[:message] = api_user_content(entry.message, context, user)
     end
+
+    json[:user] = user_display_json(entry.user, context) if includes.include?(:display_user)
 
     json.merge!(discussion_entry_attachment(entry, user, context))
     json.merge!(discussion_entry_read_state(entry, user))

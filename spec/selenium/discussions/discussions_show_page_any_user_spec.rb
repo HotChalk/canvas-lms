@@ -192,14 +192,18 @@ describe "discussions" do
         end
 
         it "should show unread replies on clicking the unread button", priority: "1", test_id: 150489 do
-          expect(f('.new-and-total-badge .new-items').text).to eq('1')
-          expect(ffj('.discussion-entries .entry:visible').count).to eq(2)
+          keep_trying_until do
+            expect(f('.new-and-total-badge .new-items').text).to eq('1')
+            expect(ffj('.discussion-entries .entry:visible').count).to eq(2)
+          end
+          # click unread button
           f('.ui-button').click
           wait_for_ajaximations
           keep_trying_until do
             expect(f("#filterResults .discussion-title").text).to include('teacher')
             expect(ffj('.discussion-entries .entry:visible').count).to eq(1)
           end
+          # click unread button again
           f('.ui-button').click
           wait_for_ajaximations
           keep_trying_until do
@@ -241,6 +245,16 @@ describe "discussions" do
             expect(obj['data']).to eq "http://www.example.com/swf/software/flash/about/flash_animation.swf"
           end
         end
+      end
+
+      it "should not show keyboard shortcut modal during html editing", priority: "2", test_id: 846539 do
+        get url
+        f('.discussion-reply-action').click
+        wait_for_ajaximations
+        fln('HTML Editor').click
+        wait_for_ajaximations
+        f('.reply-textarea').send_keys("< , > , ?, /")
+        expect(f('.ui-dialog')).not_to be_displayed
       end
 
       it "should strip embed tags inside user content object tags", priority: "2", test_id: 345485 do

@@ -99,8 +99,10 @@ class AccountsController < ApplicationController
   before_filter :require_user, :only => [:index]
   before_filter :reject_student_view_student
   before_filter :get_context
+  before_filter :rich_content_service_config, only: [:settings]
 
   include Api::V1::Account
+  include CustomSidebarLinksHelper
 
   INTEGER_REGEX = /\A[+-]?\d+\z/
 
@@ -164,6 +166,7 @@ class AccountsController < ApplicationController
   #
   # @returns Account
   def show
+    @is_filter_applied = false
     return unless authorized_action(@account, @current_user, :read)
     respond_to do |format|
       format.html do
@@ -172,7 +175,16 @@ class AccountsController < ApplicationController
           flash[:notice] = t("Your custom theme has been successfully applied.")
         end
         return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
-        js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
+        resources_data = []
+        if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links]
+          acct[:settings][:resources_links].each{|key, value|
+            data = {url:value, name: key}
+            resources_data.push(data)
+          }
+        end
+        js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json),
+               :RESOURCES => resources_data
+        )
         load_course_right_side
         @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses,
                                              :states => @states, :item_type => @item_type, :date_type => @date_type,
@@ -181,6 +193,10 @@ class AccountsController < ApplicationController
                                              :course_format => @course_format)
         ActiveRecord::Associations::Preloader.new.preload(@courses, :enrollment_term)
         build_course_stats
+        if params[:focus] == 'filter_button'
+          @is_filter_applied = true
+        end
+        @filtered_courses_count = @courses.count
       end
       format.json { render :json => account_json(@account, @current_user, session, params[:includes] || [],
                                                  !@account.grants_right?(@current_user, session, :manage)) }
@@ -190,19 +206,35 @@ class AccountsController < ApplicationController
   def course_user_search
     can_read_course_list = @account.grants_right?(@current_user, session, :read_course_list)
     can_read_roster = @account.grants_right?(@current_user, session, :read_roster)
+    can_manage_account = @account.grants_right?(@current_user, session, :manage_account_settings)
 
     unless can_read_course_list || can_read_roster
       return render_unauthorized_action
     end
 
     @permissions = {
-      theme_editor: use_new_styles? && can_do(@account, @current_user, :manage_account_settings) && @account.branding_allowed?,
+      theme_editor: use_new_styles? && can_manage_account && @account.branding_allowed?,
       can_read_course_list: can_read_course_list,
       can_read_roster: can_read_roster,
       can_create_courses: @account.grants_right?(@current_user, session, :manage_courses),
       can_create_users: @account.root_account? && @account.grants_right?(@current_user, session, :manage_user_logins),
-      analytics: @account.service_enabled?(:analytics)
+      analytics: @account.service_enabled?(:analytics),
+      can_masquerade: @account.grants_right?(@current_user, session, :become_user),
+      can_message_users: @account.grants_right?(@current_user, session, :send_messages),
+      can_edit_users: @account.grants_any_right?(@current_user, session, :manage_students, :manage_user_logins)
     }
+
+    js_env({
+      TIMEZONES: {
+        priority_zones: localized_timezones(I18nTimeZone.us_zones),
+        timezones: localized_timezones(I18nTimeZone.all)
+      },
+      ALL_ROLES: Role.account_role_data(@account, @current_user),
+      URLS: {
+        USER_LISTS_URL: course_user_lists_url("{{ id }}"),
+        ENROLL_USERS_URL: course_enroll_users_url("{{ id }}", :format => :json)
+      }
+    })
     render template: "accounts/course_user_search"
   end
 
@@ -595,6 +627,10 @@ class AccountsController < ApplicationController
             end
           end
         end
+
+        remove_ip_filters = params[:account].delete(:remove_ip_filters)
+        params[:account][:ip_filters] = [] if remove_ip_filters
+
         if @account.update_attributes(params[:account])
           flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted because of course associations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
@@ -638,13 +674,14 @@ class AccountsController < ApplicationController
       @account_roles = @account.available_account_roles.sort_by(&:display_sort_index).map{|role| {:id => role.id, :label => role.label}}
       @course_roles = @account.available_course_roles.sort_by(&:display_sort_index).map{|role| {:id => role.id, :label => role.label}}
 
-      @announcements = @account.announcements
+      @announcements = @account.announcements.order(:created_at).paginate(page: params[:page], per_page: 50)
       @external_integration_keys = ExternalIntegrationKey.indexed_keys_for(@account)
 
       js_env({
         APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
         LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
-        CONTEXT_BASE_URL: "/accounts/#{@context.id}"
+        CONTEXT_BASE_URL: "/accounts/#{@context.id}",
+        MASKED_APP_CENTER_ACCESS_TOKEN: @account.settings[:app_center_access_token].try(:[], 0...5)
       })
     end
   end
@@ -851,7 +888,7 @@ class AccountsController < ApplicationController
   end
 
   def sis_import
-    if authorized_action(@account, @current_user, :manage_sis)
+    if authorized_action(@account, @current_user, [:import_sis, :manage_sis])
       return redirect_to account_settings_url(@account) if !@account.allow_sis_import || !@account.root_account?
       @current_batch = @account.current_sis_batch
       @last_batch = @account.sis_batches.order('created_at DESC').first
@@ -909,7 +946,16 @@ class AccountsController < ApplicationController
   end
   protected :build_course_stats
 
+  def load_root_account(account_id)
+    if account_id.present? && (account = Account.find(account_id))
+      @domain_root_account = account
+    end
+  end
+  protected :load_root_account
+
   def saml_meta_data
+    load_root_account(params[:account_id])
+
     # This needs to be publicly available since external SAML
     # servers need to be able to access it without being authenticated.
     # It is used to disclose our SAML configuration settings.
@@ -928,8 +974,9 @@ class AccountsController < ApplicationController
     end
 
     list = UserList.new(params[:user_list],
-                        :root_account => @context.root_account,
-                        :search_method => @context.user_list_search_mode_for(@current_user))
+                        root_account: @context.root_account,
+                        search_method: @context.user_list_search_mode_for(@current_user),
+                        current_user: @current_user)
     users = list.users
     admins = users.map do |user|
       admin = @context.account_users.where(user_id: user.id, role_id: role.id).first_or_initialize
@@ -1002,4 +1049,18 @@ class AccountsController < ApplicationController
   end
   private :format_avatar_count
 
+  protected
+  def rich_content_service_config
+    rce_js_env(:basic)
+  end
+
+  def localized_timezones(timezones)
+    timezones.map do |timezone|
+      {
+        name: timezone.name,
+        localized_name: timezone.to_s
+      }
+    end
+  end
+  private :localized_timezones
 end

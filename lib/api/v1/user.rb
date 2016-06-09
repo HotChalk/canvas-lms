@@ -22,11 +22,11 @@ module Api::V1::User
   include AvatarHelper
 
   API_USER_JSON_OPTS = {
-    :only => %w(id name),
-    :methods => %w(sortable_name short_name display_name)
-  }
+    :only => %w(id name).freeze,
+    :methods => %w(sortable_name short_name display_name).freeze
+  }.freeze
 
-  def user_json_preloads(users, preload_email=false)
+  def user_json_preloads(users, preload_email=false, opts={})
     # for User#account
     ActiveRecord::Associations::Preloader.new.preload(users, :pseudonym => :account)
 
@@ -36,6 +36,9 @@ module Api::V1::User
     if preload_email && (no_email_users = users.reject(&:email_cached?)).present?
       # communication_channels for User#email if it is not cached
       ActiveRecord::Associations::Preloader.new.preload(no_email_users, :communication_channels)
+    end
+    if opts[:group_memberships]
+      ActiveRecord::Associations::Preloader.new.preload(users, :group_memberships)
     end
   end
 
@@ -81,6 +84,21 @@ module Api::V1::User
           map(&:course_section).compact.uniq.
           map(&:name).join(", ")
       end
+      if includes.include?('sections_ids')
+        json[:sections] = user.enrollments.
+            map(&:course_section).compact.uniq.
+            map(&:id).join(", ")
+      end
+
+      # make sure this only runs if user_json_preloads has
+      # been called with {group_memberships: true} in opts
+      if includes.include?('group_ids')
+        context_group_ids = get_context_groups(context)
+        user_group_ids = user.group_memberships.loaded ?
+          user.group_memberships.map(&:group_id) :
+          user.group_memberships.pluck(:group_id)
+        json[:group_ids] = context_group_ids & user_group_ids
+      end
 
       json[:locale] = user.locale if includes.include?('locale')
       json[:confirmation_url] = user.communication_channels.email.first.try(:confirmation_url) if includes.include?('confirmation_url')
@@ -103,6 +121,15 @@ module Api::V1::User
       if includes.include?('terms_of_use')
         json[:terms_of_use] = !!user.preferences[:accepted_terms]
       end
+
+      if includes.include?('custom_links')
+        json[:custom_links] = roster_user_custom_links(user)
+      end
+
+      if includes.include?('time_zone')
+        zone = user.time_zone || @domain_root_account.try(:default_time_zone) || Time.zone
+        json[:time_zone] = zone.name
+      end
     end
   end
 
@@ -110,6 +137,10 @@ module Api::V1::User
 
     if includes.include?('sections')
       ActiveRecord::Associations::Preloader.new.preload(users, enrollments: :course_section)
+    end
+
+    if includes.include?('group_ids') && !context.is_a?(Groups)
+      ActiveRecord::Associations::Preloader.new.preload(context, :groups)
     end
 
     users.map{ |user| user_json(user, current_user, session, includes, context, enrollments, excludes) }
@@ -193,31 +224,7 @@ module Api::V1::User
         json[:sis_import_id] = enrollment.sis_batch_id
       end
       if enrollment.student?
-        json[:grades] = {
-          :html_url => course_student_grades_url(enrollment.course_id, enrollment.user_id),
-        }
-
-        if has_grade_permissions?(user, enrollment)
-          if opts[:grading_period]
-            student_id = user.id
-            if enrollment.is_a? StudentEnrollment
-              student_id = enrollment.student.id
-            end
-
-            course = enrollment.course
-            gc = GradeCalculator.new(student_id, course,
-                                     grading_period: opts[:grading_period])
-            ((current, _), (final, _)) = gc.compute_scores.first
-            json[:grades][:current_score] = current[:grade]
-            json[:grades][:current_grade] = course.score_to_grade(current[:grade])
-            json[:grades][:final_score] = final[:grade]
-            json[:grades][:final_grade] = course.score_to_grade(final[:grade])
-          else
-            %w{current_score final_score current_grade final_grade}.each do |method|
-              json[:grades][method.to_sym] = enrollment.send("computed_#{method}")
-            end
-          end
-        end
+        json[:grades] = grades_hash(enrollment, user, opts[:grading_period])
       end
       if @domain_root_account.grants_any_right?(@current_user, :read_sis, :manage_sis)
         json[:sis_source_id] = enrollment.sis_source_id
@@ -228,15 +235,17 @@ module Api::V1::User
       end
       json[:html_url] = course_user_url(enrollment.course_id, enrollment.user_id)
       user_includes = includes.include?('avatar_url') ? ['avatar_url'] : []
-      json[:user] = user_json(enrollment.user, user, session, user_includes) if includes.include?(:user)
-      if includes.include?('course')        
+      user_includes << 'group_ids' if includes.include?('group_ids')
+
+      json[:user] = user_json(enrollment.user, user, session, user_includes, @context, nil, []) if includes.include?(:user)
+
+      if includes.include?('course')
         json[:course] = {
           :id => enrollment.course.id,
           :name => enrollment.course.name,
           :hide_final_grade => enrollment.course.hide_final_grade
         }
       end
-
       if includes.include?('locked')
         lockedbysis = enrollment.defined_by_sis?
         lockedbysis &&= !enrollment.course.account.grants_right?(@current_user, session, :manage_account_settings)
@@ -252,12 +261,50 @@ module Api::V1::User
     end
   end
 
-  protected
-  def has_grade_permissions?(user, enrollment)
+  private
+  def grades_hash(enrollment, user, grading_period)
+    grades = {
+      html_url: course_student_grades_url(enrollment.course_id, enrollment.user_id)
+    }
+
+    if grade_permissions?(user, enrollment)
+      if grading_period
+        student_id = enrollment.is_a?(StudentEnrollment) ? enrollment.student.id : user.id
+        calculator = GradeCalculator.new(
+          student_id,
+          enrollment.course,
+          grading_period: grading_period
+        )
+
+        computed        = calculator.compute_scores.first
+        current, final  = computed[:current], computed[:final]
+
+        grades[:current_score] = current[:grade]
+        grades[:current_grade] = enrollment.course.score_to_grade(current[:grade])
+        grades[:final_score]   = final[:grade]
+        grades[:final_grade]   = enrollment.course.score_to_grade(final[:grade])
+      else
+        grades[:current_score] = enrollment.computed_current_score
+        grades[:current_grade] = enrollment.computed_current_grade
+        grades[:final_score]   = enrollment.computed_final_score
+        grades[:final_grade]   = enrollment.computed_final_grade
+      end
+    end
+    grades
+  end
+
+  def grade_permissions?(user, enrollment)
     course = enrollment.course
 
     (user.id == enrollment.user_id && !course.hide_final_grades?) ||
      course.grants_any_right?(user, :manage_grades, :view_all_grades) ||
      enrollment.user.grants_right?(user, :read_as_parent)
+  end
+
+  def get_context_groups(context)
+    # make sure to preload groups if using this
+    context.is_a?(Group) ?
+      [context.id] :
+      context.groups.map(&:id)
   end
 end

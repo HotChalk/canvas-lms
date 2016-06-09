@@ -147,6 +147,7 @@ describe "Files API", type: :request do
     it "should render the response as text/html when in app" do
       s3_storage!
       FilesController.any_instance.stubs(:in_app?).returns(true)
+      FilesController.any_instance.stubs(:verified_request?).returns(true)
 
       AWS::S3::S3Object.any_instance.expects(:head).returns({
                                           :content_type => 'text/plain',
@@ -339,7 +340,7 @@ describe "Files API", type: :request do
         {
           "id" => @user.id,
           "display_name" => @user.short_name,
-          "avatar_image_url" => User.avatar_fallback_url,
+          "avatar_image_url" => User.avatar_fallback_url(nil, request),
           "html_url" => "http://www.example.com/courses/#{@course.id}/users/#{@user.id}"
         }
       ]
@@ -382,7 +383,7 @@ describe "Files API", type: :request do
         {
           "id" => @user.id,
           "display_name" => @user.short_name,
-          "avatar_image_url" => User.avatar_fallback_url,
+          "avatar_image_url" => User.avatar_fallback_url(nil, request),
           "html_url" => "http://www.example.com/about/#{@user.id}"
         }
       ]
@@ -728,7 +729,7 @@ describe "Files API", type: :request do
       expect(json['user']).to eql({
         "id" => @user.id,
         "display_name" => @user.short_name,
-        "avatar_image_url" => User.avatar_fallback_url,
+        "avatar_image_url" => User.avatar_fallback_url(nil, request),
         "html_url" => "http://www.example.com/courses/#{@course.id}/users/#{@user.id}"
       })
     end
@@ -794,6 +795,8 @@ describe "Files API", type: :request do
 
     it "should omit verifier in-app" do
       FilesController.any_instance.stubs(:in_app?).returns(true)
+      FilesController.any_instance.stubs(:verified_request?).returns(true)
+
       new_params = {:locked => 'true'}
       json = api_call(:put, @file_path, @file_path_options, new_params)
       expect(json['url']).not_to include 'verifier='

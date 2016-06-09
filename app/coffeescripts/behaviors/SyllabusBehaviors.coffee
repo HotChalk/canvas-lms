@@ -19,20 +19,21 @@
 define [
   'jquery' # jQuery, $ #
   'calendar_move' # calendarMonths #
-  'wikiSidebar'
+  'jsx/shared/rce/RichContentEditor'
   'compiled/views/editor/KeyboardShortcuts'
   'jquery.instructure_date_and_time' # dateString, datepicker #
   'jquery.instructure_forms' # formSubmit, formErrors #
   'jquery.instructure_misc_helpers' # scrollSidebar #
   'jquery.instructure_misc_plugins' # ifExists, showIf #
   'jquery.loadingImg' # loadingImage #
-  'compiled/tinymce'
-  'tinymce.editor_box' # editorBox #
   'vendor/jquery.scrollTo' # /\.scrollTo/ #
   'jqueryui/datepicker' # /\.datepicker/ #
-], ($, calendarMonths, wikiSidebar, KeyboardShortcuts) ->
+], ($, calendarMonths, RichContentEditor, KeyboardShortcuts) ->
 
   specialDatesAreHidden = false
+
+  RichContentEditor.preloadRemoteModule()
+
 
   # Highlight mini calendar days matching syllabus events
   #    Queries the syllabus event list and highlights the
@@ -182,27 +183,26 @@ define [
 
     $course_syllabus.data('syllabus_body', ENV.SYLLABUS_BODY)
 
-    wikiSidebar and wikiSidebar.init()
+    RichContentEditor.initSidebar({
+      show: -> $('#sidebar_content').hide(),
+      hide: -> $('#sidebar_content').show()
+    })
+
     $edit_course_syllabus_form.on 'edit', ->
       $edit_course_syllabus_form.show()
       $course_syllabus.hide()
       $course_syllabus_details.hide()
       $course_syllabus_body.val($course_syllabus.data('syllabus_body'))
-      $course_syllabus_body.editorBox()
+      RichContentEditor.loadNewEditor($course_syllabus_body, { focus: true, manageParent: true })
+
       $('.jump_to_today_link').focus() # a11y: Set focus so it doesn't get lost.
-      if wikiSidebar
-        wikiSidebar.attachToEditor $course_syllabus_body
-        wikiSidebar.show()
-        $('#sidebar_content').hide()
 
     $edit_course_syllabus_form.on 'hide_edit', ->
       $edit_course_syllabus_form.hide()
       $course_syllabus.show()
       text = $.trim $course_syllabus.html()
       $course_syllabus_details.showIf not text
-      $course_syllabus_body.editorBox 'destroy'
-      $('#sidebar_content').show()
-      wikiSidebar.hide() if wikiSidebar
+      RichContentEditor.destroyRCE($course_syllabus_body)
 
     $('.edit_syllabus_link').on 'click', (ev) ->
       ev.preventDefault()
@@ -210,7 +210,7 @@ define [
 
     $edit_course_syllabus_form.on 'click', '.toggle_views_link', (ev) ->
       ev.preventDefault()
-      $course_syllabus_body.editorBox 'toggle'
+      RichContentEditor.callOnRCE($course_syllabus_body, 'toggle')
       # hide the clicked link, and show the other toggle link.
       # todo: replace .andSelf with .addBack when JQuery is upgraded.
       $(ev.currentTarget).siblings('.toggle_views_link').andSelf().toggle()
@@ -223,7 +223,8 @@ define [
       object_name: 'course'
 
       processData: (data) ->
-        data['course[syllabus_body]'] = $course_syllabus_body.editorBox 'get_code'
+        syllabus_body = RichContentEditor.callOnRCE($course_syllabus_body, 'get_code')
+        data['course[syllabus_body]'] = syllabus_body
         data
 
       beforeSubmit: (data) ->

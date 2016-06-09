@@ -11,12 +11,12 @@
 
   assignment = assignment.overridden_for(@current_user)
 
-  if assignment.discussion_topic != nil 
+  if assignment.discussion_topic != nil
     icon_class = "icon-discussion"
-  elsif assignment.quiz != nil    
+  elsif assignment.quiz != nil
     icon_class = "icon-quiz"
   else
-    icon_class = "icon-assignment"  
+    icon_class = "icon-assignment"
   end
 %>
 <% cache(['assignment_render',
@@ -50,6 +50,7 @@
                                     :tabindex => 0 %>
         <% end %>
       </div>
+
       <div class="data assignment_title ellipsis">
         <i class="<%= icon_class  %>" style="opacity: 0.5;"></i>
         <a href="<%= assignment_url %>" class="title" title="<%= assignment.title %>">
@@ -95,17 +96,17 @@
           <% else %>
             <% ot(:points_out_of, '%{points} out of %{possible}', :points => capture { %>
             <a href="<%= submission_url %>" class="grade" style="display: none;">--</a><% }, :possible => capture { %>
-            <span class="points_possible"><%= assignment.points_possible %></span><% }) %>
+            <span class="points_possible"><%= round_if_whole(assignment.points_possible)%></span><% }) %>
           <% end %>
           <a title="<%= t 'links.submission_comments', 'Submission Comments' %>"
              style="display: none;"
              href="<%= submission_url %>" class="no-hover submission_comment_link">
-            <%= image_tag 'word_bubble.png' %>
+            <%= image_tag 'word_bubble.png', :alt => t('Submission Comments') %>
           </a>
           <a title="<%= t 'links.view_rubric_evaluation', 'View Rubric Evaluation' %>"
              href="<%= submission_url %>#rubric"
              class="no-hover rubric_assessment_link" style="display: none;">
-            <%= image_tag "rubric.png" %>
+            <%= image_tag "rubric.png", :alt => t('View Rubric Evaluation') %>
           </a>
         </div>
       </div>
@@ -127,11 +128,11 @@
 
         <% if assignment.new_record? || (assignment && !assignment.frozen_for_user?(@current_user)) %>
           <a href="<%= assignment_url %>/edit" rel="nofollow" class="edit_assignment_link no-hover">
-            <i class="icon-edit standalone-icon"></i><span class="screen-reader-text"><%= t('links.edit_assignment', "Edit") %></span>
+            <i class="icon-edit standalone-icon"></i><span class="screenreader-only"><%= t('links.edit_assignment', "Edit") %></span>
           </a>
           <% unless assignment.att_frozen?(:assignment_group_id, @current_user) %>
           <a href="<%= assignment_url %>" rel="nofollow" class="delete_assignment_link no-hover">
-            <i class="icon-end standalone-icon"></i><span class="screen-reader-text"><%= t('links.delete_assignment', "Delete") %></span>
+            <i class="icon-end standalone-icon"></i><span class="screenreader-only"><%= t('links.delete_assignment', "Delete") %></span>
           </a>
           <% end %>
         <% end %>

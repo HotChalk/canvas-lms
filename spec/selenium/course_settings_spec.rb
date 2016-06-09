@@ -94,6 +94,15 @@ describe "course settings" do
 
       code = @course.reload.self_enrollment_code
       expect(code).not_to be_nil
+      # this element _can_ still be on the page if the post hasn't finished yet,
+      # so make sure it's been populated before continuing
+      wait = Selenium::WebDriver::Wait.new(timeout: 5)
+      wait.until do
+        el = f('.self_enrollment_message')
+        el.present? &&
+        el.text != nil &&
+        el.text != ""
+      end
       message = f('.self_enrollment_message')
       expect(message.text).to include(code)
       expect(message.text).not_to include('self_enrollment_code')
@@ -375,7 +384,8 @@ describe "course settings" do
       page = @course.wiki.wiki_pages.create!(:title => "wikiii", :body => %{<a href='#{unpublished_link}'>link</a>})
 
       get "/courses/#{@course.id}/link_validator"
-      f('#link_validator_wrapper button').click
+      wait_for_ajaximations
+      move_to_click('#link_validator_wrapper button')
       wait_for_ajaximations
       run_jobs
 
@@ -391,7 +401,8 @@ describe "course settings" do
       page_result = ff('#all-results .result').detect{|r| r.text.include?(page.title)}
       expect(page_result).to include_text(unpublished_link)
 
-      f('#show_unpublished').click # hide the unpublished results
+      # hide the unpublished results
+      move_to_click('label[for=show_unpublished]')
       wait_for_ajaximations
 
       expect(f("#all-results .alert")).to include_text("Found 1 broken link")
@@ -400,7 +411,9 @@ describe "course settings" do
       expect(result).to include_text("Course Syllabus")
       expect(result).to include_text(deleted_link)
 
-      f('#show_unpublished').click # show them again
+      # show them again
+      move_to_click('label[for=show_unpublished]')
+
       expect(f("#all-results .alert")).to include_text("Found 3 broken links")
       page_result = ff('#all-results .result').detect{|r| r.text.include?(page.title)}
       expect(page_result).to include_text(unpublished_link)

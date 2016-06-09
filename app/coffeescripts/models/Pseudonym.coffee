@@ -22,10 +22,13 @@ define [
         common:       I18n.t("errors.common", "Can't use common passwords (e.g. \"password\")")
         repeated:     I18n.t("errors.repeated", "Can't have the same character more than %{max} times in a row", {max: policy.max_repeats})
         confirmation: I18n.t("errors.mismatch", "Doesn't match")
+        too_long:     I18n.t("errors.too_long", "Can't exceed %{max} characters", {max: 255})
+      password_confirmation:
+        confirmation: I18n.t("errors.mismatch", "Doesn't match")
 
     normalizeErrors: (errors, policy) ->
       if errors
-        for type in ['unique_id', 'password'] when errors[type]?.length > 1
+        for type in ['unique_id', 'password', 'password_confirmation'] when errors[type]?.length > 1
           # if there are multiple errors and one is "too_short", just show that
           too_short = null
           too_short = e for e in errors[type] when e.type is 'too_short'

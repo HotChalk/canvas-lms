@@ -33,13 +33,6 @@ class CommunicationChannel < ActiveRecord::Base
   has_many :delayed_messages, :dependent => :destroy
   has_many :messages
 
-  EXPORTABLE_ATTRIBUTES = [
-    :id, :path, :path_type, :position, :user_id, :pseudonym_id, :bounce_count, :workflow_state, :confirmation_code,
-    :created_at, :updated_at, :build_pseudonym_on_confirm
-  ]
-
-  EXPORTABLE_ASSOCIATIONS = [:pseudonyms, :pseudonym, :user]
-
   before_save :assert_path_type, :set_confirmation_code
   before_save :consider_building_pseudonym
   validates_presence_of :path, :path_type, :user, :workflow_state
@@ -251,7 +244,7 @@ class CommunicationChannel < ActiveRecord::Base
   end
 
   def send_otp!(code)
-    m = self.messages.scope.new
+    m = self.messages.temp_record
     m.to = self.path
     m.body = t :body, "Your HotChalk Ember verification code is %{verification_code}", :verification_code => code
     Mailer.create_message(m).deliver rescue nil # omg! just ignore delivery failures
@@ -283,21 +276,17 @@ class CommunicationChannel < ActiveRecord::Base
   }
 
   def self.by_path_condition(path)
-    if %{mysql mysql2}.include?(connection_pool.spec.config[:adapter])
-      path
-    else
-      "LOWER(#{path})"
-    end
+    Arel::Nodes::NamedFunction.new('lower', [CANVAS_RAILS4_0 ? path : Arel::Nodes.build_quoted(path)])
   end
-  scope :by_path, lambda { |path|
-    where("#{by_path_condition("communication_channels.path")}=#{by_path_condition("?")}", path)
-  }
 
-  scope :email, -> { where(:path_type => TYPE_EMAIL) }
-  scope :sms, -> { where(:path_type => TYPE_SMS) }
+  scope :by_path, ->(path) { where(by_path_condition(arel_table[:path]).eq(by_path_condition(path))) }
+  scope :path_like, ->(path) { where(by_path_condition(arel_table[:path]).matches(by_path_condition(path))) }
 
-  scope :active, -> { where(:workflow_state => 'active') }
-  scope :unretired, -> { where("communication_channels.workflow_state<>'retired'") }
+  scope :email, -> { where(path_type: TYPE_EMAIL) }
+  scope :sms, -> { where(path_type: TYPE_SMS) }
+
+  scope :active, -> { where(workflow_state: 'active') }
+  scope :unretired, -> { where.not(workflow_state: 'retired') }
 
   scope :for_notification_frequency, lambda { |notification, frequency|
     joins(:notification_policies).where(:notification_policies => { :notification_id => notification, :frequency => frequency })

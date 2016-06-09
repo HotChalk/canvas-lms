@@ -137,7 +137,9 @@ module Lti
     end
 
     def current_canvas_roles
-      (course_enrollments.map(&:role).map(&:name) + account_enrollments.map(&:readable_type)).uniq.join(',')
+      roles = (course_enrollments + account_enrollments).map(&:role).map(&:name).uniq
+      roles = roles.map{|role| role == "AccountAdmin" ? "Account Admin" : role} # to maintain backwards compatibility
+      roles.join(',')
     end
 
     def enrollment_state
@@ -166,9 +168,9 @@ module Lti
 
     def previous_course_ids_and_context_ids
       return [] unless @context.is_a?(Course)
-      @previous_ids ||= Course.where(ContentMigration.where(context_id: @context.id, workflow_state: :imported)
-                                     .where("content_migrations.source_course_id = courses.id").exists)
-                                     .select("id, lti_context_id")
+      @previous_ids ||= Course.where(
+        "EXISTS (?)", ContentMigration.where(context_id: @context.id, workflow_state: :imported).where("content_migrations.source_course_id = courses.id")
+      ).select("id, lti_context_id")
     end
 
   end

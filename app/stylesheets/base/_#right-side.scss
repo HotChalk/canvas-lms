@@ -60,7 +60,7 @@
   margin-bottom: $right_side_margin;
 }
 
-.right-side-list {
+#right-side .right-side-list {
   @include reset-list;
   @if $use_new_styles { margin: 0 0 $ic-sp; }
   @else { margin: 10px 0; }
@@ -78,7 +78,7 @@
         b, &.more_link {
           text-decoration: underline;
         }
-        em {
+        em, p {
           color: #666;
         }
       }
@@ -107,27 +107,24 @@
         font-size: 1em;
       }
     }
-    b, em {
+    b, em, p {
       font-weight: normal;
       display: block;
     }
-    em, .more_link {
-      font: {
-        style: italic;
-        size: 10px;
-      };
-      line-height: 13px;
+    p, .more_link {
+      @include fontSize(12px);
+      margin-bottom: 0;
     }
-    em {
+    em, p {
       @if $use_high_contrast {
         color: #555;
       }
       @else {
         color: #777;
       }
-      padding-bottom: 2px;
     }
     .more_link {
+      font-style: italic;
       padding-top: 6px;
     }
   }
@@ -141,6 +138,7 @@
   .recent_feedback_comment {
     color: $gray-light;
     border: 0;
+    font-size: 100%;
   }
   .tooltip {
     .tooltip_wrap {
@@ -166,13 +164,23 @@
       height: 1px;
     }
   }
+  &.events {
+    i {
+      width: 40px;
+      min-width: 40px;
+      padding-right: $ic-sp;
+      text-align: right;
+      box-sizing: border-box;
+    }
+    .event > a {
+      display: flex;
+    }
+  }
   &.to-do-list {
     li {
       position: relative;
       a.item {
-        b {
-          padding-right: 20px;
-        }
+        display: flex;
       }
       a.disable_item_link {
         @if $use_high_contrast {
@@ -185,10 +193,11 @@
         position: absolute;
         background-image: none;
         right: 0;
-        top: 2px;
+        top: 4px;
         z-index: 2;
         border-bottom: none;
         box-shadow: none;
+        text-align: right;
       }
       &:hover {
         a.disable_item_link {
@@ -203,7 +212,21 @@
     }
   }
 }
-
+#right-side .todo-list-header {
+  margin-top: 21px;
+}
+#right-side .right-side-list .todo-badge-wrapper {
+  display: inline-block;
+  vertical-align: top;
+  min-width: 40px;
+  text-align: right;
+  padding-right: $ic-sp;
+  box-sizing: border-box;
+}
+#right-side .right-side-list .IgnoreButton {
+  width: 25px;
+  min-width: 25px;
+}
 // these are the classes that get applied to #right-side-wrapper to handle $.scrollSidebar
 // NOTE: they used to get applied to body but were moved to #right side to not force a repaint
 // of the entire page and be less jumpy going in and out display modes.

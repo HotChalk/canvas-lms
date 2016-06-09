@@ -33,7 +33,6 @@ define [
     @optionProperty 'parentModel'
     @optionProperty 'nested'
     @optionProperty 'preventNotGraded'
-    @optionProperty 'basePrefix'
 
     handleGradingTypeChange: (ev) =>
       gradingType = @$gradingType.val()
@@ -43,6 +42,7 @@ define [
       @trigger 'change:gradingType', gradingType
 
     showGpaDialog: (ev) =>
+      ev.preventDefault()
       $("#gpa-scale-dialog").dialog(
         title: I18n.t('titles.gpa_scale_explainer', "What is GPA Scale Grading?"),
         text: I18n.t('gpa_scale_explainer', "What is GPA Scale Grading?"),
@@ -73,4 +73,3 @@ define [
       frozenAttributes: @parentModel.frozenAttributes()
       nested: @nested
       preventNotGraded: @preventNotGraded
-      basePrefix: @basePrefix || 'assignment'

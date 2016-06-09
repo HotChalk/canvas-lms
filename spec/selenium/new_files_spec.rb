@@ -231,6 +231,7 @@ describe "better_file_browsing" do
       end
 
       it "should move a file to a destination if contexts are different" do
+        skip_if_chrome('research')
         get "/courses/#{@course.id}/files"
         folder_name = "destination_folder"
         add_folder(folder_name)
@@ -239,6 +240,7 @@ describe "better_file_browsing" do
       end
 
       it "should move a file to a destination if the contexts are the same" do
+        skip_if_chrome('research')
         get "/files"
         folder_name = "destination_folder"
         add_folder(folder_name)
@@ -278,6 +280,27 @@ describe "better_file_browsing" do
       shouldFocus = f('.ui-dialog-titlebar-close')
       element = driver.execute_script('return document.activeElement')
       expect(element).to eq(shouldFocus)
+    end
+  end
+
+  context "File Preview" do
+    before(:each) do
+      course_with_teacher_logged_in
+      add_file(fixture_file_upload('files/a_file.txt', 'text/plain'),
+               @course, "a_file.txt")
+      add_file(fixture_file_upload('files/b_file.txt', 'text/plain'),
+               @course, "b_file.txt")
+      get "/courses/#{@course.id}/files"
+    end
+
+    it "should switch files in preview when clicking the arrows" do
+      fln("a_file.txt").click
+      ff('.ef-file-preview-container-arrow-link')[0].click
+      wait_for_ajaximations
+      expect(f('.ef-file-preview-header-filename').text).to eq('b_file.txt')
+      ff('.ef-file-preview-container-arrow-link')[1].click
+      wait_for_ajaximations
+      expect(f('.ef-file-preview-header-filename').text).to eq('a_file.txt')
     end
   end
 
@@ -361,6 +384,15 @@ describe "better_file_browsing" do
         wait_for_ajaximations
         set_value f('.UsageRightsSelectBox__select'), 'fair_use'
         expect(f('.UsageRightsSelectBox__creativeCommons')).to eq(nil)
+      end
+      it "should publish warning when usage rights is not selected", priority: "2", test_id: 133135 do
+        expect(f('.icon-warning')).to be_present
+        f('.icon-publish').click
+        wait_for_ajaximations
+        f('.form-controls .btn-primary').click
+        keep_trying_until do
+           expect(f('.errorBox')).to be_present
+        end
       end
     end
 

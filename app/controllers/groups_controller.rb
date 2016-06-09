@@ -125,8 +125,8 @@ require 'atom'
 #         },
 #         "permissions": {
 #           "description": "optional: the permissions the user has for the group. returned only for a single group and include[]=permissions",
-#           "example": "{\"create_discussion_topic\"=>true,\"create_announcement\"=>true}",
-#           "type": "map",
+#           "example": {"create_discussion_topic": true, "create_announcement": true},
+#           "type": "object",
 #           "key": { "type": "string" },
 #           "value": { "type": "boolean" }
 #         }
@@ -204,9 +204,10 @@ class GroupsController < ApplicationController
       format.html do
         groups_scope = groups_scope.by_name
         groups_scope = groups_scope.where(:context_type => params[:context_type]) if params[:context_type]
-        groups_scope = groups_scope.preload(:group_category)
+        groups_scope = groups_scope.preload(:group_category, :context)
 
         groups = groups_scope.shard(@current_user).to_a
+        groups.select!{|group| group.context_type != 'Course' || group.context.grants_right?(@current_user, :read)}
 
         # Split the groups out into those in concluded courses and those not in concluded courses
         @current_groups, @previous_groups = groups.partition do |group|
@@ -402,7 +403,7 @@ class GroupsController < ApplicationController
             @padless = true
           elsif @group_home_view == 'announcements'
             add_crumb(t(:announcements_crumb, "Announcements"))
-            can_create = @group.announcements.scope.new.grants_right?(@current_user, session, :create)
+            can_create = @group.announcements.temp_record.grants_right?(@current_user, session, :create)
             js_env :permissions => {
               :create => can_create,
               :moderate => can_create
@@ -486,7 +487,7 @@ class GroupsController < ApplicationController
 
     attrs = api_request? ? params : params[:group]
     attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
-    @group = @context.groups.scope.new(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
+    @group = @context.groups.temp_record(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
     unless params[:course_section_id]
       user_sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).active : []
       params[:course_section_id] = user_sections.present? ? user_sections.first.id : nil
@@ -675,7 +676,10 @@ class GroupsController < ApplicationController
     find_group
     if authorized_action(@group, @current_user, :manage)
       root_account = @group.context.try(:root_account) || @domain_root_account
-      ul = UserList.new(params[:invitees], :root_account => root_account, :search_method => :preferred)
+      ul = UserList.new(params[:invitees],
+                        root_account: root_account,
+                        search_method: :preferred,
+                        current_user: @current_user)
       @memberships = []
       ul.users.each{ |u| @memberships << @group.invite_user(u) }
       render :json => @memberships.map{ |gm| group_membership_json(gm, @current_user, session) }

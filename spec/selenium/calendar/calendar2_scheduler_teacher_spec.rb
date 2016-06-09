@@ -160,7 +160,7 @@ describe "scheduler" do
           submit_dialog(fj('.ui-dialog:visible'), '.ui-button')
           wait_for_ajaximations
           # using fj to avoid selenium caching
-          keep_trying_until { expect(fj('#message_participants_form')).to be_nil }
+          keep_trying_until { expect(f('#message_participants_form')).to be_nil }
         end
       end
       expect(student1.conversations.first.messages.size).to eq 6 # registered/all * 3
@@ -170,6 +170,44 @@ describe "scheduler" do
       expect(student5.conversations.first.messages.size).to eq 2 # unregistered/all * 1 (doesn't meet any sub_context criteria)
     end
 
+    it "should use the correct context for messages sent through scheduler" do
+      student1 = student_in_course(:course => @course, :active_all => true).user
+      appointment_participant_model(:course => @course, :participant => student1)
+
+      first_course = @course
+
+      other_course = course
+      other_course.enroll_teacher(@teacher).accept!
+      other_course.offer
+      other_course.enroll_student(student1).accept!
+
+      get "/calendar2"
+      click_scheduler_link
+
+      ag = f('.appointment-group-item')
+      driver.execute_script("$('.appointment-group-item').addClass('ui-state-hover')")
+
+      click_al_option('.message_link')
+      form = f('#message_participants_form')
+      expect(form).to be_displayed
+      wait_for_ajaximations
+
+      set_value(form.find('.message_groups'), "all")
+      wait_for_ajaximations
+
+      expect(form.find_all('.participant_list li')).not_to be_empty
+      set_value(form.find('#body'), 'hello')
+      submit_dialog(fj('.ui-dialog:visible'), '.ui-button')
+      wait_for_ajaximations
+      # using fj to avoid selenium caching
+      keep_trying_until { expect(f('#message_participants_form')).to be_nil }
+
+      part1 = student1.conversations.first
+      expect(part1.tags).to eq ["course_#{first_course.id}"]
+      part2 = @teacher.all_conversations.first
+      expect(part2.tags).to eq ["course_#{first_course.id}"]
+    end
+
     it "should validate the appointment group shows up on the calendar", priority: "1", test_id: 140193 do
       create_appointment_group
       get "/calendar2"
@@ -177,7 +215,7 @@ describe "scheduler" do
       wait_for_ajaximations
       click_appointment_link
       wait_for_ajaximations
-      expect(element_exists('.fc-event')).to be_truthy
+      expect(element_exists('.agenda-event .ig-row')).to be_truthy
     end
 
     it "should not allow limiting the max appointments per participant to less than 1", priority: "1", test_id: 140194 do
@@ -188,7 +226,9 @@ describe "scheduler" do
       # invalid max_appointments
       max_appointments_input = f('[name="max_appointments_per_participant"]')
       replace_content(max_appointments_input, '0')
-      expect(get_value('[name="max_appointments_per_participant"]').to_i).to be > 0
+
+      f('.ui-dialog-buttonset .btn-primary').click
+      assert_error_box('[name="max_appointments_per_participant"]')
     end
 
     it "should show appointment notes",:priority => "1", test_id: 140195 do
@@ -202,7 +242,7 @@ describe "scheduler" do
       f(".appointment-group-item:nth-child(1) .view_calendar_link").click
       wait_for_ajaximations
 
-      fj('.fc-event:visible').click
+      fj('.agenda-event .ig-row').click
 
       wait_for_ajaximations
 
@@ -225,14 +265,14 @@ describe "scheduler" do
       click_scheduler_link
 
 
-      f(".appointment-group-item:nth-child(#{1}) .view_calendar_link").click
+      f(".appointment-group-item:nth-child(1) .view_calendar_link").click
       wait_for_ajaximations
       sleep 1
 
       #driver.execute_script("$('.fc-event-title').hover().click()")
       #
 
-      fj('.fc-event:visible').click
+      fj('.agenda-event .ig-row').click
 
       wait_for_ajaximations
 
@@ -245,7 +285,7 @@ describe "scheduler" do
       wait_for_ajaximations
       expect(ff('#attendees li').size).to eq 1
 
-      fj('.fc-event:visible').click
+      fj('.agenda-event .ig-row').click
 
       keep_trying_until { expect(ff('#attendees li').size).to eq 1 }
       f('.scheduler_done_button').click
@@ -271,9 +311,9 @@ describe "scheduler" do
       get "/calendar2"
       click_scheduler_link
 
-      f(".appointment-group-item:nth-child(#{1}) .view_calendar_link").click
+      f(".appointment-group-item:nth-child(1) .view_calendar_link").click
       wait_for_ajaximations
-      fj('.fc-event:visible').click
+      fj('.agenda-event .ig-row').click
       wait_for_ajaximations
       expect(ffj('#attendees li').size).to eq 2
 
@@ -284,7 +324,7 @@ describe "scheduler" do
       wait_for_ajaximations
       expect(ff('#attendees li').size).to eq 1
 
-      fj('.fc-event:visible').click
+      fj('.agenda-event .ig-row').click
       expect(ff('#attendees li').size).to eq 1
       f('.scheduler_done_button').click
     end
@@ -328,7 +368,7 @@ describe "scheduler" do
       wait_for_ajaximations
       click_appointment_link
 
-      open_edit_event_dialog
+      open_edit_appointment_group_event_dialog
       replace_content f('[name=max_participants]'), "5"
       fj('.ui-button:contains(Update)').click
       wait_for_ajaximations
@@ -337,7 +377,7 @@ describe "scheduler" do
       expect(ag.appointments.first.participants_per_appointment).to eq 5
       expect(ag.participants_per_appointment).to eq 2
 
-      open_edit_event_dialog
+      open_edit_appointment_group_event_dialog
       f('[type=checkbox][name=max_participants_option]').click
       fj('.ui-button:contains(Update)').click
       wait_for_ajaximations

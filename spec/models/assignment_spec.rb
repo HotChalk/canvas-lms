@@ -22,7 +22,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 describe Assignment do
   before :once do
     course_with_teacher(active_all: true)
-    student_in_course(active_all: true, user_name: "some user")
+    student_in_course(active_all: true, user_name: 'a student')
   end
 
   it "should create a new instance given valid attributes" do
@@ -254,6 +254,86 @@ describe Assignment do
     end
   end
 
+  describe "#all_context_module_tags" do
+    let(:assignment) { Assignment.new }
+    let(:content_tag) { ContentTag.new }
+
+    it "returns the context module tags for a 'normal' assignment " \
+      "(non-quiz and non-discussion topic)" do
+      assignment.submission_types = "online_text_entry"
+      assignment.context_module_tags << content_tag
+      expect(assignment.all_context_module_tags).to eq [content_tag]
+    end
+
+    it "returns the context_module_tags on the quiz if the assignment is " \
+      "associated with a quiz" do
+      quiz = assignment.build_quiz
+      quiz.context_module_tags << content_tag
+      assignment.submission_types = "online_quiz"
+      expect(assignment.all_context_module_tags).to eq([content_tag])
+    end
+
+    it "returns the context_module_tags on the discussion topic if the " \
+      "assignment is associated with a discussion topic" do
+      assignment.submission_types = "discussion_topic"
+      discussion_topic = assignment.build_discussion_topic
+      discussion_topic.context_module_tags << content_tag
+      expect(assignment.all_context_module_tags).to eq([content_tag])
+    end
+
+    it "doesn't return the context_module_tags on the wiki page if the " \
+      "assignment is associated with a wiki page" do
+      assignment.submission_types = "wiki_page"
+      wiki_page = assignment.build_wiki_page
+      wiki_page.context_module_tags << content_tag
+      expect(assignment.all_context_module_tags).to eq([])
+    end
+  end
+
+  describe "#submission_type?" do
+    shared_examples_for "submittable" do
+      subject(:assignment) { Assignment.new }
+      let(:be_type) { "be_#{submission_type}".to_sym }
+      let(:build_type) { "build_#{submission_type}".to_sym }
+
+      it "returns false if an assignment does not have a submission" \
+        "or matching submission_types" do
+        is_expected.not_to send(be_type)
+      end
+
+      it "returns true if the assignment has an associated submission, " \
+        "and it has matching submission_types" do
+        assignment.submission_types = submission_type
+        assignment.send(build_type)
+        expect(assignment).to send(be_type)
+      end
+
+      it "returns false if an assignment does not have its submission_types" \
+        "set, even if it has an associated submission" do
+        assignment.send(build_type)
+        expect(assignment).not_to send(be_type)
+      end
+
+      it "returns false if an assignment does not have an associated" \
+        "submission even if it has submission_types set" do
+        assignment.submission_types = submission_type
+        expect(assignment).not_to send(be_type)
+      end
+    end
+
+    context "topics" do
+      let(:submission_type) { "discussion_topic" }
+
+      include_examples "submittable"
+    end
+
+    context "pages" do
+      let(:submission_type) { "wiki_page" }
+
+      include_examples "submittable"
+    end
+  end
+
   it "should update a submission's graded_at when grading it" do
     setup_assignment_with_homework
     @assignment.grade_student(@user, :grade => 1)
@@ -374,7 +454,7 @@ describe Assignment do
         setup_differentiated_assignments
       end
 
-      context "differentiated_assignment on" do
+      context "differentiated_assignment" do
         it "should return assignments only when a student has overrides" do
           expect(@assignment.students_with_visibility.include?(@student1)).to be_truthy
           expect(@assignment.students_with_visibility.include?(@student2)).to be_falsey
@@ -385,17 +465,8 @@ describe Assignment do
         end
       end
 
-      context "differentiated_assignment off" do
-        before {@course.disable_feature!(:differentiated_assignments)}
-        it "should return all published assignments" do
-          expect(@assignment.students_with_visibility.include?(@student1)).to be_truthy
-          expect(@assignment.students_with_visibility.include?(@student2)).to be_truthy
-        end
-      end
-
       context "permissions" do
         before :once do
-          @course.enable_feature!(:differentiated_assignments)
           @assignment.submission_types = "online_text_entry"
           @assignment.save!
         end
@@ -935,13 +1006,14 @@ describe Assignment do
     @assignment.save!
 
     overrides = 5.times.map do
-      override = @assignment.assignment_overrides.build
+      override = @assignment.assignment_overrides.scope.new
       override.set = @assignment.group_category.groups.create!(context: @assignment.context)
       override.save!
 
       expect(override.workflow_state).to eq 'active'
       override
     end
+    old_version_number = @assignment.version_number
 
     @assignment.group_category = group_category(context: @assignment.context, name: "bar")
     @assignment.save!
@@ -951,7 +1023,7 @@ describe Assignment do
 
       expect(override.workflow_state).to eq 'deleted'
       expect(override.versions.size).to eq 2
-      expect(override.assignment_version).to eq @assignment.version_number
+      expect(override.assignment_version).to eq old_version_number
     end
   end
 
@@ -1174,23 +1246,6 @@ describe Assignment do
           end
         end
 
-      end
-      context "feature off" do
-        before :once do
-          @course.disable_feature!(:differentiated_assignments)
-          @assignment.reload
-        end
-
-        it "should assign peer reviews to any student with a submission" do
-          @assignment.peer_review_count = 1
-
-          res = @assignment.assign_peer_reviews
-          expect(res.length).to eql(@submissions.length)
-          @submissions.each do |s|
-            expect(res.map{|a| a.asset}).to be_include(s)
-            expect(res.map{|a| a.assessor_asset}).to be_include(s)
-          end
-        end
       end
     end
   end
@@ -1550,178 +1605,186 @@ describe Assignment do
     end
   end
 
-  context "topics" do
-    before :once do
-      assignment_model(:course => @course, :submission_types => "discussion_topic", :updating_user => @teacher)
+  describe "linked submissions" do
+    shared_examples_for "submittable" do
+      before :once do
+        assignment_model(:course => @course, :submission_types => submission_type, :updating_user => @teacher)
+      end
+
+      it "should create a record if none exists and specified" do
+        expect(@a.submission_types).to eql(submission_type)
+        submittable = @a.send(submission_type)
+        expect(submittable).not_to be_nil
+        expect(submittable.assignment_id).to eql(@a.id)
+        expect(submittable.user_id).to eql(@teacher.id)
+        @a.due_at = Time.zone.now
+        @a.save
+        @a.reload
+        submittable = @a.send(submission_type)
+        expect(submittable).not_to be_nil
+        expect(submittable.assignment_id).to eql(@a.id)
+        expect(submittable.user_id).to eql(@teacher.id)
+      end
+
+      it "should delete a record if no longer specified" do
+        expect(@a.submission_types).to eql(submission_type)
+        submittable = @a.send(submission_type)
+        expect(submittable).not_to be_nil
+        expect(submittable.assignment_id).to eql(@a.id)
+        @a.submission_types = 'on_paper'
+        @a.save!
+        @a.reload
+        submittable = @a.send(submission_type)
+        expect(submittable).to be_nil
+      end
     end
 
-    it "should create a discussion_topic if none exists and specified" do
-      expect(@a.submission_types).to eql('discussion_topic')
-      expect(@a.discussion_topic).not_to be_nil
-      expect(@a.discussion_topic.assignment_id).to eql(@a.id)
-      expect(@a.discussion_topic.user_id).to eql(@teacher.id)
-      @a.due_at = Time.now
-      @a.save
-      @a.reload
-      expect(@a.discussion_topic).not_to be_nil
-      expect(@a.discussion_topic.assignment_id).to eql(@a.id)
-      expect(@a.discussion_topic.user_id).to eql(@teacher.id)
+    context "topics" do
+      let(:submission_type) { "discussion_topic" }
+      let(:submission_class) { DiscussionTopic }
+
+      include_examples "submittable"
+
+      it "should not delete the topic if non-empty when unlinked" do
+        expect(@a.submission_types).to eql(submission_type)
+        @topic = @a.discussion_topic
+        expect(@topic).not_to be_nil
+        expect(@topic.assignment_id).to eql(@a.id)
+        @topic.discussion_entries.create!(:user => @user, :message => "testing")
+        @a.discussion_topic.reload
+        @a.submission_types = 'on_paper'
+        @a.save!
+        @a.reload
+        expect(@a.discussion_topic).to be_nil
+        expect(@a.state).to eql(:published)
+        @topic = submission_class.find(@topic.id)
+        expect(@topic.assignment_id).to eql(nil)
+        expect(@topic.state).to eql(:active)
+      end
+
+      it "should grab the original topic if unlinked and relinked" do
+        expect(@a.submission_types).to eql(submission_type)
+        @topic = @a.discussion_topic
+        expect(@topic).not_to be_nil
+        expect(@topic.assignment_id).to eql(@a.id)
+        @topic.discussion_entries.create!(:user => @user, :message => "testing")
+        @a.discussion_topic.reload
+        @a.submission_types = 'on_paper'
+        @a.save!
+        @a.submission_types = 'discussion_topic'
+        @a.save!
+        @a.reload
+        expect(@a.discussion_topic).to eql(@topic)
+        expect(@a.state).to eql(:published)
+        @topic.reload
+        expect(@topic.state).to eql(:active)
+      end
+
+      it "should not delete the assignment when unlinked from a topic" do
+        expect(@a.submission_types).to eql(submission_type)
+        submittable = @a.send(submission_type)
+        expect(submittable).not_to be_nil
+        expect(submittable.state).to eql(:active)
+        expect(submittable.assignment_id).to eql(@a.id)
+        @a.submission_types = 'on_paper'
+        @a.save!
+        submittable = submission_class.find(submittable.id)
+        expect(submittable.assignment_id).to eql(nil)
+        expect(submittable.state).to eql(:deleted)
+        @a.reload
+        submittable = @a.send(submission_type)
+        expect(submittable).to be_nil
+        expect(@a.state).to eql(:published)
+      end
     end
 
-    it "should delete a discussion_topic if no longer specified" do
-      expect(@a.submission_types).to eql('discussion_topic')
-      expect(@a.discussion_topic).not_to be_nil
-      expect(@a.discussion_topic.assignment_id).to eql(@a.id)
-      @a.submission_types = 'on_paper'
-      @a.save!
-      @a.reload
-      expect(@a.discussion_topic).to be_nil
-    end
+    context "pages" do
+      let(:submission_type) { "wiki_page" }
+      let(:submission_class) { WikiPage }
 
-    it "should not delete the assignment when unlinked from a topic" do
-      expect(@a.submission_types).to eql('discussion_topic')
-      @topic = @a.discussion_topic
-      expect(@topic).not_to be_nil
-      expect(@topic.state).to eql(:active)
-      expect(@topic.assignment_id).to eql(@a.id)
-      @a.submission_types = 'on_paper'
-      @a.save!
-      @topic = DiscussionTopic.find(@topic.id)
-      expect(@topic.assignment_id).to eql(nil)
-      expect(@topic.state).to eql(:deleted)
-      @a.reload
-      expect(@a.discussion_topic).to be_nil
-      expect(@a.state).to eql(:published)
-    end
+      context "feature enabled" do
+        before(:once) { @course.enable_feature!(:conditional_release) }
 
-    it "should not delete the topic if non-empty when unlinked" do
-      expect(@a.submission_types).to eql('discussion_topic')
-      @topic = @a.discussion_topic
-      expect(@topic).not_to be_nil
-      expect(@topic.assignment_id).to eql(@a.id)
-      @topic.discussion_entries.create!(:user => @user, :message => "testing")
-      @a.discussion_topic.reload
-      @a.submission_types = 'on_paper'
-      @a.save!
-      @a.reload
-      expect(@a.discussion_topic).to be_nil
-      expect(@a.state).to eql(:published)
-      @topic = DiscussionTopic.find(@topic.id)
-      expect(@topic.assignment_id).to eql(nil)
-      expect(@topic.state).to eql(:active)
-    end
+        include_examples "submittable"
 
-    it "should grab the original topic if unlinked and relinked" do
-      expect(@a.submission_types).to eql('discussion_topic')
-      @topic = @a.discussion_topic
-      expect(@topic).not_to be_nil
-      expect(@topic.assignment_id).to eql(@a.id)
-      @topic.discussion_entries.create!(:user => @user, :message => "testing")
-      @a.discussion_topic.reload
-      @a.submission_types = 'on_paper'
-      @a.save!
-      @a.submission_types = 'discussion_topic'
-      @a.save!
-      @a.reload
-      expect(@a.discussion_topic).to eql(@topic)
-      expect(@a.state).to eql(:published)
-      @topic.reload
-      expect(@topic.state).to eql(:active)
+        it "should not delete the assignment when unlinked from a page" do
+          expect(@a.submission_types).to eql(submission_type)
+          submittable = @a.send(submission_type)
+          expect(submittable).not_to be_nil
+          expect(submittable.state).to eql(:active)
+          expect(submittable.assignment_id).to eql(@a.id)
+          @a.submission_types = 'on_paper'
+          @a.save!
+          expect(submission_class.exists?(submittable.id)).to be_falsey
+          @a.reload
+          submittable = @a.send(submission_type)
+          expect(submittable).to be_nil
+          expect(@a.state).to eql(:published)
+        end
+      end
+
+      it "should not create a record if feature is disabled" do
+        expect do
+          assignment_model(:course => @course, :submission_types => 'wiki_page', :updating_user => @teacher)
+        end.not_to change { WikiPage.count }
+        expect(@a.submission_types).to eql(submission_type)
+        submittable = @a.send(submission_type)
+        expect(submittable).to be_nil
+      end
     end
   end
 
   context "participants" do
-    describe "with differentiated_assignments on" do
-      before :once do
-        setup_differentiated_assignments(ta: true)
-      end
-
-      it 'returns users with visibility' do
-        expect(@assignment.participants.length).to eq(4) #teacher, TA, 2 students
-      end
-
-      it 'includes students with visibility' do
-        expect(@assignment.participants.include?(@student1)).to be_truthy
-      end
-
-      it 'excludes students without visibility' do
-        expect(@assignment.participants.include?(@student2)).to be_falsey
-      end
-
-      it 'includes admins with visibility' do
-        expect(@assignment.participants.include?(@teacher)).to be_truthy
-        expect(@assignment.participants.include?(@ta)).to be_truthy
-      end
-
-      context "including observers" do
-        before do
-          oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
-          @course_level_observer = oe.user
-
-          oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
-          oe.associated_user_id = @student1.id
-          oe.save!
-          @student1_observer = oe.user
-
-          oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
-          oe.associated_user_id = @student2.id
-          oe.save!
-          @student2_observer = oe.user
-        end
-
-        it "should include course_level observers" do
-          expect(@assignment.participants(include_observers: true).include?(@course_level_observer)).to be_truthy
-        end
-
-        it "should exclude student observers if their student does not have visibility" do
-          expect(@assignment.participants(include_observers: true).include?(@student1_observer)).to be_truthy
-          expect(@assignment.participants(include_observers: true).include?(@student2_observer)).to be_falsey
-        end
-
-        it "should exclude all observers unless opt is given" do
-          expect(@assignment.participants.include?(@student1_observer)).to be_falsey
-          expect(@assignment.participants.include?(@student2_observer)).to be_falsey
-          expect(@assignment.participants.include?(@course_level_observer)).to be_falsey
-        end
-      end
+    before :once do
+      setup_differentiated_assignments(ta: true)
     end
 
-    describe "with differentiated_assignments off" do
-      before :once do
-        setup_differentiated_assignments
-        @course.disable_feature!(:differentiated_assignments)
+    it 'returns users with visibility' do
+      expect(@assignment.participants.length).to eq(4) #teacher, TA, 2 students
+    end
+
+    it 'includes students with visibility' do
+      expect(@assignment.participants.include?(@student1)).to be_truthy
+    end
+
+    it 'excludes students without visibility' do
+      expect(@assignment.participants.include?(@student2)).to be_falsey
+    end
+
+    it 'includes admins with visibility' do
+      expect(@assignment.participants.include?(@teacher)).to be_truthy
+      expect(@assignment.participants.include?(@ta)).to be_truthy
+    end
+
+    context "including observers" do
+      before do
+        oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
+        @course_level_observer = oe.user
+
+        oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
+        oe.associated_user_id = @student1.id
+        oe.save!
+        @student1_observer = oe.user
+
+        oe = @assignment.context.enroll_user(user_with_pseudonym(active_all: true), 'ObserverEnrollment',:enrollment_state => 'active')
+        oe.associated_user_id = @student2.id
+        oe.save!
+        @student2_observer = oe.user
       end
 
-      it 'normally returns all users in the course' do
-        expect(@assignment.participants.length).to eq 4
+      it "should include course_level observers" do
+        expect(@assignment.participants(include_observers: true).include?(@course_level_observer)).to be_truthy
       end
 
-      it "should exclude students when given the option" do
-        expect( @assignment.participants(excluded_user_ids: [@student1.id]) ).to_not be_include(@student1)
-        expect( @assignment.participants(excluded_user_ids: [@student1.id]) ).to be_include(@student2)
+      it "should exclude student observers if their student does not have visibility" do
+        expect(@assignment.participants(include_observers: true).include?(@student1_observer)).to be_truthy
+        expect(@assignment.participants(include_observers: true).include?(@student2_observer)).to be_falsey
       end
 
-      context "including observers" do
-        before :once do
-          oe = @assignment.context.enroll_user(user_with_pseudonym, 'ObserverEnrollment',:enrollment_state => 'active')
-          @course_level_observer = oe.user
-
-          oe = @assignment.context.enroll_user(user_with_pseudonym, 'ObserverEnrollment',:enrollment_state => 'active')
-          oe.associated_user_id = @student1.id
-          oe.save!
-          @student1_observer = oe.user
-        end
-        it "should include course_level observers" do
-          expect( @assignment.participants(include_observers: true) ).to be_include(@course_level_observer)
-        end
-        it "should include student observers if their student is participating" do
-          expect( @assignment.participants(include_observers: true) ).to be_include(@student1)
-          expect( @assignment.participants(include_observers: true) ).to be_include(@student1_observer)
-        end
-        it "should exclude student observers if their student is explicitly excluded" do
-          expect( @assignment.participants(include_observers: true, excluded_user_ids: [@student1.id]) ).to_not be_include(@student1)
-          expect( @assignment.participants(include_observers: true, excluded_user_ids: [@student1.id]) ).to_not be_include(@student1_observer)
-        end
+      it "should exclude all observers unless opt is given" do
+        expect(@assignment.participants.include?(@student1_observer)).to be_falsey
+        expect(@assignment.participants.include?(@student2_observer)).to be_falsey
+        expect(@assignment.participants.include?(@course_level_observer)).to be_falsey
       end
     end
   end
@@ -1818,7 +1881,7 @@ describe Assignment do
         assignment_model(course: @course)
       end
 
-      it "should create a message when an assigment changes after it's been published" do
+      it "should create a message when an assignment changes after it's been published" do
         @a.created_at = Time.parse("Jan 2 2000")
         @a.description = "something different"
         @a.notify_of_update = true
@@ -1826,7 +1889,7 @@ describe Assignment do
         expect(@a.messages_sent).to be_include('Assignment Changed')
       end
 
-      it "should NOT create a message when an assigment changes SHORTLY AFTER it's been created" do
+      it "should NOT create a message when an assignment changes SHORTLY AFTER it's been created" do
         @a.description = "something different"
         @a.save
         expect(@a.messages_sent).not_to be_include('Assignment Changed')
@@ -1846,7 +1909,7 @@ describe Assignment do
         Notification.create(:name => 'Assignment Created')
       end
 
-      it "should create a message when an assigment is added to a course in process" do
+      it "should create a message when an assignment is added to a course in process" do
         assignment_model(:course => @course)
         expect(@a.messages_sent).to be_include('Assignment Created')
       end
@@ -1864,7 +1927,7 @@ describe Assignment do
         Notification.create(:name => 'Assignment Unmuted')
       end
 
-      it "should create a message when an assigment is unmuted" do
+      it "should create a message when an assignment is unmuted" do
         assignment_model(:course => @course)
         @assignment.broadcast_unmute_event
         expect(@assignment.messages_sent).to be_include('Assignment Unmuted')
@@ -1921,7 +1984,6 @@ describe Assignment do
         end
 
         it "should notify the correct people with differentiated_assignments enabled" do
-          @assignment.context.root_account.enable_feature!(:differentiated_assignments)
           section = @course.course_sections.create!(name: 'Lonely Section')
           student = student_in_section(section)
           @assignment.do_notifications!
@@ -2169,15 +2231,7 @@ describe Assignment do
       [@assignment, @assignment2, @assignment3].each(&:save!)
     end
 
-    it "returns active_course_sections with differentiated assignments off" do
-      @course.disable_feature!(:differentiated_assignments)
-      expect(@assignment.sections_with_visibility(@teacher)).to eq @course.course_sections
-      expect(@assignment2.sections_with_visibility(@teacher)).to eq @course.course_sections
-      expect(@assignment3.sections_with_visibility(@teacher)).to eq @course.course_sections
-    end
-
     it "returns only sections with overrides with differentiated assignments on" do
-      @course.enable_feature!(:differentiated_assignments)
       expect(@assignment.sections_with_visibility(@teacher)).to eq [@section]
       expect(@assignment2.sections_with_visibility(@teacher)).to eq []
       expect(@assignment3.sections_with_visibility(@teacher)).to eq @course.course_sections
@@ -2220,6 +2274,35 @@ describe Assignment do
       m.save
       a1.reload
       expect(a1.locked_for?(@user)).to be_truthy
+    end
+
+    it "should be locked when associated wiki page is part of a locked module" do
+      @course.enable_feature!(:conditional_release)
+      a1 = assignment_model(:course => @course, :submission_types => "wiki_page")
+      a1.reload
+      expect(a1.locked_for?(@user)).to be_falsey
+
+      m = @course.context_modules.create!
+      m.add_item(:id => a1.wiki_page.id, :type => 'wiki_page')
+
+      m.unlock_at = Time.now.in_time_zone + 1.day
+      m.save
+      a1.reload
+      expect(a1.locked_for?(@user)).to be_truthy
+    end
+
+    it "should not be locked by wiki page when feature is disabled" do
+      a1 = wiki_page_assignment_model(:course => @course, :submission_types => "wiki_page")
+      a1.reload
+      expect(a1.locked_for?(@user)).to be_falsey
+
+      m = @course.context_modules.create!
+      m.add_item(:id => a1.wiki_page.id, :type => 'wiki_page')
+
+      m.unlock_at = Time.now.in_time_zone + 1.day
+      m.save
+      a1.reload
+      expect(a1.locked_for?(@user)).to be_falsey
     end
 
     it "should be locked when associated quiz is part of a locked module" do
@@ -2639,14 +2722,30 @@ describe Assignment do
       group_discussion_assignment
     end
 
-    it "destroys the associated discussion topic" do
+    it "destroys the associated page" do
+      course
+      @course.enable_feature!(:conditional_release)
+      wiki_page_assignment_model course: @course
       @assignment.destroy
+      expect(WikiPage.exists?(@page.id)).to be_falsey
+      expect(@assignment.reload).to be_deleted
+    end
+
+    it "does not destroy the associated page" do
+      wiki_page_assignment_model
+      @assignment.destroy
+      expect(WikiPage.exists?(@page.id)).to be_truthy
+      expect(@assignment.reload).to be_deleted
+    end
+
+    it "destroys the associated discussion topic" do
+      @assignment.reload.destroy
       expect(@topic.reload).to be_deleted
       expect(@assignment.reload).to be_deleted
     end
 
     it "does not revive the discussion if touched after destroyed" do
-      @assignment.destroy
+      @assignment.reload.destroy
       expect(@topic.reload).to be_deleted
       @assignment.touch
       expect(@topic.reload).to be_deleted
@@ -2661,370 +2760,6 @@ describe Assignment do
       Progress.any_instance.expects(:process_job)
         .with(@assignment.context, :refresh_content_participation_counts)
       @assignment.destroy
-    end
-  end
-
-  describe "speed_grader_json" do
-    it "should include comments' created_at" do
-      setup_assignment_with_homework
-      @submission = @assignment.submissions.first
-      @comment = @submission.add_comment(:comment => 'comment')
-      json = @assignment.speed_grader_json(@user)
-      expect(json[:submissions].first[:submission_comments].first[:created_at].to_i).to eql @comment.created_at.to_i
-    end
-
-    it "should exclude provisional comments" do
-      setup_assignment_with_homework
-      @submission = @assignment.submissions.first
-      @comment = @submission.add_comment(:comment => 'comment', :provisional => true)
-      json = @assignment.speed_grader_json(@user)
-      expect(json[:submissions].first[:submission_comments]).to be_empty
-    end
-
-    context "students and active course sections" do
-      before(:once) do
-        @course = course(:active_course => true)
-        @teacher, @student1, @student2 = (1..3).map{User.create}
-        @assignment = Assignment.create!(title: "title", context: @course, only_visible_to_overrides: true)
-        @course.enroll_teacher(@teacher)
-        @course.enroll_student(@student2, :enrollment_state => 'active')
-        @section1 = @course.course_sections.create!(name: "test section 1")
-        @section2 = @course.course_sections.create!(name: "test section 2")
-        student_in_section(@section1, user: @student1)
-        create_section_override_for_assignment(@assignment, {course_section: @section1})
-      end
-
-      it "should include all students and sections with DA off" do
-        @course.disable_feature!(:differentiated_assignments)
-        json = @assignment.speed_grader_json(@teacher)
-
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student1.id)).to be_truthy
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student2.id)).to be_truthy
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section1.id)).to be_truthy
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section2.id)).to be_truthy
-      end
-
-      it "should include only students and sections with overrides when DA is on" do
-        @course.enable_feature!(:differentiated_assignments)
-        json = @assignment.speed_grader_json(@teacher)
-
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student1.id)).to be_truthy
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student2.id)).to be_falsey
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section1.id)).to be_truthy
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section2.id)).to be_falsey
-      end
-
-      it "should include all students when is only_visible_to_overrides false" do
-        @course.enable_feature!(:differentiated_assignments)
-        @assignment.only_visible_to_overrides = false
-        @assignment.save!
-        json = @assignment.speed_grader_json(@teacher)
-
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student1.id)).to be_truthy
-        expect(json[:context][:students].map{|s| s[:id]}.include?(@student2.id)).to be_truthy
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section1.id)).to be_truthy
-        expect(json[:context][:active_course_sections].map{|cs| cs[:id]}.include?(@section2.id)).to be_truthy
-      end
-    end
-
-    it "should return submission lateness" do
-      # Set up
-      section_1 = @course.course_sections.create!(:name => 'Section one')
-      section_2 = @course.course_sections.create!(:name => 'Section two')
-
-      assignment = @course.assignments.create!(:title => 'Overridden assignment', :due_at => Time.now - 5.days)
-
-      student_1 = user_with_pseudonym(:active_all => true, :username => 'student1@example.com')
-      student_2 = user_with_pseudonym(:active_all => true, :username => 'student2@example.com')
-
-      @course.enroll_student(student_1, :section => section_1).accept!
-      @course.enroll_student(student_2, :section => section_2).accept!
-
-      o1 = assignment.assignment_overrides.build
-      o1.due_at = Time.now - 2.days
-      o1.due_at_overridden = true
-      o1.set = section_1
-      o1.save!
-
-      o2 = assignment.assignment_overrides.build
-      o2.due_at = Time.now + 2.days
-      o2.due_at_overridden = true
-      o2.set = section_2
-      o2.save!
-
-      submission_1 = assignment.submit_homework(student_1, :submission_type => 'online_text_entry', :body => 'blah')
-      submission_2 = assignment.submit_homework(student_2, :submission_type => 'online_text_entry', :body => 'blah')
-
-      # Test
-      json = assignment.speed_grader_json(@teacher)
-      json[:submissions].each do |submission|
-        user = [student_1, student_2].detect { |s| s.id == submission[:user_id] }
-        expect(submission[:late]).to eq user.submissions.first.late?
-      end
-    end
-
-    it "should include inline view pingback url for files" do
-      assignment = @course.assignments.create! :submission_types => ['online_upload']
-      attachment = @student.attachments.create! :uploaded_data => dummy_io, :filename => 'doc.doc', :display_name => 'doc.doc', :context => @student
-      submission = assignment.submit_homework @student, :submission_type => :online_upload, :attachments => [attachment]
-      json = assignment.speed_grader_json @teacher
-      attachment_json = json['submissions'][0]['submission_history'][0]['submission']['versioned_attachments'][0]['attachment']
-      expect(attachment_json['view_inline_ping_url']).to match %r{/users/#{@student.id}/files/#{attachment.id}/inline_view\z}
-    end
-
-    context "group assignments" do
-      before :once do
-        course_with_teacher(active_all: true)
-        @gc = @course.group_categories.create! name: "Assignment Groups"
-        @groups = 2.times.map { |i| @gc.groups.create! name: "Group #{i}", context: @course }
-        students = create_users_in_course(@course, 4, return_type: :record)
-        students.each_with_index { |s, i| @groups[i % @groups.size].add_user(s) }
-        @assignment = @course.assignments.create!(
-          group_category_id: @gc.id,
-          grade_group_students_individually: false,
-          submission_types: %w(text_entry)
-        )
-      end
-
-      it "should not be in group mode for non-group assignments" do
-        setup_assignment_with_homework
-        json = @assignment.speed_grader_json(@teacher)
-        expect(json["GROUP_GRADING_MODE"]).not_to be_truthy
-      end
-
-      it 'returns "groups" instead of students' do
-        json = @assignment.speed_grader_json(@teacher)
-        @groups.each do |group|
-          j = json["context"]["students"].find { |g| g["name"] == group.name }
-          expect(group.users.map(&:id)).to include j["id"]
-        end
-        expect(json["GROUP_GRADING_MODE"]).to be_truthy
-      end
-
-      it 'chooses the student with turnitin data to represent' do
-        turnitin_submissions = @groups.map do |group|
-          rep = group.users.shuffle.first
-          turnitin_submission, *others = @assignment.grade_student(rep, grade: 10)
-          turnitin_submission.update_attribute :turnitin_data, {blah: 1}
-          turnitin_submission
-        end
-
-        @assignment.update_attribute :turnitin_enabled, true
-        json = @assignment.speed_grader_json(@teacher)
-
-        expect(json["submissions"].map { |s|
-          s["id"]
-        }.sort).to eq turnitin_submissions.map(&:id).sort
-      end
-
-      it 'prefers people with submissions' do
-        g1, _ = @groups
-        @assignment.grade_student(g1.users.first, score: 10)
-        g1rep = g1.users.shuffle.first
-        s = @assignment.submission_for_student(g1rep)
-        s.update_attribute :submission_type, 'online_upload'
-        expect(@assignment.representatives(@teacher)).to include g1rep
-      end
-
-      it "prefers people who aren't excused" do
-        g1, _ = @groups
-        g1rep, *others = g1.users.to_a.shuffle
-        others.each { |u|
-          @assignment.grade_student(u, excuse: true)
-        }
-        expect(@assignment.representatives(@teacher)).to include g1rep
-      end
-
-      it "includes users who aren't in a group" do
-        student_in_course active_all: true
-        expect(@assignment.representatives(@teacher).last).to eq @student
-      end
-
-      it "doesn't include deleted groups" do
-        student_in_course active_all: true
-        deleted_group = @gc.groups.create! name: "DELETE ME", context: @course
-        deleted_group.add_user(@student)
-        rep_names = @assignment.representatives(@teacher).map(&:name)
-        expect(rep_names).to include "DELETE ME"
-
-        deleted_group.destroy
-        rep_names = @assignment.representatives(@teacher).map(&:name)
-        expect(rep_names).not_to include "DELETE ME"
-      end
-    end
-
-    context "quizzes" do
-      it "works for quizzes without quiz_submissions" do
-        quiz = @course.quizzes.create! :title => "Final",
-                                       :quiz_type => "assignment"
-        quiz.did_edit
-        quiz.offer
-
-        assignment = quiz.assignment
-        assignment.grade_student(@student, grade: 1)
-        json = assignment.speed_grader_json(@teacher)
-        expect(json[:submissions].all? { |s|
-          s.has_key? 'submission_history'
-        }).to be_truthy
-      end
-
-      context "with quiz_submissions" do
-        before :once do
-          quiz_with_graded_submission [], :course => @course, :user => @student
-        end
-
-        it "doesn't include quiz_submissions when there are too many attempts" do
-          Setting.set('too_many_quiz_submission_versions', 3)
-          3.times {
-            @quiz_submission.versions.create!
-          }
-          json = @quiz.assignment.speed_grader_json(@teacher)
-          json[:submissions].all? { |s| expect(s["submission_history"].size).to eq 1 }
-        end
-
-        it "returns quiz lateness correctly" do
-          @quiz.time_limit = 10
-          @quiz.save!
-
-          json = @assignment.speed_grader_json(@teacher)
-          expect(json[:submissions].first['submission_history'].first[:submission]['late']).to be_falsey
-
-          @quiz.due_at = 1.day.ago
-          @quiz.save!
-
-          json = @assignment.speed_grader_json(@teacher)
-          expect(json[:submissions].first['submission_history'].first[:submission]['late']).to be_truthy
-        end
-
-        it "returns quiz history for records before and after namespace change" do
-          @quiz.save!
-
-          json = @assignment.speed_grader_json(@teacher)
-          expect(json[:submissions].first['submission_history'].size).to eq 1
-
-          Version.where("versionable_type = 'QuizSubmission'").update_all("versionable_type = 'Quizzes::QuizSubmission'")
-          json = @assignment.reload.speed_grader_json(@teacher)
-          expect(json[:submissions].first['submission_history'].size).to eq 1
-        end
-      end
-    end
-
-    describe "with moderated grading" do
-      before(:once) do
-        course_with_ta :course => @course, :active_all => true
-        assignment_model(:course => @course, :submission_types => 'online_text_entry')
-        rubric_model
-        @association = @rubric.associate_with(@assignment, @course, :purpose => 'grading', :use_for_grading => true)
-
-        @submission = @assignment.submit_homework(@student, :submission_type => 'online_text_entry', :body => 'ahem')
-        @assignment.grade_student(@student, :comment => 'real comment', :score => 1)
-
-        selection = @assignment.moderated_grading_selections.create!(:student => @student)
-
-        @submission.add_comment(:author => @teacher, :comment => 'provisional comment', :provisional => true)
-        teacher_pg = @submission.provisional_grade(@teacher)
-        teacher_pg.update_attribute(:score, 2)
-        @association.assess(
-          :user => @student, :assessor => @teacher, :artifact => teacher_pg,
-          :assessment => {
-            :assessment_type => 'grading',
-            :criterion_crit1 => {
-              :points => 2,
-              :comments => 'a comment',
-            }
-          })
-
-        selection.provisional_grade = teacher_pg
-        selection.save!
-
-        @submission.add_comment(:author => @ta, :comment => 'other provisional comment', :provisional => true)
-        ta_pg = @submission.provisional_grade(@ta)
-        ta_pg.update_attribute(:score, 3)
-        @association.assess(
-          :user => @student, :assessor => @ta, :artifact => ta_pg,
-          :assessment => {
-            :assessment_type => 'grading',
-            :criterion_crit1 => {
-              :points => 3,
-              :comments => 'a comment',
-            }
-          })
-
-        @other_student = user(:active_all => true)
-        student_in_course(:course => @course, :user => @other_student, :active_all => true)
-      end
-
-      it "should return submission comments with null provisional grade" do
-        course_with_ta :course => @course, :active_all => true
-        json = @assignment.speed_grader_json(@ta, :grading_role => :provisional_grader)
-        expect(json['submissions'][0]['submission_comments'].map { |comment| comment['comment'] }).to match_array ['real comment']
-      end
-
-      describe "for provisional grader" do
-        before(:once) do
-          @json = @assignment.speed_grader_json(@ta, :grading_role => :provisional_grader)
-        end
-
-        it "should include only the grader's provisional grades" do
-          expect(@json['submissions'][0]['score']).to eq 3
-          expect(@json['submissions'][0]['provisional_grades']).to be_nil
-        end
-
-        it "should include only the grader's provisional comments (and the real ones)" do
-          expect(@json['submissions'][0]['submission_comments'].map { |comment| comment['comment'] }).to match_array ['other provisional comment', 'real comment']
-        end
-
-        it "should only include the grader's provisional rubric assessments" do
-          ras = @json['context']['students'][0]['rubric_assessments']
-          expect(ras.count).to eq 1
-          expect(ras[0]['assessor_id']).to eq @ta.id
-        end
-
-        it "should determine whether the student needs a provisional grade" do
-          expect(@json['context']['students'][0]['needs_provisional_grade']).to be_falsey
-          expect(@json['context']['students'][1]['needs_provisional_grade']).to be_truthy # other student
-        end
-      end
-
-      describe "for moderator" do
-        before(:once) do
-          @json = @assignment.speed_grader_json(@teacher, :grading_role => :moderator)
-        end
-
-        it "should include the moderator's provisional grades and comments" do
-          expect(@json['submissions'][0]['score']).to eq 2
-          expect(@json['submissions'][0]['submission_comments'].map { |comment| comment['comment'] }).to match_array ['provisional comment', 'real comment']
-        end
-
-        it "should include the moderator's provisional rubric assessments" do
-          ras = @json['context']['students'][0]['rubric_assessments']
-          expect(ras.count).to eq 1
-          expect(ras[0]['assessor_id']).to eq @teacher.id
-        end
-
-        it "should list all provisional grades" do
-          pgs = @json['submissions'][0]['provisional_grades']
-          expect(pgs.size).to eq 2
-          expect(pgs.map { |pg| [pg['score'], pg['scorer_id'], pg['submission_comments'].map{|c| c['comment']}.sort] }).to match_array(
-            [
-              [2.0, @teacher.id, ["provisional comment", "real comment"]],
-              [3.0, @ta.id, ["other provisional comment", "real comment"]]
-            ]
-          )
-        end
-
-        it "should include all the other provisional rubric assessments in their respective grades" do
-          ta_pras = @json['submissions'][0]['provisional_grades'][1]['rubric_assessments']
-          expect(ta_pras.count).to eq 1
-          expect(ta_pras[0]['assessor_id']).to eq @ta.id
-        end
-
-        it "should include whether the provisional grade is selected" do
-          expect(@json['submissions'][0]['provisional_grades'][0]['selected']).to be_truthy
-          expect(@json['submissions'][0]['provisional_grades'][1]['selected']).to be_falsey
-        end
-      end
-
     end
   end
 
@@ -3482,27 +3217,31 @@ describe Assignment do
     context "when the student is in a group" do
       let!(:create_a_group_with_a_submitted_assignment) {
         setup_assignment_with_group
-        @assignment.submit_homework(@u1,
-                                    submission_type: "online_text_entry",
-                                    body: "Some text for you")
+        @assignment.submit_homework(
+          @u1,
+          submission_type: "online_text_entry",
+          body: "Some text for you"
+        )
       }
 
       context "when a comment is submitted" do
         let(:update_assignment_with_comment) {
-          @assignment.update_submission @u2,
-                                        "comment" => "WAT?",
-                                        "group_comment" => true,
-                                        user_id: @course.teachers.first.id
+          @assignment.update_submission(
+            @u2,
+            comment:  "WAT?",
+            group_comment: true,
+            user_id: @course.teachers.first.id
+          )
         }
 
         it "returns an Array" do
-          expect(update_assignment_with_comment.class).to eq Array
+          expect(update_assignment_with_comment).to be_an_instance_of Array
         end
 
         it "creates a comment for each student in the group" do
           expect {
             update_assignment_with_comment
-          }.to change{SubmissionComment.count}.by(@u1.groups.first.users.count)
+          }.to change{ SubmissionComment.count }.by(@u1.groups.first.users.count)
         end
 
         it "creates comments with the same group_comment_id" do
@@ -3820,7 +3559,7 @@ end
 
 def setup_differentiated_assignments(opts={})
   if !opts[:course]
-    course_with_teacher(active_all: true, differentiated_assignments: true)
+    course_with_teacher(active_all: true)
   end
 
   @section1 = @course.course_sections.create!(name: 'Section One')

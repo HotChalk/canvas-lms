@@ -28,7 +28,6 @@ require [
   assignmentGroupSelector = new AssignmentGroupSelector
     parentModel: assignment
     assignmentGroups: ENV?.ASSIGNMENT_GROUPS || []
-    basePrefix: 'assignment'
   gradingTypeSelector = new GradingTypeSelector
     parentModel: assignment
   groupCategorySelector = new GroupCategorySelector
@@ -37,9 +36,15 @@ require [
   peerReviewsSelector = new PeerReviewsSelector
     parentModel: assignment
 
+  headerEl = if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED
+      '#edit_assignment_header-cr'
+    else
+      '#edit_assignment_header'
+
   editHeaderView = new EditHeaderView
-    el: '#edit_assignment_header'
+    el: headerEl
     model: assignment
+  editHeaderView.render()
 
   editView = new EditView
     el: '#edit_assignment_form'
@@ -52,6 +57,4 @@ require [
       'js-assignment-overrides': new OverrideView
         model: dueDateList
         views: {}
-
-  editHeaderView.render()
   editView.render()
