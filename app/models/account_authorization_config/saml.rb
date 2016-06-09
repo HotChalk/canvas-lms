@@ -37,6 +37,7 @@ class AccountAuthorizationConfig::SAML < AccountAuthorizationConfig::Delegated
       :log_out_url,
       :requested_authn_context,
       :certificate_fingerprint,
+      :certificate_text,
       :identifier_format,
       :login_attribute,
       :idp_entity_id,
@@ -94,6 +95,7 @@ class AccountAuthorizationConfig::SAML < AccountAuthorizationConfig::Delegated
       @saml_settings.idp_sso_target_url = self.log_in_url
       @saml_settings.idp_slo_target_url = self.log_out_url
       @saml_settings.idp_cert_fingerprint = self.certificate_fingerprint
+      @saml_settings.idp_cert = self.certificate_text
       @saml_settings.name_identifier_format = self.identifier_format
       @saml_settings.requested_authn_context = self.requested_authn_context
       @saml_settings.logger = logger
