@@ -107,11 +107,11 @@ class AccountAuthorizationConfig::SAML < AccountAuthorizationConfig::Delegated
     domains = HostUrl.context_hosts(account, current_host)
 
     settings = Onelogin::Saml::Settings.new
-    settings.sp_slo_url = "#{HostUrl.protocol}://#{domains.first}/login/saml/logout"
+    settings.sp_slo_url = "#{HostUrl.protocol}://#{domains.first}/login/saml/logout?account_id=#{account.id}"
     settings.assertion_consumer_service_url = domains.flat_map do |domain|
       [
-        "#{HostUrl.protocol}://#{domain}/saml_consume",
-        "#{HostUrl.protocol}://#{domain}/login/saml"
+        "#{HostUrl.protocol}://#{domain}/saml_consume?account_id=#{account.id}",
+        "#{HostUrl.protocol}://#{domain}/login/saml?account_id=#{account.id}"
       ]
     end
     settings.tech_contact_name = app_config[:tech_contact_name] || 'Webmaster'

@@ -946,7 +946,16 @@ class AccountsController < ApplicationController
   end
   protected :build_course_stats
 
+  def load_root_account(account_id)
+    if account_id.present? && (account = Account.find(account_id))
+      @domain_root_account = account
+    end
+  end
+  protected :load_root_account
+
   def saml_meta_data
+    load_root_account(params[:account_id])
+
     # This needs to be publicly available since external SAML
     # servers need to be able to access it without being authenticated.
     # It is used to disclose our SAML configuration settings.

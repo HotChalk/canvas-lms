@@ -42,16 +42,18 @@
             <input type="hidden" name="account_id" value="<%= params[:pseudonym_session].try(:[], :account_id) %>"/>
             <div class="ic-Form-control ic-Form-control--login">
               <%= f.label :unique_id, login_handle_name, :class => "ic-Label" %>
-              <%= f.text_field :unique_id, :class => "ic-Input text", :value => params[:pseudonym_session].try(:[], :unique_id), :autofocus => !params[:previewing_from_themeeditor] && @auth_url.blank?, :disabled => @auth_url.present? %>
+              <%= f.text_field :unique_id, :class => "ic-Input text", :value => params[:pseudonym_session].try(:[], :unique_id), :autofocus => !params[:previewing_from_themeeditor] && @is_prelogin, :readonly => (@is_prelogin ? false : "readonly" ) %>
             </div>
             <% unless @is_prelogin %>
               <% if @auth_url.present? %>
-                <label class="ic-Label"><%= t('Click below to login:') %></label>
-                <a id="external_login_link" href="<%= @auth_url %>"><%= @auth_label %></a>
+                <div class="ic-Form-control ic-Form-control--login">
+                  <label class="ic-Label"><%= t('Click below to login:') %></label>
+                  <a id="external_login_link" href="<%= @auth_url %>"><%= @auth_label %></a>
+                </div>
               <% else %>
                 <div class="ic-Form-control ic-Form-control--login">
                   <%= f.label :password, :en => "Password", :class => "ic-Label" %>
-                  <%= f.password_field :password, :class => "ic-Input text" %>
+                  <%= f.password_field :password, :class => "ic-Input text", :autofocus => !@is_prelogin %>
                 </div>
               <% end %>
             <% end %>
@@ -63,10 +65,7 @@
                 <% end %>
 
                 <div class="ic-Login__forgot">
-                  <% if @is_prelogin %>
-                    <% url = "https://embersupport.zendesk.com/hc/en-us/articles/203207245-Click-here-for-login-support" %>
-                    <%= link_to t('need_help', "Need help logging in?"), url, :class => "ic-Login__link not_external", :target => "_blank" %>
-                  <% elsif @auth_url.blank? %>
+                  <% if @is_prelogin || @auth_url.blank? %>
                     <%= render "login/canvas/forgot_password_link" %>
                   <% end %>
                 </div>

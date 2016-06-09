@@ -640,7 +640,16 @@ module ApplicationHelper
   end
 
   def support_url
-    Account.default.settings[:help_link].blank? ? Account::HELP_LINK_DEFAULT : Account.default.settings[:help_link]
+    if @context
+      if @context.is_a?(UserProfile)
+        account = @current_pseudonym.account
+      else
+        account = (@context.is_a?(Account)) ? @context : @context.try(:account)
+      end
+      account_link = account.nil? ? Account::HELP_LINK_DEFAULT : (account.settings[:help_link].blank? ? Account::HELP_LINK_DEFAULT : account.settings[:help_link])
+    else
+      account_link = Account::HELP_LINK_DEFAULT
+    end
   end
 
   def help_link_url
