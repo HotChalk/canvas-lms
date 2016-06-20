@@ -19,7 +19,9 @@
   </li>
 </ul>
 <ul style="font-size: 0.8em;line-height: 1.85em; font-style: italic; margin-left: 10px;" id="section_list_manage">
-  <li style="display: none;" class="add_section"><button type="button" class="Button Button--link add_section_link no-hover icon-add"><%= t("Add Section") %></button></li>
+  <li style="display: none;" class="add_section">
+    <button class="Button Button--link add_section_link" title="<%= t("Add Section") %>"><i class="icon-add standalone-icon" aria-hidden="true"></i><%= t("Add Section") %></button>
+  </li>
   <li style="display: none;">
     <a href="<%= eportfolio_categories_path(@portfolio) %>" class="add_section_url"></a>
     <a href="<%= eportfolio_reorder_categories_path(@portfolio.id) %>" class="reorder_sections_url"></a>
