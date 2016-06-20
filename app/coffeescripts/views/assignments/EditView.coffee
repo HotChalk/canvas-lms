@@ -267,7 +267,7 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
         data.post_to_sis = false      
       # verify students overrides
       _result_check = @verifyOverrides()
-      if ENV.SECTION_LIST.length == @getSectionsOverrides().length and _result_check
+      if ENV.SECTION_LIST.length > 0 and ENV.SECTION_LIST.length == @getSectionsOverrides().length and _result_check
         data.lock_at = @dueDateOverrideView.getOverrides()[0]['lock_at']
         data.unlock_at = @dueDateOverrideView.getOverrides()[0]['unlock_at']
         data.due_at = @dueDateOverrideView.getOverrides()[0]['due_at']
