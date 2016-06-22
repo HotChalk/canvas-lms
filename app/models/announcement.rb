@@ -78,7 +78,7 @@ class Announcement < DiscussionTopic
     given { |user| self.user.present? && self.user == user }
     can :update and can :reply and can :read
 
-    given { |user| self.user.present? && self.user == user && self.discussion_entries.active.empty? }
+    given { |user| self.user.present? && self.user == user }
     can :delete
 
     given do |user|
