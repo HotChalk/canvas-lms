@@ -747,4 +747,105 @@ describe Login::SamlController do
     expect(response).to redirect_to(dashboard_url(:login_success => 1))
     expect(session[:saml_unique_id]).to eq unique_id
   end
+
+  it "should decode an actual saml response using certificate text" do
+    unique_id = 'max.leon@presidio.edu'
+
+    account_with_saml
+
+    @aac = @account.authentication_providers.first
+    @aac.idp_entity_id = 'http://phpsite/simplesaml/saml2/idp/metadata.php'
+    @aac.login_attribute = 'nameid'
+    @aac.certificate_text = <<-CERT
+-----BEGIN CERTIFICATE-----
+MIIERTCCAy2gAwIBAgIJAKjYyCU9/ZbsMA0GCSqGSIb3DQEBBQUAMHQxCzAJBgNV
+BAYTAlVTMQswCQYDVQQIEwJJRDEPMA0GA1UEBxMGTW9zY293MRMwEQYDVQQKEwpQ
+b3B1bGkgSW5jMRIwEAYDVQQDEwlwb3B1bGkuY28xHjAcBgkqhkiG9w0BCQEWD2ph
+bWVzQHBvcHVsaS5jbzAeFw0xNDAxMTUxODI4MDFaFw0yNDAxMTUxODI4MDFaMHQx
+CzAJBgNVBAYTAlVTMQswCQYDVQQIEwJJRDEPMA0GA1UEBxMGTW9zY293MRMwEQYD
+VQQKEwpQb3B1bGkgSW5jMRIwEAYDVQQDEwlwb3B1bGkuY28xHjAcBgkqhkiG9w0B
+CQEWD2phbWVzQHBvcHVsaS5jbzCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
+ggEBAN5ubDPuF6p5/81CKExS7NayhMO9xsVWfFR8zGAKVayDhgP7DwQUM+fs8MxI
+JFXa2Zu3YYiWbwuVYaa1DVNOMJ4Jr/wy2DtxYO5q83LmZDC26LgaqthBh96ETTy4
+Bo1vBnXufjJZ7bmYidHb87fu89+c8SrCJHShaPUkWi2qrjcx1ybhpKy1GUwLtE8/
+t5SItc//KklGsGi6qe0LswRM8pfSw+6moR4tZxGzcn7cxCy/pBFv8Xsq/4wtCA7h
+2+ED336EpfOtxG7tOcC2GfKkykjk3JzPe9IfC+2O3oj25dv07lU9kQSfLc6GYYgY
+QExHN3a2RJ6uQYHuoicVR3u8iwcCAwEAAaOB2TCB1jAdBgNVHQ4EFgQUihk0243g
+SiflxW5AJV3O7HxMSvUwgaYGA1UdIwSBnjCBm4AUihk0243gSiflxW5AJV3O7HxM
+SvWheKR2MHQxCzAJBgNVBAYTAlVTMQswCQYDVQQIEwJJRDEPMA0GA1UEBxMGTW9z
+Y293MRMwEQYDVQQKEwpQb3B1bGkgSW5jMRIwEAYDVQQDEwlwb3B1bGkuY28xHjAc
+BgkqhkiG9w0BCQEWD2phbWVzQHBvcHVsaS5jb4IJAKjYyCU9/ZbsMAwGA1UdEwQF
+MAMBAf8wDQYJKoZIhvcNAQEFBQADggEBADRdwvghXbBa7L7waRf0MO5CVnbaNgsR
+treSxCwk9JxtJQGRJ55ABEawtX+vpCUhNee6QgInMSY6MCszMTspJ1N+388Iho1e
+BRxEnyJQ7VfzwX43+wJ4lzTUyt2JXFg1URLHKQyk78Fo8fQcu2yaO9umVx8QrsrF
+5qmVJGeCB03yFZ2+RhcPU1YuA5ZZUeGjTP/w49hu/c6BGVlM3Dq2S4iCWs6HzpjA
+uCK+V++7KsIsN9Z5LkNwRO3Rzvits3Hr37MS3GMDJNB5P9w4hDltn777dIszc3Pu
+QEieVkZXWRftqXTXS/9iXAjAKPTF20Uu6/t1jXdHkTMxCThZ/L78dkI=
+-----END CERTIFICATE-----
+    CERT
+    @aac.save
+
+    user_with_pseudonym(:active_all => true, :username => unique_id)
+    @pseudonym.account = @account
+    @pseudonym.save!
+
+    controller.request.env['canvas.domain_root_account'] = @account
+    post :create, :SAMLResponse => <<-SAML
+        PHNhbWxwOlJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6cHJv
+        dG9jb2wiIHhtbG5zOnNhbWw9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDphc3NlcnRpb24iIElE
+        PSJfMzY2MDExZGEzZjNlYTkyOWYwNWFmZmExNmY4YjVjNjU5ZjRkZTU2NDNlIiBWZXJzaW9uPSIyLjAi
+        IElzc3VlSW5zdGFudD0iMjAxNi0wNS0yNFQyMTo0MTo0MFoiIERlc3RpbmF0aW9uPSJodHRwczovL3By
+        ZXNpZGlvLmhvdGNoYWxrZW1iZXIuY29tL3NhbWxfY29uc3VtZSIgSW5SZXNwb25zZVRvPSJjZjM1N2Zj
+        MGRkNjhjNjI5MzkxZGU2M2Y1NmY1NTk5YTMwYjQ4YTc5ZGMiPjxzYW1sOklzc3Vlcj5wb3B1bGkuY288
+        L3NhbWw6SXNzdWVyPjxkczpTaWduYXR1cmUgeG1sbnM6ZHM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAv
+        MDkveG1sZHNpZyMiPgogIDxkczpTaWduZWRJbmZvPjxkczpDYW5vbmljYWxpemF0aW9uTWV0aG9kIEFs
+        Z29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4jIi8+CiAgICA8ZHM6
+        U2lnbmF0dXJlTWV0aG9kIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2ln
+        I3JzYS1zaGExIi8+CiAgPGRzOlJlZmVyZW5jZSBVUkk9IiNfMzY2MDExZGEzZjNlYTkyOWYwNWFmZmEx
+        NmY4YjVjNjU5ZjRkZTU2NDNlIj48ZHM6VHJhbnNmb3Jtcz48ZHM6VHJhbnNmb3JtIEFsZ29yaXRobT0i
+        aHR0cDovL3d3dy53My5vcmcvMjAwMC8wOS94bWxkc2lnI2VudmVsb3BlZC1zaWduYXR1cmUiLz48ZHM6
+        VHJhbnNmb3JtIEFsZ29yaXRobT0iaHR0cDovL3d3dy53My5vcmcvMjAwMS8xMC94bWwtZXhjLWMxNG4j
+        Ii8+PC9kczpUcmFuc2Zvcm1zPjxkczpEaWdlc3RNZXRob2QgQWxnb3JpdGhtPSJodHRwOi8vd3d3Lncz
+        Lm9yZy8yMDAwLzA5L3htbGRzaWcjc2hhMSIvPjxkczpEaWdlc3RWYWx1ZT5XVGMwMXNMZVJwQWR2T2VW
+        QzdSWUJ5SEU3ODQ9PC9kczpEaWdlc3RWYWx1ZT48L2RzOlJlZmVyZW5jZT48L2RzOlNpZ25lZEluZm8+
+        PGRzOlNpZ25hdHVyZVZhbHVlPjBSeVNkM0NUMFpVWmZtNW5kR2FJYSsyakRCS1pPT1FPQTI5Y1Jkc0NG
+        ZVkybGVOc2k1bEsvbGxuT0ZuVk1aZFFuanBORk01aTJlbEowMlpRUWNWYUdqdjVqVVVTYVlSUitqcGdv
+        ei92ZTNjQUdyRmNLUUZkVjNSVGxraU5jOWdvdjhJbll2L080L2dHRSsrTmtvVUhmL0NOcjJZdDdIcWla
+        YVBlQzE5WEIxYkszRjBENGR3Q0ZPc0xQRXBRUGZHK2s3ZkRHbGd2ZE9kLytZUHNXTm55amh2UUpqOCtK
+        dmJJVENMMlY1WmJHaVB6ODNaK3JnNVFjZFMreFh5dVhmZEFhQzdFZGVrMG54RUd6eWt0R214RU1GVHJi
+        cHlpdmJYS0JyTTZYR2I4NVlvbnRqQThWMW15d0ZoRW5zU2M4b2hpcG9RdjkyeEs1aVczVmk5MW8vNTJj
+        QT09PC9kczpTaWduYXR1cmVWYWx1ZT4KPC9kczpTaWduYXR1cmU+PHNhbWxwOlN0YXR1cz48c2FtbHA6
+        U3RhdHVzQ29kZSBWYWx1ZT0idXJuOm9hc2lzOm5hbWVzOnRjOlNBTUw6Mi4wOnN0YXR1czpTdWNjZXNz
+        Ii8+PC9zYW1scDpTdGF0dXM+PHNhbWw6QXNzZXJ0aW9uIHhtbG5zOnhzaT0iaHR0cDovL3d3dy53My5v
+        cmcvMjAwMS9YTUxTY2hlbWEtaW5zdGFuY2UiIHhtbG5zOnhzPSJodHRwOi8vd3d3LnczLm9yZy8yMDAx
+        L1hNTFNjaGVtYSIgSUQ9Il9kNjViYWEyOTRkM2MxZDdkMzg4YTExZWYyYWFhYzY2NDg2MTM0NjVhM2Ii
+        IFZlcnNpb249IjIuMCIgSXNzdWVJbnN0YW50PSIyMDE2LTA1LTI0VDIxOjQxOjQwWiI+PHNhbWw6SXNz
+        dWVyPnBvcHVsaS5jbzwvc2FtbDpJc3N1ZXI+PHNhbWw6U3ViamVjdD48c2FtbDpOYW1lSUQgRm9ybWF0
+        PSJ1cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoxLjE6bmFtZWlkLWZvcm1hdDplbWFpbEFkZHJlc3MiPm1h
+        eC5sZW9uQHByZXNpZGlvLmVkdTwvc2FtbDpOYW1lSUQ+PHNhbWw6U3ViamVjdENvbmZpcm1hdGlvbiBN
+        ZXRob2Q9InVybjpvYXNpczpuYW1lczp0YzpTQU1MOjIuMDpjbTpiZWFyZXIiPjxzYW1sOlN1YmplY3RD
+        b25maXJtYXRpb25EYXRhIE5vdE9uT3JBZnRlcj0iMjAxNi0wNS0yNFQyMTo0Njo0MFoiIFJlY2lwaWVu
+        dD0iaHR0cHM6Ly9wcmVzaWRpby5ob3RjaGFsa2VtYmVyLmNvbS9zYW1sX2NvbnN1bWUiIEluUmVzcG9u
+        c2VUbz0iY2YzNTdmYzBkZDY4YzYyOTM5MWRlNjNmNTZmNTU5OWEzMGI0OGE3OWRjIi8+PC9zYW1sOlN1
+        YmplY3RDb25maXJtYXRpb24+PC9zYW1sOlN1YmplY3Q+PHNhbWw6Q29uZGl0aW9ucyBOb3RCZWZvcmU9
+        IjIwMTYtMDUtMjRUMjE6NDE6MTBaIiBOb3RPbk9yQWZ0ZXI9IjIwMTYtMDUtMjRUMjE6NDY6NDBaIj48
+        c2FtbDpBdWRpZW5jZVJlc3RyaWN0aW9uPjxzYW1sOkF1ZGllbmNlPmh0dHA6Ly9wcmVzaWRpby5ob3Rj
+        aGFsa2VtYmVyLmNvbS9zYW1sMjwvc2FtbDpBdWRpZW5jZT48L3NhbWw6QXVkaWVuY2VSZXN0cmljdGlv
+        bj48L3NhbWw6Q29uZGl0aW9ucz48c2FtbDpBdXRoblN0YXRlbWVudCBBdXRobkluc3RhbnQ9IjIwMTYt
+        MDUtMjRUMjE6NDE6NDBaIiBTZXNzaW9uSW5kZXg9Il8wODhiZjE2NDA2MTNmNDg2YmVhYjUwOTBmMjJi
+        NDBmYjU2NTMxYWVlMzAiPjxzYW1sOkF1dGhuQ29udGV4dD48c2FtbDpBdXRobkNvbnRleHRDbGFzc1Jl
+        Zj51cm46b2FzaXM6bmFtZXM6dGM6U0FNTDoyLjA6YWM6Y2xhc3NlczpQYXNzd29yZDwvc2FtbDpBdXRo
+        bkNvbnRleHRDbGFzc1JlZj48L3NhbWw6QXV0aG5Db250ZXh0Pjwvc2FtbDpBdXRoblN0YXRlbWVudD48
+        c2FtbDpBdHRyaWJ1dGVTdGF0ZW1lbnQ+PHNhbWw6QXR0cmlidXRlIE5hbWU9IkZpcnN0TmFtZSI+PHNh
+        bWw6QXR0cmlidXRlVmFsdWUgeHNpOnR5cGU9InhzOnN0cmluZyI+SG90PC9zYW1sOkF0dHJpYnV0ZVZh
+        bHVlPjwvc2FtbDpBdHRyaWJ1dGU+PHNhbWw6QXR0cmlidXRlIE5hbWU9Ikxhc3ROYW1lIj48c2FtbDpB
+        dHRyaWJ1dGVWYWx1ZSB4c2k6dHlwZT0ieHM6c3RyaW5nIj5UZXN0PC9zYW1sOkF0dHJpYnV0ZVZhbHVl
+        Pjwvc2FtbDpBdHRyaWJ1dGU+PHNhbWw6QXR0cmlidXRlIE5hbWU9IkVtYWlsIj48c2FtbDpBdHRyaWJ1
+        dGVWYWx1ZSB4c2k6dHlwZT0ieHM6c3RyaW5nIj5tYXhsZW9ucHJlc2lkaW9lZHU8L3NhbWw6QXR0cmli
+        dXRlVmFsdWU+PC9zYW1sOkF0dHJpYnV0ZT48L3NhbWw6QXR0cmlidXRlU3RhdGVtZW50Pjwvc2FtbDpB
+        c3NlcnRpb24+PC9zYW1scDpSZXNwb25zZT4=
+    SAML
+    expect(response).to redirect_to(dashboard_url(:login_success => 1))
+    expect(session[:saml_unique_id]).to eq unique_id
+  end
 end

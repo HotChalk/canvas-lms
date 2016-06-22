@@ -25,7 +25,7 @@ describe "AuthenticationProviders API", type: :request do
     @account.authentication_providers.scope.delete_all
     @account.account_users.create!(user: @user)
     @cas_hash = {"auth_type" => "cas", "auth_base" => "127.0.0.1"}
-    @saml_hash = {'auth_type' => 'saml', 'idp_entity_id' => 'http://example.com/saml1', 'log_in_url' => 'http://example.com/saml1/sli', 'log_out_url' => 'http://example.com/saml1/slo', 'certificate_fingerprint' => '111222', 'identifier_format' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'}
+    @saml_hash = {'auth_type' => 'saml', 'idp_entity_id' => 'http://example.com/saml1', 'log_in_url' => 'http://example.com/saml1/sli', 'log_out_url' => 'http://example.com/saml1/slo', 'certificate_fingerprint' => '111222', 'certificate_text' => 'test_text', 'identifier_format' => 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'}
     @ldap_hash = {'auth_type' => 'ldap', 'auth_host' => '127.0.0.1', 'auth_filter' => 'filter1', 'auth_username' => 'username1', 'auth_password' => 'password1'}
   end
 
@@ -73,6 +73,7 @@ describe "AuthenticationProviders API", type: :request do
       expect(aac.log_in_url).to eq 'http://example.com/saml1/sli'
       expect(aac.log_out_url).to eq 'http://example.com/saml1/slo'
       expect(aac.certificate_fingerprint).to eq '111222'
+      expect(aac.certificate_text).to eq 'test_text'
       expect(aac.identifier_format).to eq 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress'
       expect(aac.position).to eq 1
     end
@@ -186,7 +187,7 @@ describe "AuthenticationProviders API", type: :request do
       @saml_hash['id'] = aac.id
       @saml_hash['position'] = 1
       @saml_hash['login_handle_name'] = nil
-      @saml_hash['change_password_url'] = nil
+      @saml_hash['change_password_url'] = "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support"
       @saml_hash['requested_authn_context'] = nil
       @saml_hash['login_attribute'] = 'nameid'
       @saml_hash['unknown_user_url'] = nil
