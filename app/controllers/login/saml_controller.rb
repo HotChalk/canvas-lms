@@ -77,7 +77,7 @@ class Login::SamlController < ApplicationController
     if aac.login_attribute == 'nameid'
       unique_id = response.name_id
     elsif aac.login_attribute == 'eduPersonPrincipalName'
-      unique_id = response.saml_attributes["eduPersonPrincipalName"]
+      unique_id = response.saml_attributes["eduPersonPrincipalName"] || response.saml_attributes["uid"]
     elsif aac.login_attribute == 'eduPersonPrincipalName_stripped'
       unique_id = response.saml_attributes["eduPersonPrincipalName"]
       unique_id = unique_id.split('@', 2)[0] if unique_id
