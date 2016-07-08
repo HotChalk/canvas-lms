@@ -4,20 +4,27 @@ describe SectionSplitter do
   before :once do
     @admin_user = account_admin_user
 
-    course({:course_name => "Course 1"})
+    @source_course = course({:course_name => "Course 1"})
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
     end
 
     # Student and teacher enrollments
-    @all_sections_teacher = user
+    @all_sections_teacher = user({:name => "All Sections Teacher"})
     @sections.each do |section|
-      section[:self] = add_section section[:name]
+      add_section section[:name]
+      section[:self] = @source_course.course_sections.find {|s| s.name == section[:name]}
       section[:teachers] = [teacher_in_section(@course_section, {:user => @all_sections_teacher})]
-      section[:teachers] << teacher_in_section(@course_section)
-      5.times do
+      teacher = teacher_in_section(@course_section)
+      teacher.name = "#{section[:name]} Teacher"
+      teacher.save!
+      section[:teachers] << teacher
+      5.times do |i|
         section[:students] ||= []
-        section[:students] << student_in_section(@course_section)
+        student = student_in_section(@course_section)
+        student.name = "#{section[:name]} Student#{i}"
+        student.save!
+        section[:students] << student
       end
     end
 
@@ -33,20 +40,20 @@ describe SectionSplitter do
 
     # Invoke procedure
     splitter = SectionSplitter.new
-    splitter.perform({:course => @course})
+    splitter.run({:course => @source_course})
   end
 
   def create_announcements
-    @context = @course
+    @context = @source_course
     @all_sections_announcement = announcement_model({:title => "All Sections Announcement"})
     @section1_announcement = announcement_model({:title => "Section 1 Announcement"})
-    create_section_override_for_assignment(@a, {:course_section => sections[0][:self]})
+    create_section_override_for_assignment(@a, {:course_section => @sections[0][:self]})
   end
 
   def create_assignments
     @all_sections_assignment = assignment_model({:title => "All Sections Assignment"})
     @section2_assignment = announcement_model({:title => "Section 2 Announcement"})
-    create_section_override_for_assignment(@section2_assignment, {:course_section => sections[1][:self]})
+    create_section_override_for_assignment(@section2_assignment, {:course_section => @sections[1][:self]})
   end
 
   # Discussion topics structure is as follows:
@@ -66,25 +73,26 @@ describe SectionSplitter do
   # |   +--- @s3_root_1: Reply by section 3 student
   # |   +--- @s3_root_2: Reply by all-sections teacher
   def create_discussion_topics
-    @all_sections_topic = @course.discussion_topics.create!(:title => "all sections topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
-    @as_root_as_1 = @topic.reply_from(:user => @all_sections_teacher, :html => "all sections")
-    @as_root_s1_1 = @topic.reply_from(:user => @sections[0][:students][0], :html => "section 1")
-    @as_root_s2_1 = @topic.reply_from(:user => @sections[1][:students][0], :html => "section 2")
+    @all_sections_topic = @source_course.discussion_topics.create!(:title => "all sections topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @all_sections_topic.reload
+    @as_root_as_1 = @all_sections_topic.reply_from(:user => @all_sections_teacher, :html => "all sections")
+    @as_root_s1_1 = @all_sections_topic.reply_from(:user => @sections[0][:students][0], :html => "section 1")
+    @as_root_s2_1 = @all_sections_topic.reply_from(:user => @sections[1][:students][0], :html => "section 2")
     @as_root_as_1_reply1 = @as_root_as_1.reply_from(:user => @sections[0][:students][0], :html => "section 1 reply")
     @as_root_as_1_reply2 = @as_root_as_1.reply_from(:user => @sections[1][:students][0], :html => "section 2 reply")
-    @as_root_s1_1_reply1_attachment = attachment_model(:context => @course)
+    @as_root_s1_1_reply1_attachment = attachment_model(:context => @source_course)
     @as_root_s1_1_reply1 = @as_root_s1_1.reply_from(:user => @sections[0][:students][1], :html => <<-HTML)
-    <p><a href="/courses/#{@course.id}/files/#{@as_root_s1_1_reply1_attachment.id}/download">This is a file link</a></p>
+    <p><a href="/courses/#{@source_course.id}/files/#{@as_root_s1_1_reply1_attachment.id}/download">This is a file link</a></p>
     HTML
     @as_root_s2_1_reply1 = @as_root_s2_1.reply_from(:user => @sections[1][:students][1], :html => "section 2 reply reply")
     @as_root_s2_1_reply1.update_attribute(:attachment, attachment_model)
 
-    @section1_topic = @course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @section1_topic = @source_course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     create_section_override_for_assignment(@section1_topic, {:course_section => @sections[0][:self]})
     @s1_root_1 = @section1_topic.reply_from(:user => @sections[0][:students][2], :html => "section 1")
     @s1_root_2 = @section1_topic.reply_from(:user => @sections[0][:teachers][1], :html => "section 1")
 
-    @section3_topic = @course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @section3_topic = @source_course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     create_section_override_for_assignment(@section3_topic, {:course_section => @sections[2][:self]})
     @s3_root_1 = @section3_topic.reply_from(:user => @sections[2][:students][0], :html => "section 3")
     @s3_root_2 = @section3_topic.reply_from(:user => @all_sections_teacher, :html => "section 3")
@@ -97,29 +105,29 @@ describe SectionSplitter do
   end
 
   def create_quizzes
-    @all_sections_quiz = quiz_model({:course => @course, :title => "All Sections Quiz"})
-    @section3_quiz = quiz_model({:course => @course, :title => "Section 3 Quiz"})
-    create_section_override_for_assignment(@section3_quiz, {:course_section => sections[2][:self]})
+    @all_sections_quiz = quiz_model({:course => @source_course, :title => "All Sections Quiz"})
+    @section3_quiz = quiz_model({:course => @source_course, :title => "Section 3 Quiz"})
+    create_section_override_for_assignment(@section3_quiz, {:course_section => @sections[2][:self]})
   end
 
   def create_wiki_pages
-    @wiki_page1 = wiki_page_model({:course => @course, :title => "Page 1", :html => <<-HTML})
+    @wiki_page1 = wiki_page_model({:course => @source_course, :title => "Page 1", :html => <<-HTML})
       <p>
-        <a href="/courses/#{@course.id}/announcements">Announcements</a>
+        <a href="/courses/#{@source_course.id}/announcements">Announcements</a>
         <br />
-        <a href="/courses/#{@course.id}/discussion_topics/#{@all_sections_topic.id}">All Sections Topic</a>
+        <a href="/courses/#{@source_course.id}/discussion_topics/#{@all_sections_topic.id}">All Sections Topic</a>
       </p>
     HTML
-    @wiki_page2 = wiki_page_model({:course => @course, :title => "Page 2", :html => <<-HTML})
-      <p><a href="/courses/#{@course.id}/pages/page-1">This links to Page 1.</a></p>
+    @wiki_page2 = wiki_page_model({:course => @source_course, :title => "Page 2", :html => <<-HTML})
+      <p><a href="/courses/#{@source_course.id}/pages/page-1">This links to Page 1.</a></p>
     HTML
   end
 
   def create_submissions
-    submission_model({:course => @course, :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
-    submission_model({:course => @course, :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
-    submission_model({:course => @course, :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
-    submission_model({:course => @course, :assignment => @section2_assignment, :user => @sections[1][:students][0]})
+    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
+    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
+    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
+    submission_model({:course => @source_course, :assignment => @section2_assignment, :user => @sections[1][:students][0]})
   end
 
   it "should create a new course shell per section" do
