@@ -652,6 +652,36 @@ module ApplicationHelper
     end
   end
 
+  def help_default
+    help_option = {
+        :title => "Ember Support",
+        :url => Account::HELP_LINK_DEFAULT,
+        :description => "Browse Help Topics",
+        :x_id => "",
+        :x_classes => "",
+        :javascript_txt => ""
+    }
+    options = []
+    options.push(help_option)
+  end
+
+  def support_url2
+    if @context
+      if @context.is_a?(UserProfile)
+        account = @current_pseudonym.account
+      else
+        account = (@context.is_a?(Account)) ? @context : @context.try(:account)
+      end
+      account_link = account.nil? ? help_default : (account.settings[:help_setup_links].blank? ? help_default : account.settings[:help_setup_links])
+    else
+      account_link = help_default
+    end
+  end
+
+  def help_link_url2
+    support_url2
+  end
+
   def help_link_url
     support_url || '#'
   end
