@@ -221,6 +221,14 @@ class Message < ActiveRecord::Base
     end
   end
 
+  def check_nil_empty?(obj)
+    result = false
+    if obj.nil? || obj.to_s.empty?
+      result = true
+    end
+    result
+  end
+
   # Public: Helper to generate a URI for the given subject. Overrides Rails'
   # built-in ActionController::PolymorphicRoutes#polymorphic_url method because
   # it forces option defaults for protocol and host.
