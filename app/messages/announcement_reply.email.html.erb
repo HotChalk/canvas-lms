@@ -33,13 +33,15 @@
               <b><%= author_short_name%></b>
             </td>
           </tr>
+          <%unless check_nil_empty?(author_email_address) %>
           <tr>
             <td valign="top" align="left">
               <a href="mailto:<%= author_email_address %>">
                 <%= author_email_address%>
               </a>
             </td>
-          </tr>
+          </tr>  
+          <% end %>
         </table>
       </td>
     </tr>
@@ -49,9 +51,11 @@
   <p>
     <b><%= author_short_name%></b>
     <br/>
+    <%unless check_nil_empty?(author_email_address) %>
     <a href="mailto:<%= author_email_address %>">
       <%= author_email_address%>
     </a>
+    <% end %>
   </p>
 <% end %>
 
