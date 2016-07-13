@@ -7,6 +7,9 @@ namespace :canvas do
       options = {}
       OptionParser.new(args) do |opts|
         opts.banner = "Usage: rake canvas:section_splitter:split [options]"
+        opts.on("-u", "--user {user ID}", "User ID (needs admin privileges)", Integer) do |user_id|
+          options[:user_id] = user_id
+        end
         opts.on("-c", "--course {course ID}", "Single course ID", Integer) do |course_id|
           options[:course_id] = course_id
         end

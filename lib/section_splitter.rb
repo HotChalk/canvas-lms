@@ -1,50 +1,53 @@
 class SectionSplitter
   def self.run(opts)
+    result = []
+    user = opts[:user_id] && User.find(opts[:user_id])
+    raise "User ID not provided or user not found" unless user
     if opts[:course_id]
       course = Course.find(opts[:course_id])
       raise "Course not found: #{opts[:course_id]}" unless course.present?
-      self.process_course(course, opts)
+      result += self.process_course(user, course, opts)
     end
     if opts[:account_id]
       account = Account.find(opts[:account_id])
       raise "Account not found: #{opts[:account_id]}" unless account.present?
       account.all_courses.each do |course|
-        self.process_course(course, otps)
+        result += self.process_course(user, course, opts)
       end
     end
+    result
   end
 
-  def self.process_course(course, opts)
+  def self.process_course(user, course, opts)
     # Sanity check
     return unless course
     unless course.active_course_sections.length > 1
-      self.say("Skipping course #{course.id}: not a multi-section course")
+      Rails.logger.info "Skipping course #{course.id}: not a multi-section course"
       return
     end
 
-    self.say("Splitting course #{course.id} [#{course.title}]...")
-    self.create_shells(course)
-  end
-
-  def self.create_shells(source_course)
+    Rails.logger.info "Splitting course #{course.id} [#{course.name}]..."
     args = {
-      :name => source_course.name,
-      :enrollment_term => source_course.enrollment_term,
-      :abstract_course => source_course.abstract_course,
-      :account => source_course.account
+      :enrollment_term => course.enrollment_term,
+      :abstract_course => course.abstract_course,
+      :account => course.account
     }
 
-    source_course.active_course_sections.each do |source_section|
-      self.queue_course_copy(source_course, source_section, args)
-      self.queue_section_migration(source_section)
+    result = []
+    course.active_course_sections.each do |source_section|
+      target_course = self.perform_course_copy(user, course, source_section, args)
+      self.perform_section_migration(target_course, source_section)
+      result << target_course
     end
+    result
   end
 
-  def queue_course_copy(source_course, source_section, args)
+  def self.perform_course_copy(user, source_course, source_section, args)
+    args[:name] = source_section.name
     args[:course_code] = source_section.name
     target_course = source_course.account.courses.new
     target_course.attributes = args
-    target_course.workflow_state = 'claimed'
+    target_course.workflow_state = source_course.workflow_state
     target_course.save!
 
     content_migration = target_course.content_migrations.build(:user => nil, :source_course => source_course, :context => target_course, :migration_type => 'course_copy_importer', :initiated_source => :manual)
@@ -54,35 +57,35 @@ class SectionSplitter
     content_migration.migration_settings[:import_immediately] = true
     content_migration.copy_options = {:everything => true}
     content_migration.migration_settings[:migration_ids_to_import] = {:copy => {:everything => true}}
-    content_migration.workflow_state = 'importing'
-    content_migration.strand = "section_splitter:#{target_course.uuid}"
+    content_migration.user = user
     content_migration.save
-    content_migration.queue_migration
-  end
 
-  def queue_section_migration(target_course, source_section)
-    queue_opts = {:priority => Delayed::LOW_PRIORITY, :max_attempts => 1,
-                  :expires_at => expires_at, strand: "section_splitter:#{target_course.uuid}"}
+    worker = Canvas::Migration::Worker::CourseCopyWorker.new
     begin
-      job = Delayed::Job.enqueue(SectionMigrationWorker.new(self.id), queue_opts)
-    rescue NameError
+      worker.perform(content_migration)
+    rescue Exception => e
       Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
-      Rails.logger.error message
+      Rails.logger.error "Unable to perform course copy (content migration ID=#{content_migration.id}) for course ID=#{source_course.id} [#{source_course.name}]"
+      raise e
+    end
+
+    target_course.reload
+    target_course
+  end
+
+  def self.perform_section_migration(target_course, source_section)
+    worker = SectionMigrationWorker.new(target_course.id, source_section.id)
+    begin
+      worker.perform
+    rescue Exception => e
+      Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
+      Rails.logger.error "Unable to migrate source section ID=#{source_section.id} to target course ID=#{target_course.id}"
     end
   end
 
-  def self.say(msg)
-    @logger = Rails.logger if defined?(Rails)
-    if @logger
-      @logger.info msg
-    else
-      puts msg
-    end
-  end
-
-  class SectionMigrationWorker < Canvas::Migration::Worker::Base
+  SectionMigrationWorker = Struct.new(:target_course_id, :source_section_id) do
     def perform
-
+      Rails.logger.info "In SectionMigrationWorker::perform[#{target_course_id},#{source_section_id}]"
     end
   end
 end

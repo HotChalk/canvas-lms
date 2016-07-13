@@ -9,6 +9,10 @@ describe SectionSplitter do
       {:index => n, :name => "Section #{n}"}
     end
 
+    # Permissions
+    @source_course.account.role_overrides.create!(permission: :post_to_forum, role: student_role, enabled: true)
+    @source_course.account.role_overrides.create!(permission: :read_forum, role: student_role, enabled: true)
+
     # Student and teacher enrollments
     @all_sections_teacher = user({:name => "All Sections Teacher"})
     @sections.each do |section|
@@ -27,6 +31,7 @@ describe SectionSplitter do
         section[:students] << student
       end
     end
+    @source_course.reload
 
     # Course content
     create_announcements
@@ -39,8 +44,7 @@ describe SectionSplitter do
     create_submissions
 
     # Invoke procedure
-    splitter = SectionSplitter.new
-    splitter.run({:course => @source_course})
+    @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id})
   end
 
   def create_announcements
@@ -51,8 +55,8 @@ describe SectionSplitter do
   end
 
   def create_assignments
-    @all_sections_assignment = assignment_model({:title => "All Sections Assignment"})
-    @section2_assignment = announcement_model({:title => "Section 2 Announcement"})
+    @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
+    @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment"})
     create_section_override_for_assignment(@section2_assignment, {:course_section => @sections[1][:self]})
   end
 
@@ -75,33 +79,44 @@ describe SectionSplitter do
   def create_discussion_topics
     @all_sections_topic = @source_course.discussion_topics.create!(:title => "all sections topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     @all_sections_topic.reload
-    @as_root_as_1 = @all_sections_topic.reply_from(:user => @all_sections_teacher, :html => "all sections")
-    @as_root_s1_1 = @all_sections_topic.reply_from(:user => @sections[0][:students][0], :html => "section 1")
-    @as_root_s2_1 = @all_sections_topic.reply_from(:user => @sections[1][:students][0], :html => "section 2")
-    @as_root_as_1_reply1 = @as_root_as_1.reply_from(:user => @sections[0][:students][0], :html => "section 1 reply")
-    @as_root_as_1_reply2 = @as_root_as_1.reply_from(:user => @sections[1][:students][0], :html => "section 2 reply")
+    @as_root_as_1 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "all sections", :discussion_topic => @all_sections_topic)
+    @as_root_as_1.save!
+    @as_root_s1_1 = DiscussionEntry.new(:user => @sections[0][:students][0], :message => "section 1", :discussion_topic => @all_sections_topic)
+    @as_root_s1_1.save!
+    @as_root_s2_1 = DiscussionEntry.new(:user => @sections[1][:students][0], :message => "section 2", :discussion_topic => @all_sections_topic)
+    @as_root_s2_1.save!
+    @as_root_as_1_reply1 = DiscussionEntry.new(:user => @sections[0][:students][0], :message => "section 1 reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_as_1)
+    @as_root_as_1_reply1.save!
+    @as_root_as_1_reply2 = DiscussionEntry.new(:user => @sections[1][:students][0], :message => "section 2 reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_as_1)
+    @as_root_as_1_reply2.save!
     @as_root_s1_1_reply1_attachment = attachment_model(:context => @source_course)
-    @as_root_s1_1_reply1 = @as_root_s1_1.reply_from(:user => @sections[0][:students][1], :html => <<-HTML)
+    @as_root_s1_1_reply1 = DiscussionEntry.new(:user => @sections[0][:students][1], :message => <<-HTML, :discussion_topic => @all_sections_topic, :parent_entry => @as_root_s1_1)
     <p><a href="/courses/#{@source_course.id}/files/#{@as_root_s1_1_reply1_attachment.id}/download">This is a file link</a></p>
     HTML
-    @as_root_s2_1_reply1 = @as_root_s2_1.reply_from(:user => @sections[1][:students][1], :html => "section 2 reply reply")
+    @as_root_s1_1_reply1.save!
+    @as_root_s2_1_reply1 = DiscussionEntry.new(:user => @sections[1][:students][1], :message => "section 2 reply reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_s2_1)
     @as_root_s2_1_reply1.update_attribute(:attachment, attachment_model)
+    @as_root_s2_1_reply1.save!
 
-    @section1_topic = @source_course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @section1_topic = @source_course.discussion_topics.create!(:title => "section 1 topi", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     create_section_override_for_assignment(@section1_topic, {:course_section => @sections[0][:self]})
-    @s1_root_1 = @section1_topic.reply_from(:user => @sections[0][:students][2], :html => "section 1")
-    @s1_root_2 = @section1_topic.reply_from(:user => @sections[0][:teachers][1], :html => "section 1")
+    @s1_root_1 = DiscussionEntry.new(:user => @sections[0][:students][2], :message => "section 1", :discussion_topic => @section1_topic)
+    @s1_root_1.save!
+    @s1_root_2 = DiscussionEntry.new(:user => @sections[0][:teachers][1], :message => "section 1", :discussion_topic => @section1_topic)
+    @s1_root_2.save!
 
-    @section3_topic = @source_course.discussion_topics.create!(:title => "title", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @section3_topic = @source_course.discussion_topics.create!(:title => "section 3 topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     create_section_override_for_assignment(@section3_topic, {:course_section => @sections[2][:self]})
-    @s3_root_1 = @section3_topic.reply_from(:user => @sections[2][:students][0], :html => "section 3")
-    @s3_root_2 = @section3_topic.reply_from(:user => @all_sections_teacher, :html => "section 3")
+    @s3_root_1 = DiscussionEntry.new(:user => @sections[2][:students][0], :message => "section 3", :discussion_topic => @section3_topic)
+    @s3_root_1.save!
+    @s3_root_2 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "section 3", :discussion_topic => @section3_topic)
+    @s3_root_2.save!
 
     @all_entries = [@as_root_as_1, @as_root_s1_1, @as_root_s2_1, @as_root_as_1_reply1, @as_root_as_1_reply2, @as_root_s1_1_reply1, @as_root_s2_1_reply1, @s1_root_1, @s1_root_2, @s3_root_1, @s3_root_2]
     @all_entries.each &:reload
     @all_sections_topic.reload
     @section1_topic.reload
-    @section2_topic.reload
+    @section3_topic.reload
   end
 
   def create_quizzes
@@ -124,57 +139,64 @@ describe SectionSplitter do
   end
 
   def create_submissions
-    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
-    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
-    submission_model({:course => @source_course, :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
-    submission_model({:course => @source_course, :assignment => @section2_assignment, :user => @sections[1][:students][0]})
+    submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
+    submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
+    submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
+    submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
   end
 
   it "should create a new course shell per section" do
     expect(@result.length).to eq 3
-    @result.each_with_index do |course, i|
-      expect(course.name).to eq "Section #{i}"
-    end
+    expect(@result.map(&:name)).to contain_exactly("Section 1", "Section 2", "Section 3")
   end
 
   context "announcements" do
     it "should transfer announcements assigned to all sections" do
       @result.each do |course|
-        expect(course.announcements).to include(@all_sections_announcement)
+        all_sections_announcement = course.announcements.find {|a| a.title == @all_sections_announcement.title }
+        expect(all_sections_announcement).to be
       end
     end
 
     it "should transfer section-specific announcements" do
-      expect(@result[0].announcements).to include(@section1_announcement)
-      expect(@result[1].announcements).not_to include(@section1_announcement)
+      section1_announcement = @result[0].announcements.find {|a| a.title == @section1_announcement.title }
+      expect(section1_announcement).to be
+      section1_announcement = @result[1].announcements.find {|a| a.title == @section1_announcement.title }
+      expect(section1_announcement).to be
     end
   end
 
   context "assignments" do
     it "should transfer assignments assigned to all sections" do
       @result.each do |course|
-        expect(course.assignments).to include(@all_sections_assignment)
+        all_sections_assignment = course.assignments.find {|a| a.title == @all_sections_assignment.title }
+        expect(all_sections_assignment).to be
       end
     end
 
     it "should transfer section-specific assignments" do
-      expect(@result[0].assignments).not_to include(@section2_assignment)
-      expect(@result[1].assignments).to include(@section2_assignment)
+      section2_assignment = @result[0].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(section2_assignment).not_to be
+      section2_assignment = @result[1].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(section2_assignment).to be
     end
   end
 
   context "discussion topics" do
     it "should transfer discussion topics assigned to all sections" do
       @result.each do |course|
-        expect(course.assignments).to include(@all_sections_topic)
+        all_sections_topic = course.discussion_topics.find {|d| d.title == @all_sections_topic.title }
+        expect(all_sections_topic).to be
       end
     end
 
     it "should transfer section-specific discussion topics" do
-      expect(@result[0].discussion_topics).to include(@section1_topic)
+      section1_topic = @result[0].discussion_topics.find {|d| d.title == @section1_topic.title }
+      expect(section1_topic).to be
       expect(@result[0].discussion_topics.length).to eq 2
       expect(@result[1].discussion_topics.length).to eq 1
-      expect(@result[2].discussion_topics).not_to include(@section3_topic)
+      section3_topic = @result[2].discussion_topics.find {|d| d.title == @section3_topic.title }
+      expect(section3_topic).not_to be
       expect(@result[2].discussion_topics.length).to eq 2
     end
   end
@@ -182,13 +204,16 @@ describe SectionSplitter do
   context "quizzes" do
     it "should transfer quizzes assigned to all sections" do
       @result.each do |course|
-        expect(course.quizzes).to include(@all_sections_quiz)
+        all_sections_quiz = course.quizzes.find {|q| q.title == @all_sections_quiz.title }
+        expect(all_sections_quiz).to be
       end
     end
 
     it "should transfer section-specific quizzes" do
-      expect(@result[0].quizzes).not_to include(@section3_quiz)
-      expect(@result[2].quizzes).to include(@section3_quiz)
+      section3_quiz = @result[0].quizzes.find {|q| q.title == @section3_quiz.title }
+      expect(section3_quiz).not_to be
+      section3_quiz = @result[2].quizzes.find {|q| q.title == @section3_quiz.title }
+      expect(section3_quiz).to be
     end
   end
 
@@ -197,7 +222,7 @@ describe SectionSplitter do
       expect(@result[1].wiki.wiki_pages.length).to eq 2
       dt1 = @result[1].discussion_topics.first
       page1 = @result[1].wiki.wiki_pages.find {|p| p.title == @wiki_page1.title }
-      expect(page1).to exist
+      expect(page1).to be
       expect(page1.body).to match "courses/#{@result[1].id}/announcements"
       expect(page1.body).to match "courses/#{@result[1].id}/discussion_topics/#{dt1.id}"
     end
