@@ -684,6 +684,16 @@ module ApplicationHelper
     end
   end
 
+  def get_resources
+    resources_data = []
+    if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links]
+      acct[:settings][:resources_links].each{|key, value|
+        data = {url:value, name: key}
+        resources_data.push(data)
+      }
+    end
+    js_env(:RESOURCES => resources_data)
+  end
 
   def active_brand_config(opts={})
     @active_brand_config_cache ||= {}

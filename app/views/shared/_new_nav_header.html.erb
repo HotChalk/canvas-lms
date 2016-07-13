@@ -104,6 +104,7 @@
               </a>
             </li>
             <% if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
+            <% get_resources %>
             <li class="menu-item ic-app-header__menu-list-item <%= ' ic-app-header__menu-list-item--active' if active_path?('/resources') %>">
               <a id="global_nav_resources_link" href="/resources" class="ic-app-header__menu-list-link">
                 <div class="menu-item-icon-container" aria-hidden="true">
