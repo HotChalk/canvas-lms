@@ -85,7 +85,82 @@ class SectionSplitter
 
   SectionMigrationWorker = Struct.new(:target_course_id, :source_section_id) do
     def perform
-      Rails.logger.info "In SectionMigrationWorker::perform[#{target_course_id},#{source_section_id}]"
+      @target_course = Course.find(target_course_id)
+      @source_section = CourseSection.find(source_section_id)
+      @source_course = @source_section.course
+
+      # Remove course content that is not available to the source section
+      clean_assignments
+      clean_quizzes
+      clean_discussion_topics
+      clean_announcements
+
+      @target_course.save!
+    end
+
+    def clean_announcements
+      clean_overridables(@target_course.announcements)
+      @target_course.reload
+    end
+
+    def clean_assignments
+      clean_overridables(@target_course.assignments)
+      @target_course.reload
+    end
+
+    def clean_discussion_topics
+      clean_overridables(@target_course.discussion_topics)
+      @target_course.reload
+    end
+
+    def clean_quizzes
+      clean_overridables(@target_course.quizzes)
+      @target_course.reload
+    end
+
+    def clean_overridables(collection)
+      to_remove = collection.map {|a| {:target => a, :source => source_model(a)}}.select {|h| remove_based_on_overrides?(h[:source])}
+      to_remove.each do |h|
+        model = h[:target]
+        if model.is_a?(DiscussionTopic)
+          DiscussionTopic::MaterializedView.for(model).destroy
+        elsif model.is_a?(Quizzes::Quiz) && model.assignment.present?
+          @target_course.assignments.delete(model.assignment)
+          model.assignment.assignment_overrides.each {|o| o.destroy_permanently!}
+          model.assignment.destroy_permanently!
+        elsif model.is_a?(Assignment) && model.quiz.present?
+          @target_course.quizzes.delete(model.quiz)
+          model.quiz.assignment_overrides.each {|o| o.destroy_permanently!}
+          model.quiz.destroy_permanently!
+        end
+        collection.delete(model)
+        model.assignment_overrides.each {|o| o.destroy_permanently!}
+        model.destroy_permanently!
+      end
+    end
+
+    def remove_based_on_overrides?(model)
+      overrides = model.active_assignment_overrides.select {|ao| ao.set_type == 'CourseSection'}
+      !overrides.empty? && !overrides.any? {|ao| ao.set_id == @source_section.id}
+    end
+
+    # Uses heuristics to locate the corresponding source content item in the source course for the given item in the target course.
+    def source_model(model)
+      source_model =
+        case model
+          when Announcement
+            @source_course.announcements.find {|a| a.workflow_state == model.workflow_state && a.title == model.title}
+          when Assignment
+            @source_course.assignments.find {|a| a.workflow_state == model.workflow_state && a.title == model.title && a.points_possible == model.points_possible}
+          when DiscussionTopic
+            @source_course.discussion_topics.find {|d| d.workflow_state == model.workflow_state && d.title == model.title}
+          when Quizzes::Quiz
+            @source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
+          else
+            nil
+        end
+      raise "Unable to find source item for [#{model.inspect}]" unless source_model
+      source_model
     end
   end
 end

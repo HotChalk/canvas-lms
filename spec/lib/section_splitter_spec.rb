@@ -45,19 +45,20 @@ describe SectionSplitter do
 
     # Invoke procedure
     @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id})
+    @result.sort_by! {|c| c.name}
   end
 
   def create_announcements
     @context = @source_course
     @all_sections_announcement = announcement_model({:title => "All Sections Announcement"})
     @section1_announcement = announcement_model({:title => "Section 1 Announcement"})
-    create_section_override_for_assignment(@a, {:course_section => @sections[0][:self]})
+    assignment_override_model({:assignment => @a, :set => @sections[0][:self]})
   end
 
   def create_assignments
     @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
     @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment"})
-    create_section_override_for_assignment(@section2_assignment, {:course_section => @sections[1][:self]})
+    assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self]})
   end
 
   # Discussion topics structure is as follows:
@@ -77,7 +78,7 @@ describe SectionSplitter do
   # |   +--- @s3_root_1: Reply by section 3 student
   # |   +--- @s3_root_2: Reply by all-sections teacher
   def create_discussion_topics
-    @all_sections_topic = @source_course.discussion_topics.create!(:title => "all sections topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    @all_sections_topic = @source_course.discussion_topics.create!(:title => "All Sections Topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     @all_sections_topic.reload
     @as_root_as_1 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "all sections", :discussion_topic => @all_sections_topic)
     @as_root_as_1.save!
@@ -98,15 +99,15 @@ describe SectionSplitter do
     @as_root_s2_1_reply1.update_attribute(:attachment, attachment_model)
     @as_root_s2_1_reply1.save!
 
-    @section1_topic = @source_course.discussion_topics.create!(:title => "section 1 topi", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
-    create_section_override_for_assignment(@section1_topic, {:course_section => @sections[0][:self]})
+    @section1_topic = @source_course.discussion_topics.create!(:title => "Section 1 Topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    assignment_override_model({:assignment => @section1_topic, :set => @sections[0][:self]})
     @s1_root_1 = DiscussionEntry.new(:user => @sections[0][:students][2], :message => "section 1", :discussion_topic => @section1_topic)
     @s1_root_1.save!
     @s1_root_2 = DiscussionEntry.new(:user => @sections[0][:teachers][1], :message => "section 1", :discussion_topic => @section1_topic)
     @s1_root_2.save!
 
-    @section3_topic = @source_course.discussion_topics.create!(:title => "section 3 topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
-    create_section_override_for_assignment(@section3_topic, {:course_section => @sections[2][:self]})
+    @section3_topic = @source_course.discussion_topics.create!(:title => "Section 3 Topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
+    assignment_override_model({:assignment => @section3_topic, :set => @sections[2][:self]})
     @s3_root_1 = DiscussionEntry.new(:user => @sections[2][:students][0], :message => "section 3", :discussion_topic => @section3_topic)
     @s3_root_1.save!
     @s3_root_2 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "section 3", :discussion_topic => @section3_topic)
@@ -120,20 +121,34 @@ describe SectionSplitter do
   end
 
   def create_quizzes
-    @all_sections_quiz = quiz_model({:course => @source_course, :title => "All Sections Quiz"})
-    @section3_quiz = quiz_model({:course => @source_course, :title => "Section 3 Quiz"})
-    create_section_override_for_assignment(@section3_quiz, {:course_section => @sections[2][:self]})
+    @all_sections_quiz_assignment = assignment_model({:course => @source_course, :title => "All Sections Quiz"})
+    @all_sections_quiz_assignment.workflow_state = "published"
+    @all_sections_quiz_assignment.submission_types = "online_quiz"
+    @all_sections_quiz_assignment.save
+    @section3_quiz_assignment = assignment_model({:course => @source_course, :title => "Section 3 Quiz"})
+    @section3_quiz_assignment.workflow_state = "published"
+    @section3_quiz_assignment.submission_types = "online_quiz"
+    @section3_quiz_assignment.save
+    @all_sections_quiz = Quizzes::Quiz.where(assignment_id: @all_sections_quiz_assignment).first
+    @all_sections_quiz.published_at = Time.zone.now
+    @all_sections_quiz.workflow_state = "available"
+    @all_sections_quiz.save!
+    @section3_quiz = Quizzes::Quiz.where(assignment_id: @section3_quiz_assignment).first
+    @section3_quiz.published_at = Time.zone.now
+    @section3_quiz.workflow_state = "available"
+    @section3_quiz.save!
+    assignment_override_model({:quiz => @section3_quiz, :set => @sections[2][:self]})
   end
 
   def create_wiki_pages
-    @wiki_page1 = wiki_page_model({:course => @source_course, :title => "Page 1", :html => <<-HTML})
+    @wiki_page1 = wiki_page_model({:course => @source_course, :title => "Page 1", :body => <<-HTML})
       <p>
         <a href="/courses/#{@source_course.id}/announcements">Announcements</a>
         <br />
         <a href="/courses/#{@source_course.id}/discussion_topics/#{@all_sections_topic.id}">All Sections Topic</a>
       </p>
     HTML
-    @wiki_page2 = wiki_page_model({:course => @source_course, :title => "Page 2", :html => <<-HTML})
+    @wiki_page2 = wiki_page_model({:course => @source_course, :title => "Page 2", :body => <<-HTML})
       <p><a href="/courses/#{@source_course.id}/pages/page-1">This links to Page 1.</a></p>
     HTML
   end
@@ -162,7 +177,7 @@ describe SectionSplitter do
       section1_announcement = @result[0].announcements.find {|a| a.title == @section1_announcement.title }
       expect(section1_announcement).to be
       section1_announcement = @result[1].announcements.find {|a| a.title == @section1_announcement.title }
-      expect(section1_announcement).to be
+      expect(section1_announcement).not_to be
     end
   end
 
@@ -193,11 +208,11 @@ describe SectionSplitter do
     it "should transfer section-specific discussion topics" do
       section1_topic = @result[0].discussion_topics.find {|d| d.title == @section1_topic.title }
       expect(section1_topic).to be
-      expect(@result[0].discussion_topics.length).to eq 2
-      expect(@result[1].discussion_topics.length).to eq 1
+      expect(@result[0].discussion_topics.length).to eq 4
+      expect(@result[1].discussion_topics.length).to eq 2
       section3_topic = @result[2].discussion_topics.find {|d| d.title == @section3_topic.title }
-      expect(section3_topic).not_to be
-      expect(@result[2].discussion_topics.length).to eq 2
+      expect(section3_topic).to be
+      expect(@result[2].discussion_topics.length).to eq 3
     end
   end
 
