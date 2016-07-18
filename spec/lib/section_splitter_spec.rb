@@ -4,7 +4,7 @@ describe SectionSplitter do
   before :once do
     @admin_user = account_admin_user
 
-    @source_course = course({:course_name => "Course 1"})
+    @source_course = course({:course_name => "Course 1", :active_course => true})
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
     end
@@ -15,19 +15,25 @@ describe SectionSplitter do
 
     # Student and teacher enrollments
     @all_sections_teacher = user({:name => "All Sections Teacher"})
+    communication_channel(@all_sections_teacher)
     @sections.each do |section|
       add_section section[:name]
       section[:self] = @source_course.course_sections.find {|s| s.name == section[:name]}
-      section[:teachers] = [teacher_in_section(@course_section, {:user => @all_sections_teacher})]
-      teacher = teacher_in_section(@course_section)
-      teacher.name = "#{section[:name]} Teacher"
-      teacher.save!
-      section[:teachers] << teacher
+      enrollment = @source_course.enroll_user(@all_sections_teacher, 'TeacherEnrollment', :section => section[:self], :allow_multiple_enrollments => true)
+      @all_sections_teacher.save!
+      enrollment.workflow_state = 'active'
+      enrollment.save!
+      section[:teachers] = [
+        @all_sections_teacher,
+        teacher_in_section(@course_section, {:user => user({:name => "#{section[:name]} Teacher"})}),
+      ]
+      communication_channel(section[:teachers][1])
       5.times do |i|
         section[:students] ||= []
         student = student_in_section(@course_section)
         student.name = "#{section[:name]} Student#{i}"
         student.save!
+        communication_channel(student)
         section[:students] << student
       end
     end
@@ -42,6 +48,7 @@ describe SectionSplitter do
 
     # User-generated data
     create_submissions
+    create_messages
 
     # Invoke procedure
     @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id})
@@ -157,7 +164,23 @@ describe SectionSplitter do
     submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
-    submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
+    @section2_assignment1_submission = submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
+    submission_comment_model({:submission => @section2_assignment1_submission, :author => @sections[1][:teachers][1]})
+  end
+
+  def create_messages
+    from = @sections[0][:students][0].communication_channels.first
+    to = @sections[0][:students][1].communication_channels.first
+    message = to.messages.build(
+      :subject => "Hi",
+      :to => to.path,
+      :from => from.path,
+      :user => @sections[0][:students][0],
+      :context => @source_course,
+      :asset_context => @source_course
+    )
+    # message.parse!
+    message.save
   end
 
   it "should create a new course shell per section" do
@@ -247,6 +270,28 @@ describe SectionSplitter do
     it "should transfer submissions" do
       expect(@result[0].submissions.length).to eq 1
       expect(@result[1].submissions.length).to eq 3
+    end
+
+    it "should transfer submission comments" do
+      comment = SubmissionComment.where(:author => @sections[1][:teachers][1]).first
+      expect(comment).to be
+      expect(comment.context).to eq(@result[1])
+    end
+  end
+
+  context "enrollments" do
+    it "should transfer enrollments" do
+      @result.each do |course|
+        expect(course.enrollments.length).to eq 7
+        expect(course.teacher_enrollments.length).to eq 2
+        expect(course.student_enrollments.length).to eq 5
+      end
+    end
+  end
+
+  context "messages" do
+    it "should transfer messages" do
+      expect(@result[0].messages.length).to eq 1
     end
   end
 end

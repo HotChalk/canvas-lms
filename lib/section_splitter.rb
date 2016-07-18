@@ -95,6 +95,12 @@ class SectionSplitter
       clean_discussion_topics
       clean_announcements
 
+      # Migrate user data
+      migrate_section
+      migrate_enrollments
+      migrate_submissions
+      migrate_quiz_submissions
+      migrate_messages
       @target_course.save!
     end
 
@@ -119,7 +125,7 @@ class SectionSplitter
     end
 
     def clean_overridables(collection)
-      to_remove = collection.map {|a| {:target => a, :source => source_model(a)}}.select {|h| remove_based_on_overrides?(h[:source])}
+      to_remove = collection.map {|a| {:target => a, :source => source_model(@source_course, a)}}.select {|h| remove_based_on_overrides?(h[:source])}
       to_remove.each do |h|
         model = h[:target]
         if model.is_a?(DiscussionTopic)
@@ -145,22 +151,67 @@ class SectionSplitter
     end
 
     # Uses heuristics to locate the corresponding source content item in the source course for the given item in the target course.
-    def source_model(model)
+    def source_model(source_course, model)
       source_model =
         case model
           when Announcement
-            @source_course.announcements.find {|a| a.workflow_state == model.workflow_state && a.title == model.title}
+            source_course.announcements.find {|a| a.workflow_state == model.workflow_state && a.title == model.title}
           when Assignment
-            @source_course.assignments.find {|a| a.workflow_state == model.workflow_state && a.title == model.title && a.points_possible == model.points_possible}
+            source_course.assignments.find {|a| a.workflow_state == model.workflow_state && a.title == model.title && a.points_possible == model.points_possible}
           when DiscussionTopic
-            @source_course.discussion_topics.find {|d| d.workflow_state == model.workflow_state && d.title == model.title}
+            source_course.discussion_topics.find {|d| d.workflow_state == model.workflow_state && d.title == model.title}
           when Quizzes::Quiz
-            @source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
+            source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
           else
             nil
         end
-      raise "Unable to find source item for [#{model.inspect}]" unless source_model
+      raise "Unable to find source item for [#{model.inspect}] in course ID=#{source_course.id}" unless source_model
       source_model
+    end
+
+    def migrate_section
+      @source_section.course = @target_course
+      @source_section.save!
+    end
+
+    def migrate_enrollments
+      @source_section.enrollments.each do |e|
+        e.course = @target_course
+        e.save!
+      end
+      @source_section.reload
+      @target_course.reload
+    end
+
+    def migrate_submissions
+      student_ids = @target_course.student_enrollments.map(&:user_id)
+      @target_course.assignments.each do |a|
+        source_assignment = source_model(@source_course, a)
+        submissions = Submission.where(:assignment => source_assignment, :user_id => student_ids)
+        submissions.update_all(:assignment_id => a.id)
+        submission_comments = SubmissionComment.where(:submission_id => submissions.map(&:id), :context => @source_course)
+        submission_comments.update_all(:context_id => @target_course.id)
+      end
+      @source_course.reload
+      @target_course.reload
+    end
+
+    def migrate_quiz_submissions
+      student_ids = @target_course.student_enrollments.map(&:user_id)
+      @target_course.quizzes.each do |q|
+        source_quiz = source_model(@source_course, q)
+        submissions = Quizzes::QuizSubmission.where(:quiz => source_quiz, :user_id => student_ids)
+        submissions.update_all(:quiz_id => q.id)
+      end
+      @source_course.reload
+      @target_course.reload
+    end
+
+    def migrate_messages
+      user_ids = @target_course.enrollments.map(&:user_id)
+      @source_course.messages.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
+      @source_course.reload
+      @target_course.reload
     end
   end
 end
