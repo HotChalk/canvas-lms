@@ -188,7 +188,6 @@ module Api::V1::DiscussionTopics
     json.merge!(discussion_entry_attachment(entry, user, context))
     json.merge!(discussion_entry_read_state(entry, user))
     json.merge!(discussion_entry_subentries(entry, user, context, session, includes))
-
     json
   end
 

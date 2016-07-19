@@ -1,6 +1,7 @@
 require [
   'react',
   'jsx/navigation_header/Navigation',
+  'navigation_header_common'
 ], (React, Navigation) ->
 
   Nav = React.createElement(Navigation)
