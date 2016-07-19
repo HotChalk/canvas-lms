@@ -49,6 +49,7 @@ describe SectionSplitter do
     # User-generated data
     create_submissions
     create_messages
+    create_page_views
 
     # Invoke procedure
     @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id})
@@ -166,6 +167,15 @@ describe SectionSplitter do
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
     @section2_assignment1_submission = submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
     submission_comment_model({:submission => @section2_assignment1_submission, :author => @sections[1][:teachers][1]})
+
+    @asset = factory_with_protected_attributes(AssetUserAccess, :user => @sections[0][:students][0], :context => @source_course, :asset_code => @all_sections_assignment.asset_string, :display_name => @all_sections_assignment.asset_string)
+    @asset.save!
+    @asset = factory_with_protected_attributes(AssetUserAccess, :user => @sections[1][:students][0], :context => @source_course, :asset_code => @all_sections_assignment.asset_string, :display_name => @all_sections_assignment.asset_string)
+    @asset.save!
+    @asset = factory_with_protected_attributes(AssetUserAccess, :user => @sections[1][:students][1], :context => @source_course, :asset_code => @all_sections_assignment.asset_string, :display_name => @all_sections_assignment.asset_string)
+    @asset.save!
+    @asset = factory_with_protected_attributes(AssetUserAccess, :user => @sections[1][:students][0], :context => @source_course, :asset_code => @section2_assignment.asset_string, :display_name => @section2_assignment.asset_string)
+    @asset.save!
   end
 
   def create_messages
@@ -181,6 +191,12 @@ describe SectionSplitter do
     )
     # message.parse!
     message.save
+  end
+
+  def create_page_views
+    (0..4).each do |i|
+      page_view_model({:context => @source_course, :user => @sections[2][:students][i]})
+    end
   end
 
   it "should create a new course shell per section" do
@@ -292,6 +308,25 @@ describe SectionSplitter do
   context "messages" do
     it "should transfer messages" do
       expect(@result[0].messages.length).to eq 1
+    end
+  end
+
+  context "page views" do
+    it "should transfer page views" do
+      expect(@result[2].page_views.length).to eq 5
+    end
+  end
+
+  context "asset user accesses" do
+    it "should transfer asset user accesses" do
+      expect(@result[0].asset_user_accesses.length).to eq 1
+      expect(@result[1].asset_user_accesses.length).to eq 3
+    end
+  end
+
+  context "content participation counts" do
+    it "should transfer content participation counts" do
+      expect(@result[1].content_participation_counts.length).to eq 1
     end
   end
 end

@@ -101,6 +101,9 @@ class SectionSplitter
       migrate_submissions
       migrate_quiz_submissions
       migrate_messages
+      migrate_page_views
+      migrate_asset_user_accesses
+      migrate_content_participation_counts
       @target_course.save!
     end
 
@@ -212,6 +215,24 @@ class SectionSplitter
       @source_course.messages.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
       @source_course.reload
       @target_course.reload
+    end
+
+    def migrate_page_views
+      user_ids = @target_course.enrollments.map(&:user_id)
+      @source_course.page_views.where(:user_id => user_ids).each do |p|
+        p.context = @target_course
+        p.save
+      end
+    end
+
+    def migrate_asset_user_accesses
+      user_ids = @target_course.enrollments.map(&:user_id)
+      @source_course.asset_user_accesses.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
+    end
+
+    def migrate_content_participation_counts
+      user_ids = @target_course.enrollments.map(&:user_id)
+      @source_course.content_participation_counts.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
     end
   end
 end
