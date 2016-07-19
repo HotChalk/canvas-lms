@@ -45,6 +45,8 @@ describe SectionSplitter do
     create_discussion_topics
     create_quizzes
     create_wiki_pages
+    create_calendar_events
+    create_groups
 
     # User-generated data
     create_submissions
@@ -159,6 +161,18 @@ describe SectionSplitter do
     @wiki_page2 = wiki_page_model({:course => @source_course, :title => "Page 2", :body => <<-HTML})
       <p><a href="/courses/#{@source_course.id}/pages/page-1">This links to Page 1.</a></p>
     HTML
+  end
+
+  def create_calendar_events
+    @course = @source_course
+    calendar_event_model({:title => "All Sections Event"})
+    calendar_event_model({:title => "Section 2 Event", :course_section_id => @sections[1][:self].id})
+    calendar_event_model({:title => "Section 3 Event", :course_section_id => @sections[2][:self].id})
+  end
+
+  def create_groups
+    @section3_group = group_model({:context => @source_course, :name => "Section 3 Group", :course_section_id => @sections[2][:self].id})
+    @sections[2][:self].users.each {|u| @section3_group.add_user(u)}
   end
 
   def create_submissions
@@ -327,6 +341,31 @@ describe SectionSplitter do
   context "content participation counts" do
     it "should transfer content participation counts" do
       expect(@result[1].content_participation_counts.length).to eq 1
+    end
+  end
+
+  context "calendar events" do
+    it "should transfer non-section-specific calendar events" do
+      @result.each do |c|
+        event = c.calendar_events.where(:title => "All Sections Event").first
+        expect(event).to be
+      end
+    end
+
+    it "should transfer section-specific calendar events" do
+      expect(@result[0].calendar_events.length).to eq 1
+      expect(@result[1].calendar_events.where(:title => "Section 2 Event").first).to be
+      expect(@result[2].calendar_events.where(:title => "Section 3 Event").first).to be
+    end
+  end
+
+  context "groups" do
+    it "should transfer section-specific groups" do
+      expect(@result[0].groups.length).to eq 0
+      expect(@result[2].groups.length).to eq 1
+      group = @result[2].groups.where(:name => "Section 3 Group").first
+      expect(group).to be
+      expect(group.group_memberships.length).to eq 7
     end
   end
 end

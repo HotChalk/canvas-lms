@@ -94,10 +94,12 @@ class SectionSplitter
       clean_quizzes
       clean_discussion_topics
       clean_announcements
+      clean_calendar_events
 
       # Migrate user data
       migrate_section
       migrate_enrollments
+      migrate_groups
       migrate_submissions
       migrate_quiz_submissions
       migrate_messages
@@ -148,6 +150,15 @@ class SectionSplitter
       end
     end
 
+    def clean_calendar_events
+      @source_course.calendar_events.where("course_section_id IS NOT NULL AND course_section_id <> ?", @source_section.id).each do |source_event|
+        target_event = source_model(@target_course, source_event)
+        target_event.destroy_permanently!
+      end
+      @source_course.reload
+      @target_course.reload
+    end
+
     def remove_based_on_overrides?(model)
       overrides = model.active_assignment_overrides.select {|ao| ao.set_type == 'CourseSection'}
       !overrides.empty? && !overrides.any? {|ao| ao.set_id == @source_section.id}
@@ -165,6 +176,8 @@ class SectionSplitter
             source_course.discussion_topics.find {|d| d.workflow_state == model.workflow_state && d.title == model.title}
           when Quizzes::Quiz
             source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
+          when CalendarEvent
+            source_course.calendar_events.find {|e| e.workflow_state == model.workflow_state && e.title == model.title && e.start_at == model.start_at && e.end_at == model.end_at }
           else
             nil
         end
@@ -183,6 +196,12 @@ class SectionSplitter
         e.save!
       end
       @source_section.reload
+      @target_course.reload
+    end
+
+    def migrate_groups
+      @source_course.groups.where(:course_section_id => @source_section.id).update_all(:context_id => @target_course.id)
+      @source_course.reload
       @target_course.reload
     end
 
