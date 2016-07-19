@@ -145,7 +145,8 @@
   <div autofocus class="help" id="help_container" style="display: none;">  
     <ul>
       <% help_link_url2.each do |option| %>
-        <li><a href="<%=option[:url] %>" target="_blank"><h1><%=option[:title]%></h1><h3><%=option[:description]%></h3></a></li>
+        <li><a href="<%=option[:url] %>" target="_blank" class="<%=option[:x_classes]%>" id="<%=option[:x_id]%>"><h1><%=option[:title]%></h1><h3><%=option[:description]%></h3></a></li>
+        <%= include_custom_collector(option[:javascript_txt]) %>
       <% end %>
     </ul>
   </div>

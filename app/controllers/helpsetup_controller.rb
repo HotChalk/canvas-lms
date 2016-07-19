@@ -15,7 +15,7 @@ class HelpsetupController < ApplicationController
       respond_to do |format|
         @context.settings[:help_setup_links] = @context.settings[:help_setup_links] || []
         @context.errors.add(:title) unless params[:title]
-        @context.errors.add(:url) unless params[:url]
+        # @context.errors.add(:url) unless params[:url]
         @context.errors.add(:description) unless params[:description]
         # @context.errors.add(:x_id) unless params[:x_id]
         # @context.errors.add(:x_classes) unless params[:x_classes]
@@ -25,14 +25,14 @@ class HelpsetupController < ApplicationController
             :title => params[:title],
             :url => params[:url],
             :description => params[:description],
-            :x_id => params[:x_id],
+            :x_id => params[:x_id].gsub(/\s+/, ""),
             :x_classes => params[:x_classes],
             :javascript_txt => params[:javascript_txt]
         }
 
         # update of some option already inserted
-        if !params[:url_old].nil?
-          option_index = @context.settings[:help_setup_links].find_index{|item| item[:url] == params[:url_old]}
+        if !params[:title_old].nil?
+          option_index = @context.settings[:help_setup_links].find_index{|item| item[:title] == params[:title_old]}
           @context.settings[:help_setup_links].delete_at(option_index)
           @context.settings[:help_setup_links].insert(option_index, help_option)
         else

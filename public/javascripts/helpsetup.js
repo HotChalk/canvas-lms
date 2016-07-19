@@ -11,19 +11,57 @@ define([
 ], function(I18n, $) {
 
   $(document).ready(function() {
-    
     $("#help_setup").submit(function(event) {
       var $this = $(this);
+      if($("#title").val().trim() == "") {
+        event.preventDefault();
+        event.stopPropagation();
+        return $("#title").formErrors({
+          help_title: I18n.t('errors.help_title', "Please add a title.")
+        });
+      }
+      if($("#url").val().trim() == "") {
+        if($("#javascript_txt").val().trim() == "") {
+          event.preventDefault();
+          event.stopPropagation();
+          return $("#url").formErrors({
+            help_url: I18n.t('errors.help_url', "Please add a valid link.")
+          });
+        }
+      }
+      else{
+        if (!validate_url($("#url").val()))
+        {
+            event.preventDefault();
+            event.stopPropagation();
+            return $("#url").formErrors({
+              help_url: I18n.t('errors.help_url', "Please add a valid link.")
+            });   
+        }
+      }
+      if($("#description").val().trim() == "") {
+        event.preventDefault();
+        event.stopPropagation();
+        return $("#description").formErrors({
+          help_description: I18n.t('errors.help_description', "Please add a description.")
+        });
+      }
     });
+
     $(".edit_help_setup_link").click(function(event) {
       event.preventDefault();
       var help_option = JSON.parse($(this).attr('id'));  
       editHelpOption(help_option);
     });
+
+    var validate_url = function(url) {
+      return /^(http|https)?:\/\/[a-zA-Z0-9-\.]+\.[a-z]{2,4}/.test(url);      
+    };
+
     var editHelpOption = function(help_option){
       $("#title").val(help_option.title);
+      setHiddenInput(help_option.title);      
       $("#url").val(help_option.url);
-      setHiddenInput(help_option.url);      
       $("#description").val(help_option.description);
       $("#x_id").val(help_option.x_id);
       $("#x_classes").val(help_option.x_classes);
@@ -36,18 +74,18 @@ define([
     }; 
     var setHiddenInput = function(val)
     {
-      var url_old = $("#url_old");
+      var title_old = $("#title_old");
 
-      if (url_old.length == 0)
+      if (title_old.length == 0)
       {
         $('<input>').attr({
-          id : 'url_old', 
-          name : 'url_old', 
+          id : 'title_old', 
+          name : 'title_old', 
           type : 'hidden',
           value : val
         }).appendTo('.help_setup_link');
       }
-      else {url_old.val(val);}
+      else {title_old.val(val);}
     };
     $(".delete_help_setup_link").click(function(event) {
       event.preventDefault();
@@ -61,10 +99,10 @@ define([
     });
     $(".add_help_setup_link").click(function(event) {
       event.preventDefault();
-      var url_old = $("#url_old");
-      if (url_old.length > 0)
+      var title_old = $("#title_old");
+      if (title_old.length > 0)
       {
-        $( "#url_old" ).remove();
+        $( "#title_old" ).remove();
         $("#title").val("");
         $("#url").val("");
         $("#description").val("");
