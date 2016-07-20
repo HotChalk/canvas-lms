@@ -131,7 +131,7 @@ module SeleniumDriverSetup
     Selenium::WebDriver.for(
         :remote,
         :url => "http://#{$selenium_config[:testingbot_key]}:" +
-            "#{$selenium_config[:testingbot_secret]}@hub.testingbot.com:4444/wd/hub",
+            "#{$selenium_config[:testingbot_secret]}localhost:8087/wd/hub",
         :desired_capabilities => caps)
   end
 
