@@ -32,7 +32,10 @@ class SectionSplitter
       args = {
         :enrollment_term => course.enrollment_term,
         :abstract_course => course.abstract_course,
-        :account => course.account
+        :account => course.account,
+        :start_at => course.start_at,
+        :conclude_at => course.conclude_at,
+        :time_zone => course.time_zone
       }
 
       course.active_course_sections.each do |source_section|

@@ -5,6 +5,10 @@ describe SectionSplitter do
     @admin_user = account_admin_user
 
     @source_course = course({:course_name => "Course 1", :active_course => true})
+    @source_course.start_at = Time.zone.now - 1.month
+    @source_course.conclude_at = Time.zone.now + 1.month
+    @source_course.time_zone = ActiveSupport::TimeZone.new('Pacific Time (US & Canada)')
+    @source_course.save
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
     end
@@ -222,6 +226,14 @@ describe SectionSplitter do
 
   it "should delete the source course after splitting" do
     expect(@source_course.workflow_state).to eq "deleted"
+  end
+
+  it "should transfer start/end dates and timezone" do
+    @result.each do |course|
+      expect(course.start_at).to eq @source_course.start_at
+      expect(course.conclude_at).to eq @source_course.conclude_at
+      expect(course.time_zone).to eq @source_course.time_zone
+    end
   end
 
   context "announcements" do
