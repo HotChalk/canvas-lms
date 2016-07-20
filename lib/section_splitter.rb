@@ -51,7 +51,7 @@ class SectionSplitter
   end
 
   def self.perform_course_copy(user, source_course, source_section, args)
-    args[:name] = source_section.name
+    args[:name] = source_course.name
     args[:course_code] = source_section.name
     target_course = source_course.account.courses.new
     target_course.attributes = args

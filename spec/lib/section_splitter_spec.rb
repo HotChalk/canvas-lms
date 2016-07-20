@@ -55,7 +55,7 @@ describe SectionSplitter do
 
     # Invoke procedure
     @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id, :delete => true})
-    @result.sort_by! {|c| c.name}
+    @result.sort_by! {|c| c.course_code}
     @source_course.reload
   end
 
@@ -216,7 +216,8 @@ describe SectionSplitter do
 
   it "should create a new course shell per section" do
     expect(@result.length).to eq 3
-    expect(@result.map(&:name)).to contain_exactly("Section 1", "Section 2", "Section 3")
+    expect(@result.map(&:name)).to contain_exactly("Course 1", "Course 1", "Course 1")
+    expect(@result.map(&:course_code)).to contain_exactly("Section 1", "Section 2", "Section 3")
   end
 
   it "should delete the source course after splitting" do
