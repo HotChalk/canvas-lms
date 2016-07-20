@@ -54,8 +54,9 @@ describe SectionSplitter do
     create_page_views
 
     # Invoke procedure
-    @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id})
+    @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id, :delete => true})
     @result.sort_by! {|c| c.name}
+    @source_course.reload
   end
 
   def create_announcements
@@ -216,6 +217,10 @@ describe SectionSplitter do
   it "should create a new course shell per section" do
     expect(@result.length).to eq 3
     expect(@result.map(&:name)).to contain_exactly("Section 1", "Section 2", "Section 3")
+  end
+
+  it "should delete the source course after splitting" do
+    expect(@source_course.workflow_state).to eq "deleted"
   end
 
   context "announcements" do

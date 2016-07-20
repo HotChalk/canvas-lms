@@ -27,17 +27,25 @@ class SectionSplitter
     end
 
     Rails.logger.info "Splitting course #{course.id} [#{course.name}]..."
-    args = {
-      :enrollment_term => course.enrollment_term,
-      :abstract_course => course.abstract_course,
-      :account => course.account
-    }
-
     result = []
-    course.active_course_sections.each do |source_section|
-      target_course = self.perform_course_copy(user, course, source_section, args)
-      self.perform_section_migration(target_course, source_section)
-      result << target_course
+    real_time = Benchmark.realtime do
+      args = {
+        :enrollment_term => course.enrollment_term,
+        :abstract_course => course.abstract_course,
+        :account => course.account
+      }
+
+      course.active_course_sections.each do |source_section|
+        target_course = self.perform_course_copy(user, course, source_section, args)
+        self.perform_section_migration(target_course, source_section)
+        Rails.logger.info "--- Converted section #{source_section.id} [#{source_section.name}] into course #{target_course.id} [#{target_course.name}]"
+        result << target_course
+      end
+    end
+    Rails.logger.info "Finished splitting course #{course.id} [#{course.name}] in #{real_time} seconds."
+    if opts[:delete]
+      Rails.logger.info "Deleting course #{course.id} [#{course.name}]..."
+      course.destroy
     end
     result
   end

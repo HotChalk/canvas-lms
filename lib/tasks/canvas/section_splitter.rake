@@ -16,6 +16,9 @@ namespace :canvas do
         opts.on("-a", "--account {account ID}", "Account or subaccount ID", Integer) do |account_id|
           options[:account_id] = account_id
         end
+        opts.on("-d", "--[no-]delete", "Delete course after splitting") do |delete|
+          options[:delete] = delete
+        end
       end.parse!
       Canvas::SectionSplitter.run(options)
     end
