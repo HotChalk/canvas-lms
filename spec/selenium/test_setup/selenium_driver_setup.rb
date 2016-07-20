@@ -116,9 +116,26 @@ module SeleniumDriverSetup
       :url => "http://#{$selenium_config[:testingbot_key]}:" +
                 "#{$selenium_config[:testingbot_secret]}@hub.testingbot.com:4444/wd/hub",
       :desired_capabilities => caps)
-
   end
 
+  def firefox_driver
+    require 'testingbot'
+    require 'testingbot/tunnel'
+
+    puts "using FIREFOX driver"
+
+    caps = Selenium::WebDriver::Remote::Capabilities.firefox(:unexpectedAlertBehaviour => 'ignore')
+    caps.version = "latest"
+    caps.platform = :WINDOWS
+
+    Selenium::WebDriver.for(
+        :remote,
+        :url => "http://#{$selenium_config[:testingbot_key]}:" +
+            "#{$selenium_config[:testingbot_secret]}@hub.testingbot.com:4444/wd/hub",
+        :desired_capabilities => caps)
+  end
+
+=begin
   def firefox_driver
     puts "using FIREFOX driver"
     profile = firefox_profile
@@ -131,6 +148,7 @@ module SeleniumDriverSetup
       ruby_firefox_driver(profile: profile, desired_capabilities: caps)
     end
   end
+=end
 
   def chrome_driver
     puts "using CHROME driver"
