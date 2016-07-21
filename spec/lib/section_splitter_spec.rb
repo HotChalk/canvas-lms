@@ -81,7 +81,6 @@ describe SectionSplitter do
   # +-- @all_sections_topic: All sections topic
   # |   +--- @as_root_as_1: Reply by all-sections teacher
   # |   |    +--- @as_root_as_1_reply1: Reply by section 1 student
-  # |   |    +--- @as_root_as_1_reply2: Reply by section 2 student
   # |   +--- @as_root_s1_1: Reply by section 1 student
   # |   |    +--- @as_root_s1_1_reply1: Reply by section 1 student (with attachment reference in HTML)
   # |   +--- @as_root_s2_1: Reply by section 2 student
@@ -103,8 +102,6 @@ describe SectionSplitter do
     @as_root_s2_1.save!
     @as_root_as_1_reply1 = DiscussionEntry.new(:user => @sections[0][:students][0], :message => "section 1 reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_as_1)
     @as_root_as_1_reply1.save!
-    @as_root_as_1_reply2 = DiscussionEntry.new(:user => @sections[1][:students][0], :message => "section 2 reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_as_1)
-    @as_root_as_1_reply2.save!
     @as_root_s1_1_reply1_attachment = attachment_model(:context => @source_course)
     @as_root_s1_1_reply1 = DiscussionEntry.new(:user => @sections[0][:students][1], :message => <<-HTML, :discussion_topic => @all_sections_topic, :parent_entry => @as_root_s1_1)
     <p><a href="/courses/#{@source_course.id}/files/#{@as_root_s1_1_reply1_attachment.id}/download">This is a file link</a></p>
@@ -128,7 +125,7 @@ describe SectionSplitter do
     @s3_root_2 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "section 3", :discussion_topic => @section3_topic)
     @s3_root_2.save!
 
-    @all_entries = [@as_root_as_1, @as_root_s1_1, @as_root_s2_1, @as_root_as_1_reply1, @as_root_as_1_reply2, @as_root_s1_1_reply1, @as_root_s2_1_reply1, @s1_root_1, @s1_root_2, @s3_root_1, @s3_root_2]
+    @all_entries = [@as_root_as_1, @as_root_s1_1, @as_root_s2_1, @as_root_as_1_reply1, @as_root_s1_1_reply1, @as_root_s2_1_reply1, @s1_root_1, @s1_root_2, @s3_root_1, @s3_root_2]
     @all_entries.each &:reload
     @all_sections_topic.reload
     @section1_topic.reload
@@ -269,14 +266,21 @@ describe SectionSplitter do
   end
 
   context "discussion topics" do
-    it "should transfer discussion topics assigned to all sections" do
+    it "should transfer discussion topics and entries assigned to all sections" do
       @result.each do |course|
         all_sections_topic = course.discussion_topics.find {|d| d.title == @all_sections_topic.title }
         expect(all_sections_topic).to be
+        if course == @result[0]
+          expect(all_sections_topic.root_discussion_entries.length).to eq 2
+          expect(all_sections_topic.root_discussion_entries[0].discussion_subentries.length).to eq 1
+          expect(all_sections_topic.root_discussion_entries[0].discussion_subentries[0].user_id).to eq(@sections[0][:students][0].id)
+          expect(all_sections_topic.root_discussion_entries[1].discussion_subentries.length).to eq 1
+          expect(all_sections_topic.root_discussion_entries[1].discussion_subentries[0].user_id).to eq(@sections[0][:students][1].id)
+        end
       end
     end
 
-    it "should transfer section-specific discussion topics" do
+    it "should transfer section-specific discussion topics and entries" do
       section1_topic = @result[0].discussion_topics.find {|d| d.title == @section1_topic.title }
       expect(section1_topic).to be
       expect(@result[0].discussion_topics.length).to eq 4
@@ -284,6 +288,11 @@ describe SectionSplitter do
       section3_topic = @result[2].discussion_topics.find {|d| d.title == @section3_topic.title }
       expect(section3_topic).to be
       expect(@result[2].discussion_topics.length).to eq 3
+
+      expect(section1_topic.root_discussion_entries.length).to eq 2
+      expect(section1_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[0][:students][2].id, @sections[0][:teachers][1].id)
+      expect(section3_topic.root_discussion_entries.length).to eq 2
+      expect(section3_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[2][:students][0].id, @all_sections_teacher.id)
     end
   end
 

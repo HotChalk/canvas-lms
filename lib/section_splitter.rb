@@ -22,11 +22,11 @@ class SectionSplitter
     # Sanity check
     return unless course
     unless course.active_course_sections.length > 1
-      Rails.logger.info "Skipping course #{course.id}: not a multi-section course"
+      Rails.logger.info "[SECTION-SPLITTER] Skipping course #{course.id}: not a multi-section course"
       return
     end
 
-    Rails.logger.info "Splitting course #{course.id} [#{course.name}]..."
+    Rails.logger.info "[SECTION-SPLITTER] Splitting course #{course.id} [#{course.name}]..."
     result = []
     real_time = Benchmark.realtime do
       args = {
@@ -41,13 +41,13 @@ class SectionSplitter
       course.active_course_sections.each do |source_section|
         target_course = self.perform_course_copy(user, course, source_section, args)
         self.perform_section_migration(target_course, source_section)
-        Rails.logger.info "--- Converted section #{source_section.id} [#{source_section.name}] into course #{target_course.id} [#{target_course.name}]"
+        Rails.logger.info "[SECTION-SPLITTER] Converted section #{source_section.id} [#{source_section.name}] into course #{target_course.id} [#{target_course.name}]"
         result << target_course
       end
     end
-    Rails.logger.info "Finished splitting course #{course.id} [#{course.name}] in #{real_time} seconds."
+    Rails.logger.info "[SECTION-SPLITTER] Finished splitting course #{course.id} [#{course.name}] in #{real_time} seconds."
     if opts[:delete]
-      Rails.logger.info "Deleting course #{course.id} [#{course.name}]..."
+      Rails.logger.info "[SECTION-SPLITTER] Deleting course #{course.id} [#{course.name}]..."
       course.destroy
     end
     result
@@ -76,7 +76,7 @@ class SectionSplitter
       worker.perform(content_migration)
     rescue Exception => e
       Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
-      Rails.logger.error "Unable to perform course copy (content migration ID=#{content_migration.id}) for course ID=#{source_course.id} [#{source_course.name}]"
+      Rails.logger.error "[SECTION-SPLITTER] Unable to perform course copy (content migration ID=#{content_migration.id}) for course ID=#{source_course.id} [#{source_course.name}]"
       raise e
     end
 
@@ -90,7 +90,7 @@ class SectionSplitter
       worker.perform
     rescue Exception => e
       Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
-      Rails.logger.error "Unable to migrate source section ID=#{source_section.id} to target course ID=#{target_course.id}"
+      Rails.logger.error "[SECTION-SPLITTER] Unable to migrate source section ID=#{source_section.id} to target course ID=#{target_course.id}"
     end
   end
 
@@ -113,6 +113,7 @@ class SectionSplitter
       migrate_groups
       migrate_submissions
       migrate_quiz_submissions
+      migrate_discussion_entries
       migrate_messages
       migrate_page_views
       migrate_asset_user_accesses
@@ -238,6 +239,28 @@ class SectionSplitter
       end
       @source_course.reload
       @target_course.reload
+    end
+
+    def migrate_discussion_entries
+      section_user_ids = @target_course.enrollments.map(&:user_id)
+      @target_course.discussion_topics.each do |topic|
+        source_topic = source_model(@source_course, topic)
+        source_topic.discussion_entries.each do |entry|
+          entry_ids = [entry.id] + entry.flattened_discussion_subentries.pluck(:id)
+          participant_ids = [entry.user_id] + entry.flattened_discussion_subentries.pluck(:user_id)
+          non_section_participant_ids = participant_ids - section_user_ids
+          if non_section_participant_ids.empty?
+            DiscussionEntry.where(:id => entry_ids).update_all(:discussion_topic_id => topic.id)
+            DiscussionEntryParticipant.where("discussion_entry_id IN (?) AND user_id NOT IN (?)", entry_ids, section_user_ids).delete_all
+          else
+            Rails.logger.error "[SECTION-SPLITTER] Unable to migrate discussion entry #{entry.id}: contains mixed section subentries"
+          end
+        end
+        source_topic.discussion_topic_participants.where(:user_id => section_user_ids).update_all(:discussion_topic_id => topic.id)
+        source_topic.reload
+        topic.reload
+        topic.update_materialized_view
+      end
     end
 
     def migrate_messages
