@@ -126,14 +126,18 @@ module SeleniumDriverSetup
 
     caps = Selenium::WebDriver::Remote::Capabilities.firefox #(:unexpectedAlertBehaviour => 'ignore')
     caps.version = "47"
-    caps.platform = :CAPITAN
+    caps.platform = :WIN7
     caps[:unexpectedAlertBehaviour] = 'ignore'
+
+    client = Selenium::WebDriver::Remote::Http::Default.new
+    client.timeout = 120
 
     Selenium::WebDriver.for(
         :remote,
         :url => "http://#{$selenium_config[:testingbot_key]}:" +
             "#{$selenium_config[:testingbot_secret]}@localhost:4445/wd/hub",
-        :desired_capabilities => caps)
+        :desired_capabilities => caps,
+        :http_client => client)
   end
 
 =begin
