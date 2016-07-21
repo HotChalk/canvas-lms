@@ -124,10 +124,10 @@ module SeleniumDriverSetup
 
     puts "using FIREFOX driver"
 
-    caps = Selenium::WebDriver::Remote::Capabilities.firefox #(:unexpectedAlertBehaviour => 'ignore')
-    caps.version = "latest"
-    caps.platform = :WINDOWS
-    caps[:unexpectedAlertBehaviour] = 'ignore'
+    caps = Selenium::WebDriver::Remote::Capabilities.firefox(:unexpectedAlertBehaviour => 'ignore')
+    #caps.version = "latest"
+    #caps.platform = :WINDOWS
+    #caps[:unexpectedAlertBehaviour] = 'ignore'
 
     Selenium::WebDriver.for(
         :remote,
