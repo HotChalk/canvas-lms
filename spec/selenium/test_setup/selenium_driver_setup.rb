@@ -124,14 +124,15 @@ module SeleniumDriverSetup
 
     puts "using FIREFOX driver"
 
-    caps = Selenium::WebDriver::Remote::Capabilities.firefox(:unexpectedAlertBehaviour => 'ignore')
+    caps = Selenium::WebDriver::Remote::Capabilities.firefox #(:unexpectedAlertBehaviour => 'ignore')
     caps.version = "latest"
     caps.platform = :WINDOWS
+    caps[:unexpectedAlertBehaviour] = 'ignore'
 
     Selenium::WebDriver.for(
         :remote,
         :url => "http://#{$selenium_config[:testingbot_key]}:" +
-            "#{$selenium_config[:testingbot_secret]}@localhost:4445/wd/hub",
+            "#{$selenium_config[:testingbot_secret]}@hub.testingbot.com:4445/wd/hub",
         :desired_capabilities => caps)
   end
 
