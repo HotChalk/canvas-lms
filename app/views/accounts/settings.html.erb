@@ -83,7 +83,22 @@
                   </span>
                 </td>
               </tr>
-            <% end %>            
+            <% end %>
+
+            <!--cut this code if you want to put the new help UI-->
+            <% if @account.grants_right?(@current_user, :manage_site_settings) %>
+                <%= f.fields_for :settings do |settings| %>
+                    <tr>
+                      <td><%= settings.blabel :help_link, :en => "Account Help link" %></td>
+                      <td><%= settings.text_field :help_link,
+                                                  :value => @account.settings[:help_link],
+                                                  :class => 'same-width-as-select',
+                                                  :placeholder => "https://support.example.edu" %></td>
+                    </tr>
+                <% end %>
+            <% end %>
+            <!--cut this code if you want to put the new help UI-->
+
             <% if available_locales.size > 1 %>
             <tr>
               <td><%= f.blabel :default_locale, :default_language, :en => "Default Language" %></td>
