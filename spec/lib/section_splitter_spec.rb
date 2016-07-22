@@ -4,9 +4,11 @@ describe SectionSplitter do
   before :once do
     @admin_user = account_admin_user
 
+    @now = Time.zone.now
+
     @source_course = course({:course_name => "Course 1", :active_course => true})
-    @source_course.start_at = Time.zone.now - 1.month
-    @source_course.conclude_at = Time.zone.now + 1.month
+    @source_course.start_at = @now - 1.month
+    @source_course.conclude_at = @now + 1.month
     @source_course.time_zone = ActiveSupport::TimeZone.new('Pacific Time (US & Canada)')
     @source_course.save
     @sections = (1..3).collect do |n|
@@ -74,6 +76,14 @@ describe SectionSplitter do
     @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
     @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment"})
     assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self]})
+    @all_sections_assignment2 = assignment_model({:course => @source_course, :title => "All Sections Assignment 2"})
+    assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[0][:self], :due_at => @now + 1.weeks})
+    assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[1][:self], :due_at => @now + 2.weeks})
+    assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[2][:self], :due_at => @now + 3.weeks})
+    @section3_assignment = assignment_model({:course => @source_course, :title => "Section 3 Assignment"})
+    ao = assignment_override_model({:assignment => @section3_assignment, :set_type => 'ADHOC'})
+    ao.assignment_override_students.build({:user => @sections[2][:students][0]})
+    ao.save
   end
 
   # Discussion topics structure is as follows:
@@ -142,11 +152,11 @@ describe SectionSplitter do
     @section3_quiz_assignment.submission_types = "online_quiz"
     @section3_quiz_assignment.save
     @all_sections_quiz = Quizzes::Quiz.where(assignment_id: @all_sections_quiz_assignment).first
-    @all_sections_quiz.published_at = Time.zone.now
+    @all_sections_quiz.published_at = @now
     @all_sections_quiz.workflow_state = "available"
     @all_sections_quiz.save!
     @section3_quiz = Quizzes::Quiz.where(assignment_id: @section3_quiz_assignment).first
-    @section3_quiz.published_at = Time.zone.now
+    @section3_quiz.published_at = @now
     @section3_quiz.workflow_state = "available"
     @section3_quiz.save!
     assignment_override_model({:quiz => @section3_quiz, :set => @sections[2][:self]})
@@ -263,6 +273,36 @@ describe SectionSplitter do
       section2_assignment = @result[1].assignments.find {|a| a.title == @section2_assignment.title }
       expect(section2_assignment).to be
     end
+
+    it "should transfer assignment overrides" do
+      all_sections_assignment2 = @result[0].assignments.find {|a| a.title == @all_sections_assignment2.title }
+      expect(all_sections_assignment2).to be
+      expect(all_sections_assignment2.assignment_overrides.length).to eq 1
+      expect(all_sections_assignment2.assignment_overrides[0].set_type).to eq 'CourseSection'
+      expect(all_sections_assignment2.assignment_overrides[0].set_id).to eq @result[0].course_sections.first.id
+      expect(all_sections_assignment2.assignment_overrides[0].due_at).to eq (@now + 1.weeks)
+
+      all_sections_assignment2 = @result[1].assignments.find {|a| a.title == @all_sections_assignment2.title }
+      expect(all_sections_assignment2).to be
+      expect(all_sections_assignment2.assignment_overrides.length).to eq 1
+      expect(all_sections_assignment2.assignment_overrides[0].set_type).to eq 'CourseSection'
+      expect(all_sections_assignment2.assignment_overrides[0].set_id).to eq @result[1].course_sections.first.id
+      expect(all_sections_assignment2.assignment_overrides[0].due_at).to eq (@now + 2.weeks)
+
+      all_sections_assignment2 = @result[2].assignments.find {|a| a.title == @all_sections_assignment2.title }
+      expect(all_sections_assignment2).to be
+      expect(all_sections_assignment2.assignment_overrides.length).to eq 1
+      expect(all_sections_assignment2.assignment_overrides[0].set_type).to eq 'CourseSection'
+      expect(all_sections_assignment2.assignment_overrides[0].set_id).to eq @result[2].course_sections.first.id
+      expect(all_sections_assignment2.assignment_overrides[0].due_at).to eq (@now + 3.weeks)
+
+      section3_assignment = @result[2].assignments.find {|a| a.title == @section3_assignment.title }
+      expect(section3_assignment).to be
+      expect(section3_assignment.assignment_overrides.length).to eq 1
+      expect(section3_assignment.assignment_overrides[0].set_type).to eq 'ADHOC'
+      expect(section3_assignment.assignment_overrides[0].assignment_override_students.length).to eq 1
+      expect(section3_assignment.assignment_overrides[0].assignment_override_students[0].user).to eq @sections[2][:students][0]
+    end
   end
 
   context "discussion topics" do
@@ -325,8 +365,12 @@ describe SectionSplitter do
 
   context "submissions" do
     it "should transfer submissions" do
-      expect(@result[0].submissions.length).to eq 1
-      expect(@result[1].submissions.length).to eq 3
+      all_sections_assignment = @result[0].assignments.find {|a| a.title == @all_sections_assignment.title }
+      expect(@result[0].submissions.where(:assignment_id => all_sections_assignment.id).length).to eq 1
+      all_sections_assignment = @result[1].assignments.find {|a| a.title == @all_sections_assignment.title }
+      expect(@result[1].submissions.where(:assignment_id => all_sections_assignment.id).length).to eq 2
+      section2_assignment = @result[1].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(@result[1].submissions.where(:assignment_id => section2_assignment.id).length).to eq 1
     end
 
     it "should transfer submission comments" do

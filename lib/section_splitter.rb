@@ -110,6 +110,7 @@ class SectionSplitter
       # Migrate user data
       migrate_section
       migrate_enrollments
+      migrate_overrides
       migrate_groups
       migrate_submissions
       migrate_quiz_submissions
@@ -211,6 +212,66 @@ class SectionSplitter
       @target_course.reload
     end
 
+    def migrate_overrides
+      @target_course.assignments.active.each {|a| process_overrides(a)}
+      @target_course.quizzes.active.each {|q| process_overrides(q)}
+      @target_course.discussion_topics.active.each {|d| process_overrides(d)}
+    end
+
+    def process_overrides(model)
+      source_model = source_model(@source_course, model)
+      student_ids = @target_course.student_enrollments.map(&:user_id)
+      source_model.active_assignment_overrides.each do |override|
+        if (override.set_type == 'CourseSection' && override.set_id == @source_section.id) ||
+          (override.set_type == 'ADHOC' && (override.assignment_override_students.map(&:user_id) - student_ids).empty?)
+          clone_override(override, model)
+        end
+      end
+    end
+
+    def clone_override(override, new_model)
+      return unless new_model.assignment_overrides.where(:set_type => override.set_type, :set_id => override.set_id).empty?
+      new_override = override.clone
+      case new_model
+        when Assignment
+          new_override.assignment = new_model
+          new_override.save
+          if new_override.set_type == 'ADHOC'
+            override.assignment_override_students.each do |aos|
+              new_aos = aos.clone
+              new_aos.assignment = new_model
+              new_override.assignment_override_students << new_aos
+              new_override.save
+            end
+          end
+        when Quizzes::Quiz
+          new_override.quiz = new_model
+          new_override.save
+          if new_override.set_type == 'ADHOC'
+            override.assignment_override_students.each do |aos|
+              new_aos = aos.clone
+              new_aos.quiz = new_model
+              new_override.assignment_override_students << new_aos
+              new_override.save
+            end
+          end
+        when DiscussionTopic
+          new_override.discussion_topic = new_model
+          new_override.save
+          if new_override.set_type == 'ADHOC'
+            override.assignment_override_students.each do |aos|
+              new_aos = aos.clone
+              new_aos.discussion_topic = new_model
+              new_override.assignment_override_students << new_aos
+              new_override.save
+            end
+          end
+        else
+          raise "Unexpected model type in update_override: #{new_model.inspect}"
+      end
+      new_override.reload
+    end
+
     def migrate_groups
       @source_course.groups.where(:course_section_id => @source_section.id).update_all(:context_id => @target_course.id)
       @source_course.reload
@@ -222,6 +283,7 @@ class SectionSplitter
       @target_course.assignments.each do |a|
         source_assignment = source_model(@source_course, a)
         submissions = Submission.where(:assignment => source_assignment, :user_id => student_ids)
+        Submission.where(:assignment => a, :user_id => student_ids).delete_all
         submissions.update_all(:assignment_id => a.id)
         submission_comments = SubmissionComment.where(:submission_id => submissions.map(&:id), :context => @source_course)
         submission_comments.update_all(:context_id => @target_course.id)
