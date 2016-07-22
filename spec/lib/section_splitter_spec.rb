@@ -315,6 +315,7 @@ describe SectionSplitter do
       @result.each do |course|
         all_sections_topic = course.discussion_topics.find {|d| d.title == @all_sections_topic.title }
         expect(all_sections_topic).to be
+        expect(all_sections_topic.user).to eq @all_sections_topic.user
         if course == @result[0]
           expect(all_sections_topic.root_discussion_entries.length).to eq 2
           expect(all_sections_topic.root_discussion_entries[0].discussion_subentries.length).to eq 1
@@ -332,6 +333,7 @@ describe SectionSplitter do
       expect(@result[1].discussion_topics.length).to eq 2
       section3_topic = @result[2].discussion_topics.find {|d| d.title == @section3_topic.title }
       expect(section3_topic).to be
+      expect(section3_topic.user).to eq @section3_topic.user
       expect(@result[2].discussion_topics.length).to eq 3
 
       expect(section1_topic.root_discussion_entries.length).to eq 2

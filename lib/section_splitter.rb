@@ -336,6 +336,9 @@ class SectionSplitter
         end
         source_topic.discussion_topic_participants.where(:user_id => section_user_ids).update_all(:discussion_topic_id => topic.id)
         source_topic.reload
+        topic.last_reply_at = topic.discussion_entries.last.try(:created_at) || topic.posted_at
+        topic.save
+        DiscussionTopic.where(:id => topic.id).update_all(:user_id => source_topic.user_id) # ugly hack, but user_id is a readonly attribute
         topic.reload
         topic.update_materialized_view
       end
