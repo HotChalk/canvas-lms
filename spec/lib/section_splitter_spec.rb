@@ -341,6 +341,21 @@ describe SectionSplitter do
       expect(section3_topic.root_discussion_entries.length).to eq 2
       expect(section3_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[2][:students][0].id, @all_sections_teacher.id)
     end
+
+    it "should transfer correct data for the materialized view" do
+      [@result[0], @result[1]].each do |course|
+        all_sections_topic = course.discussion_topics.find {|d| d.title == @all_sections_topic.title }
+        entry_ids = all_sections_topic.discussion_entries.map(&:id)
+        user_ids = course.users.map(&:id)
+        structure, participant_ids, entry_ids, new_entries = all_sections_topic.materialized_view(:include_new_entries => true)
+        entries = JSON.parse(structure)
+        expect(entries.length).to be > 0
+        found_entry_ids = entries.map {|e| e["id"].to_i}
+        found_user_ids = entries.map {|e| e["user_id"].to_i}
+        expect(found_entry_ids - entry_ids).to eq []
+        expect(found_user_ids - user_ids).to eq []
+      end
+    end
   end
 
   context "quizzes" do

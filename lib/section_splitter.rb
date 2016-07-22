@@ -340,7 +340,7 @@ class SectionSplitter
         topic.save
         DiscussionTopic.where(:id => topic.id).update_all(:user_id => source_topic.user_id) # ugly hack, but user_id is a readonly attribute
         topic.reload
-        topic.update_materialized_view
+        DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
       end
     end
 
