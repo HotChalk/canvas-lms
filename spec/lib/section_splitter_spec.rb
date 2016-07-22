@@ -52,6 +52,7 @@ describe SectionSplitter do
     create_quizzes
     create_wiki_pages
     create_calendar_events
+    create_group_categories
     create_groups
 
     # User-generated data
@@ -182,8 +183,12 @@ describe SectionSplitter do
     calendar_event_model({:title => "Section 3 Event", :course_section_id => @sections[2][:self].id})
   end
 
+  def create_group_categories
+    @group_category = group_category({:context => @source_course, :name => "Group Category"})
+  end
+
   def create_groups
-    @section3_group = group_model({:context => @source_course, :name => "Section 3 Group", :course_section_id => @sections[2][:self].id})
+    @section3_group = group_model({:context => @source_course, :name => "Section 3 Group", :group_category => @group_category, :course_section_id => @sections[2][:self].id})
     @sections[2][:self].users.each {|u| @section3_group.add_user(u)}
   end
 
@@ -431,6 +436,12 @@ describe SectionSplitter do
   end
 
   context "groups" do
+    it "should transfer group categories" do
+      @result.each do |c|
+        expect(c.group_categories.length).to eq 1
+      end
+    end
+
     it "should transfer section-specific groups" do
       expect(@result[0].groups.length).to eq 0
       expect(@result[2].groups.length).to eq 1

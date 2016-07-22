@@ -190,7 +190,9 @@ class SectionSplitter
           when Quizzes::Quiz
             source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
           when CalendarEvent
-            source_course.calendar_events.find {|e| e.workflow_state == model.workflow_state && e.title == model.title && e.start_at == model.start_at && e.end_at == model.end_at }
+            source_course.calendar_events.find {|e| e.workflow_state == model.workflow_state && e.title == model.title && e.start_at == model.start_at && e.end_at == model.end_at}
+          when GroupCategory
+            source_course.group_categories.find {|g| g.name == model.name && g.role == model.role && g.deleted_at == model.deleted_at && g.group_limit == model.group_limit}
           else
             nil
         end
@@ -273,7 +275,21 @@ class SectionSplitter
     end
 
     def migrate_groups
-      @source_course.groups.where(:course_section_id => @source_section.id).update_all(:context_id => @target_course.id)
+      group_category_map = {}
+      @source_course.group_categories.each do |gc|
+        new_category = gc.clone
+        @target_course.group_categories << new_category
+        @target_course.save
+        group_category_map[gc] = new_category
+      end
+      groups = @source_course.groups.where(:course_section_id => @source_section.id)
+      groups.update_all(:context_id => @target_course.id)
+      groups.each do |group|
+        next unless group.group_category
+        new_category = group_category_map[group.group_category]
+        group.group_category = new_category
+        group.save
+      end
       @source_course.reload
       @target_course.reload
     end
