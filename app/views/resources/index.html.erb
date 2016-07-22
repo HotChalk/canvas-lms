@@ -37,7 +37,7 @@
           <tbody id="resources_links">
           <% @resources[:resources_links].each do |title, url| %>
               <tr class="resource_link <%= raw ' blank" style="display: none;' if title.nil? %>">
-                <td><input type="text" class="title" value="<%= title %>"/></td>
+              <td><input type="text" class="title" value="<%= title %>"/></td>
                 <td><input type="text" class="url" value="<%= url %>" maxlength="255"/></td>
                 <td>
                   <a href="#" title="<%= t(:resource_link_delete, "Remove Link") %>" class="delete_resource_link"><i class="icon-end standalone-icon"></i></a>

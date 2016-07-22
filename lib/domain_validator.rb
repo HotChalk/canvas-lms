@@ -162,6 +162,7 @@ class DomainValidator
     issues = []
     scope.find_in_batches(batch_size: 100) do |batch|
       batch.each do |model|
+        next if model.respond_to?(:context) && model.context.respond_to?(:deleted?) && model.context.deleted?
         case model
           when AssessmentQuestion, Quizzes::QuizQuestion
             check_question(model) do |links|
@@ -171,7 +172,7 @@ class DomainValidator
             attrs.each do |attr|
               text = model.respond_to?(attr) && model[attr] || nil
               find_invalid_links(text) do |links|
-                issues << {:id => model.id, :type => model.class.model_name.param_key, :attr => attr, :invalid_links => links}
+                issues << {:id => model.id, :type => model.class.model_name.param_key, :attr => attr, :url => model_url(model), :invalid_links => links}
               end
             end
         end
@@ -239,5 +240,25 @@ class DomainValidator
       invalid_link = {:url => url}
       yield invalid_link
     end
+  end
+
+  def model_url(model)
+    path = case model
+      when Assignment
+        "/#{model.context_type.downcase.pluralize}/#{model.context_id}/assignments/#{model.id}"
+      when Course
+        "/courses/#{model.id}/assignments/syllabus"
+      when DiscussionEntry
+        "/#{model.discussion_topic.context_type.downcase.pluralize}/#{model.discussion_topic.context_id}/discussion_topics/#{model.discussion_topic.id}"
+      when DiscussionTopic
+        "/#{model.context_type.downcase.pluralize}/#{model.context_id}/discussion_topics/#{model.id}"
+      when Quizzes::Quiz
+        "/#{model.context_type.downcase.pluralize}/#{model.context_id}/quizzes/#{model.id}"
+      when WikiPage
+        "/#{model.context.class.name.downcase.pluralize}/#{model.context.id}/pages/#{model.url}"
+      else
+        nil
+    end
+    path.present? ? "#{HostUrl.protocol}://#{HostUrl.default_host}#{path}" : nil
   end
 end
