@@ -363,14 +363,14 @@ describe SectionSplitter do
       [@result[0], @result[1]].each do |course|
         all_sections_topic = course.discussion_topics.find {|d| d.title == @all_sections_topic.title }
         entry_ids = all_sections_topic.discussion_entries.map(&:id)
-        user_ids = course.users.map(&:id)
-        structure, participant_ids, entry_ids, new_entries = all_sections_topic.materialized_view(:include_new_entries => true)
+        user_ids = all_sections_topic.discussion_entries.map(&:user_id)
+        structure, participant_ids, mv_entry_ids, new_entries = all_sections_topic.materialized_view(:include_new_entries => true)
         entries = JSON.parse(structure)
         expect(entries.length).to be > 0
-        found_entry_ids = entries.map {|e| e["id"].to_i}
-        found_user_ids = entries.map {|e| e["user_id"].to_i}
-        expect(found_entry_ids - entry_ids).to eq []
-        expect(found_user_ids - user_ids).to eq []
+        found_entry_ids = entries.map {|e| [e["id"].to_i] + e["replies"].map {|r| r["id"].to_i}}.flatten
+        found_user_ids = entries.map {|e| [e["user_id"].to_i] + e["replies"].map {|r| r["user_id"].to_i}}.flatten
+        expect(found_entry_ids).to match_array(entry_ids)
+        expect(found_user_ids).to match_array(user_ids)
       end
     end
   end

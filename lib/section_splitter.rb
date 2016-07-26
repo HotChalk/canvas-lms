@@ -25,6 +25,10 @@ class SectionSplitter
       Rails.logger.info "[SECTION-SPLITTER] Skipping course #{course.id}: not a multi-section course"
       return
     end
+    unless (course.active_course_sections.count {|s| s.enrollments.length > 0}) > 1
+      Rails.logger.info "[SECTION-SPLITTER] Skipping course #{course.id}: does not contain multiple sections with enrollments"
+      return
+    end
 
     Rails.logger.info "[SECTION-SPLITTER] Splitting course #{course.id} [#{course.name}]..."
     result = []
@@ -320,12 +324,12 @@ class SectionSplitter
     end
 
     def migrate_discussion_entries
-      section_user_ids = @target_course.enrollments.map(&:user_id)
+      section_user_ids = @target_course.enrollments.map(&:user_id).uniq
       @target_course.discussion_topics.each do |topic|
         source_topic = source_model(@source_course, topic)
-        source_topic.discussion_entries.each do |entry|
-          entry_ids = [entry.id] + entry.flattened_discussion_subentries.pluck(:id)
-          participant_ids = [entry.user_id] + entry.flattened_discussion_subentries.pluck(:user_id)
+        source_topic.root_discussion_entries.each do |entry|
+          entry_ids = ([entry.id] + entry.flattened_discussion_subentries.pluck(:id)).uniq
+          participant_ids = ([entry.user_id] + entry.flattened_discussion_subentries.pluck(:user_id)).uniq
           non_section_participant_ids = participant_ids - section_user_ids
           if non_section_participant_ids.empty?
             DiscussionEntry.where(:id => entry_ids).update_all(:discussion_topic_id => topic.id)
@@ -337,7 +341,11 @@ class SectionSplitter
         topic.last_reply_at = topic.discussion_entries.last.try(:created_at) || topic.posted_at
         topic.save
         DiscussionTopic.where(:id => topic.id).update_all(:user_id => source_topic.user_id) # ugly hack, but user_id is a readonly attribute
-        topic.reload
+      end
+      @source_course.reload
+      @target_course.reload
+      @target_course.discussion_topics.each do |topic|
+        DiscussionTopic::MaterializedView.for(topic).delete
         DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
       end
     end
