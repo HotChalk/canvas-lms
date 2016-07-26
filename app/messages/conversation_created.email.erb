@@ -12,7 +12,7 @@
 
 <% define_content :footer_link do %>
   <a href="<%= content :link %>">
-    <%= t :view_message, "View this message in Conversations" %>
+    <%= t :view_message, "Click here to reply in Ember." %>
   </a>
 <% end %>
 
@@ -26,7 +26,7 @@
 <% if asset.has_media_objects? %>
   <%= t("This message includes media comments. To listen or reply, click this link: %{link}.", link: content(:link)) %>
 <% else %>
-  <%= t("You can reply to this message in HotChalk Ember by replying directly to this email, or by clicking this link: %{link}.", link: content(:link)) %>
+  <%= t("Please log into Ember and reply directly to this conversation (Replies via this email will not reach the intended recipient), or by clicking this link: %{link}.", link: content(:link)) %>
 <% end %>
 
 <% unless asset.attachments.empty? %>

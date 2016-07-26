@@ -104,6 +104,7 @@
               </a>
             </li>
             <% if @context && (acct = ::Context.get_account(@context)) && acct[:settings][:enable_resources_link] && acct[:settings][:resources_links] %>
+            <% get_resources %>
             <li class="menu-item ic-app-header__menu-list-item <%= ' ic-app-header__menu-list-item--active' if active_path?('/resources') %>">
               <a id="global_nav_resources_link" href="/resources" class="ic-app-header__menu-list-link">
                 <div class="menu-item-icon-container" aria-hidden="true">
@@ -124,17 +125,27 @@
         <div role="navigation" class="ic-app-header__secondary-navigation">
           <ul role="menu" class="ic-app-header__menu-list">
             <li class="ic-app-header__menu-list-item">
+
+              <!--cut this code if you want to put the new help UI-->
               <%= link_to help_link_url,
-                    :class => help_link_classes(["ic-app-header__menu-list-link"]),
+                          :class => help_link_classes(["ic-app-header__menu-list-link"]),
                           :target => "_blank",
-                    :data => help_link_data do %>
+                          :data => help_link_data do %>
+              <!--cut this code if you want to put the new help UI-->
+
+              <!--<a href="" id="help_link" class="support_url ic-app-header__menu-list-link" data-track-category="help system" data-track-label="help button">-->
                 <div class="menu-item-icon-container" role="presentation">
                   <%= svg_icon :help %>
                 </div>
                 <div class="menu-item__text">
                   <%= t('Help') %>
                 </div>
+
+              <!--cut this code if you want to put the new help UI-->
               <% end %>
+              <!--cut this code if you want to put the new help UI-->
+
+              <!--</a>-->
             </li>
           </ul>
         </div>
@@ -143,3 +154,14 @@
     </div>
     <div id="global_nav_tray_container"></div>
   </header>
+
+  <% if show_help_link? %>
+  <div autofocus class="help" id="help_container" style="display: none;">  
+    <ul>
+      <% help_link_url2.each do |option| %>
+        <li><a href="<%=option[:url] %>" target="_blank" class="<%=option[:x_classes]%>" id="<%=option[:x_id]%>"><h1><%=option[:title]%></h1><h3><%=option[:description]%></h3></a></li>
+        <%= include_custom_collector(option[:javascript_txt]) %>
+      <% end %>
+    </ul>
+  </div>
+  <% end %>

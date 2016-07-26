@@ -12,7 +12,7 @@
 
 <% define_content :footer_link do %>
   <a href="<%= content :link %>">
-    <%= t :view_message, "View this message in Conversations" %>
+    <%= t :view_message, "Click here to reply in Ember." %>
   </a>
 <% end %>
 
@@ -41,6 +41,7 @@
               <b><%= author_short_name%></b>
             </td>
           </tr>
+          <%unless check_nil_empty?(author_email_address) %>
           <tr>
             <td valign="top" align="left">
               <a href="mailto:<%= author_email_address %>">
@@ -48,6 +49,7 @@
               </a>
             </td>
           </tr>
+          <% end %>
         </table>
       </td>
     </tr>
@@ -57,16 +59,18 @@
   <p>
     <b><%= author_short_name%></b>
     <br/>
+    <%unless check_nil_empty?(author_email_address) %>
     <a href="mailto:<%= author_email_address %>">
       <%= author_email_address%>
     </a>
+    <% end %>
   </p>
 <% end %>
 
 <% if asset.has_media_objects? %>
 <p><%= t :audio_comment, "This message includes media comments. To listen or reply, click the link below:" %></p>
 <% else %>
-<p><%= t :reply_to_conversation_message, "You can reply to this message in HotChalk Ember by replying directly to this email." %></p>
+<p><%= t :reply_to_conversation_message, "Please log into Ember and reply directly to this conversation. Replies via this email will not reach the intended recipient." %></p>
 <% end %>
 
 

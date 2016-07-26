@@ -8,7 +8,7 @@
 
 <% define_content :footer_link do %>
   <a href="<%= content(:link) %>">
-    <%= t :link, "Click here to join the conversation" %>
+    <%= t :link, "Click here to reply in Ember." %>
   </a>
 <% end %>
 
@@ -33,6 +33,7 @@
               <b><%= author_short_name%></b>
             </td>
           </tr>
+          <%unless check_nil_empty?(author_email_address) %>
           <tr>
             <td valign="top" align="left">
               <a href="mailto:<%= author_email_address %>">
@@ -40,6 +41,7 @@
               </a>
             </td>
           </tr>
+          <% end %>
         </table>
       </td>
     </tr>
@@ -49,10 +51,12 @@
   <p>
     <b><%= author_short_name%></b>
     <br/>
+    <%unless check_nil_empty?(author_email_address) %>
     <a href="mailto:<%= author_email_address %>">
       <%= author_email_address%>
     </a>
+    <% end %>
   </p>
 <% end %>
 
-<p><%= t :discussion_entry_reply_message, "Join the conversation using the link below, or comment by replying to this message." %></p>
+<p><%= t :discussion_entry_reply_message, "Please log into Ember and reply directly to this conversation. Replies via this email will not reach the intended recipient." %></p>
