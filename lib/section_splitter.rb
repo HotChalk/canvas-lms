@@ -23,11 +23,11 @@ class SectionSplitter
     return unless course
     unless course.active_course_sections.length > 1
       Rails.logger.info "[SECTION-SPLITTER] Skipping course #{course.id}: not a multi-section course"
-      return
+      return []
     end
     unless (course.active_course_sections.select {|s| s.student_enrollments.length > 0}.length) > 1
       Rails.logger.info "[SECTION-SPLITTER] Skipping course #{course.id}: does not contain multiple sections with enrollments"
-      return
+      return []
     end
 
     Rails.logger.info "[SECTION-SPLITTER] Splitting course #{course.id} [#{course.name}]..."
