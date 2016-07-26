@@ -95,12 +95,15 @@ describe SectionSplitter do
   # |   +--- @as_root_s1_1: Reply by section 1 student
   # |   |    +--- @as_root_s1_1_reply1: Reply by section 1 student (with attachment reference in HTML)
   # |   +--- @as_root_s2_1: Reply by section 2 student
-  # |        +--- @as_root_s1_1_reply1: Reply by section 2 student (with direct attachment)
+  # |        +--- @as_root_s2_1_reply1: Reply by section 2 student (with direct attachment)
   # +-- @section1_topic: Section 1 topic
   # |   +--- @s1_root_1: Reply by section 1 student
   # |   +--- @s1_root_2: Reply by section 1 teacher
   # +-- @section3_topic: Section 3 topic
   # |   +--- @s3_root_1: Reply by section 3 student
+  # |   |    +--- @s3_root_1_reply1: Reply by section 1 student
+  # |   |    +--- @s3_root_1_reply2: Reply by section 1 student
+  # |   |    +--- @s3_root_1_reply3: Reply by section 1 student
   # |   +--- @s3_root_2: Reply by all-sections teacher
   def create_discussion_topics
     @all_sections_topic = @source_course.discussion_topics.create!(:title => "All Sections Topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
@@ -135,8 +138,14 @@ describe SectionSplitter do
     @s3_root_1.save!
     @s3_root_2 = DiscussionEntry.new(:user => @all_sections_teacher, :message => "section 3", :discussion_topic => @section3_topic)
     @s3_root_2.save!
+    @s3_root_1_reply1 = DiscussionEntry.new(:user => @sections[2][:students][1], :message => "section 3 reply reply", :discussion_topic => @section3_topic, :parent_entry => @s3_root_1)
+    @s3_root_1_reply1.save!
+    @s3_root_1_reply2 = DiscussionEntry.new(:user => @sections[2][:students][2], :message => "section 3 reply reply", :discussion_topic => @section3_topic, :parent_entry => @s3_root_1)
+    @s3_root_1_reply2.save!
+    @s3_root_1_reply3 = DiscussionEntry.new(:user => @sections[2][:students][3], :message => "section 3 reply reply", :discussion_topic => @section3_topic, :parent_entry => @s3_root_1)
+    @s3_root_1_reply3.save!
 
-    @all_entries = [@as_root_as_1, @as_root_s1_1, @as_root_s2_1, @as_root_as_1_reply1, @as_root_s1_1_reply1, @as_root_s2_1_reply1, @s1_root_1, @s1_root_2, @s3_root_1, @s3_root_2]
+    @all_entries = [@as_root_as_1, @as_root_s1_1, @as_root_s2_1, @as_root_as_1_reply1, @as_root_s1_1_reply1, @as_root_s2_1_reply1, @s1_root_1, @s1_root_2, @s3_root_1, @s3_root_2, @s3_root_1_reply1, @s3_root_1_reply2, @s3_root_1_reply3]
     @all_entries.each &:reload
     @all_sections_topic.reload
     @section1_topic.reload
@@ -322,6 +331,13 @@ describe SectionSplitter do
           expect(all_sections_topic.root_discussion_entries[0].discussion_subentries[0].user_id).to eq(@sections[0][:students][0].id)
           expect(all_sections_topic.root_discussion_entries[1].discussion_subentries.length).to eq 1
           expect(all_sections_topic.root_discussion_entries[1].discussion_subentries[0].user_id).to eq(@sections[0][:students][1].id)
+        elsif course == @result[1]
+          expect(all_sections_topic.root_discussion_entries.length).to eq 1
+          expect(all_sections_topic.root_discussion_entries[0].discussion_subentries.length).to eq 1
+          expect(all_sections_topic.root_discussion_entries[0].discussion_subentries[0].user_id).to eq(@sections[1][:students][1].id)
+          expect(all_sections_topic.root_discussion_entries[0].discussion_subentries[0].attachment).to be
+        elsif course == @result[2]
+          expect(all_sections_topic.root_discussion_entries.length).to eq 0
         end
       end
     end
@@ -339,7 +355,8 @@ describe SectionSplitter do
       expect(section1_topic.root_discussion_entries.length).to eq 2
       expect(section1_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[0][:students][2].id, @sections[0][:teachers][1].id)
       expect(section3_topic.root_discussion_entries.length).to eq 2
-      expect(section3_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[2][:students][0].id, @all_sections_teacher.id)
+      expect(section3_topic.discussion_entries.map(&:user_id)).to contain_exactly(@sections[2][:students][0].id, @all_sections_teacher.id, @sections[2][:students][1].id, @sections[2][:students][2].id, @sections[2][:students][3].id)
+      expect(section3_topic.child_discussion_entries.length).to eq 3
     end
 
     it "should transfer correct data for the materialized view" do

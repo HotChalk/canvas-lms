@@ -330,8 +330,6 @@ class SectionSplitter
           if non_section_participant_ids.empty?
             DiscussionEntry.where(:id => entry_ids).update_all(:discussion_topic_id => topic.id)
             DiscussionEntryParticipant.where("discussion_entry_id IN (?) AND user_id NOT IN (?)", entry_ids, section_user_ids).delete_all
-          else
-            Rails.logger.error "[SECTION-SPLITTER] Unable to migrate discussion entry #{entry.id}: contains mixed section subentries"
           end
         end
         source_topic.discussion_topic_participants.where(:user_id => section_user_ids).update_all(:discussion_topic_id => topic.id)
