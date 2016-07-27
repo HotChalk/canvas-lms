@@ -168,7 +168,7 @@ class SectionSplitter
     end
 
     def clean_calendar_events
-      @source_course.calendar_events.where("course_section_id IS NOT NULL AND course_section_id <> ?", @source_section.id).each do |source_event|
+      @source_course.calendar_events.active.where("course_section_id IS NOT NULL AND course_section_id <> ?", @source_section.id).each do |source_event|
         target_event = source_model(@target_course, source_event)
         target_event.destroy_permanently!
       end
@@ -345,7 +345,6 @@ class SectionSplitter
       @source_course.reload
       @target_course.reload
       @target_course.discussion_topics.each do |topic|
-        DiscussionTopic::MaterializedView.for(topic).delete
         DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
       end
     end
