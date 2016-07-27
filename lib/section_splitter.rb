@@ -282,18 +282,19 @@ class SectionSplitter
       group_category_map = {}
       @source_course.group_categories.each do |gc|
         new_category = gc.clone
+        new_category.context = @target_course
         @target_course.group_categories << new_category
         @target_course.save
         group_category_map[gc] = new_category
       end
       groups = @source_course.groups.where(:course_section_id => @source_section.id)
-      groups.update_all(:context_id => @target_course.id)
       groups.each do |group|
         next unless group.group_category
         new_category = group_category_map[group.group_category]
         group.group_category = new_category
         group.save
       end
+      groups.update_all(:context_id => @target_course.id)
       @source_course.reload
       @target_course.reload
     end

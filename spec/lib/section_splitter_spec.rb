@@ -193,12 +193,17 @@ describe SectionSplitter do
   end
 
   def create_group_categories
-    @group_category = group_category({:context => @source_course, :name => "Group Category"})
+    @group_category1 = group_category({:context => @source_course, :name => "Group Category 1"})
+    @group_category2 = group_category({:context => @source_course, :name => "Group Category 2"})
   end
 
   def create_groups
-    @section3_group = group_model({:context => @source_course, :name => "Section 3 Group", :group_category => @group_category, :course_section_id => @sections[2][:self].id})
-    @sections[2][:self].users.each {|u| @section3_group.add_user(u)}
+    @section1_group = group_model({:context => @source_course, :name => "Section 1 Group", :group_category => @group_category1, :course_section_id => @sections[0][:self].id})
+    @section2_group = group_model({:context => @source_course, :name => "Section 2 Group", :group_category => @group_category1, :course_section_id => @sections[1][:self].id})
+    @section3_group = group_model({:context => @source_course, :name => "Section 3 Group", :group_category => @group_category1, :course_section_id => @sections[2][:self].id})
+    @sections[0][:self].students.each {|u| @section1_group.add_user(u)}
+    @sections[1][:self].students.each {|u| @section2_group.add_user(u)}
+    @sections[2][:self].students.each {|u| @section3_group.add_user(u)}
   end
 
   def create_submissions
@@ -483,16 +488,18 @@ describe SectionSplitter do
   context "groups" do
     it "should transfer group categories" do
       @result.each do |c|
-        expect(c.group_categories.length).to eq 1
+        expect(c.group_categories.length).to eq 2
       end
     end
 
     it "should transfer section-specific groups" do
-      expect(@result[0].groups.length).to eq 0
-      expect(@result[2].groups.length).to eq 1
-      group = @result[2].groups.where(:name => "Section 3 Group").first
-      expect(group).to be
-      expect(group.group_memberships.length).to eq 7
+      @result.each_with_index do |course, i|
+        expect(course.groups.length).to eq 1
+        group = course.groups.where(:name => "Section #{i + 1} Group").first
+        expect(group).to be
+        expect(group.group_category.context).to eq group.context
+        expect(group.group_memberships.length).to eq 5
+      end
     end
   end
 end
