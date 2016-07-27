@@ -301,12 +301,16 @@ class SectionSplitter
     def migrate_submissions
       student_ids = @target_course.student_enrollments.map(&:user_id)
       @target_course.assignments.each do |a|
+        Submission.where(:assignment => a, :user_id => student_ids).delete_all
         source_assignment = source_model(@source_course, a)
         submissions = Submission.where(:assignment => source_assignment, :user_id => student_ids)
-        Submission.where(:assignment => a, :user_id => student_ids).delete_all
-        submissions.update_all(:assignment_id => a.id)
+        submissions.select {|s| s.attachment_ids.present? }.each do |s|
+          attachment_ids = s.attachment_ids.split(",")
+          Attachment.where(:id => attachment_ids, :context_type => 'Assignment', :context_id => source_assignment.id).update_all(:context_id => a.id)
+        end
         submission_comments = SubmissionComment.where(:submission_id => submissions.map(&:id), :context => @source_course)
         submission_comments.update_all(:context_id => @target_course.id)
+        submissions.update_all(:assignment_id => a.id)
       end
       @source_course.reload
       @target_course.reload

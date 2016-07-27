@@ -77,7 +77,7 @@ describe SectionSplitter do
     @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
     @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment"})
     assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self]})
-    @all_sections_assignment2 = assignment_model({:course => @source_course, :title => "All Sections Assignment 2"})
+    @all_sections_assignment2 = assignment_model({:course => @source_course, :title => "All Sections Assignment 2", :submission_types => "online_upload"})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[0][:self], :due_at => @now + 1.weeks})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[1][:self], :due_at => @now + 2.weeks})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[2][:self], :due_at => @now + 3.weeks})
@@ -207,6 +207,8 @@ describe SectionSplitter do
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
     @section2_assignment1_submission = submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
     submission_comment_model({:submission => @section2_assignment1_submission, :author => @sections[1][:teachers][1]})
+    @all_sections_assignment2_submission_attachment = attachment_model(:context => @all_sections_assignment2)
+    @all_sections_assignment2_submission = submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment2, :user => @sections[0][:students][0], :submission_type => "online_upload", :attachments => [@all_sections_assignment2_submission_attachment]})
 
     @asset = factory_with_protected_attributes(AssetUserAccess, :user => @sections[0][:students][0], :context => @source_course, :asset_code => @all_sections_assignment.asset_string, :display_name => @all_sections_assignment.asset_string)
     @asset.save!
@@ -416,6 +418,15 @@ describe SectionSplitter do
       comment = SubmissionComment.where(:author => @sections[1][:teachers][1]).first
       expect(comment).to be
       expect(comment.context).to eq(@result[1])
+    end
+
+    it "should transfer submission attachments" do
+      all_sections_assignment2 = @result[0].assignments.find {|a| a.title == @all_sections_assignment2.title }
+      expect(@result[0].submissions.having_submission.where(:assignment_id => all_sections_assignment2.id).length).to eq 1
+      submission = @result[0].submissions.having_submission.where(:assignment_id => all_sections_assignment2.id).first
+      expect(submission.attachment_ids).to eq "#{@all_sections_assignment2_submission_attachment.id}"
+      @all_sections_assignment2_submission_attachment.reload
+      expect(@all_sections_assignment2_submission_attachment.context).to eq all_sections_assignment2
     end
   end
 
