@@ -125,27 +125,14 @@
         <div role="navigation" class="ic-app-header__secondary-navigation">
           <ul role="menu" class="ic-app-header__menu-list">
             <li class="ic-app-header__menu-list-item">
-
-              <!--cut this code if you want to put the new help UI-->
-              <%= link_to help_link_url,
-                          :class => help_link_classes(["ic-app-header__menu-list-link"]),
-                          :target => "_blank",
-                          :data => help_link_data do %>
-              <!--cut this code if you want to put the new help UI-->
-
-              <!--<a href="" id="help_link" class="support_url ic-app-header__menu-list-link" data-track-category="help system" data-track-label="help button">-->
+              <a href="" id="help_link" class="support_url ic-app-header__menu-list-link" data-track-category="help system" data-track-label="help button">
                 <div class="menu-item-icon-container" role="presentation">
                   <%= svg_icon :help %>
                 </div>
                 <div class="menu-item__text">
                   <%= t('Help') %>
                 </div>
-
-              <!--cut this code if you want to put the new help UI-->
-              <% end %>
-              <!--cut this code if you want to put the new help UI-->
-
-              <!--</a>-->
+              </a>
             </li>
           </ul>
         </div>
