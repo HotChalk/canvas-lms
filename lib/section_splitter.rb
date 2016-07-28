@@ -364,8 +364,12 @@ class SectionSplitter
     def migrate_page_views
       user_ids = @target_course.enrollments.map(&:user_id)
       @source_course.page_views.where(:user_id => user_ids).each do |p|
-        p.context = @target_course
-        p.save
+        if PageView.cassandra? && (cassandra = PageView::EventStream.database)
+          cassandra.execute("UPDATE page_views SET context_id = ? WHERE context_id = ? AND user_id IN (?)", @target_course.id, @source_course.id, user_ids)
+        else
+          p.context = @target_course
+          p.save
+        end
       end
     end
 
