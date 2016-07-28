@@ -2,13 +2,14 @@ define [
   'i18n!conversations'
   'jquery'
   'underscore'
-  'Backbone'
+  'moment'
+  'Backbone'  
   'compiled/views/conversations/SearchableSubmenuView'
   'jst/conversations/courseOptions'
   'jquery.instructure_date_and_time'
   'vendor/bootstrap/bootstrap-dropdown'
-  'vendor/bootstrap-select/bootstrap-select'
-], (I18n, $, _, {View, Collection}, SearchableSubmenuView, template) ->
+  'vendor/bootstrap-select/bootstrap-select'  
+], (I18n, $, _, moment, {View, Collection}, SearchableSubmenuView, template) ->
 
   class CourseSelectionView extends View
     events:
@@ -130,8 +131,16 @@ define [
     truncate_course: (course) =>
       name = course['name']
       truncated = @middle_truncate(name)
-      unless name == truncated
-        course['truncated_name'] = truncated
+      start_date = ''
+      end_date = ''
+      tdate = ''
+      if course['start_at'] and course['start_at'].length > 0
+        start_date = moment(course['start_at']).format('LL')
+        tdate = '(' + start_date + ')'
+      if course['end_at'] and course['end_at'].length > 0
+        end_date = moment(course['end_at']).format('LL')
+        tdate = '(' + start_date + ' - ' + end_date + ')'  
+      course['truncated_name'] = truncated + ' - ' + course['course_code'] + tdate
 
     middle_truncate: (name) ->
       if name.length > 25
