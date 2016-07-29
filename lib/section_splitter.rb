@@ -11,7 +11,7 @@ class SectionSplitter
     if opts[:account_id]
       account = Account.find(opts[:account_id])
       raise "Account not found: #{opts[:account_id]}" unless account.present?
-      account.all_courses.each do |course|
+      account.courses.each do |course|
         result += self.process_course(user, course, opts)
       end
     end
