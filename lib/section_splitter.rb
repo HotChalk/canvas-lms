@@ -1,3 +1,19 @@
+#
+# If your target environment is configured to use an Apache Cassandra cluster,
+# please keep in mind that you will need to perform some configuration changes prior
+# to running this tool:
+#
+# 1. Edit your cassandra.yml configuration file and set a high timeout value for each keyspace, e.g.:
+#    timeout: 100000
+#
+# 2. Create the following indexes in your Cassandra cluster:
+#    CREATE INDEX page_views_context_id_idx ON page_views.page_views (context_id);
+#    CREATE INDEX grade_changes_context_id_idx ON auditors.grade_changes (context_id);
+#
+# Index creation can be a long-running process, so you should verify that the indexes have
+# been successfully created by querying the page_views.page_views and auditors.grade_changes tables
+# using a WHERE condition for the context_id column.
+#
 class SectionSplitter
   def self.run(opts)
     result = []
@@ -103,6 +119,7 @@ class SectionSplitter
       @target_course = Course.find(target_course_id)
       @source_section = CourseSection.find(source_section_id)
       @source_course = @source_section.course
+      @source_asset_strings = {}
 
       # Remove course content that is not available to the source section
       clean_assignments
@@ -120,7 +137,7 @@ class SectionSplitter
       migrate_quiz_submissions
       migrate_discussion_entries
       migrate_messages
-      migrate_page_views
+      migrate_page_views_and_audit_logs
       migrate_asset_user_accesses
       migrate_content_participation_counts
       @target_course.save!
@@ -201,6 +218,7 @@ class SectionSplitter
             nil
         end
       raise "Unable to find source item for [#{model.inspect}] in course ID=#{source_course.id}" unless source_model
+      @source_asset_strings[source_model.asset_string] = model.asset_string if source_course == @source_course
       source_model
     end
 
@@ -350,7 +368,7 @@ class SectionSplitter
       @source_course.reload
       @target_course.reload
       @target_course.discussion_topics.each do |topic|
-        DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
+        DiscussionTopic::MaterializedView.for(topic).try(:update_materialized_view_without_send_later)
       end
     end
 
@@ -361,14 +379,141 @@ class SectionSplitter
       @target_course.reload
     end
 
-    def migrate_page_views
+    def migrate_page_views_and_audit_logs
       user_ids = @target_course.enrollments.map(&:user_id)
-      @source_course.page_views.where(:user_id => user_ids).each do |p|
-        if PageView.cassandra? && (cassandra = PageView::EventStream.database)
-          cassandra.execute("UPDATE page_views SET context_id = ? WHERE context_id = ? AND user_id IN (?)", @target_course.id, @source_course.id, user_ids)
-        else
+      if cassandra?
+        migrate_page_views_cassandra(user_ids)
+        migrate_page_views_counters_by_context_and_hour(user_ids)
+        migrate_page_views_counters_by_context_and_user(user_ids)
+        migrate_participations_by_context(user_ids)
+        migrate_grade_changes(user_ids)
+      else
+        @source_course.page_views.where(:user_id => user_ids).each do |p|
           p.context = @target_course
           p.save
+        end
+      end
+    end
+
+    def migrate_page_views_cassandra(user_ids)
+      page_views = []
+      PageView::EventStream.database.execute("SELECT request_id, context_type, user_id FROM page_views WHERE context_id = ?", @source_course.id).fetch {|row| page_views << row.to_hash}
+      request_ids = page_views
+                      .select {|row| row["context_type"] == "Course" && user_ids.include?(row["user_id"].to_i)}
+                      .map {|row| row["request_id"]}
+                      .uniq
+
+      PageView::EventStream.database.update("UPDATE page_views SET context_id = ? WHERE request_id IN (?)", @target_course.id, request_ids)
+    end
+
+    def migrate_page_views_counters_by_context_and_hour(user_ids)
+      source_course_global_id = @source_course.global_id
+      target_course_global_id = @target_course.global_id
+      user_ids.each do |user_id|
+        user_global_id = User.find(user_id).global_id
+        source_context_user_global_id = "course_#{source_course_global_id}/user_#{user_global_id}"
+        target_context_user_global_id = "course_#{target_course_global_id}/user_#{user_global_id}"
+        page_views_counters_by_context_and_hour = []
+        query = "SELECT context, hour_bucket, page_view_count, participation_count FROM page_views_counters_by_context_and_hour WHERE context = ?"
+        PageView::EventStream.database.execute(query, source_context_user_global_id).fetch {|row| page_views_counters_by_context_and_hour << row.to_hash}
+        page_views_counters_by_context_and_hour.each do |row|
+          primary_key = {
+            "context" => target_context_user_global_id,
+            "hour_bucket" => row["hour_bucket"]
+          }
+          PageView::EventStream.database.insert_record("page_views_counters_by_context_and_hour", primary_key, {})
+          if row["page_view_count"]
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_hour SET page_view_count = page_view_count + ? WHERE context = ? AND hour_bucket = ?", row["page_view_count"], primary_key["context"], primary_key["hour_bucket"])
+          end
+          if row["participation_count"]
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_hour SET page_view_count = participation_count + ? WHERE context = ? AND hour_bucket = ?", row["participation_count"], primary_key["context"], primary_key["hour_bucket"])
+          end
+          PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_hour WHERE context = ? AND hour_bucket = ?", source_context_user_global_id, row["hour_bucket"])
+        end
+      end
+    end
+
+    def migrate_page_views_counters_by_context_and_user(user_ids)
+      source_course_global_id = @source_course.global_id
+      target_course_global_id = @target_course.global_id
+      user_ids.each do |user_id|
+        user_global_id = User.find(user_id).global_id.to_s
+        source_context_global_id = "course_#{source_course_global_id}"
+        target_context_global_id = "course_#{target_course_global_id}"
+        page_views_counters_by_context_and_user = []
+        query = "SELECT context, user_id, page_view_count, participation_count FROM page_views_counters_by_context_and_user WHERE context = ? AND user_id = ?"
+        PageView::EventStream.database.execute(query, source_context_global_id, user_global_id).fetch {|row| page_views_counters_by_context_and_user << row.to_hash}
+        page_views_counters_by_context_and_user.each do |row|
+          primary_key = {
+            "context" => target_context_global_id,
+            "user_id" => user_global_id
+          }
+          PageView::EventStream.database.insert_record("page_views_counters_by_context_and_user", primary_key, {})
+          if row["page_view_count"]
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_user SET page_view_count = page_view_count + ? WHERE context = ? AND user_id = ?", row["page_view_count"], primary_key["context"], primary_key["user_id"])
+          end
+          if row["participation_count"]
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_user SET page_view_count = participation_count + ? WHERE context = ? AND user_id = ?", row["participation_count"], primary_key["context"], primary_key["user_id"])
+          end
+          PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_user WHERE context = ? AND user_id = ?", source_context_global_id, user_global_id)
+        end
+      end
+    end
+
+    def migrate_participations_by_context(user_ids)
+      source_course_global_id = @source_course.global_id
+      target_course_global_id = @target_course.global_id
+      user_ids.each do |user_id|
+        user_global_id = User.find(user_id).global_id
+        source_context_user_global_id = "course_#{source_course_global_id}/user_#{user_global_id}"
+        target_context_user_global_id = "course_#{target_course_global_id}/user_#{user_global_id}"
+        participations_by_context = []
+        query = "SELECT context, created_at, request_id, asset_category, asset_code, asset_user_access_id, url FROM participations_by_context WHERE context = ?"
+        PageView::EventStream.database.execute(query, source_context_user_global_id).fetch {|row| participations_by_context << row.to_hash}
+        PageView::EventStream.database.batch do
+          participations_by_context.each do |row|
+            values = {
+              "asset_category" => row["asset_category"],
+              "asset_code" => @source_asset_strings[row["asset_code"]],
+              "asset_user_access_id" => row["asset_user_access_id"],
+              "url" => row["url"]
+            }
+            primary_key = {
+              "context" => target_context_user_global_id,
+              "created_at" => row["created_at"],
+              "request_id" => row["request_id"]
+            }
+            if values["asset_code"].present?
+              PageView::EventStream.database.insert_record("participations_by_context", primary_key, values)
+              PageView::EventStream.database.update("DELETE FROM participations_by_context WHERE context = ? AND created_at = ? AND request_id = ?", source_context_user_global_id, row["created_at"], row["request_id"])
+            end
+          end
+        end
+      end
+    end
+
+    def migrate_grade_changes(user_ids)
+      source_course_global_id = @source_course.global_id
+      target_course_global_id = @target_course.global_id
+      user_global_ids = user_ids.map {|user_id| User.find(user_id).global_id}
+      grade_changes = []
+      query = "SELECT id, assignment_id, context_id, context_type, student_id FROM grade_changes WHERE context_id = ?"
+      Auditors::GradeChange::Stream.database.execute(query, source_course_global_id).fetch {|row| grade_changes << row.to_hash}
+      grade_changes.select! {|row| row["context_type"] == "Course" && user_global_ids.include?(row["student_id"])}
+      Auditors::GradeChange::Stream.database.batch do
+        grade_changes.each do |row|
+          assignment_id = Shard::local_id_for(row["assignment_id"])[0]
+          assignment = Assignment.find(assignment_id)
+          next unless assignment
+          new_assignment = source_model(@target_course, assignment)
+          values = {
+            "assignment_id" => new_assignment.id,
+            "context_id" => target_course_global_id
+          }
+          primary_key = {
+            "id" => row["id"]
+          }
+          Auditors::GradeChange::Stream.database.update_record("grade_changes", primary_key, values)
         end
       end
     end
@@ -381,6 +526,10 @@ class SectionSplitter
     def migrate_content_participation_counts
       user_ids = @target_course.enrollments.map(&:user_id)
       @source_course.content_participation_counts.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
+    end
+
+    def cassandra?
+      Setting.get('enable_page_views', 'db') == 'cassandra'
     end
   end
 end

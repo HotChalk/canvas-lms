@@ -1,4 +1,5 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
+require File.expand_path(File.dirname(__FILE__) + '/../cassandra_spec_helper.rb')
 
 describe SectionSplitter do
   before :once do
@@ -212,6 +213,7 @@ describe SectionSplitter do
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
     @section2_assignment1_submission = submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
     submission_comment_model({:submission => @section2_assignment1_submission, :author => @sections[1][:teachers][1]})
+    Auditors::GradeChange.record(@section2_assignment1_submission)
     @all_sections_assignment2_submission_attachment = attachment_model(:context => @all_sections_assignment2)
     @all_sections_assignment2_submission = submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment2, :user => @sections[0][:students][0], :submission_type => "online_upload", :attachments => [@all_sections_assignment2_submission_attachment]})
 
@@ -241,8 +243,11 @@ describe SectionSplitter do
   end
 
   def create_page_views
-    (0..4).each do |i|
-      page_view_model({:context => @source_course, :user => @sections[2][:students][i]})
+    Setting.set('enable_page_views', 'cassandra')
+    (0..2).each do |section_index|
+      (0..4).each do |i|
+        page_view_model({:context => @source_course, :user => @sections[section_index][:students][i]})
+      end
     end
   end
 
@@ -433,6 +438,15 @@ describe SectionSplitter do
       @all_sections_assignment2_submission_attachment.reload
       expect(@all_sections_assignment2_submission_attachment.context).to eq all_sections_assignment2
     end
+
+    context "cassandra" do
+      include_examples "cassandra audit logs"
+
+      it "should transfer grade change audit events" do
+        expect(Auditors::GradeChange::Stream.database.execute("SELECT COUNT(*) FROM grade_changes WHERE context_id = ?", @source_course.global_id).fetch_row["count"]).to eq 0
+        expect(Auditors::GradeChange::Stream.database.execute("SELECT COUNT(*) FROM grade_changes WHERE context_id = ?", @result[1].global_id).fetch_row["count"]).to eq 1
+      end
+    end
   end
 
   context "enrollments" do
@@ -453,7 +467,34 @@ describe SectionSplitter do
 
   context "page views" do
     it "should transfer page views" do
+      skip "requires database implementation for page views" unless Setting.get('enable_page_views', 'db') == 'db'
       expect(@result[2].page_views.length).to eq 5
+    end
+
+    context "cassandra" do
+      include_examples "cassandra page views"
+
+      it "should transfer page_views" do
+        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views WHERE context_id = ?", @source_course.id).fetch_row["count"]).to eq 0
+        @result.each do |course|
+          expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views WHERE context_id = ?", course.id).fetch_row["count"]).to eq 5
+        end
+      end
+
+      it "should transfer page_views_counters_by_context_and_hour" do
+        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context = ?", "course_#{@source_course.id}").fetch_row["count"]).to eq 0
+        @result.each do |course|
+          contexts = course.student_enrollments.map {|e| "course_#{course.id}/user_#{e.user.id}"}
+          expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 5
+        end
+      end
+
+      it "should transfer page_views_counters_by_context_and_user" do
+        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_user WHERE context = ?", "course_#{@source_course.id}").fetch_row["count"]).to eq 0
+        @result.each do |course|
+          expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_user WHERE context = ?", "course_#{course.id}").fetch_row["count"]).to eq 5
+        end
+      end
     end
   end
 
