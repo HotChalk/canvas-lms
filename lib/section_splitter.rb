@@ -426,7 +426,7 @@ class SectionSplitter
             PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_hour SET page_view_count = page_view_count + ? WHERE context = ? AND hour_bucket = ?", row["page_view_count"], primary_key["context"], primary_key["hour_bucket"])
           end
           if row["participation_count"]
-            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_hour SET page_view_count = participation_count + ? WHERE context = ? AND hour_bucket = ?", row["participation_count"], primary_key["context"], primary_key["hour_bucket"])
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_hour SET participation_count = participation_count + ? WHERE context = ? AND hour_bucket = ?", row["participation_count"], primary_key["context"], primary_key["hour_bucket"])
           end
           PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_hour WHERE context = ? AND hour_bucket = ?", source_context_user_global_id, row["hour_bucket"])
         end
@@ -453,7 +453,7 @@ class SectionSplitter
             PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_user SET page_view_count = page_view_count + ? WHERE context = ? AND user_id = ?", row["page_view_count"], primary_key["context"], primary_key["user_id"])
           end
           if row["participation_count"]
-            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_user SET page_view_count = participation_count + ? WHERE context = ? AND user_id = ?", row["participation_count"], primary_key["context"], primary_key["user_id"])
+            PageView::EventStream.database.update("UPDATE page_views_counters_by_context_and_user SET participation_count = participation_count + ? WHERE context = ? AND user_id = ?", row["participation_count"], primary_key["context"], primary_key["user_id"])
           end
           PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_user WHERE context = ? AND user_id = ?", source_context_global_id, user_global_id)
         end
