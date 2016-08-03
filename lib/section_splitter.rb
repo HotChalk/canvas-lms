@@ -470,23 +470,21 @@ class SectionSplitter
         participations_by_context = []
         query = "SELECT context, created_at, request_id, asset_category, asset_code, asset_user_access_id, url FROM participations_by_context WHERE context = ?"
         PageView::EventStream.database.execute(query, source_context_user_global_id).fetch {|row| participations_by_context << row.to_hash}
-        PageView::EventStream.database.batch do
-          participations_by_context.each do |row|
-            values = {
-              "asset_category" => row["asset_category"],
-              "asset_code" => @source_asset_strings[row["asset_code"]],
-              "asset_user_access_id" => row["asset_user_access_id"],
-              "url" => row["url"]
-            }
-            primary_key = {
-              "context" => target_context_user_global_id,
-              "created_at" => row["created_at"],
-              "request_id" => row["request_id"]
-            }
-            if values["asset_code"].present?
-              PageView::EventStream.database.insert_record("participations_by_context", primary_key, values)
-              PageView::EventStream.database.update("DELETE FROM participations_by_context WHERE context = ? AND created_at = ? AND request_id = ?", source_context_user_global_id, row["created_at"], row["request_id"])
-            end
+        participations_by_context.each do |row|
+          values = {
+            "asset_category" => row["asset_category"],
+            "asset_code" => @source_asset_strings[row["asset_code"]],
+            "asset_user_access_id" => row["asset_user_access_id"],
+            "url" => row["url"]
+          }
+          primary_key = {
+            "context" => target_context_user_global_id,
+            "created_at" => row["created_at"],
+            "request_id" => row["request_id"]
+          }
+          if values["asset_code"].present?
+            PageView::EventStream.database.insert_record("participations_by_context", primary_key, values)
+            PageView::EventStream.database.update("DELETE FROM participations_by_context WHERE context = ? AND created_at = ? AND request_id = ?", source_context_user_global_id, row["created_at"], row["request_id"])
           end
         end
       end
@@ -500,21 +498,19 @@ class SectionSplitter
       query = "SELECT id, assignment_id, context_id, context_type, student_id FROM grade_changes WHERE context_id = ?"
       Auditors::GradeChange::Stream.database.execute(query, source_course_global_id).fetch {|row| grade_changes << row.to_hash}
       grade_changes.select! {|row| row["context_type"] == "Course" && user_global_ids.include?(row["student_id"])}
-      Auditors::GradeChange::Stream.database.batch do
-        grade_changes.each do |row|
-          assignment_id = Shard::local_id_for(row["assignment_id"])[0]
-          assignment = Assignment.find(assignment_id)
-          next unless assignment
-          new_assignment = source_model(@target_course, assignment)
-          values = {
-            "assignment_id" => new_assignment.id,
-            "context_id" => target_course_global_id
-          }
-          primary_key = {
-            "id" => row["id"]
-          }
-          Auditors::GradeChange::Stream.database.update_record("grade_changes", primary_key, values)
-        end
+      grade_changes.each do |row|
+        assignment_id = Shard::local_id_for(row["assignment_id"])[0]
+        assignment = Assignment.find(assignment_id)
+        next unless assignment
+        new_assignment = source_model(@target_course, assignment)
+        values = {
+          "assignment_id" => new_assignment.id,
+          "context_id" => target_course_global_id
+        }
+        primary_key = {
+          "id" => row["id"]
+        }
+        Auditors::GradeChange::Stream.database.update_record("grade_changes", primary_key, values)
       end
     end
 
