@@ -173,10 +173,18 @@ class SectionSplitter
           @target_course.assignments.delete(model.assignment)
           model.assignment.assignment_overrides.each {|o| o.destroy_permanently!}
           model.assignment.destroy_permanently!
-        elsif model.is_a?(Assignment) && model.quiz.present?
-          @target_course.quizzes.delete(model.quiz)
-          model.quiz.assignment_overrides.each {|o| o.destroy_permanently!}
-          model.quiz.destroy_permanently!
+        elsif model.is_a?(Assignment)
+          if model.quiz.present?
+            @target_course.quizzes.delete(model.quiz)
+            model.quiz.assignment_overrides.each {|o| o.destroy_permanently!}
+            model.quiz.destroy_permanently!
+          end
+          if model.discussion_topic.present?
+            DiscussionTopic::MaterializedView.for(model.discussion_topic).destroy
+            @target_course.discussion_topics.delete(model.discussion_topic)
+            model.discussion_topic.assignment_overrides.each {|o| o.destroy_permanently!}
+            model.discussion_topic.destroy_permanently!
+          end
         end
         collection.delete(model)
         model.assignment_overrides.each {|o| o.destroy_permanently!}

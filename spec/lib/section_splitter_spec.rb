@@ -101,6 +101,7 @@ describe SectionSplitter do
   # +-- @section1_topic: Section 1 topic
   # |   +--- @s1_root_1: Reply by section 1 student
   # |   +--- @s1_root_2: Reply by section 1 teacher
+  # +-- @section2_topic: Section 2 topic
   # +-- @section3_topic: Section 3 topic
   # |   +--- @s3_root_1: Reply by section 3 student
   # |   |    +--- @s3_root_1_reply1: Reply by section 1 student
@@ -134,6 +135,12 @@ describe SectionSplitter do
     @s1_root_2 = DiscussionEntry.new(:user => @sections[0][:teachers][1], :message => "section 1", :discussion_topic => @section1_topic)
     @s1_root_2.save!
 
+    @section2_topic = assignment_model({:course => @source_course, :title => "Section 2 Topic"})
+    @section2_topic.workflow_state = "published"
+    @section2_topic.submission_types = "discussion_topic"
+    @section2_topic.save
+    assignment_override_model({:assignment => @section2_topic, :set => @sections[1][:self]})
+
     @section3_topic = @source_course.discussion_topics.create!(:title => "Section 3 Topic", :message => "message", :user => @admin_user, :discussion_type => 'threaded')
     assignment_override_model({:assignment => @section3_topic, :set => @sections[2][:self]})
     @s3_root_1 = DiscussionEntry.new(:user => @sections[2][:students][0], :message => "section 3", :discussion_topic => @section3_topic)
@@ -151,6 +158,7 @@ describe SectionSplitter do
     @all_entries.each &:reload
     @all_sections_topic.reload
     @section1_topic.reload
+    @section2_topic.reload
     @section3_topic.reload
   end
 
@@ -362,7 +370,7 @@ describe SectionSplitter do
       section1_topic = @result[0].discussion_topics.find {|d| d.title == @section1_topic.title }
       expect(section1_topic).to be
       expect(@result[0].discussion_topics.length).to eq 4
-      expect(@result[1].discussion_topics.length).to eq 2
+      expect(@result[1].discussion_topics.length).to eq 3
       section3_topic = @result[2].discussion_topics.find {|d| d.title == @section3_topic.title }
       expect(section3_topic).to be
       expect(section3_topic.user).to eq @section3_topic.user
