@@ -96,7 +96,7 @@ class SectionSplitter
       worker.perform(content_migration)
     rescue Exception => e
       Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
-      Rails.logger.error "[SECTION-SPLITTER] Unable to perform course copy (content migration ID=#{content_migration.id}) for course ID=#{source_course.id} [#{source_course.name}]"
+      Rails.logger.error "[SECTION-SPLITTER] Unable to perform course copy (content migration ID=#{content_migration.id}) for course ID=#{source_course.id} [#{source_course.name}]: #{e.inspect}"
       raise e
     end
 
@@ -110,7 +110,7 @@ class SectionSplitter
       worker.perform
     rescue Exception => e
       Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
-      Rails.logger.error "[SECTION-SPLITTER] Unable to migrate source section ID=#{source_section.id} to target course ID=#{target_course.id}"
+      Rails.logger.error "[SECTION-SPLITTER] Unable to migrate source section ID=#{source_section.id} to target course ID=#{target_course.id}: #{e.inspect}"
     end
   end
 
