@@ -376,7 +376,12 @@ class SectionSplitter
       @source_course.reload
       @target_course.reload
       @target_course.discussion_topics.each do |topic|
-        DiscussionTopic::MaterializedView.for(topic).try(:update_materialized_view_without_send_later)
+        begin
+          DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
+        rescue Exception => e
+          Canvas::Errors.capture_exception(:section_splitter, $ERROR_INFO)
+          Rails.logger.error "Unable to regenerate DiscussionTopic::MaterializedView for ID=#{topic.id}: #{e.inspect}"
+        end
       end
     end
 
