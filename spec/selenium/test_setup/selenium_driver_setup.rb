@@ -97,7 +97,7 @@ module SeleniumDriverSetup
     # since they rely on focus/blur events, which don't fire if the window
     # doesn't have focus
     driver.execute_script "alert('yolo')"
-    wait_for_js
+    sleep(5)
     driver.switch_to.alert.accept
   end
 
@@ -126,8 +126,8 @@ module SeleniumDriverSetup
     puts "using FIREFOX driver"
 
     caps = Selenium::WebDriver::Remote::Capabilities.firefox #(:unexpectedAlertBehaviour => 'ignore')
-    caps.version = "48"
-    caps.platform = :LINUX
+    caps.version = "47"
+    caps.platform = :WIN7
     caps[:unexpectedAlertBehaviour] = 'ignore'
 
     client = Selenium::WebDriver::Remote::Http::Default.new
