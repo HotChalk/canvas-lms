@@ -62,6 +62,9 @@ describe SectionSplitter do
     create_messages
     create_page_views
 
+    # Track generated jobs
+    @previous_jobs = Delayed::Job.all
+
     # Invoke procedure
     @result = SectionSplitter.run({:course_id => @source_course.id, :user_id => @admin_user.id, :delete => true})
     @result.sort_by! {|c| c.course_code}
@@ -557,6 +560,12 @@ describe SectionSplitter do
         expect(group.group_category.context).to eq group.context
         expect(group.group_memberships.length).to eq 5
       end
+    end
+  end
+
+  context "delayed messages" do
+    it "should not generate emails" do
+      expect(@previous_jobs.pluck(:id)).to match_array Delayed::Job.all.pluck(:id)
     end
   end
 end

@@ -48,29 +48,44 @@ class SectionSplitter
 
     Rails.logger.info "[SECTION-SPLITTER] Splitting course #{course.id} [#{course.name}]..."
     result = []
-    real_time = Benchmark.realtime do
-      args = {
-        :enrollment_term => course.enrollment_term,
-        :abstract_course => course.abstract_course,
-        :account => course.account,
-        :start_at => course.start_at,
-        :conclude_at => course.conclude_at,
-        :time_zone => course.time_zone
-      }
 
-      course.active_course_sections.each do |source_section|
-        target_course = self.perform_course_copy(user, course, source_section, args)
-        self.perform_section_migration(target_course, source_section)
-        Rails.logger.info "[SECTION-SPLITTER] Converted section #{source_section.id} [#{source_section.name}] into course #{target_course.id} [#{target_course.name}]"
-        result << target_course
+    start_ts = Time.now
+    begin
+      real_time = Benchmark.realtime do
+        args = {
+          :enrollment_term => course.enrollment_term,
+          :abstract_course => course.abstract_course,
+          :account => course.account,
+          :start_at => course.start_at,
+          :conclude_at => course.conclude_at,
+          :time_zone => course.time_zone
+        }
+
+        course.active_course_sections.each do |source_section|
+          target_course = self.perform_course_copy(user, course, source_section, args)
+          self.perform_section_migration(target_course, source_section)
+          Rails.logger.info "[SECTION-SPLITTER] Converted section #{source_section.id} [#{source_section.name}] into course #{target_course.id} [#{target_course.name}]"
+          result << target_course
+        end
       end
+      Rails.logger.info "[SECTION-SPLITTER] Finished splitting course #{course.id} [#{course.name}] in #{real_time} seconds."
+      if opts[:delete]
+        Rails.logger.info "[SECTION-SPLITTER] Deleting course #{course.id} [#{course.name}]..."
+        course.destroy
+      end
+    ensure
+      clean_delayed_jobs(course, start_ts)
     end
-    Rails.logger.info "[SECTION-SPLITTER] Finished splitting course #{course.id} [#{course.name}] in #{real_time} seconds."
-    if opts[:delete]
-      Rails.logger.info "[SECTION-SPLITTER] Deleting course #{course.id} [#{course.name}]..."
-      course.destroy
-    end
+
     result
+  end
+
+  def self.clean_delayed_jobs(course, timestamp)
+    begin
+      Delayed::Job.where("created_at >= ?", timestamp).each(&:destroy)
+    rescue Exception => e
+      Rails.logger.error "[SECTION-SPLITTER] Unable to clean up delayed jobs for course ID=#{course.id}: #{e.inspect}"
+    end
   end
 
   def self.perform_course_copy(user, source_course, source_section, args)
