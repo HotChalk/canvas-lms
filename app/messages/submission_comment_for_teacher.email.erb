@@ -13,7 +13,7 @@
 <% if asset.media_comment? %>
   <%= t("This message includes media comments. To listen or reply, click this link: %{link}.", link: content(:link)) %>
 <% else %>
-  <%= t("You can reply to this comment by responding to this message, or review the submission details using this link: %{link}.", link: content(:link)) %>
+  <%= t("You must log into Ember to post a response or review the submission details using this link: %{link}.", link: content(:link)) %>
 <% end %>
 
 <% unless asset.attachments.empty? %>
