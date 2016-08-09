@@ -63,7 +63,7 @@
 <% if asset.media_comment? %>
 <p><%= t "#messages.conversation_message.email.audio_comment", "This message includes media comments. To listen or reply, click the link below:" %></p>
 <% else %>
-<p><%= t :link_message, "You can review the submission details by clicking the link below:" %></p>
+<p><%= t :link_message, "You must log into Ember to post a response or you can review the submission details by clicking the link below:" %></p>
 <% end %>
 
 <% unless asset.attachments.empty? %>
