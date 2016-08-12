@@ -48,12 +48,25 @@ WEBSERVER = (ENV['WEBSERVER'] || 'thin').freeze
 $server_port = nil
 $app_host_and_port = nil
 
+=begin
 at_exit do
   begin
     $selenium_driver.try(:quit)
   rescue Errno::ECONNREFUSED
   end
 end
+=end
+
+# RMC: added to run the tests in parallel
+ParallelTests.first_process? ? do_something : sleep(1)
+
+at_exit do
+  if ParallelTests.first_process?
+    ParallelTests.wait_for_other_processes_to_finish
+    undo_something
+  end
+end
+# RMC: end
 
 shared_context "in-process server selenium tests" do
   include SeleniumDriverSetup
@@ -122,6 +135,13 @@ shared_context "in-process server selenium tests" do
       end
     end
   end
+  
+  # RMC: added to run the tests in parallel
+  append_after :all do
+    $selenium_driver.quit
+    $selenium_driver = nil
+  end
+  # RMC: end
 
   append_before :each do
     EncryptedCookieStore.test_secret = SecureRandom.hex(64)
