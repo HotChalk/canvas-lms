@@ -7,6 +7,7 @@
 #    timeout: 100000
 #
 # 2. Create the following indexes in your Cassandra cluster:
+#    CREATE INDEX page_views_account_id_idx ON page_views.page_views (account_id);
 #    CREATE INDEX page_views_history_by_context_request_id_idx ON page_views.page_views_history_by_context (request_id);
 #    CREATE INDEX participations_by_context_request_id_idx ON page_views.participations_by_context (request_id);
 #
