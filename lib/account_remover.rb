@@ -123,6 +123,8 @@ class AccountRemover
     case model
       when Account
         !@all_account_ids.include?(model.id)
+      when ClonedItem
+        !(model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?)
       when Notification
         true
       when Pseudonym
@@ -239,8 +241,11 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM content_participation_counts WHERE context_type = 'Course' AND context_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM page_views_rollups WHERE course_id = #{model.id}")
       when CourseSection
+        ActiveRecord::Base.connection.execute("UPDATE assignments SET course_section_id = null WHERE course_section_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE calendar_events SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE groups SET course_section_id = null WHERE course_section_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("UPDATE quizzes SET course_section_id = null WHERE course_section_id = #{model.id}")
       when DiscussionEntry
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_entry_participants WHERE discussion_entry_id = #{model.id}")
       when DiscussionTopic
@@ -344,7 +349,7 @@ class AccountRemover
     query = "SELECT id FROM authentications WHERE account_id = ? LIMIT 100 ALLOW FILTERING"
     loop do
       ids = []
-      Auditors::Authentication::Stream.database.execute(query, account_global_id.to_s).fetch {|row| ids << row["id"]}
+      Auditors::Authentication::Stream.database.execute(query, account_global_id).fetch {|row| ids << row["id"]}
       break if ids.empty?
       delete_authentications_index('authentications_by_account', ids)
       delete_authentications_index('authentications_by_user', ids)
@@ -432,7 +437,9 @@ class AccountRemover
                      :active_assignment_overrides, :context_module_tags, :teacher_enrollment, :external_tool_tag, :learning_outcome_alignments, :rubric_association],
     "AssignmentGroup" => [:active_assignments, :published_assignments],
     "AssignmentOverride" => [:versions, :current_version_unidirectional],
-    "Attachment" => [:context_module_tags, :account_report, :thumbnail, :attachment_associations, :canvadoc, :crocodoc_document, :media_object, :sis_batch, :submissions],
+    "Attachment" => [:context_module_tags, :account_report, :thumbnail, :attachment_associations, :canvadoc, :crocodoc_document, :media_object,
+                     :sis_batch, :submissions, :root_attachment, :replacement_attachment],
+    "ClonedItem" => [:attachments, :discussion_topics, :wiki_pages],
     "ContextModule" => [:content_tags],
     "Course" => [:asset_user_accesses, :page_views, :enrollments, :current_enrollments, :all_current_enrollments, :typical_current_enrollments, :prior_enrollments,
                  :student_enrollments, :admin_visible_student_enrollments, :all_student_enrollmens, :all_real_enrollments, :all_real_student_enrollments,
@@ -453,9 +460,11 @@ class AccountRemover
     "Message" => [:notification, :asset_context, :communication_channel, :context, :root_account],
     "Quizzes::Quiz" => [:versions, :current_version_unidirectional, :active_assignment_overrides, :context_module_tags, :quiz_student_visibilities, :quiz_user_visibilities],
     "Quizzes::QuizSubmission" => [:events, :versions, :current_version_unidirectional],
-    "Rubric" => [:versions, :current_version_unidirectional, :rubric_associations],
+    "Rubric" => [:versions, :current_version_unidirectional],
     "RubricAssessment" => [:versions, :current_version_unidirectional],
+    "RubricAssociation" => [:rubric, :association_object, :context],
     "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :visible_submission_comments, :hidden_submission_comments, :rubric_assessment],
+    "Thumbnail" => [:attachment],
     "User" => [:rubric_associations],
     "WikiPage" => [:assignment_student_visibilities, :assignment_user_visibilities, :versions, :current_version_unidirectional, :context_module_tags]
   }
