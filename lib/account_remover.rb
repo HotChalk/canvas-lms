@@ -1,3 +1,18 @@
+#
+# If your target environment is configured to use an Apache Cassandra cluster,
+# please keep in mind that you will need to perform some configuration changes prior
+# to running this tool:
+#
+# 1. Edit your cassandra.yml configuration file and set a high timeout value for each keyspace, e.g.:
+#    timeout: 100000
+#
+# 2. Create the following indexes in your Cassandra cluster:
+#    CREATE INDEX page_views_history_by_context_request_id_idx ON page_views.page_views_history_by_context (request_id);
+#    CREATE INDEX participations_by_context_request_id_idx ON page_views.participations_by_context (request_id);
+#
+# Index creation can be a long-running process, so you should verify that the indexes have
+# been successfully created by querying the affected tables using a WHERE condition for the request_id column.
+#
 class AccountRemover
   def initialize(opts)
     @account = opts[:account_id] && Account.find(opts[:account_id])
@@ -170,6 +185,7 @@ class AccountRemover
   def prune(model)
     case model
       when Account
+        delete_account_from_cassandra(model)
         AssetUserAccess.where(:context => model).delete_all
         RubricAssociation.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
@@ -206,6 +222,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM crocodoc_documents WHERE attachment_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM attachment_associations WHERE attachment_id = #{model.id}")
       when Course
+        delete_course_from_cassandra(model)
         AssetUserAccess.where(:context => model).delete_all
         LearningOutcomeResult.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
@@ -228,6 +245,8 @@ class AccountRemover
       when DiscussionTopic
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
+      when Enrollment
+        delete_enrollment_from_cassandra(model)
       when Group
         AssetUserAccess.where(:context => model).delete_all
         wiki = model.wiki
@@ -267,6 +286,139 @@ class AccountRemover
     unless model.new_record?
       model.reload rescue nil
     end
+  end
+
+  # Deletes data related to the specified account from Cassandra
+  def delete_account_from_cassandra(account)
+    return unless cassandra?
+    delete_page_views(account.id)
+    delete_page_views_migration_metadata(account.id)
+    delete_authentications(account.global_id)
+    delete_grade_changes(account.global_id)
+  end
+
+  def delete_page_views(account_id)
+    query = "SELECT request_id FROM page_views WHERE account_id = ? LIMIT 100 ALLOW FILTERING"
+    loop do
+      request_ids = []
+      PageView::EventStream.database.execute(query, account_id).fetch {|row| request_ids << row["request_id"]}
+      break if request_ids.empty?
+      delete_page_views_history_by_context(request_ids)
+      delete_participations_by_context(request_ids)
+      PageView::EventStream.database.update("DELETE FROM page_views WHERE request_id IN (?)", request_ids)
+    end
+  end
+
+  def delete_page_views_history_by_context(request_ids)
+    query = "SELECT context_and_time_bucket FROM page_views_history_by_context WHERE request_id = ?"
+    buckets = []
+    request_ids.each do |request_id|
+      PageView::EventStream.database.execute(query, request_id).fetch {|row| buckets << row["context_and_time_bucket"]}
+    end
+    buckets.uniq!
+    PageView::EventStream.database.update("DELETE FROM page_views_history_by_context WHERE context_and_time_bucket IN (?)", buckets)
+  end
+
+  def delete_participations_by_context(request_ids)
+    query = "SELECT context, created_at, request_id FROM participations_by_context WHERE request_id = ?"
+    primary_keys = []
+    request_ids.each do |request_id|
+      PageView::EventStream.database.execute(query, request_id).fetch {|row| primary_keys << row.to_hash}
+    end
+    primary_keys.each do |keys|
+      PageView::EventStream.database.update("DELETE FROM participations_by_context WHERE context = ? AND created_at = ? AND request_id = ?", keys["context"], keys["created_at"], keys["request_id"])
+    end
+  end
+
+  def delete_page_views_migration_metadata(account_id)
+    query = "SELECT shard_id, account_id FROM page_views_migration_metadata_per_account WHERE account_id = ? ALLOW FILTERING"
+    primary_keys = []
+    PageView::EventStream.database.execute(query, account_id).fetch {|row| primary_keys << row.to_hash}
+    primary_keys.each do |keys|
+      PageView::EventStream.database.update("DELETE FROM page_views_migration_metadata_per_account WHERE shard_id = ? AND account_id = ?", keys["shard_id"], keys["account_id"])
+    end
+  end
+
+  def delete_authentications(account_global_id)
+    query = "SELECT id FROM authentications WHERE account_id = ? LIMIT 100 ALLOW FILTERING"
+    loop do
+      ids = []
+      Auditors::Authentication::Stream.database.execute(query, account_global_id.to_s).fetch {|row| ids << row["id"]}
+      break if ids.empty?
+      delete_authentications_index('authentications_by_account', ids)
+      delete_authentications_index('authentications_by_user', ids)
+      delete_authentications_index('authentications_by_pseudonym', ids)
+      Auditors::Authentication::Stream.database.update("DELETE FROM authentications WHERE id IN (?)", ids)
+    end
+  end
+
+  def delete_authentications_index(table_name, ids)
+    delete_from_index(Auditors::Authentication::Stream.database, table_name, ids)
+  end
+
+  def delete_grade_changes(account_global_id)
+    query = "SELECT id FROM grade_changes WHERE account_id = ? LIMIT 100 ALLOW FILTERING"
+    loop do
+      ids = []
+      Auditors::GradeChange::Stream.database.execute(query, account_global_id).fetch {|row| ids << row["id"]}
+      break if ids.empty?
+      delete_grade_changes_index('grade_changes_by_root_account_grader', ids)
+      delete_grade_changes_index('grade_changes_by_root_account_student', ids)
+      delete_grade_changes_index('grade_changes_by_course', ids)
+      delete_grade_changes_index('grade_changes_by_assignment', ids)
+      Auditors::GradeChange::Stream.database.update("DELETE FROM grade_changes WHERE id IN (?)", ids)
+    end
+  end
+
+  def delete_grade_changes_index(table_name, ids)
+    delete_from_index(Auditors::GradeChange::Stream.database, table_name, ids)
+  end
+
+  # Deletes data related to the specified course from Cassandra
+  def delete_course_from_cassandra(course)
+    return unless cassandra?
+    delete_auditors_courses(course.id)
+  end
+
+  def delete_auditors_courses(course_id)
+    query = "SELECT id FROM courses WHERE course_id = ? LIMIT 100 ALLOW FILTERING"
+    loop do
+      ids = []
+      Auditors::Course::Stream.database.execute(query, course_id).fetch {|row| ids << row.to_hash}
+      break if ids.empty?
+      delete_courses_index('courses_by_course', ids)
+      Auditors::Course::Stream.database.update("DELETE FROM courses WHERE id IN (?)", ids)
+    end
+  end
+
+  def delete_courses_index(table_name, ids)
+    delete_from_index(Auditors::Course::Stream.database, table_name, ids)
+  end
+
+  # Deletes data related to the specified enrollment from Cassandra
+  def delete_enrollment_from_cassandra(enrollment)
+    return unless cassandra?
+    course_global_id = "course_#{enrollment.course.global_id}"
+    user_global_id = enrollment.user.global_id.to_s
+    context = "#{course_global_id}/user_#{user_global_id}"
+    PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_user WHERE context = ? AND user_id = ?", course_global_id, user_global_id)
+    PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_hour WHERE context = ?", context)
+    PageView::EventStream.database.update("DELETE FROM participations_by_context WHERE context = ?", context)
+  end
+
+  def delete_from_index(database, table_name, ids)
+    query = "SELECT key, ordered_id FROM #{table_name} WHERE id = ? ALLOW FILTERING"
+    keys = []
+    ids.each do |id|
+      database.execute(query, id).fetch {|row| keys << row.to_hash}
+    end
+    keys.each do |key|
+      database.update("DELETE FROM #{table_name} WHERE key = ? AND ordered_id = ?", key["key"], key["ordered_id"])
+    end
+  end
+
+  def cassandra?
+    @cassandra_enabled ||= (Setting.get('enable_page_views', 'db') == 'cassandra')
   end
 
   ASSOCIATION_EXCLUSIONS = {
