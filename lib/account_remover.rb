@@ -45,7 +45,6 @@ class AccountRemover
 
       # Delete parts of the object graph that are not directly reachable by navigating relationships
       if account.root_account?
-        @parent_objects += Message.where(:root_account => account).to_a
         until @parent_objects.empty?
           @parent_objects.map! {|object| object.reload rescue nil}.compact!
           @parent_objects.select! {|object| !recursive_delete(object)}
@@ -123,16 +122,28 @@ class AccountRemover
     case model
       when Account
         !@all_account_ids.include?(model.id)
+      when AccountUser
+        !@all_account_ids.include?(model.account_id)
+      when Attachment
+        @all_account_ids.none? {|account_id| model.namespace.end_with?("account_#{account_id}")}
       when ClonedItem
-        !(model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?)
+        (model.original_item.present? && model.original_item.reload.present?) || !(model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?)
+      when CourseAccountAssociation
+        !@all_account_ids.include?(model.account_id)
+      when DelayedMessage
+        !@all_account_ids.include?(model.root_account_id)
+      when Message
+        !@all_account_ids.include?(model.root_account_id)
       when Notification
         true
       when Pseudonym
         !@all_account_ids.include?(model.account_id)
       when Role
-        model.built_in?
+        model.built_in? || !@all_account_ids.include?(model.account_id)
       when User
         !(model.pseudonyms.pluck(:account_id) - @all_account_ids).empty?
+      when UserAccountAssociation
+        !@all_account_ids.include?(model.account_id)
       else
         false
     end
@@ -190,7 +201,6 @@ class AccountRemover
       when Account
         delete_account_from_cassandra(model)
         AssetUserAccess.where(:context => model).delete_all
-        RubricAssociation.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
         Progress.where(:context => model).delete_all
         ActiveRecord::Base.connection.execute("DELETE FROM error_reports WHERE account_id = #{model.id}")
@@ -198,6 +208,8 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM page_views WHERE account_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM media_objects WHERE root_account_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM sis_batches WHERE account_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("DELETE FROM messages WHERE root_account_id = #{model.id}") if model.root_account?
+        ActiveRecord::Base.connection.execute("DELETE FROM delayed_messages WHERE root_account_id = #{model.id}") if model.root_account?
       when AccountUser
         Message.where(:context => model).delete_all
         DelayedMessage.where(:context => model).delete_all
@@ -229,7 +241,6 @@ class AccountRemover
         AssetUserAccess.where(:context => model).delete_all
         LearningOutcomeResult.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
-        RubricAssociation.where(:context => model).delete_all
         SubmissionVersion.where(:context => model).delete_all
         wiki = model.wiki
         model.wiki = nil
@@ -265,6 +276,9 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when LearningOutcomeResult
         Version.where(:versionable => model).delete_all
+      when Progress
+        GradebookCsv.where(:progress => model).delete_all
+        GradebookUpload.where(:progress => model).delete_all
       when Quizzes::Quiz
         ContentTag.where(:context => model).delete_all
         Version.where(:versionable => model).delete_all
@@ -429,6 +443,8 @@ class AccountRemover
 
   ASSOCIATION_EXCLUSIONS = {
     "Account" => [:sub_accounts, :all_accounts, :all_courses, :active_enrollment_terms, :active_assignments, :active_folders, :authentication_providers, :enrollments, :error_reports],
+    "AccountNotificationRole" => [:role],
+    "AccountUser" => [:account, :role],
     "Announcement" => [:assignment_student_visibilities, :assignment_user_visibilities, :discussion_topic_user_visibilities, :active_assignment_overrides,
                        :rated_discussion_entries, :root_discussion_entries, :child_discussion_entries, :context_module_tags],
     "AssessmentQuestion" => [:versions, :current_version_unidirectional],
@@ -438,34 +454,48 @@ class AccountRemover
     "AssignmentGroup" => [:active_assignments, :published_assignments],
     "AssignmentOverride" => [:versions, :current_version_unidirectional],
     "Attachment" => [:context_module_tags, :account_report, :thumbnail, :attachment_associations, :canvadoc, :crocodoc_document, :media_object,
-                     :sis_batch, :submissions, :root_attachment, :replacement_attachment],
-    "ClonedItem" => [:attachments, :discussion_topics, :wiki_pages],
-    "ContextModule" => [:content_tags],
+                     :sis_batch, :submissions, :root_attachment, :replacement_attachment, :user, :context, :account, :assessment_question,
+                     :assignment, :attachment, :content_export, :content_migration, :course, :eportfolio, :epub_export, :gradebook_upload,
+                     :group, :submission, :context_folder, :context_sis_batch, :context_user, :quiz, :quiz_statistics, :quiz_submission],
+    "AttachmentAssociation" => [:context, :conversation_message, :submission, :course, :group],
+    "ClonedItem" => [:attachments, :discussion_topics, :wiki_pages, :original_item, :attachment, :content_tag, :folder, :assignment, :wiki_page,
+                     :discussion_topic, :context_module, :calendar_event, :assignment_group, :context_external_tool, :quiz],
+    "ContentExport" => [:context, :course, :group, :context_user],
+    "ContentMigration" => [:context, :course, :account, :group, :context_user, :user, :source_course],
+    "ContextModule" => [:content_tags, :context, :course],
     "Course" => [:asset_user_accesses, :page_views, :enrollments, :current_enrollments, :all_current_enrollments, :typical_current_enrollments, :prior_enrollments,
                  :student_enrollments, :admin_visible_student_enrollments, :all_student_enrollmens, :all_real_enrollments, :all_real_student_enrollments,
                  :teacher_enrollments, :ta_enrollments, :observer_enrollments, :instructor_enrollments, :admin_enrollments, :student_view_enrollments,
                  :active_announcements, :active_course_sections, :active_groups, :active_discussion_topics, :active_assignments, :active_images,
                  :active_folders, :active_quizzes, :active_context_modules, :content_participation_counts],
+    "CourseAccountAssociation" => [:course, :course_section, :account, :account_users],
     "CourseSection" => [:assignment_overrides],
-    "DelayedMessage" => [:notification, :context, :communication_channel],
+    "DelayedMessage" => [:notification, :notification_policy, :context, :communication_channel, :discussion_entry, :assignment, :submission_comment, :submission,
+                         :conversation_message, :course, :discussion_topic, :enrollment, :attachment, :assignment_override, :group_membership,
+                         :calendar_event, :wiki_page, :assessment_request, :account_user, :web_conference, :account, :user, :appointment_group,
+                         :collaborator, :account_report, :alert, :context_communication_channel, :quiz_submission, :quiz_regrade_run],
     "DeveloperKey" => [:page_views],
     "DiscussionEntry" => [:discussion_entry_participants, :discussion_subentries, :flattened_discussion_subentries],
     "DiscussionTopic" => [:discussion_topic_user_visibilities, :discussion_topic_user_visibilities,
                           :discussion_topic_participants, :active_assignment_overrides, :rated_discussion_entries, :root_discussion_entries,
                           :child_discussion_entries, :context_module_tags],
-    "Folder" => [:active_file_attachments, :file_attachments, :visible_file_attachments, :active_sub_folders, :sub_folders],
+    "EpubExport" => [:content_export, :course, :user],
+    "Folder" => [:active_file_attachments, :file_attachments, :visible_file_attachments, :active_sub_folders, :sub_folders, :context, :user, :group, :account, :course],
     "Group" => [:wiki_pages, :active_announcements, :discussion_topics, :active_discussion_topics, :active_assignments, :active_images, :active_folders],
     "LearningOutcomeQuestionResult" => [:versions, :current_version_unidirectional],
     "LearningOutcomeResult" => [:versions, :current_version_unidirectional],
-    "Message" => [:notification, :asset_context, :communication_channel, :context, :root_account],
+    "Message" => [:notification, :asset_context, :communication_channel, :context, :root_account, :user],
+    "MigrationIssue" => [:error_report],
+    "Progress" => [:context, :user, :content_migration, :course, :account, :group_category, :content_export, :assignment, :attachment, :epub_export, :context_user, :quiz_statistics],
     "Quizzes::Quiz" => [:versions, :current_version_unidirectional, :active_assignment_overrides, :context_module_tags, :quiz_student_visibilities, :quiz_user_visibilities],
     "Quizzes::QuizSubmission" => [:events, :versions, :current_version_unidirectional],
-    "Rubric" => [:versions, :current_version_unidirectional],
+    "Rubric" => [:versions, :current_version_unidirectional, :user, :rubric, :context, :learning_outcome_alignments, :course, :account],
     "RubricAssessment" => [:versions, :current_version_unidirectional],
-    "RubricAssociation" => [:rubric, :association_object, :context],
+    "RubricAssociation" => [:rubric, :association_object, :context, :association_account, :association_course, :association_assignment, :course, :account],
     "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :visible_submission_comments, :hidden_submission_comments, :rubric_assessment],
     "Thumbnail" => [:attachment],
     "User" => [:rubric_associations],
+    "UserAccountAssociation" => [:user, :account],
     "WikiPage" => [:assignment_student_visibilities, :assignment_user_visibilities, :versions, :current_version_unidirectional, :context_module_tags]
   }
 end
