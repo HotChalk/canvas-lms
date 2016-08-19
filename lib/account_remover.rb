@@ -35,7 +35,7 @@ class AccountRemover
     Rails.logger.info "[ACCOUNT-REMOVER] Removing #{account.root_account? ? 'root ' : 'sub-'}account #{account.id} [#{account.name}]..."
     real_time = Benchmark.realtime do
       # Depth-first traversal of sub-accounts
-      account.sub_accounts.each do |sub_account|
+      Account.where(:parent_account => account).each do |sub_account|
         process_account(sub_account)
       end
 
@@ -220,6 +220,8 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when Assignment
         ActiveRecord::Base.connection.execute("UPDATE quizzes SET assignment_id = null WHERE assignment_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET reply_assignment_id = null WHERE reply_assignment_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET old_assignment_id = null WHERE old_assignment_id = #{model.id}")
         ContentTag.where(:context => model).delete_all
         ContentTag.where(:content => model).delete_all
         Progress.where(:context => model).delete_all
@@ -228,6 +230,7 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when Attachment
         Progress.where(:context => model).delete_all
+        ActiveRecord::Base.connection.execute("UPDATE attachments SET replacement_attachment_id = null WHERE replacement_attachment_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET attachment_id = null WHERE attachment_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE content_exports SET attachment_id = null WHERE attachment_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE content_migrations SET attachment_id = null WHERE attachment_id = #{model.id}")
@@ -257,6 +260,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("UPDATE calendar_events SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE groups SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE quizzes SET course_section_id = null WHERE course_section_id = #{model.id}")
+        ActiveRecord::Base.connection.execute("UPDATE course_account_associations SET course_section_id = null WHERE course_section_id = #{model.id}")
       when DiscussionEntry
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_entry_participants WHERE discussion_entry_id = #{model.id}")
       when DiscussionTopic
@@ -288,6 +292,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("UPDATE submissions SET quiz_submission_id = null WHERE quiz_submission_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM quiz_submission_events WHERE quiz_submission_id = #{model.id}")
       when Rubric
+        ActiveRecord::Base.connection.execute("UPDATE rubrics SET rubric_id = null WHERE rubric_id = #{model.id}")
         Version.where(:versionable => model).delete_all
       when RubricAssessment
         Version.where(:versionable => model).delete_all
