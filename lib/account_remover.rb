@@ -16,6 +16,10 @@
 #
 class AccountRemover
   def initialize(opts)
+    @include_postgres = opts[:postgres]
+    @include_cassandra = opts[:cassandra]
+    raise "Must include at least one repository for data deletion: Postgres, Cassandra or both" unless @include_postgres || @include_cassandra
+    raise "Cassandra is not enabled for this environment" if @include_cassandra && !cassandra?
     @account = opts[:account_id] && Account.find(opts[:account_id])
     raise "Account not found: #{opts[:account_id]}" unless @account.present?
     raise "Account is not a root account: #{opts[:account_id]}" unless @account.root_account?
@@ -23,12 +27,132 @@ class AccountRemover
   end
 
   def run
-    @stack = []
-    @parent_objects = []
-    @association_benchmarks = {}
-    @all_account_ids = (@account.all_accounts.pluck(:id) << @account.id)
-    process_account(@account)
-    Rails.logger.info "[ACCOUNT-REMOVER] FINAL PERFORMANCE MEASUREMENTS: #{@association_benchmarks.inspect}"
+    @account.transaction do
+      begin
+        @stack = []
+
+        # Collect some convenient data points
+        @all_account_ids = (@account.all_accounts.pluck(:id) << @account.id)
+        @all_user_ids = Pseudonym.where(:account_id => @all_account_ids).pluck(:user_id).uniq - Pseudonym.where.not(:account_id => @all_account_ids).pluck(:user_id).uniq
+        @all_course_ids = Course.where(:root_account_id => @account.id).pluck(:id)
+
+        # Delete data from Cassandra and delete some simple, high-cardinality associations in Postgres
+        preprocess_accounts
+        preprocess_users
+        preprocess_courses
+
+        # Delete object graph in Postgres
+        if postgres?
+          process_account(@account)
+          process_users
+          process_miscellaneous
+        end
+      rescue Exception => e
+        Rails.logger.error "[ACCOUNT-REMOVER] Account removal failed: #{e.inspect}"
+        Rails.logger.error e.backtrace.join("\n")
+        raise ActiveRecord::Rollback # Force a rollback
+      end
+    end
+  end
+
+  def preprocess_users
+    if postgres?
+      Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing users in Postgres..."
+
+      # Create temporary table with all user IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_users (id BIGINT NOT NULL PRIMARY KEY)")
+      @all_user_ids.each_slice(100) do |batch_ids|
+        ActiveRecord::Base.connection.execute("INSERT INTO delete_users (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}")
+      end
+
+      # Delete by joining on the temp table
+      c = ActiveRecord::Base.connection
+      c.execute("DELETE FROM page_views USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM discussion_entry_participants USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE context_type = 'User' and context_id = d.id")
+      c.execute("DELETE FROM messages USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM submission_comment_participants USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM conversation_message_participants USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM context_module_progressions USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM discussion_topic_participants USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM submission_versions USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM content_participations USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM content_participation_counts USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM stream_item_instances USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM group_memberships USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM delayed_messages USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
+      c.execute("DELETE FROM notification_policies USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
+      c.execute("DELETE FROM communication_channels USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM session_persistence_tokens USING delete_users d, pseudonyms p WHERE p.user_id = d.id AND pseudonym_id = p.id")
+      c.execute("DELETE FROM pseudonyms USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE assessor_id = d.id")
+      c.execute("DELETE FROM assessment_requests USING delete_users d WHERE user_id = d.id")
+      c.execute("DELETE FROM assessment_requests USING delete_users d WHERE assessor_id = d.id")
+      c.execute("DELETE FROM assignment_override_students USING delete_users d WHERE user_id = d.id")
+    end
+  end
+
+  def preprocess_accounts
+    if cassandra?
+      Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing accounts in Cassandra..."
+      @all_account_ids.each {|account_id| delete_account_from_cassandra(account_id)}
+    end
+    if postgres?
+      Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing accounts in Postgres..."
+
+      # Create temporary table with all account IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_accounts (id BIGINT NOT NULL PRIMARY KEY)")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_accounts (id) VALUES #{@all_account_ids.map {|id| "(#{id})"}.join(',')}")
+
+      # Delete by joining on the temp table
+      c = ActiveRecord::Base.connection
+      c.execute("DELETE FROM page_views USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM asset_user_accesses USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
+      c.execute("DELETE FROM error_reports USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM messages WHERE root_account_id = #{@account.id}")
+      c.execute("DELETE FROM delayed_messages WHERE root_account_id = #{@account.id}")
+      c.execute("DELETE FROM user_account_associations USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM course_account_associations USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM report_snapshots USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM role_overrides USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
+      c.execute("DELETE FROM account_authorization_configs USING delete_accounts d WHERE account_id = d.id")
+      c.execute("DELETE FROM thumbnails WHERE namespace LIKE '%account_#{@account.id}'")
+    end
+  end
+
+  def preprocess_courses
+    if cassandra?
+      Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing courses in Cassandra..."
+      @all_course_ids.each do |course_id|
+        delete_course_from_cassandra(course_id)
+        user_ids = Enrollment.where(:course_id => course_id).pluck(:user_id).uniq
+        user_ids.each {|user_id| delete_enrollment_from_cassandra(course_id, user_id)}
+      end
+    end
+    if postgres?
+      Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing courses in Postgres..."
+
+      # Create temporary table with all course IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_courses (id BIGINT NOT NULL PRIMARY KEY)")
+      @all_course_ids.each_slice(100) do |batch_ids|
+        ActiveRecord::Base.connection.execute("INSERT INTO delete_courses (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}")
+      end
+
+      # Delete by joining on the temp table
+      c = ActiveRecord::Base.connection
+      c.execute("DELETE FROM asset_user_accesses USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+      c.execute("DELETE FROM assessment_questions USING delete_courses d, assessment_question_banks b WHERE b.context_type = 'Course' AND b.context_id = d.id AND assessment_question_bank_id = b.id")
+      c.execute("DELETE FROM assessment_question_banks USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+      @all_course_ids.each_slice(100) do |batch_ids|
+        section_ids = CourseSection.where(:course_id => batch_ids).pluck(:id)
+        assignment_override_ids = AssignmentOverride.where(:set_type => 'CourseSection', :set_id => section_ids).pluck(:id)
+        Version.where(:versionable_type => 'AssignmentOverride', :versionable_id => assignment_override_ids).delete_all
+        AssignmentOverride.where(:id => assignment_override_ids).delete_all
+      end
+      c.execute("DELETE FROM cached_grade_distributions USING delete_courses d WHERE course_id = d.id")
+    end
   end
 
   def process_account(account)
@@ -38,181 +162,127 @@ class AccountRemover
       Account.where(:parent_account => account).each do |sub_account|
         process_account(sub_account)
       end
-
-      # First soft-delete, then hard-delete the object graph starting from this account
-      soft_delete(account)
-      hard_delete(account)
-
-      # Delete parts of the object graph that are not directly reachable by navigating relationships
-      if account.root_account?
-        until @parent_objects.empty?
-          @parent_objects.map! {|object| object.reload rescue nil}.compact!
-          @parent_objects.select! {|object| !recursive_delete(object)}
-        end
-      end
+      recursive_delete(account)
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished removing #{account.root_account? ? 'root ' : 'sub-'}account #{account.id} [#{account.name}] in #{real_time} seconds."
   end
 
-  def soft_delete(account)
-    account.all_courses.destroy_all
-    account.pseudonyms.select {|p| (p.user.pseudonyms.pluck(:account_id) - @all_account_ids).empty?}.each {|p| p.user.destroy}
-    account.pseudonyms.destroy
-    account.destroy
-  end
-
-  def hard_delete(account)
-    while true
-      break if recursive_delete(account)
-    end
-  end
-
-  # Attempts to recursively delete the specified model instance.
-  # Returns true if the deletion of the model itself, as well as its entire model sub-graph, was successful; false otherwise.
-  def recursive_delete(model)
-    key = model_key(model)
-    return false if @stack.include?(key)
-    return true if exclude?(model)
-    Rails.logger.debug "[ACCOUNT-REMOVER] Visiting model: #{model_key(model)}..."
-    @stack.push(key)
-
-    # Prune selected sub-graphs (optimization)
-    prune(model)
-
-    # Walk through all child associations
-    associations = model.class.reflect_on_all_associations(:has_many) + model.class.reflect_on_all_associations(:has_one)
-    associations.reject! {|association| exclude_association?(model, association)}
-    success = true
-    associations.each do |association|
-      Rails.logger.debug "[ACCOUNT-REMOVER] Traversing association: #{model.class.name}.#{association.name}"
-      time = Benchmark.realtime do
-        associated_objects = Array.wrap(model.send(association.name))
-        associated_objects.each do |associated_object|
-          success = (success && recursive_delete(associated_object))
-        end
+  def process_users
+    Rails.logger.info "[ACCOUNT-REMOVER] Removing root account users..."
+    real_time = Benchmark.realtime do
+      @all_user_ids.each do |user_id|
+        user = User.find(user_id)
+        recursive_delete(user) if user.present?
       end
-      accumulated = @association_benchmarks["#{model.class.name}.#{association.name}"] || 0
-      accumulated += time
-      @association_benchmarks["#{model.class.name}.#{association.name}"] = accumulated
     end
+    Rails.logger.info "[ACCOUNT-REMOVER] Finished removing root account users in #{real_time} seconds."
+  end
 
-    # Gather all parent associations
-    parent_associations = model.class.reflect_on_all_associations(:belongs_to)
-    parent_associations.reject! {|association| exclude_association?(model, association)}
-    parent_associations.each do |parent_association|
-      associated_objects = Array.wrap(model.send(parent_association.name))
-      associated_objects.reject! {|object| @stack.include?(model_key(object))}
-      @parent_objects += associated_objects
+  def process_miscellaneous
+    Rails.logger.info "[ACCOUNT-REMOVER] Removing miscellaneous items..."
+    real_time = Benchmark.realtime do
+      Attachment.where("namespace LIKE '%account_#{@account.id}'").delete_all
     end
-    @parent_objects.uniq!
-
-    @stack.pop
-    if success
-      success = delete(model)
-    end
-    success
+    Rails.logger.info "[ACCOUNT-REMOVER] Finished removing miscellaneous items in #{real_time} seconds."
   end
 
   def model_key(model)
     "#{model.class.name}_#{model.send(model.class.primary_key).to_s}"
   end
 
+  # Attempts to recursively delete the specified model instance.
+  # Returns true if the deletion of the model itself, as well as its entire model sub-graph, was successful; false otherwise.
+  def recursive_delete(model)
+    if can_delete?(model)
+      Rails.logger.debug "[ACCOUNT-REMOVER] Visiting model: #{model_key(model)}..."
+
+      # Run pre-delete actions
+      before_delete(model)
+
+      # Walk through all child associations
+      associations = model.class.reflect_on_all_associations(:has_many) + model.class.reflect_on_all_associations(:has_one)
+      associations.reject! {|association| exclude_association?(model, association)}
+      associations.each do |association|
+        Rails.logger.debug "[ACCOUNT-REMOVER] Traversing association: #{model.class.name}.#{association.name}"
+        association_instance = model.send(association.name)
+        associated_objects = Array.wrap(association_instance)
+        associated_objects.each do |associated_object|
+          recursive_delete(associated_object)
+        end
+      end
+
+      # Delete the object
+      delete(model)
+
+      # Run post-delete actions
+      after_delete(model)
+    end
+  end
+
   # Returns true if the specified model object should not be deleted at all, false otherwise
-  def exclude?(model)
+  def can_delete?(model)
+    return false if @stack.include?(model)
+
     case model
       when Account
-        !@all_account_ids.include?(model.id)
+        @all_account_ids.include?(model.id)
       when AccountUser
-        !@all_account_ids.include?(model.account_id)
+        @all_account_ids.include?(model.account_id)
       when Attachment
-        @all_account_ids.none? {|account_id| model.namespace.end_with?("account_#{account_id}")}
+        @all_account_ids.any? {|account_id| model.namespace.end_with?("account_#{account_id}")}
       when ClonedItem
-        (model.original_item.present? && model.original_item.reload.present?) || !(model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?)
-      when CourseAccountAssociation
-        !@all_account_ids.include?(model.account_id)
-      when DelayedMessage
-        !@all_account_ids.include?(model.root_account_id)
-      when Message
-        !@all_account_ids.include?(model.root_account_id)
+        model.original_item.nil? && model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?
       when Notification
-        true
-      when Pseudonym
-        !@all_account_ids.include?(model.account_id)
-      when Role
-        model.built_in? || !@all_account_ids.include?(model.account_id)
-      when User
-        !(model.pseudonyms.pluck(:account_id) - @all_account_ids).empty?
-      when UserAccountAssociation
-        !@all_account_ids.include?(model.account_id)
-      else
         false
+      when Role
+        !model.built_in? && @all_account_ids.include?(model.account_id)
+      when User
+        @all_user_ids.include?(model.id)
+      else
+        true
     end
   end
 
   # Returns true if the specified model object and association should be excluded from the object graph traversal, false otherwise
   def exclude_association?(model, association)
-    (ASSOCIATION_EXCLUSIONS[model.class.name] || []).include?(association.name)
+    (ASSOCIATION_EXCLUSIONS[model.class.name] || []).include?(association.name) || association.is_a?(ActiveRecord::Associations::HasManyThroughAssociation) || association.is_a?(ActiveRecord::Associations::HasOneThroughAssociation)
   end
 
   # Deletes the specified model object. Returns true if the deletion was successful, false otherwise.
   def delete(model)
-    return true if model.new_record?
-    begin
-      model.reload
-    rescue
-      return true
+    return if model.new_record?
+    model.reload rescue nil
+    model.skip_broadcasts = true if model.respond_to?(:skip_broadcasts=)
+
+    if model.is_a?(Folder)
+      query = <<-SQL
+        WITH RECURSIVE folders_tree (id, parent_folder_id, root_folder_id) AS (
+          SELECT id, parent_folder_id, id as root_folder_id FROM folders WHERE id = #{model.id}
+          UNION ALL
+          SELECT f.id, f.parent_folder_id, ft.id FROM folders f, folders_tree ft WHERE f.parent_folder_id = ft.id
+        ) DELETE FROM folders WHERE id IN (SELECT id FROM folders_tree);
+      SQL
+      ActiveRecord::Base.connection.execute(query)
+    elsif model.is_a?(Attachment)
+      ActiveRecord::Base.connection.execute("DELETE FROM attachments WHERE id = #{model.id}")
+    elsif model.is_a?(Thumbnail)
+      ActiveRecord::Base.connection.execute("DELETE FROM thumbnails WHERE id = #{model.id}")
+    elsif model.respond_to?(:destroy_permanently!)
+      model.destroy_permanently!
+    elsif model.respond_to?(:destroy)
+      model.destroy
     end
-    result = true
-    begin
-      if model.is_a?(Folder)
-        query = <<-SQL
-          WITH RECURSIVE folders_tree (id, parent_folder_id, root_folder_id) AS (
-            SELECT id, parent_folder_id, id as root_folder_id FROM folders WHERE id = #{model.id}
-            UNION ALL
-            SELECT f.id, f.parent_folder_id, ft.id FROM folders f, folders_tree ft WHERE f.parent_folder_id = ft.id
-          ) DELETE FROM folders WHERE id IN (SELECT id FROM folders_tree);
-        SQL
-        ActiveRecord::Base.connection.execute(query)
-      elsif model.is_a?(Attachment)
-        ActiveRecord::Base.connection.execute("DELETE FROM attachments WHERE id = #{model.id}")
-      elsif model.is_a?(Thumbnail)
-        ActiveRecord::Base.connection.execute("DELETE FROM thumbnails WHERE id = #{model.id}")
-      elsif model.respond_to?(:destroy_permanently!)
-        model.destroy_permanently!
-      elsif model.respond_to?(:destroy)
-        model.destroy
-      else
-        Rails.logger.error "[ACCOUNT-REMOVER] Don't know how to destroy model: #{model_key(model)}]"
-        result = false
-      end
-      @parent_objects.delete(model)
-      Rails.logger.info "[ACCOUNT-REMOVER] Deleted #{model_key(model)}"
-    rescue Exception => e
-      Rails.logger.warn "[ACCOUNT-REMOVER] Unable to destroy model: #{model_key(model)}]: #{e.inspect}"
-      result = false
-    end
-    result
+    Rails.logger.info "[ACCOUNT-REMOVER] Deleted #{model_key(model)}"
   end
 
-  # Preemptively prunes some selected parts of the object graph. This is mainly a performance optimization that avoids
-  # exploring high-cardinality associations that can be easily deleted.
-  def prune(model)
+  # Performs some pre-delete actions, such as preemptively pruning some selected parts of the object graph.
+  # This is mainly a performance optimization that avoids exploring high-cardinality associations that can be easily deleted.
+  def before_delete(model)
+    @stack.push(model)
+
     case model
       when Account
-        delete_account_from_cassandra(model)
-        AssetUserAccess.where(:context => model).delete_all
-        ContentTag.where(:context => model).delete_all
-        Progress.where(:context => model).delete_all
-        ActiveRecord::Base.connection.execute("DELETE FROM error_reports WHERE account_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM account_authorization_configs WHERE account_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM page_views WHERE account_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM media_objects WHERE root_account_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM sis_batches WHERE account_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM messages WHERE root_account_id = #{model.id}") if model.root_account?
-        ActiveRecord::Base.connection.execute("DELETE FROM delayed_messages WHERE root_account_id = #{model.id}") if model.root_account?
-      when AccountUser
-        Message.where(:context => model).delete_all
-        DelayedMessage.where(:context => model).delete_all
+        ActiveRecord::Base.connection.execute("UPDATE groups SET account_id = #{@account.id} WHERE account_id = #{model.id}")
       when Announcement
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
@@ -240,21 +310,24 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM crocodoc_documents WHERE attachment_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM attachment_associations WHERE attachment_id = #{model.id}")
       when Course
-        delete_course_from_cassandra(model)
-        AssetUserAccess.where(:context => model).delete_all
         LearningOutcomeResult.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
         SubmissionVersion.where(:context => model).delete_all
         wiki = model.wiki
-        model.wiki = nil
-        model.save!
+        ActiveRecord::Base.connection.execute("UPDATE courses SET wiki_id = null WHERE id = #{model.id}")
         wiki.destroy
         Progress.where(:context => model).where("tag <> 'gradebook_to_csv'").delete_all
         ActiveRecord::Base.connection.execute("UPDATE content_migrations SET source_course_id = null WHERE source_course_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM cached_grade_distributions WHERE course_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM content_participation_counts WHERE context_type = 'Course' AND context_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM page_views_rollups WHERE course_id = #{model.id}")
+        rubric_ids = Rubric.where(:context => model).pluck(:id)
+        rubric_association_ids = RubricAssociation.where(:rubric_id => rubric_ids)
+        AssessmentRequest.where(:rubric_association_id => rubric_association_ids).delete_all
+        RubricAssessment.where(:rubric_association_id => rubric_association_ids).delete_all
+        RubricAssociation.where(:id => rubric_association_ids).delete_all
       when CourseSection
+        AssignmentOverride.where(:set => model).delete_all
         ActiveRecord::Base.connection.execute("UPDATE assignments SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET course_section_id = null WHERE course_section_id = #{model.id}")
         ActiveRecord::Base.connection.execute("UPDATE calendar_events SET course_section_id = null WHERE course_section_id = #{model.id}")
@@ -266,14 +339,11 @@ class AccountRemover
       when DiscussionTopic
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
-      when Enrollment
-        delete_enrollment_from_cassandra(model)
       when Group
-        AssetUserAccess.where(:context => model).delete_all
         wiki = model.wiki
-        model.wiki = nil
-        model.save!
+        ActiveRecord::Base.connection.execute("UPDATE groups SET wiki_id = null WHERE id = #{model.id}")
         wiki.destroy
+        AssetUserAccess.where(:context => model).delete_all
       when LearningOutcomeGroup
         ContentTag.where(:context => model).delete_all
       when LearningOutcomeQuestionResult
@@ -284,6 +354,11 @@ class AccountRemover
         GradebookCsv.where(:progress => model).delete_all
         GradebookUpload.where(:progress => model).delete_all
       when Quizzes::Quiz
+        quiz_regrade_ids = Quizzes::QuizRegrade.where(:quiz => model).pluck(:id)
+        Quizzes::QuizQuestionRegrade.where(:quiz_regrade_id => quiz_regrade_ids).delete_all
+        Quizzes::QuizRegradeRun.where(:quiz_regrade_id => quiz_regrade_ids).delete_all
+        Quizzes::QuizRegrade.where(:id => quiz_regrade_ids).delete_all
+        Quizzes::QuizQuestion.where(:quiz => model).delete_all
         ContentTag.where(:context => model).delete_all
         Version.where(:versionable => model).delete_all
       when Quizzes::QuizSubmission
@@ -302,8 +377,6 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when User
         AccountNotification.where(:user => model).delete_all
-        AssetUserAccess.where(:user => model).delete_all
-        AssetUserAccess.where(:context => model).delete_all
         Progress.where(:context => model).delete_all
       else
         nil
@@ -313,13 +386,18 @@ class AccountRemover
     end
   end
 
+  # Performs after-delete actions
+  def after_delete(model)
+    @stack.delete(model)
+  end
+
   # Deletes data related to the specified account from Cassandra
-  def delete_account_from_cassandra(account)
+  def delete_account_from_cassandra(account_id)
     return unless cassandra?
-    delete_page_views(account.id)
-    delete_page_views_migration_metadata(account.id)
-    delete_authentications(account.global_id)
-    delete_grade_changes(account.global_id)
+    delete_page_views(account_id)
+    delete_page_views_migration_metadata(account_id)
+    delete_authentications(Switchman::Shard.global_id_for(account_id))
+    delete_grade_changes(Switchman::Shard.global_id_for(account_id))
   end
 
   def delete_page_views(account_id)
@@ -400,9 +478,9 @@ class AccountRemover
   end
 
   # Deletes data related to the specified course from Cassandra
-  def delete_course_from_cassandra(course)
+  def delete_course_from_cassandra(course_id)
     return unless cassandra?
-    delete_auditors_courses(course.id)
+    delete_auditors_courses(course_id)
   end
 
   def delete_auditors_courses(course_id)
@@ -421,10 +499,10 @@ class AccountRemover
   end
 
   # Deletes data related to the specified enrollment from Cassandra
-  def delete_enrollment_from_cassandra(enrollment)
+  def delete_enrollment_from_cassandra(course_id, user_id)
     return unless cassandra?
-    course_global_id = "course_#{enrollment.course.global_id}"
-    user_global_id = enrollment.user.global_id.to_s
+    course_global_id = "course_#{Switchman::Shard.global_id_for(course_id)}"
+    user_global_id = Switchman::Shard.global_id_for(user_id).to_s
     context = "#{course_global_id}/user_#{user_global_id}"
     PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_user WHERE context = ? AND user_id = ?", course_global_id, user_global_id)
     PageView::EventStream.database.update("DELETE FROM page_views_counters_by_context_and_hour WHERE context = ?", context)
@@ -444,10 +522,16 @@ class AccountRemover
 
   def cassandra?
     @cassandra_enabled ||= (Setting.get('enable_page_views', 'db') == 'cassandra')
+    @cassandra_enabled && @include_cassandra
+  end
+
+  def postgres?
+    @include_postgres
   end
 
   ASSOCIATION_EXCLUSIONS = {
-    "Account" => [:sub_accounts, :all_accounts, :all_courses, :active_enrollment_terms, :active_assignments, :active_folders, :authentication_providers, :enrollments, :error_reports],
+    "Account" => [:sub_accounts, :all_accounts, :all_courses, :active_enrollment_terms, :active_assignments, :active_folders, :authentication_providers, :enrollments, :error_reports,
+                  :group_categories],
     "AccountNotificationRole" => [:role],
     "AccountUser" => [:account, :role],
     "Announcement" => [:assignment_student_visibilities, :assignment_user_visibilities, :discussion_topic_user_visibilities, :active_assignment_overrides,
@@ -497,7 +581,10 @@ class AccountRemover
     "Rubric" => [:versions, :current_version_unidirectional, :user, :rubric, :context, :learning_outcome_alignments, :course, :account],
     "RubricAssessment" => [:versions, :current_version_unidirectional],
     "RubricAssociation" => [:rubric, :association_object, :context, :association_account, :association_course, :association_assignment, :course, :account],
+    "StudentEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :visible_submission_comments, :hidden_submission_comments, :rubric_assessment],
+    "TaEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
+    "TeacherEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "Thumbnail" => [:attachment],
     "User" => [:rubric_associations],
     "UserAccountAssociation" => [:user, :account],
