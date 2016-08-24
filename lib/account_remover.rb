@@ -89,6 +89,10 @@ class AccountRemover
         c.execute("DELETE FROM assessment_requests USING delete_users d WHERE user_id = d.id")
         c.execute("DELETE FROM assessment_requests USING delete_users d WHERE assessor_id = d.id")
         c.execute("DELETE FROM assignment_override_students USING delete_users d WHERE user_id = d.id")
+        c.execute("DELETE FROM ignores USING delete_users d WHERE user_id = d.id")
+        c.execute("DELETE FROM moderated_grading_selections USING delete_users d WHERE student_id = d.id")
+        c.execute("DELETE FROM attachments USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
+        c.execute("DELETE FROM folders USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
       end
     end
   end
@@ -118,8 +122,10 @@ class AccountRemover
         c.execute("DELETE FROM report_snapshots USING delete_accounts d WHERE account_id = d.id")
         c.execute("DELETE FROM role_overrides USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
         c.execute("DELETE FROM account_authorization_configs USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM thumbnails WHERE namespace LIKE '%account_#{@account.id}'")
       end
+
+      # Create temporary table for all attachment IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments (id BIGINT NOT NULL PRIMARY KEY)")
     end
   end
 
@@ -184,10 +190,8 @@ class AccountRemover
   def process_users
     Rails.logger.info "[ACCOUNT-REMOVER] Removing root account users..."
     real_time = Benchmark.realtime do
-      @all_user_ids.each do |user_id|
-        user = User.find(user_id)
-        recursive_delete(user) if user.present?
-      end
+      ActiveRecord::Base.connection.execute("DELETE FROM user_profiles USING delete_users d WHERE user_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM users USING delete_users d WHERE users.id = d.id")
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished removing root account users in #{real_time} seconds."
   end
@@ -195,7 +199,17 @@ class AccountRemover
   def process_miscellaneous
     Rails.logger.info "[ACCOUNT-REMOVER] Removing miscellaneous items..."
     real_time = Benchmark.realtime do
-      Attachment.where("namespace LIKE '%account_#{@account.id}'").delete_all
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments (id) VALUES #{@attachment_ids.map {|id| "(#{id})"}.join(',')} ON CONFLICT DO NOTHING") unless @attachment_ids.empty?
+      ActiveRecord::Base.connection.execute("UPDATE attachments SET root_attachment_id = null FROM attachments a INNER JOIN delete_attachments d ON a.root_attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("UPDATE attachments SET replacement_attachment_id = null FROM attachments a INNER JOIN delete_attachments d ON a.replacement_attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("UPDATE content_migrations SET attachment_id = null FROM content_migrations c INNER JOIN delete_attachments d ON c.attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM thumbnails USING delete_attachments d WHERE parent_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM canvadocs USING delete_attachments d WHERE attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM crocodoc_documents USING delete_attachments d WHERE attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM attachment_associations USING delete_attachments d WHERE attachment_id = d.id")
+      ActiveRecord::Base.connection.execute("DELETE FROM attachments USING delete_attachments d WHERE attachments.id = d.id")
+
+      ActiveRecord::Base.connection.execute("DROP TABLE delete_attachments")
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished removing miscellaneous items in #{real_time} seconds."
   end
@@ -242,8 +256,6 @@ class AccountRemover
         @all_account_ids.include?(model.id)
       when AccountUser
         @all_account_ids.include?(model.account_id)
-      when Attachment
-        @all_account_ids.any? {|account_id| model.namespace.end_with?("account_#{account_id}")}
       when ClonedItem
         model.original_item.nil? && model.attachments.empty? && model.discussion_topics.empty? && model.wiki_pages.empty?
       when Notification
@@ -259,7 +271,7 @@ class AccountRemover
 
   # Returns true if the specified model object and association should be excluded from the object graph traversal, false otherwise
   def exclude_association?(model, association)
-    (ASSOCIATION_EXCLUSIONS[model.class.name] || []).include?(association.name) || association.is_a?(ActiveRecord::Associations::HasManyThroughAssociation) || association.is_a?(ActiveRecord::Associations::HasOneThroughAssociation)
+    (ASSOCIATION_EXCLUSIONS[model.class.name] || []).include?(association.name) || association.is_a?(ActiveRecord::Reflection::ThroughReflection)
   end
 
   # Deletes the specified model object. Returns true if the deletion was successful, false otherwise.
@@ -278,9 +290,11 @@ class AccountRemover
       SQL
       ActiveRecord::Base.connection.execute(query)
     elsif model.is_a?(Attachment)
-      ActiveRecord::Base.connection.execute("DELETE FROM attachments WHERE id = #{model.id}")
+      mark_attachment(model.id)
     elsif model.is_a?(Thumbnail)
-      ActiveRecord::Base.connection.execute("DELETE FROM thumbnails WHERE id = #{model.id}")
+      # do nothing
+    elsif model.respond_to?(:delete)
+      model.delete
     elsif model.respond_to?(:destroy_permanently!)
       model.destroy_permanently!
     elsif model.respond_to?(:destroy)
@@ -297,6 +311,7 @@ class AccountRemover
     case model
       when Account
         ActiveRecord::Base.connection.execute("UPDATE groups SET account_id = #{@account.id} WHERE account_id = #{model.id}")
+        Folder.where(:context => model).each {|folder| recursive_delete(folder)}
       when Announcement
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
@@ -312,18 +327,13 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when AssignmentOverride
         Version.where(:versionable => model).delete_all
-      when Attachment
-        Progress.where(:context => model).delete_all
-        ActiveRecord::Base.connection.execute("UPDATE attachments SET replacement_attachment_id = null WHERE replacement_attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET attachment_id = null WHERE attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE content_exports SET attachment_id = null WHERE attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE content_migrations SET attachment_id = null WHERE attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE content_migrations SET overview_attachment_id = null WHERE overview_attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE content_migrations SET exported_attachment_id = null WHERE exported_attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM canvadocs WHERE attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM crocodoc_documents WHERE attachment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM attachment_associations WHERE attachment_id = #{model.id}")
+      when ContentExport
+        Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
+      when ContentMigration
+        Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
       when Course
+        Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
+        Folder.where(:context => model).each {|folder| recursive_delete(folder)}
         LearningOutcomeResult.where(:context => model).delete_all
         ContentTag.where(:context => model).delete_all
         SubmissionVersion.where(:context => model).delete_all
@@ -354,6 +364,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
         ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
       when Group
+        Folder.where(:context => model).each {|folder| recursive_delete(folder)}
         wiki = model.wiki
         ActiveRecord::Base.connection.execute("UPDATE groups SET wiki_id = null WHERE id = #{model.id}")
         wiki.destroy
@@ -375,6 +386,8 @@ class AccountRemover
         Quizzes::QuizQuestion.where(:quiz => model).delete_all
         ContentTag.where(:context => model).delete_all
         Version.where(:versionable => model).delete_all
+      when Quizzes::QuizStatistics
+        Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
       when Quizzes::QuizSubmission
         Version.where(:versionable => model).delete_all
         Quizzes::QuizSubmissionSnapshot.where(:quiz_submission => model).delete_all
@@ -389,6 +402,8 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when WikiPage
         Version.where(:versionable => model).delete_all
+      when UsageRights
+        ActiveRecord::Base.connection.execute("UPDATE attachments SET usage_rights_id = null WHERE usage_rights_id = #{model.id}")
       when User
         AccountNotification.where(:user => model).delete_all
         Progress.where(:context => model).delete_all
@@ -403,6 +418,15 @@ class AccountRemover
   # Performs after-delete actions
   def after_delete(model)
     @stack.delete(model)
+  end
+
+  # Marks an attachment for deletion
+  def mark_attachment(attachment_id)
+    (@attachment_ids ||= []) << attachment_id
+    if @attachment_ids.length > 500
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments (id) VALUES #{@attachment_ids.map {|id| "(#{id})"}.join(',')} ON CONFLICT DO NOTHING")
+      @attachment_ids = []
+    end
   end
 
   # Deletes data related to the specified account from Cassandra
@@ -549,17 +573,16 @@ class AccountRemover
     "AccountNotificationRole" => [:role],
     "AccountUser" => [:account, :role],
     "Announcement" => [:assignment_student_visibilities, :assignment_user_visibilities, :discussion_topic_user_visibilities, :active_assignment_overrides,
-                       :rated_discussion_entries, :root_discussion_entries, :child_discussion_entries, :context_module_tags],
+                       :rated_discussion_entries, :root_discussion_entries, :child_discussion_entries, :context_module_tags, :assignment_override_students, :external_feed_entry],
     "AssessmentQuestion" => [:versions, :current_version_unidirectional],
     "AssetUserAccess" => [:page_views],
     "Assignment" => [:assignment_student_visibilities, :assignment_user_visibilities, :versions, :current_version_unidirectional,
-                     :active_assignment_overrides, :context_module_tags, :teacher_enrollment, :external_tool_tag, :learning_outcome_alignments, :rubric_association],
+                     :active_assignment_overrides, :context_module_tags, :teacher_enrollment, :external_tool_tag, :learning_outcome_alignments, :rubric_association,
+                     :assignment_override_students, :ignores, :moderated_grading_selections, :rubric],
     "AssignmentGroup" => [:active_assignments, :published_assignments],
     "AssignmentOverride" => [:versions, :current_version_unidirectional],
-    "Attachment" => [:context_module_tags, :account_report, :thumbnail, :attachment_associations, :canvadoc, :crocodoc_document, :media_object,
-                     :sis_batch, :submissions, :root_attachment, :replacement_attachment, :user, :context, :account, :assessment_question,
-                     :assignment, :attachment, :content_export, :content_migration, :course, :eportfolio, :epub_export, :gradebook_upload,
-                     :group, :submission, :context_folder, :context_sis_batch, :context_user, :quiz, :quiz_statistics, :quiz_submission],
+    "Attachment" => [:context_module_tags, :account_report, :thumbnail, :thumbnails, :attachment_associations, :canvadoc, :crocodoc_document, :media_object,
+                     :sis_batch, :submissions, :children],
     "AttachmentAssociation" => [:context, :conversation_message, :submission, :course, :group],
     "ClonedItem" => [:attachments, :discussion_topics, :wiki_pages, :original_item, :attachment, :content_tag, :folder, :assignment, :wiki_page,
                      :discussion_topic, :context_module, :calendar_event, :assignment_group, :context_external_tool, :quiz],
@@ -578,10 +601,11 @@ class AccountRemover
                          :calendar_event, :wiki_page, :assessment_request, :account_user, :web_conference, :account, :user, :appointment_group,
                          :collaborator, :account_report, :alert, :context_communication_channel, :quiz_submission, :quiz_regrade_run],
     "DeveloperKey" => [:page_views],
-    "DiscussionEntry" => [:discussion_entry_participants, :discussion_subentries, :flattened_discussion_subentries],
+    "DiscussionEntry" => [:discussion_entry_participants, :discussion_subentries, :flattened_discussion_subentries, :external_feed_entry],
     "DiscussionTopic" => [:discussion_topic_user_visibilities, :discussion_topic_user_visibilities,
                           :discussion_topic_participants, :active_assignment_overrides, :rated_discussion_entries, :root_discussion_entries,
-                          :child_discussion_entries, :context_module_tags],
+                          :child_discussion_entries, :context_module_tags, :assignment_override_students, :assignment_student_visibilities, :assignment_user_visibilities,
+                          :external_feed_entry],
     "EpubExport" => [:content_export, :course, :user],
     "Folder" => [:active_file_attachments, :file_attachments, :visible_file_attachments, :active_sub_folders, :sub_folders, :context, :user, :group, :account, :course],
     "Group" => [:wiki_pages, :active_announcements, :discussion_topics, :active_discussion_topics, :active_assignments, :active_images, :active_folders],
@@ -596,11 +620,12 @@ class AccountRemover
     "RubricAssessment" => [:versions, :current_version_unidirectional],
     "RubricAssociation" => [:rubric, :association_object, :context, :association_account, :association_course, :association_assignment, :course, :account],
     "StudentEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
-    "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :visible_submission_comments, :hidden_submission_comments, :rubric_assessment],
+    "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :visible_submission_comments, :hidden_submission_comments,
+                     :rubric_assessment, :content_participations],
     "TaEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "TeacherEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "Thumbnail" => [:attachment],
-    "User" => [:rubric_associations],
+    "User" => [:rubric_associations, :assignment_student_visibilities, :assignment_user_visibilities, :discussion_topic_user_visibilities],
     "UserAccountAssociation" => [:user, :account],
     "WikiPage" => [:assignment_student_visibilities, :assignment_user_visibilities, :versions, :current_version_unidirectional, :context_module_tags]
   }
