@@ -222,7 +222,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM attachments USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM folders USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_services USING delete_users d WHERE user_id = d.id")
-        ActiveRecord::Base.connection.execute("DELETE FROM user_profiles_links USING delete_users d, user_profiles p WHERE p.user_id = d.id AND user_profile_id = p.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM user_profile_links USING delete_users d, user_profiles p WHERE p.user_id = d.id AND user_profile_id = p.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_profiles USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM enrollments USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_account_associations USING delete_users d WHERE user_id = d.id")
