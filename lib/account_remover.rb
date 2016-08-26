@@ -238,6 +238,7 @@ class AccountRemover
       @account.transaction do
         # Create temporary table for all attachment IDs
         ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments (id BIGINT NOT NULL PRIMARY KEY) ON COMMIT DROP")
+        @attachment_ids ||= []
         @attachment_ids.uniq! unless @attachment_ids.empty?
         @attachment_ids.each_slice(200) do |batch_ids|
           ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}") unless @attachment_ids.empty?
