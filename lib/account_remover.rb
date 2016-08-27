@@ -42,6 +42,7 @@ class AccountRemover
 
       # Delete object graph in Postgres
       if postgres?
+        prepare_statements
         process_account(@account)
         process_users
         process_miscellaneous
@@ -187,6 +188,21 @@ class AccountRemover
         c.execute("DELETE FROM rubrics USING delete_rubrics d WHERE rubrics.id = d.id")
       end
     end
+  end
+
+  def prepare_statements
+    c = ActiveRecord::Base.connection.raw_connection
+    c.prepare("delete_stream_item_instances", "DELETE FROM stream_item_instances USING stream_items s WHERE stream_item_id = s.id AND s.context_type = $1 AND s.context_id = $2")
+    c.prepare("delete_stream_items", "DELETE FROM stream_items WHERE context_type = $1 AND context_id = $2")
+    c.prepare("delete_discussion_topic_participants", "DELETE FROM discussion_topic_participants WHERE discussion_topic_id = $1")
+    c.prepare("delete_discussion_topic_materialized_views", "DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = $1")
+    c.prepare("delete_discussion_entry_participants", "DELETE FROM discussion_entry_participants USING discussion_entries d WHERE d.discussion_topic_id = $1 AND discussion_entry_participants.discussion_entry_id = d.id")
+    c.prepare("delete_discussion_entries", "DELETE FROM discussion_entries WHERE discussion_topic_id = $1")
+    c.prepare("delete_cached_grade_distributions", "DELETE FROM cached_grade_distributions WHERE course_id = $1")
+    c.prepare("delete_content_participation_counts", "DELETE FROM content_participation_counts WHERE context_type = 'Course' AND context_id = $1")
+    c.prepare("delete_page_views_rollups", "DELETE FROM page_views_rollups WHERE course_id = $1")
+    c.prepare("delete_quiz_submission_events", "DELETE FROM quiz_submission_events WHERE quiz_submission_id = $1")
+    c.prepare("delete_canvadocs_submissions", "DELETE FROM canvadocs_submissions WHERE submission_id = $1")
   end
 
   def process_account(account)
@@ -350,34 +366,35 @@ class AccountRemover
   # This is mainly a performance optimization that avoids exploring high-cardinality associations that can be easily deleted.
   def before_delete(model)
     @stack.push(model)
+    connection = ActiveRecord::Base.connection.raw_connection
 
     case model
       when Account
         AccountNotification.where(:account => model).each {|notification| recursive_delete(notification)}
-        ActiveRecord::Base.connection.execute("UPDATE groups SET account_id = #{@account.id} WHERE account_id = #{model.id}")
+        Group.where(:account => model).update_all(:account_id => @account.id)
         Folder.where(:context => model).each {|folder| recursive_delete(folder)}
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_item_instances USING stream_items s WHERE stream_item_id = s.id AND s.context_type = 'Account' AND s.context_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_items WHERE context_type = 'Account' AND context_id = #{model.id}")
+        connection.exec_prepared("delete_stream_item_instances", ['Account', model.id])
+        connection.exec_prepared("delete_stream_items", ['Account', model.id])
       when Announcement
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET root_topic_id = null WHERE root_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_entry_participants USING discussion_entries d WHERE d.discussion_topic_id = #{model.id} AND discussion_entry_participants.discussion_entry_id = d.id")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_entries WHERE discussion_topic_id = #{model.id}")
+        Announcement.where(:root_topic => model).update_all(:root_topic_id => nil)
+        connection.exec_prepared("delete_discussion_topic_participants", [model.id])
+        connection.exec_prepared("delete_discussion_topic_materialized_views", [model.id])
+        connection.exec_prepared("delete_discussion_entry_participants", [model.id])
+        connection.exec_prepared("delete_discussion_entries", [model.id])
       when AssessmentQuestion
         Version.where(:versionable => model).delete_all
       when Assignment
-        ActiveRecord::Base.connection.execute("UPDATE quizzes SET assignment_id = null WHERE assignment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET reply_assignment_id = null WHERE reply_assignment_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET old_assignment_id = null WHERE old_assignment_id = #{model.id}")
+        Quizzes::Quiz.where(:assignment => model).update_all(:assignment_id => nil)
+        DiscussionTopic.where(:reply_assignment_id => model.id).update_all(:reply_assignment_id => nil)
+        DiscussionTopic.where(:old_assignment => model).update_all(:old_assignment_id => nil)
         ContentTag.where(:context => model).delete_all
         ContentTag.where(:content => model).delete_all
         Progress.where(:context => model).delete_all
         Version.where(:versionable => model).delete_all
       when AssignmentOverride
         Version.where(:versionable => model).delete_all
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_item_instances USING stream_items s WHERE stream_item_id = s.id AND s.context_type = 'AssignmentOverride' AND s.context_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_items WHERE context_type = 'AssignmentOverride' AND context_id = #{model.id}")
+        connection.exec_prepared("delete_stream_item_instances", ['AssignmentOverride', model.id])
+        connection.exec_prepared("delete_stream_items", ['AssignmentOverride', model.id])
       when ContentExport
         Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
       when ContentMigration
@@ -389,44 +406,44 @@ class AccountRemover
         ContentTag.where(:context => model).delete_all
         SubmissionVersion.where(:context => model).delete_all
         wiki = model.wiki
-        ActiveRecord::Base.connection.execute("UPDATE courses SET wiki_id = null WHERE id = #{model.id}")
+        Course.where(:id => model.id).update_all(:wiki_id => nil)
         wiki.destroy
         Progress.where(:context => model).where("tag <> 'gradebook_to_csv'").delete_all
-        ActiveRecord::Base.connection.execute("UPDATE content_migrations SET source_course_id = null WHERE source_course_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM cached_grade_distributions WHERE course_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM content_participation_counts WHERE context_type = 'Course' AND context_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM page_views_rollups WHERE course_id = #{model.id}")
+        ContentMigration.where(:source_course => model).update_all(:source_course_id => nil)
+        connection.exec_prepared("delete_cached_grade_distributions", [model.id])
+        connection.exec_prepared("delete_content_participation_counts", [model.id])
+        connection.exec_prepared("delete_page_views_rollups", [model.id])
         rubric_ids = Rubric.where(:context => model).pluck(:id)
         rubric_association_ids = RubricAssociation.where(:rubric_id => rubric_ids)
         AssessmentRequest.where(:rubric_association_id => rubric_association_ids).delete_all
         RubricAssessment.where(:rubric_association_id => rubric_association_ids).delete_all
         RubricAssociation.where(:id => rubric_association_ids).delete_all
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_item_instances USING stream_items s WHERE stream_item_id = s.id AND s.context_type = 'Course' AND s.context_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_items WHERE context_type = 'Course' AND context_id = #{model.id}")
+        connection.exec_prepared("delete_stream_item_instances", ['Course', model.id])
+        connection.exec_prepared("delete_stream_items", ['Course', model.id])
       when CourseSection
         AssignmentOverride.where(:set => model).delete_all
-        ActiveRecord::Base.connection.execute("UPDATE assignments SET course_section_id = null WHERE course_section_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET course_section_id = null WHERE course_section_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE calendar_events SET course_section_id = null WHERE course_section_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE groups SET course_section_id = null WHERE course_section_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE quizzes SET course_section_id = null WHERE course_section_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("UPDATE course_account_associations SET course_section_id = null WHERE course_section_id = #{model.id}")
+        Assignment.where(:course_section => model).update_all(:course_section_id => nil)
+        DiscussionTopic.where(:course_section => model).update_all(:course_section_id => nil)
+        CalendarEvent.where(:course_section_id => model.id).update_all(:course_section_id => nil)
+        Group.where(:course_section => model).update_all(:course_section_id => nil)
+        Quizzes::Quiz.where(:course_section => model).update_all(:course_section_id => nil)
+        CourseAccountAssociation.where(:course_section => model).update_all(:course_section_id => nil)
       when DiscussionTopic
-        ActiveRecord::Base.connection.execute("UPDATE discussion_topics SET root_topic_id = null WHERE root_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_participants WHERE discussion_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_topic_materialized_views WHERE discussion_topic_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_entry_participants USING discussion_entries d WHERE d.discussion_topic_id = #{model.id} AND discussion_entry_participants.discussion_entry_id = d.id")
-        ActiveRecord::Base.connection.execute("DELETE FROM discussion_entries WHERE discussion_topic_id = #{model.id}")
+        DiscussionTopic.where(:root_topic => model).update_all(:root_topic_id => nil)
+        connection.exec_prepared("delete_discussion_topic_participants", [model.id])
+        connection.exec_prepared("delete_discussion_topic_materialized_views", [model.id])
+        connection.exec_prepared("delete_discussion_entry_participants", [model.id])
+        connection.exec_prepared("delete_discussion_entries", [model.id])
       when Group
         Folder.where(:context => model).each {|folder| recursive_delete(folder)}
         Submission.where(:group => model).each {|submission| recursive_delete(submission)}
         GroupMembership.where(:group => model).each {|membership| recursive_delete(membership)}
         wiki = model.wiki
-        ActiveRecord::Base.connection.execute("UPDATE groups SET wiki_id = null WHERE id = #{model.id}")
+        Group.where(:id => model.id).update_all(:wiki_id => nil)
         wiki.destroy
         AssetUserAccess.where(:context => model).delete_all
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_item_instances USING stream_items s WHERE stream_item_id = s.id AND s.context_type = 'Group' AND s.context_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM stream_items WHERE context_type = 'Group' AND context_id = #{model.id}")
+        connection.exec_prepared("delete_stream_item_instances", ['Group', model.id])
+        connection.exec_prepared("delete_stream_items", ['Group', model.id])
       when GroupCategory
         DiscussionTopic.where(:group_category => model).each {|topic| recursive_delete(topic)}
       when LearningOutcome
@@ -453,16 +470,16 @@ class AccountRemover
       when Quizzes::QuizSubmission
         Version.where(:versionable => model).delete_all
         Quizzes::QuizSubmissionSnapshot.where(:quiz_submission => model).delete_all
-        ActiveRecord::Base.connection.execute("UPDATE submissions SET quiz_submission_id = null WHERE quiz_submission_id = #{model.id}")
-        ActiveRecord::Base.connection.execute("DELETE FROM quiz_submission_events WHERE quiz_submission_id = #{model.id}")
+        Submission.where(:quiz_submission => model).update_all(:quiz_submission_id => nil)
+        connection.exec_prepared("delete_quiz_submission_events", [model.id])
       when Rubric
-        ActiveRecord::Base.connection.execute("UPDATE rubrics SET rubric_id = null WHERE rubric_id = #{model.id}")
+        Rubric.where(:rubric => model).update_all(:rubric_id => nil)
         Version.where(:versionable => model).delete_all
       when RubricAssessment
         Version.where(:versionable => model).delete_all
       when Submission
         Version.where(:versionable => model).delete_all
-        ActiveRecord::Base.connection.execute("DELETE FROM canvadocs_submissions WHERE submission_id = #{model.id}")
+        connection.exec_prepared("delete_canvadocs_submissions", [model.id])
         submission_comment_ids = SubmissionComment.where(:submission => model).pluck(:id)
         SubmissionCommentParticipant.where(:submission_comment_id => submission_comment_ids).delete_all
         SubmissionComment.where(:submission => model).delete_all
@@ -471,7 +488,7 @@ class AccountRemover
       when WikiPage
         Version.where(:versionable => model).delete_all
       when UsageRights
-        ActiveRecord::Base.connection.execute("UPDATE attachments SET usage_rights_id = null WHERE usage_rights_id = #{model.id}")
+        Attachment.where(:usage_rights => model).update_all(:usage_rights_id => nil)
       when User
         AccountNotification.where(:user => model).delete_all
         Progress.where(:context => model).delete_all
