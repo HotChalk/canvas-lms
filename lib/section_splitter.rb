@@ -10,6 +10,12 @@
 #    CREATE INDEX page_views_context_id_idx ON page_views.page_views (context_id);
 #    CREATE INDEX grade_changes_context_id_idx ON auditors.grade_changes (context_id);
 #
+# 3. Update timeout settings in your server's cassandra.yaml configuration files to large values, i.e.:
+#
+#    read_request_timeout_in_ms: 60000
+#    range_request_timeout_in_ms: 60000
+#    request_timeout_in_ms: 60000
+#
 # Index creation can be a long-running process, so you should verify that the indexes have
 # been successfully created by querying the page_views.page_views and auditors.grade_changes tables
 # using a WHERE condition for the context_id column.
