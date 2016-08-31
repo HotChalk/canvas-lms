@@ -232,17 +232,26 @@ class SectionSplitter
       source_model =
         case model
           when Announcement
-            source_course.announcements.find {|a| a.workflow_state == model.workflow_state && a.title == model.title}
+            source_course.announcements.where(:workflow_state => model.workflow_state, :title => model.title).first
           when Assignment
-            source_course.assignments.find {|a| a.workflow_state == model.workflow_state && a.title == model.title && a.points_possible == model.points_possible}
+            target_modules = model.context_module_tags.where(:context => model.context).map {|t| t.context_module.name}.sort
+            models = source_course.assignments.where(:workflow_state => model.workflow_state, :title => model.title)
+            models.select! {|m| m.context_module_tags.where(:context => source_course).map {|t| t.context_module.name}.sort == target_modules}
+            models.first
           when DiscussionTopic
-            source_course.discussion_topics.find {|d| d.workflow_state == model.workflow_state && d.title == model.title}
+            target_modules = model.context_module_tags.where(:context => model.context).map {|t| t.context_module.name}.sort
+            models = source_course.discussion_topics.where(:workflow_state => model.workflow_state, :title => model.title)
+            models.select! {|m| m.context_module_tags.where(:context => source_course).map {|t| t.context_module.name}.sort == target_modules}
+            models.first
           when Quizzes::Quiz
-            source_course.quizzes.find {|q| q.workflow_state == model.workflow_state && q.title == model.title && q.points_possible == model.points_possible && q.question_count == model.question_count}
+            target_modules = model.context_module_tags.where(:context => model.context).map {|t| t.context_module.name}.sort
+            models = source_course.quizzes.where(:workflow_state => model.workflow_state, :title => model.title, :question_count => model.question_count)
+            models.select! {|m| m.context_module_tags.where(:context => source_course).map {|t| t.context_module.name}.sort == target_modules}
+            models.first
           when CalendarEvent
-            source_course.calendar_events.find {|e| e.workflow_state == model.workflow_state && e.title == model.title && e.start_at == model.start_at && e.end_at == model.end_at}
+            source_course.calendar_events.where(:workflow_state => model.workflow_state, :title => model.title, :start_at => model.start_at, :end_at => model.end_at).first
           when GroupCategory
-            source_course.group_categories.find {|g| g.name == model.name && g.role == model.role && g.deleted_at == model.deleted_at && g.group_limit == model.group_limit}
+            source_course.group_categories.where(:name => model.name, :role => model.role, :deleted_at => model.deleted_at, :group_limit => model.group_limit).first
           else
             nil
         end
