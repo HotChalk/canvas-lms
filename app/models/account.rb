@@ -1370,6 +1370,7 @@ class Account < ActiveRecord::Base
   TAB_SEARCH = 18
   TAB_RESOURCES = 19
   TAB_HELP_SETUP_LINKS = 20
+  TAB_COURSE_COPY = 21
 
   # site admin tabs
   TAB_PLUGINS = 14
@@ -1419,6 +1420,9 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
+      
+      tabs << { :id => TAB_COURSE_COPY, :label => t('#account.tab_course_copy', "Course Copy"), :css_class => 'course_copy', :href => :account_coursecopy_index_path } if manage_settings        
+      
       tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
       tabs << { :id => TAB_HELP_SETUP_LINKS, :label => t('#account.tab_help_setup', "Help Setup"), :css_class => 'help_setup', :href => :account_helpsetup_path} if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)

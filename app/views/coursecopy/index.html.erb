@@ -1,0 +1,74 @@
+<% add_crumb t('titles.course_copy', "Course Copy") %>
+<% @active_tab = "course_copy" %>
+<% content_for :page_title do %><%= t('titles.course_copy', 'Course Copy') %><% end %>
+
+<% content_for :right_side do %>
+<%= render :partial => 'shared/accounts_right_side_shared' %>
+<% end %>
+
+<% css_bundle :coursecopy %>
+<% js_bundle :coursecopy %>
+
+<div class="container">
+            
+    <div class="row">
+        
+        <div class="col-xs-7">
+            <h1>Course Copy Tool</h1>
+            
+            <hr>
+
+            <div class="panel panel-info">
+
+            
+                <div class="panel-heading">Upload Course Import Sheet</div>
+              
+              <div class="panel-body">
+                 Upload a course copy sheet using the format Column 1 Master course, Column 2 target course. A copy of the template can be found <a href="#">here</a> By checking "Adjust Due dates based on start and end date of target courses" the process will attempt to adjust the sequencing of assignment dates based on the start and end dates of the target courses. 
+             </div>
+            </div>      
+               
+            
+            <%= form_for @csvfile, :url => {:action => :account_coursecopy_load_path} do |f| %>
+              <%= f.file_field :file %>
+            <% end %>
+               
+            <div class="s_table">
+              <div class="s_table_cell">
+                <label class="btn btn-default btn_small" for="coursecopytoolFileUpload">
+              <%= t :sourse_text, 'Browse' %>
+            </label>    
+              </div>
+              <div class="s_table_cell">
+                <input class="csvinputfile" id="coursecopytoolFileUpload" name="file" type="file" accept=".csv">
+              </div>
+              <div class="s_table_cell">
+                <span id="input_file" class="choose_file"></span>
+              </div>
+            </div>
+            
+              
+          <div class="checkbox ckb_copy">
+            <label>
+              <input type="checkbox"> Adjust Due dates based on start and end date of target courses
+            </label>
+          </div>
+
+
+          <br/>
+  
+          <div class="s_table">
+                      
+            <div class="s_table_cell">
+              <a href="importing.html"><button type="button" class="btn btn-primary">Start Course Copy</button></a>  
+            </div>
+            
+            <div class="s_table_cell">
+              <a href="history.html"><button type="button" class="btn btn-default">View History</button></a>
+            </div>
+            
+            </div>
+        </div>
+                    
+    </div>
+</div>

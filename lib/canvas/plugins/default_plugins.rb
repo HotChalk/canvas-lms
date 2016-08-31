@@ -382,3 +382,23 @@ Canvas::Plugin.register('hotchalk', :export_system, {
         :valid_contexts => %w{Course}
     }
 })
+require_dependency 'canvas/migration/worker/course_copy_tool_csv_file_worker'
+Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
+    :name => lambda { I18n.t :copy_tool_csv_file_name, 'Course Copy Tool' },
+    :display_name => lambda { I18n.t :copy_tool_csv_file_display, 'Copy Tool Import' },
+    :author => 'Hotchalk',
+    :author_website => 'http://www.hotchalk.com',
+    :description => lambda { I18n.t :csv_file_description, 'Migration plugin for copy multiple course to course, using csv file loaded with master ids and target ids.' },
+    :version => '1.0.0',
+    :select_text => lambda { I18n.t :csv_file_file_description, "Hotchalk Course Copy Tool" },
+    # :sort_order => 2,
+    :settings => {
+        :worker => 'CourseCopyToolCsvFileWorker',
+        :requires_file_upload => true,
+        :no_selective_import => true,
+        # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,
+        :required_settings => [:source_folder_id],
+        :valid_contexts => %w(Course)
+    },
+    :settings_partial => 'plugins/course_copy_tool_csv_file'    
+}
