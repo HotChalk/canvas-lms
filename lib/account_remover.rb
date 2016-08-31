@@ -57,42 +57,47 @@ class AccountRemover
     if postgres?
       Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing users in Postgres..."
 
-      @account.transaction do
+      real_time = Benchmark.realtime do
         # Create temporary table with all user IDs
         ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_users (id BIGINT NOT NULL PRIMARY KEY)")
         @all_user_ids.each_slice(100) do |batch_ids|
           ActiveRecord::Base.connection.execute("INSERT INTO delete_users (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}")
         end
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_users")
 
-        # Delete by joining on the temp table
-        c = ActiveRecord::Base.connection
-        c.execute("DELETE FROM page_views USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM discussion_entry_participants USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE context_type = 'User' and context_id = d.id")
-        c.execute("DELETE FROM messages USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM submission_comment_participants USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM conversation_message_participants USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM context_module_progressions USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM discussion_topic_participants USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM submission_versions USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM content_participations USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM content_participation_counts USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM stream_item_instances USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM group_memberships USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM delayed_messages USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
-        c.execute("DELETE FROM notification_policies USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
-        c.execute("DELETE FROM communication_channels USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM session_persistence_tokens USING delete_users d, pseudonyms p WHERE p.user_id = d.id AND pseudonym_id = p.id")
-        c.execute("DELETE FROM pseudonyms USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE assessor_id = d.id")
-        c.execute("DELETE FROM assessment_requests USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM assessment_requests USING delete_users d WHERE assessor_id = d.id")
-        c.execute("DELETE FROM assignment_override_students USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM ignores USING delete_users d WHERE user_id = d.id")
-        c.execute("DELETE FROM moderated_grading_selections USING delete_users d WHERE student_id = d.id")
+        @account.transaction do
+          # Delete by joining on the temp table
+          c = ActiveRecord::Base.connection
+          c.execute("DELETE FROM page_views USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM discussion_entry_participants USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM asset_user_accesses USING delete_users d WHERE context_type = 'User' and context_id = d.id")
+          c.execute("DELETE FROM messages USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM submission_comment_participants USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM conversation_message_participants USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM context_module_progressions USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM discussion_topic_participants USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM submission_versions USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM content_participations USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM content_participation_counts USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM stream_item_instances USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM group_memberships USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM delayed_messages USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
+          c.execute("DELETE FROM notification_policies USING delete_users d, communication_channels c WHERE c.user_id = d.id AND communication_channel_id = c.id")
+          c.execute("DELETE FROM communication_channels USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM session_persistence_tokens USING delete_users d, pseudonyms p WHERE p.user_id = d.id AND pseudonym_id = p.id")
+          c.execute("DELETE FROM pseudonyms USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_users d WHERE assessor_id = d.id")
+          c.execute("DELETE FROM assessment_requests USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM assessment_requests USING delete_users d WHERE assessor_id = d.id")
+          c.execute("DELETE FROM assignment_override_students USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM ignores USING delete_users d WHERE user_id = d.id")
+          c.execute("DELETE FROM moderated_grading_selections USING delete_users d WHERE student_id = d.id")
+        end
       end
+
+      Rails.logger.info "[ACCOUNT-REMOVER] Finished pre-processing users in #{real_time} seconds."
     end
   end
 
@@ -104,43 +109,53 @@ class AccountRemover
     if postgres?
       Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing accounts in Postgres..."
 
-      @account.transaction do
+      real_time = Benchmark.realtime do
         # Create temporary table with all account IDs
         ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_accounts (id BIGINT NOT NULL PRIMARY KEY)")
         ActiveRecord::Base.connection.execute("INSERT INTO delete_accounts (id) VALUES #{@all_account_ids.map {|id| "(#{id})"}.join(',')}")
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_accounts")
 
         # Create temporary tables for rubrics
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubrics ON COMMIT DROP AS SELECT r.id FROM rubrics r INNER JOIN delete_accounts a ON r.context_type = 'Account' AND r.context_id = a.id")
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubric_associations ON COMMIT DROP AS SELECT a.id FROM delete_rubrics r INNER JOIN rubric_associations a ON r.id = a.rubric_id")
+        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubrics AS SELECT r.id FROM rubrics r INNER JOIN delete_accounts a ON r.context_type = 'Account' AND r.context_id = a.id")
+        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubric_associations AS SELECT a.id FROM delete_rubrics r INNER JOIN rubric_associations a ON r.id = a.rubric_id")
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_rubrics")
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_rubric_associations")
 
-        # Delete by joining on the temp table
-        c = ActiveRecord::Base.connection
-        c.execute("DELETE FROM page_views USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM asset_user_accesses USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
-        c.execute("DELETE FROM error_reports USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM messages WHERE root_account_id = #{@account.id}")
-        c.execute("DELETE FROM delayed_messages WHERE root_account_id = #{@account.id}")
-        c.execute("DELETE FROM enrollments WHERE root_account_id = #{@account.id}")
-        c.execute("DELETE FROM user_account_associations USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM course_account_associations USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM report_snapshots USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM role_overrides USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
-        c.execute("DELETE FROM session_persistence_tokens USING delete_accounts d, pseudonyms p WHERE p.account_id = d.id AND pseudonym_id = p.id")
-        c.execute("DELETE FROM pseudonyms USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM account_authorization_configs USING delete_accounts d WHERE account_id = d.id")
-        c.execute("DELETE FROM conversation_batches USING conversation_messages c WHERE root_conversation_message_id = c.id AND c.context_type = 'Account' AND c.context_id = #{@account.id}")
-        c.execute("DELETE FROM conversation_message_participants USING conversation_messages c WHERE conversation_message_id = c.id AND c.context_type = 'Account' AND c.context_id = #{@account.id}")
-        c.execute("DELETE FROM conversation_messages WHERE context_type = 'Account' AND context_id = #{@account.id}")
-        c.execute("DELETE FROM role_overrides USING roles r WHERE role_id = r.id AND r.root_account_id = #{@account.id}")
-        c.execute("DELETE FROM assessment_requests USING delete_rubric_associations d WHERE rubric_association_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_rubric_associations d WHERE rubric_association_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_rubrics d WHERE rubric_id = d.id")
-        c.execute("DELETE FROM rubric_associations USING delete_rubric_associations d WHERE rubric_associations.id = d.id")
-        c.execute("DELETE FROM versions USING delete_rubrics d WHERE versionable_type = 'Rubric' AND versionable_id = d.id")
-        c.execute("UPDATE rubrics SET rubric_id = null FROM delete_rubrics d WHERE rubric_id = d.id")
-        c.execute("DELETE FROM rubrics USING delete_rubrics d WHERE rubrics.id = d.id")
-        c.execute("UPDATE accounts SET parent_account_id = root_account_id WHERE root_account_id <> #{@account.id} AND parent_account_id IN (SELECT id FROM delete_accounts)") # special case with old STU accounts
+        @account.transaction do
+          # Delete by joining on the temp table
+          c = ActiveRecord::Base.connection
+          c.execute("DELETE FROM page_views USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM asset_user_accesses USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
+          c.execute("DELETE FROM error_reports USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM messages WHERE root_account_id = #{@account.id}")
+          c.execute("DELETE FROM delayed_messages WHERE root_account_id = #{@account.id}")
+          c.execute("DELETE FROM enrollments WHERE root_account_id = #{@account.id}")
+          c.execute("DELETE FROM user_account_associations USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM course_account_associations USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM report_snapshots USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM role_overrides USING delete_accounts d WHERE context_type = 'Account' AND context_id = d.id")
+          c.execute("DELETE FROM session_persistence_tokens USING delete_accounts d, pseudonyms p WHERE p.account_id = d.id AND pseudonym_id = p.id")
+          c.execute("DELETE FROM pseudonyms USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM account_authorization_configs USING delete_accounts d WHERE account_id = d.id")
+          c.execute("DELETE FROM conversation_batches USING conversation_messages c WHERE root_conversation_message_id = c.id AND c.context_type = 'Account' AND c.context_id = #{@account.id}")
+          c.execute("DELETE FROM conversation_message_participants USING conversation_messages c WHERE conversation_message_id = c.id AND c.context_type = 'Account' AND c.context_id = #{@account.id}")
+          c.execute("DELETE FROM conversation_messages WHERE context_type = 'Account' AND context_id = #{@account.id}")
+          c.execute("DELETE FROM role_overrides USING roles r WHERE role_id = r.id AND r.root_account_id = #{@account.id}")
+          c.execute("DELETE FROM assessment_requests USING delete_rubric_associations d WHERE rubric_association_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_rubric_associations d WHERE rubric_association_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_rubrics d WHERE rubric_id = d.id")
+          c.execute("DELETE FROM rubric_associations USING delete_rubric_associations d WHERE rubric_associations.id = d.id")
+          c.execute("DELETE FROM versions USING delete_rubrics d WHERE versionable_type = 'Rubric' AND versionable_id = d.id")
+          c.execute("UPDATE rubrics SET rubric_id = null FROM delete_rubrics d WHERE rubric_id = d.id")
+          c.execute("DELETE FROM rubrics USING delete_rubrics d WHERE rubrics.id = d.id")
+          c.execute("UPDATE accounts SET parent_account_id = root_account_id WHERE root_account_id <> #{@account.id} AND parent_account_id IN (SELECT id FROM delete_accounts)") # special case with old STU accounts
+        end
+
+        ActiveRecord::Base.connection.execute("DROP TABLE delete_rubrics")
+        ActiveRecord::Base.connection.execute("DROP TABLE delete_rubric_associations")
       end
+
+      Rails.logger.info "[ACCOUNT-REMOVER] Finished pre-processing accounts in #{real_time} seconds."
     end
   end
 
@@ -156,37 +171,48 @@ class AccountRemover
     if postgres?
       Rails.logger.info "[ACCOUNT-REMOVER] Pre-processing courses in Postgres..."
 
-      @account.transaction do
+      real_time = Benchmark.realtime do
         # Create temporary table with all course IDs
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_courses (id BIGINT NOT NULL PRIMARY KEY) ON COMMIT DROP")
+        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_courses (id BIGINT NOT NULL PRIMARY KEY)")
         @all_course_ids.each_slice(100) do |batch_ids|
           ActiveRecord::Base.connection.execute("INSERT INTO delete_courses (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}")
         end
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_courses")
 
         # Create temporary tables for rubrics
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubrics ON COMMIT DROP AS SELECT r.id FROM rubrics r INNER JOIN delete_courses c ON r.context_type = 'Course' AND r.context_id = c.id")
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubric_associations ON COMMIT DROP AS SELECT a.id FROM delete_rubrics r INNER JOIN rubric_associations a ON r.id = a.rubric_id")
+        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubrics AS SELECT r.id FROM rubrics r INNER JOIN delete_courses c ON r.context_type = 'Course' AND r.context_id = c.id")
+        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_rubric_associations AS SELECT a.id FROM delete_rubrics r INNER JOIN rubric_associations a ON r.id = a.rubric_id")
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_rubrics")
+        ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_rubric_associations")
 
-        # Delete by joining on the temp table
-        c = ActiveRecord::Base.connection
-        c.execute("DELETE FROM versions USING delete_courses d, content_tags t WHERE t.context_type = 'Course' AND t.context_id = d.id AND versionable_type = t.content_type AND versionable_id = t.content_id")
-        c.execute("DELETE FROM asset_user_accesses USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
-        c.execute("DELETE FROM assessment_questions USING delete_courses d, assessment_question_banks b WHERE b.context_type = 'Course' AND b.context_id = d.id AND assessment_question_bank_id = b.id")
-        c.execute("DELETE FROM assessment_question_banks USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
-        @all_course_ids.each_slice(100) do |batch_ids|
-          section_ids = CourseSection.where(:course_id => batch_ids).pluck(:id)
-          assignment_override_ids = AssignmentOverride.where(:set_type => 'CourseSection', :set_id => section_ids).pluck(:id)
-          Version.where(:versionable_type => 'AssignmentOverride', :versionable_id => assignment_override_ids).delete_all
-          AssignmentOverride.where(:id => assignment_override_ids).delete_all
+        @account.transaction do
+          # Delete by joining on the temp tables
+          c = ActiveRecord::Base.connection
+          c.execute("DELETE FROM versions USING delete_courses d, content_tags t WHERE t.context_type = 'Course' AND t.context_id = d.id AND versionable_type = t.content_type AND versionable_id = t.content_id")
+          c.execute("DELETE FROM asset_user_accesses USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+          c.execute("DELETE FROM assessment_questions USING delete_courses d, assessment_question_banks b WHERE b.context_type = 'Course' AND b.context_id = d.id AND assessment_question_bank_id = b.id")
+          c.execute("DELETE FROM assessment_question_banks USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+          @all_course_ids.each_slice(100) do |batch_ids|
+            section_ids = CourseSection.where(:course_id => batch_ids).pluck(:id)
+            assignment_override_ids = AssignmentOverride.where(:set_type => 'CourseSection', :set_id => section_ids).pluck(:id)
+            Version.where(:versionable_type => 'AssignmentOverride', :versionable_id => assignment_override_ids).delete_all
+            AssignmentOverride.where(:id => assignment_override_ids).delete_all
+          end
+          c.execute("DELETE FROM cached_grade_distributions USING delete_courses d WHERE course_id = d.id")
+          c.execute("DELETE FROM favorites USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+          c.execute("DELETE FROM assessment_requests USING delete_rubric_associations d WHERE rubric_association_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_rubric_associations d WHERE rubric_association_id = d.id")
+          c.execute("DELETE FROM rubric_assessments USING delete_rubrics d WHERE rubric_id = d.id")
+          c.execute("DELETE FROM rubric_associations USING delete_rubric_associations d WHERE rubric_associations.id = d.id")
+          c.execute("DELETE FROM versions USING delete_rubrics d WHERE versionable_type = 'Rubric' AND versionable_id = d.id")
+          c.execute("DELETE FROM rubrics USING delete_rubrics d WHERE rubrics.id = d.id")
         end
-        c.execute("DELETE FROM cached_grade_distributions USING delete_courses d WHERE course_id = d.id")
-        c.execute("DELETE FROM assessment_requests USING delete_rubric_associations d WHERE rubric_association_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_rubric_associations d WHERE rubric_association_id = d.id")
-        c.execute("DELETE FROM rubric_assessments USING delete_rubrics d WHERE rubric_id = d.id")
-        c.execute("DELETE FROM rubric_associations USING delete_rubric_associations d WHERE rubric_associations.id = d.id")
-        c.execute("DELETE FROM versions USING delete_rubrics d WHERE versionable_type = 'Rubric' AND versionable_id = d.id")
-        c.execute("DELETE FROM rubrics USING delete_rubrics d WHERE rubrics.id = d.id")
+
+        ActiveRecord::Base.connection.execute("DROP TABLE delete_rubrics")
+        ActiveRecord::Base.connection.execute("DROP TABLE delete_rubric_associations")
       end
+
+      Rails.logger.info "[ACCOUNT-REMOVER] Finished pre-processing courses in #{real_time} seconds."
     end
   end
 
@@ -220,10 +246,11 @@ class AccountRemover
   def process_users
     Rails.logger.info "[ACCOUNT-REMOVER] Removing root account users..."
     real_time = Benchmark.realtime do
-      @account.transaction do
-        # Create temporary table for all user attachment IDs
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments ON COMMIT DROP AS SELECT a.id FROM attachments a INNER JOIN delete_users d ON a.context_type = 'User' AND a.context_id = d.id")
+      # Create temporary table for all user attachment IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments AS SELECT a.id FROM attachments a INNER JOIN delete_users d ON a.context_type = 'User' AND a.context_id = d.id")
+      ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_attachments")
 
+      @account.transaction do
         ActiveRecord::Base.connection.execute("UPDATE attachments SET root_attachment_id = null FROM delete_attachments d WHERE root_attachment_id = d.id")
         ActiveRecord::Base.connection.execute("UPDATE attachments SET replacement_attachment_id = null FROM delete_attachments d WHERE replacement_attachment_id = d.id")
         ActiveRecord::Base.connection.execute("UPDATE content_migrations SET attachment_id = null FROM delete_attachments d WHERE attachment_id = d.id")
@@ -242,8 +269,24 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM user_profiles USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM enrollments USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_account_associations USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM access_tokens USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM collaborators USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM collaborations USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM eportfolio_entries USING delete_users d, eportfolios e WHERE eportfolio_id = e.id AND e.user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM eportfolio_categories USING delete_users d, eportfolios e WHERE eportfolio_id = e.id AND e.user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM eportfolios USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM epub_exports USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM oauth_requests USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM page_comments USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM user_merge_data_records USING delete_users d, user_merge_data u WHERE user_merge_data_id = u.id AND u.user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM user_merge_data USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM user_notes USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM user_notes USING delete_users d WHERE created_by_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM account_users USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM users USING delete_users d WHERE users.id = d.id")
       end
+
+      ActiveRecord::Base.connection.execute("DROP TABLE delete_attachments")
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished removing root account users in #{real_time} seconds."
   end
@@ -251,15 +294,16 @@ class AccountRemover
   def process_miscellaneous
     Rails.logger.info "[ACCOUNT-REMOVER] Removing miscellaneous items..."
     real_time = Benchmark.realtime do
-      @account.transaction do
-        # Create temporary table for all attachment IDs
-        ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments (id BIGINT NOT NULL PRIMARY KEY) ON COMMIT DROP")
-        @attachment_ids ||= []
-        @attachment_ids.uniq! unless @attachment_ids.empty?
-        @attachment_ids.each_slice(200) do |batch_ids|
-          ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}") unless @attachment_ids.empty?
-        end
+      # Create temporary table for all attachment IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_attachments (id BIGINT NOT NULL PRIMARY KEY)")
+      @attachment_ids ||= []
+      @attachment_ids.uniq! unless @attachment_ids.empty?
+      @attachment_ids.each_slice(200) do |batch_ids|
+        ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments (id) VALUES #{batch_ids.map {|id| "(#{id})"}.join(',')}") unless @attachment_ids.empty?
+      end
+      ActiveRecord::Base.connection.execute("VACUUM ANALYZE delete_attachments")
 
+      @account.transaction do
         ActiveRecord::Base.connection.execute("UPDATE attachments SET root_attachment_id = null FROM delete_attachments d WHERE root_attachment_id = d.id")
         ActiveRecord::Base.connection.execute("UPDATE attachments SET replacement_attachment_id = null FROM delete_attachments d WHERE replacement_attachment_id = d.id")
         ActiveRecord::Base.connection.execute("UPDATE content_migrations SET attachment_id = null FROM delete_attachments d WHERE attachment_id = d.id")
@@ -269,6 +313,8 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM attachment_associations USING delete_attachments d WHERE attachment_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM attachments USING delete_attachments d WHERE attachments.id = d.id")
       end
+
+      ActiveRecord::Base.connection.execute("DROP TABLE delete_attachments")
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished removing miscellaneous items in #{real_time} seconds."
   end
@@ -385,6 +431,7 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when Assignment
         Quizzes::Quiz.where(:assignment => model).update_all(:assignment_id => nil)
+        DiscussionTopic.where(:assignment_id => model.id).update_all(:assignment_id => nil)
         DiscussionTopic.where(:reply_assignment_id => model.id).update_all(:reply_assignment_id => nil)
         DiscussionTopic.where(:old_assignment => model).update_all(:old_assignment_id => nil)
         ContentTag.where(:context => model).delete_all
@@ -398,6 +445,7 @@ class AccountRemover
       when ContentExport
         Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
       when ContentMigration
+        ContentExport.where(:content_migration => model).update_all(:content_migration_id => nil)
         Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
       when Course
         Attachment.where(:context => model).each {|attachment| recursive_delete(attachment)}
@@ -434,6 +482,8 @@ class AccountRemover
         connection.exec_prepared("delete_discussion_topic_materialized_views", [model.id])
         connection.exec_prepared("delete_discussion_entry_participants", [model.id])
         connection.exec_prepared("delete_discussion_entries", [model.id])
+      when EnrollmentTerm
+        SisBatch.where(:batch_mode_term => model).update_all(:batch_mode_term_id => nil)
       when Group
         Folder.where(:context => model).each {|folder| recursive_delete(folder)}
         Submission.where(:group => model).each {|submission| recursive_delete(submission)}
@@ -477,6 +527,14 @@ class AccountRemover
         Version.where(:versionable => model).delete_all
       when RubricAssessment
         Version.where(:versionable => model).delete_all
+      when SisBatch
+        CourseSection.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        Course.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        EnrollmentTerm.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        Enrollment.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        GroupMembership.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        Group.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
+        Pseudonym.where(:sis_batch_id => model.id).update_all(:sis_batch_id => nil)
       when Submission
         Version.where(:versionable => model).delete_all
         connection.exec_prepared("delete_canvadocs_submissions", [model.id])
@@ -682,6 +740,7 @@ class AccountRemover
                          :conversation_message, :course, :discussion_topic, :enrollment, :attachment, :assignment_override, :group_membership,
                          :calendar_event, :wiki_page, :assessment_request, :account_user, :web_conference, :account, :user, :appointment_group,
                          :collaborator, :account_report, :alert, :context_communication_channel, :quiz_submission, :quiz_regrade_run],
+    "DesignerEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "DeveloperKey" => [:page_views],
     "DiscussionTopic" => [:discussion_topic_user_visibilities, :discussion_topic_user_visibilities,
                           :discussion_topic_participants, :active_assignment_overrides, :discussion_entries, :rated_discussion_entries, :root_discussion_entries,
@@ -694,6 +753,7 @@ class AccountRemover
     "LearningOutcomeResult" => [:versions, :current_version_unidirectional],
     "Message" => [:notification, :asset_context, :communication_channel, :context, :root_account, :user, :stream_item],
     "MigrationIssue" => [:error_report],
+    "ObserverEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "Progress" => [:context, :user, :content_migration, :course, :account, :group_category, :content_export, :assignment, :attachment, :epub_export, :context_user, :quiz_statistics],
     "Quizzes::Quiz" => [:versions, :current_version_unidirectional, :active_assignment_overrides, :context_module_tags, :quiz_student_visibilities, :quiz_user_visibilities, :assignment_override_students],
     "Quizzes::QuizSubmission" => [:events, :versions, :current_version_unidirectional, :enrollments],
@@ -701,6 +761,7 @@ class AccountRemover
     "RubricAssessment" => [:versions, :current_version_unidirectional],
     "RubricAssociation" => [:rubric, :association_object, :context, :association_account, :association_course, :association_assignment, :course, :account],
     "StudentEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
+    "StudentViewEnrollment" => [:role_overrides, :pseudonyms, :course_account_associations],
     "Submission" => [:versions, :current_version_unidirectional, :submission_comments, :all_submission_comments, :visible_submission_comments, :hidden_submission_comments,
                      :rubric_assessment, :content_participations, :attachment_associations, :conversation_messages, :provisional_grades, :rubric_assessments, :stream_item,
                      :assessment_requests, :assigned_assessments],
