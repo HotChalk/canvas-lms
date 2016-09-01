@@ -440,13 +440,75 @@ class SectionSplitter
 
     def migrate_page_views_cassandra(user_ids)
       page_views = []
-      PageView::EventStream.database.execute("SELECT request_id, context_type, user_id FROM page_views WHERE context_id = ?", @source_course.id).fetch {|row| page_views << row.to_hash}
-      request_ids = page_views
-                      .select {|row| row["context_type"] == "Course" && user_ids.include?(row["user_id"].to_i)}
-                      .map {|row| row["request_id"]}
-                      .uniq
-
+      PageView::EventStream.database.execute("SELECT request_id, context_type, user_id, created_at, controller, participated FROM page_views WHERE context_id = ?", @source_course.id).fetch {|row| page_views << row.to_hash}
+      page_views.select! {|row| row["context_type"] == "Course" && user_ids.include?(row["user_id"].to_i)}
+      infer_page_views_rollups(page_views)
+      request_ids = page_views.map {|row| row["request_id"]}.uniq
       PageView::EventStream.database.update("UPDATE page_views SET context_id = ? WHERE request_id IN (?)", @target_course.id, request_ids)
+    end
+
+    def infer_page_views_rollups(page_views)
+      binned_page_views(page_views).each do |data|
+        PageView.transaction do
+          # Augment bin for target course
+          bin = PageViewsRollup.bin_for(@target_course.id, data[:date], data[:category])
+          bin.augment(data[:views], data[:participations])
+          bin.save!
+
+          # Decrement bin for source course
+          bin = PageViewsRollup.bin_for(@source_course.id, data[:date], data[:category])
+          next unless bin
+          bin.augment(-data[:views], -data[:participations])
+          bin.save!
+        end
+      end
+    end
+
+    CONTROLLERS_TO_CATEGORIES = {
+      :assignments => :assignments,
+      :courses => :general,
+      :quizzes => :quizzes,
+      :wiki_pages => :pages,
+      :gradebooks => :grades,
+      :submissions => :assignments,
+      :discussion_topics => :discussions,
+      :files => :files,
+      :context_modules => :modules,
+      :announcements => :announcements,
+      :collaborations => :collaborations,
+      :conferences => :conferences,
+      :groups => :groups,
+      :question_banks => :quizzes,
+      :gradebook2 => :grades,
+      :wiki_page_revisions => :pages,
+      :folders => :files,
+      :grading_standards => :grades,
+      :discussion_entries => :discussions,
+      :assignment_groups => :assignments,
+      :quiz_questions => :quizzes,
+      :gradebook_uploads => :grades
+    }
+
+    def binned_page_views(page_views)
+      bins = []
+      page_views.each do |page_view|
+        next unless page_view["controller"]
+        date = page_view["created_at"].to_date
+        category = Analytics::Extensions::PageView::CONTROLLER_TO_ACTION[page_view["controller"].to_sym] || :other
+        bin = bins.find {|bin| bin[:date] == date && bin[:category] == category}
+        unless bin
+          bin = {
+            :date => date,
+            :category => category,
+            :views => 0,
+            :participations => 0
+          }
+          bins << bin
+        end
+        bin[:views] += 1
+        bin[:participations] += 1 if page_view["participated"]
+      end
+      bins
     end
 
     def migrate_page_views_counters_by_context_and_hour(user_ids)

@@ -61,6 +61,7 @@ describe SectionSplitter do
     create_submissions
     create_messages
     create_page_views
+    create_page_views_rollups
 
     # Track generated jobs
     @previous_jobs = Delayed::Job.all
@@ -259,11 +260,37 @@ describe SectionSplitter do
   end
 
   def create_page_views
-    (0..2).each do |section_index|
-      (0..4).each do |i|
-        page_view_model({:context => @source_course, :user => @sections[section_index][:students][i]})
-      end
-    end
+    page_view_model({:context => @source_course, :user => @sections[0][:students][0], :created_at => @now - 1.days, :participated => false, :controller => :courses, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[0][:students][1], :created_at => @now - 3.days, :participated => true, :controller => :submissions, :action => :post})
+    page_view_model({:context => @source_course, :user => @sections[0][:students][2], :created_at => @now - 4.days, :participated => false, :controller => :users, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[0][:students][3], :created_at => @now - 2.days, :participated => true, :controller => :"quizzes/quizzes", :action => :post})
+    page_view_model({:context => @source_course, :user => @sections[0][:students][4], :created_at => @now - 1.days, :participated => false, :controller => :wiki_pages, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[1][:students][0], :created_at => @now - 5.days, :participated => true, :controller => :discussion_topics, :action => :post})
+    page_view_model({:context => @source_course, :user => @sections[1][:students][1], :created_at => @now - 4.days, :participated => false, :controller => :courses, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[1][:students][2], :created_at => @now - 4.days, :participated => false, :controller => :gradebooks, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[1][:students][3], :created_at => @now - 5.days, :participated => false, :controller => :files, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[1][:students][4], :created_at => @now - 1.days, :participated => false, :controller => :discussion_topics, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[2][:students][0], :created_at => @now - 2.days, :participated => false, :controller => :files, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[2][:students][1], :created_at => @now - 3.days, :participated => false, :controller => :discussion_topics, :action => :get})
+    page_view_model({:context => @source_course, :user => @sections[2][:students][2], :created_at => @now - 3.days, :participated => true, :controller => :discussion_topics, :action => :post})
+    page_view_model({:context => @source_course, :user => @sections[2][:students][3], :created_at => @now - 3.days, :participated => true, :controller => :submissions, :action => :post})
+    page_view_model({:context => @source_course, :user => @sections[2][:students][4], :created_at => @now - 5.days, :participated => false, :controller => :announcements, :action => :get})
+  end
+
+  def create_page_views_rollups
+    PageViewsRollup.augment!(@source_course, (@now - 1.days).to_date, :general, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 1.days).to_date, :pages, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 1.days).to_date, :discussions, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 2.days).to_date, :quizzes, 1, 1)
+    PageViewsRollup.augment!(@source_course, (@now - 2.days).to_date, :files, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 3.days).to_date, :assignments, 2, 2)
+    PageViewsRollup.augment!(@source_course, (@now - 3.days).to_date, :discussions, 2, 1)
+    PageViewsRollup.augment!(@source_course, (@now - 4.days).to_date, :other, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 4.days).to_date, :general, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 4.days).to_date, :grades, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 5.days).to_date, :discussions, 1, 1)
+    PageViewsRollup.augment!(@source_course, (@now - 5.days).to_date, :files, 1, 0)
+    PageViewsRollup.augment!(@source_course, (@now - 5.days).to_date, :announcements, 1, 0)
   end
 
   it "should create a new course shell per section" do
@@ -488,6 +515,26 @@ describe SectionSplitter do
       expect(@result[2].page_views.length).to eq 5
     end
 
+    it "should transfer page views rollups" do
+      expect(@result[0].page_views_rollups.length).to eq 5
+      expect(@result[1].page_views_rollups.length).to eq 5
+      expect(@result[2].page_views_rollups.length).to eq 4
+
+      expect(@source_course.page_views_rollups.length).to eq 13
+      @source_course.page_views_rollups.each do |rollup|
+        expect(rollup.views).to eq 0
+        expect(rollup.participations).to eq 0
+      end
+
+      rollup = @result[0].page_views_rollups.find {|rollup| rollup[:date] == (@now - 1.days).to_date && rollup[:category] == 'pages'}
+      expect(rollup.views).to eq 1
+      expect(rollup.participations).to eq 0
+
+      rollup = @result[2].page_views_rollups.find {|rollup| rollup[:date] == (@now - 3.days).to_date && rollup[:category] == 'discussions'}
+      expect(rollup.views).to eq 2
+      expect(rollup.participations).to eq 1
+    end
+
     context "cassandra" do
       include_examples "cassandra page views"
 
@@ -501,9 +548,9 @@ describe SectionSplitter do
       it "should transfer page_views_counters_by_context_and_hour" do
         expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context = ?", "course_#{@source_course.id}").fetch_row["count"]).to eq 0
         contexts = @result[0].student_enrollments.map {|e| "course_#{e.course.id}/user_#{e.user.id}"}
-        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 5
+        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 6
         contexts = @result[1].student_enrollments.map {|e| "course_#{e.course.id}/user_#{e.user.id}"}
-        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 5
+        expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 7
         contexts = @result[2].student_enrollments.map {|e| "course_#{e.course.id}/user_#{e.user.id}"}
         expect(PageView::EventStream.database.execute("SELECT COUNT(*) FROM page_views_counters_by_context_and_hour WHERE context IN (?)", contexts).fetch_row["count"]).to eq 5
       end
