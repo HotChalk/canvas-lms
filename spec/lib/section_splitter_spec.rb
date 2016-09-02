@@ -81,13 +81,13 @@ describe SectionSplitter do
 
   def create_assignments
     @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
-    @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment"})
+    @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment", :only_visible_to_overrides => true})
     assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self]})
     @all_sections_assignment2 = assignment_model({:course => @source_course, :title => "All Sections Assignment 2", :submission_types => "online_upload"})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[0][:self], :due_at => @now + 1.weeks})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[1][:self], :due_at => @now + 2.weeks})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[2][:self], :due_at => @now + 3.weeks})
-    @section3_assignment = assignment_model({:course => @source_course, :title => "Section 3 Assignment"})
+    @section3_assignment = assignment_model({:course => @source_course, :title => "Section 3 Assignment", :only_visible_to_overrides => true})
     ao = assignment_override_model({:assignment => @section3_assignment, :set_type => 'ADHOC'})
     ao.assignment_override_students.build({:user => @sections[2][:students][0]})
     ao.save
@@ -340,6 +340,7 @@ describe SectionSplitter do
       expect(section2_assignment).not_to be
       section2_assignment = @result[1].assignments.find {|a| a.title == @section2_assignment.title }
       expect(section2_assignment).to be
+      expect(section2_assignment.only_visible_to_overrides).to eq true
     end
 
     it "should transfer assignment overrides" do
@@ -366,6 +367,7 @@ describe SectionSplitter do
 
       section3_assignment = @result[2].assignments.find {|a| a.title == @section3_assignment.title }
       expect(section3_assignment).to be
+      expect(section3_assignment.only_visible_to_overrides).to eq true
       expect(section3_assignment.assignment_overrides.length).to eq 1
       expect(section3_assignment.assignment_overrides[0].set_type).to eq 'ADHOC'
       expect(section3_assignment.assignment_overrides[0].assignment_override_students.length).to eq 1

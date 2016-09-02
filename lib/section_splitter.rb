@@ -289,6 +289,8 @@ class SectionSplitter
           clone_override(override, model)
         end
       end
+      model.only_visible_to_overrides = source_model.only_visible_to_overrides
+      model.save!
     end
 
     def clone_override(override, new_model)
