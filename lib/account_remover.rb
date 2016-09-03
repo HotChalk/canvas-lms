@@ -200,6 +200,7 @@ class AccountRemover
           end
           c.execute("DELETE FROM cached_grade_distributions USING delete_courses d WHERE course_id = d.id")
           c.execute("DELETE FROM favorites USING delete_courses d WHERE context_type = 'Course' AND context_id = d.id")
+          c.execute("DELETE FROM gradebook_uploads USING delete_courses d WHERE course_id = d.id")
           c.execute("DELETE FROM assessment_requests USING delete_rubric_associations d WHERE rubric_association_id = d.id")
           c.execute("DELETE FROM rubric_assessments USING delete_rubric_associations d WHERE rubric_association_id = d.id")
           c.execute("DELETE FROM rubric_assessments USING delete_rubrics d WHERE rubric_id = d.id")
@@ -263,6 +264,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM content_exports USING delete_attachments d WHERE attachment_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM attachments USING delete_attachments d WHERE attachments.id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM attachments USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM content_exports USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM folders USING delete_users d WHERE context_type = 'User' AND context_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_services USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_profile_links USING delete_users d, user_profiles p WHERE p.user_id = d.id AND user_profile_id = p.id")
@@ -283,6 +285,7 @@ class AccountRemover
         ActiveRecord::Base.connection.execute("DELETE FROM user_notes USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM user_notes USING delete_users d WHERE created_by_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM account_users USING delete_users d WHERE user_id = d.id")
+        ActiveRecord::Base.connection.execute("DELETE FROM favorites USING delete_users d WHERE user_id = d.id")
         ActiveRecord::Base.connection.execute("DELETE FROM users USING delete_users d WHERE users.id = d.id")
       end
 
