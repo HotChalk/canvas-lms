@@ -16,6 +16,9 @@ namespace :canvas do
       option_parser.on("-C", "--[no-]cassandra", "Delete data in Cassandra") do |cassandra|
         options[:cassandra] = cassandra
       end
+      option_parser.on("-E", "--explain", "Show EXPLAIN plans for expensive Postgres queries") do |explain|
+        options[:explain] = explain
+      end
       args = option_parser.order!(ARGV) {}
       option_parser.parse!(args)
       tool = AccountRemover.new(options)
