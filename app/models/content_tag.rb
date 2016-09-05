@@ -455,7 +455,7 @@ class ContentTag < ActiveRecord::Base
   }
 
   scope :for_differentiable_assignments, lambda {|user_ids, course_ids|
-    joins("JOIN #{Quizzes::QuizStudentVisibility.quoted_table_name} as qsv ON qsv.quiz_id = content_tags.content_id").
+    joins("JOIN #{Quizzes::QuizUserVisibility.quoted_table_name} as qsv ON qsv.quiz_id = content_tags.content_id").
     where(" content_tags.context_id IN (?)
            AND qsv.course_id IN (?)
            AND content_tags.content_type in ('Quiz', 'Quizzes::Quiz')
@@ -464,7 +464,7 @@ class ContentTag < ActiveRecord::Base
   }
 
   scope :for_differentiable_discussions, lambda {|user_ids, course_ids|
-    joins("JOIN #{AssignmentStudentVisibility.quoted_table_name} as asv ON asv.assignment_id = content_tags.content_id").
+    joins("JOIN #{AssignmentUserVisibility.quoted_table_name} as asv ON asv.assignment_id = content_tags.content_id").
     where("content_tags.context_id IN (?)
            AND asv.course_id IN (?)
            AND content_tags.content_type = 'Assignment'
@@ -474,7 +474,7 @@ class ContentTag < ActiveRecord::Base
 
   scope :for_differentiable_quizzes, lambda {|user_ids, course_ids|
     joins("JOIN #{DiscussionTopic.quoted_table_name} as dt ON dt.id = content_tags.content_id AND content_tags.content_type = 'DiscussionTopic'").
-    joins("JOIN #{AssignmentStudentVisibility.quoted_table_name} as asv ON asv.assignment_id = dt.assignment_id").
+    joins("JOIN #{AssignmentUserVisibility.quoted_table_name} as asv ON asv.assignment_id = dt.assignment_id").
     where("content_tags.context_id IN (?)
            AND asv.course_id IN (?)
            AND content_tags.content_type = 'DiscussionTopic'
