@@ -19,6 +19,9 @@ namespace :canvas do
       option_parser.on("-E", "--explain", "Show EXPLAIN plans for expensive Postgres queries") do |explain|
         options[:explain] = explain
       end
+      option_parser.on("-M", "--truncate-messages", "Copy and truncate the messages table (recommended for large accounts)") do |truncate_messages|
+        options[:truncate_messages] = truncate_messages
+      end
       args = option_parser.order!(ARGV) {}
       option_parser.parse!(args)
       tool = AccountRemover.new(options)
