@@ -115,16 +115,53 @@ class AccountRemover
 
       # Create temporary table with all discussion topic IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_discussion_topics (id BIGINT NOT NULL PRIMARY KEY)")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_discussion_topics SELECT t.id FROM discussion_topics t INNER JOIN delete_courses d ON t.context_type = 'Course' AND t.context_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_discussion_topics SELECT t.id FROM discussion_topics t INNER JOIN delete_groups d ON t.context_type = 'Group' AND t.context_id = d.id")
+      sql = <<-SQL
+          INSERT INTO delete_discussion_topics (
+            SELECT t.id FROM discussion_topics t INNER JOIN delete_courses d ON t.context_type = 'Course' AND t.context_id = d.id
+            UNION
+            SELECT t.id FROM discussion_topics t INNER JOIN delete_groups d ON t.context_type = 'Group' AND t.context_id = d.id
+            UNION
+            SELECT t.id FROM discussion_topics t INNER JOIN delete_users d ON t.user_id = d.id
+          )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
+
+      # Create temporary table with all discussion entry IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_discussion_entries (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+          INSERT INTO delete_discussion_entries (
+            SELECT e.id FROM discussion_entries e INNER JOIN delete_discussion_topics d ON e.discussion_topic_id = d.id
+            UNION
+            SELECT e.id FROM discussion_entries e INNER JOIN delete_users d ON e.user_id = d.id
+          )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all quiz IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_quizzes AS SELECT q.id FROM quizzes q INNER JOIN delete_courses d ON q.context_type = 'Course' AND q.context_id = d.id")
       ActiveRecord::Base.connection.execute("ALTER TABLE delete_quizzes ADD PRIMARY KEY (id)")
 
       # Create temporary table with all submission IDs
-      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_submissions AS SELECT s.id FROM submissions s INNER JOIN delete_assignments a ON s.assignment_id = a.id")
-      ActiveRecord::Base.connection.execute("ALTER TABLE delete_submissions ADD PRIMARY KEY (id)")
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_submissions (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+          INSERT INTO delete_submissions (
+            SELECT s.id FROM submissions s INNER JOIN delete_assignments d ON s.assignment_id = d.id
+            UNION
+            SELECT s.id FROM submissions s INNER JOIN delete_users d ON s.user_id = d.id
+          )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
+
+      # Create temporary table with all submission comment IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_submission_comments (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+          INSERT INTO delete_submission_comments (
+            SELECT c.id FROM submission_comments c INNER JOIN delete_submissions d ON c.submission_id = d.id
+            UNION
+            SELECT c.id FROM submission_comments c INNER JOIN delete_users d ON c.author_id = d.id
+          )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all assignment override IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_assignment_overrides (id BIGINT NOT NULL PRIMARY KEY)")
@@ -150,7 +187,7 @@ class AccountRemover
 
       # Create temporary table with all conversation IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_conversations (id BIGINT NOT NULL PRIMARY KEY)")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_conversations SELECT c.id FROM conversations c WHERE c.context_type = 'Account' AND c.context_id = #{@account.id} AND c.root_account_ids = CAST(#{@account.id} AS TEXT)")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_conversations SELECT c.id FROM conversations c WHERE ((c.context_type = 'Account' AND c.context_id = #{@account.id}) OR c.context_id IS NULL) AND c.root_account_ids = CAST(#{@account.id} AS TEXT)")
       ActiveRecord::Base.connection.execute("INSERT INTO delete_conversations SELECT c.id FROM conversations c INNER JOIN delete_courses d ON c.context_type = 'Course' AND c.context_id = d.id")
       ActiveRecord::Base.connection.execute("INSERT INTO delete_conversations SELECT c.id FROM conversations c INNER JOIN delete_groups d ON c.context_type = 'Group' AND c.context_id = d.id")
 
@@ -217,6 +254,10 @@ class AccountRemover
       ActiveRecord::Base.connection.execute("INSERT INTO delete_learning_outcomes SELECT o.id FROM learning_outcomes o INNER JOIN delete_accounts d ON o.context_type = 'Account' AND o.context_id = d.id")
       ActiveRecord::Base.connection.execute("INSERT INTO delete_learning_outcomes SELECT o.id FROM learning_outcomes o INNER JOIN delete_courses d ON o.context_type = 'Course' AND o.context_id = d.id")
 
+      # Create temporary table with all learning outcome result IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_learning_outcome_results (id BIGINT NOT NULL PRIMARY KEY)")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_learning_outcome_results SELECT r.id FROM learning_outcome_results r INNER JOIN delete_learning_outcomes d ON r.learning_outcome_id = d.id")
+
       # Create temporary table with all content migration IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_content_migrations (id BIGINT NOT NULL PRIMARY KEY)")
       sql = <<-SQL
@@ -230,8 +271,15 @@ class AccountRemover
       ActiveRecord::Base.connection.execute("INSERT INTO delete_content_migrations SELECT m.id FROM content_migrations m INNER JOIN delete_groups d ON m.context_type = 'Group' AND m.context_id = d.id")
 
       # Create temporary table with all quiz submission IDs
-      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_quiz_submissions AS SELECT s.id FROM quiz_submissions s INNER JOIN delete_quizzes d ON s.quiz_id = d.id")
-      ActiveRecord::Base.connection.execute("ALTER TABLE delete_quiz_submissions ADD PRIMARY KEY (id)")
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_quiz_submissions (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+          INSERT INTO delete_quiz_submissions (
+            SELECT s.id FROM quiz_submissions s INNER JOIN delete_quizzes d ON s.quiz_id = d.id
+            UNION
+            SELECT s.id FROM quiz_submissions s INNER JOIN delete_users d ON s.user_id = d.id
+          )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all quiz statistics IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_quiz_statistics AS SELECT s.id FROM quiz_statistics s INNER JOIN delete_quizzes d ON s.quiz_id = d.id")
@@ -246,13 +294,27 @@ class AccountRemover
 
       # Create temporary table with all content export IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_content_exports (id BIGINT NOT NULL PRIMARY KEY)")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_content_exports SELECT e.id FROM content_exports e INNER JOIN delete_courses d ON e.context_type = 'Course' AND e.context_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_content_exports SELECT e.id FROM content_exports e INNER JOIN delete_groups d ON e.context_type = 'Group' AND e.context_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_content_exports SELECT e.id FROM content_exports e INNER JOIN delete_users d ON e.context_type = 'User' AND e.context_id = d.id")
+      sql = <<-SQL
+        INSERT INTO delete_content_exports (
+          SELECT e.id FROM content_exports e INNER JOIN delete_courses d ON e.context_type = 'Course' AND e.context_id = d.id
+          UNION
+          SELECT e.id FROM content_exports e INNER JOIN delete_groups d ON e.context_type = 'Group' AND e.context_id = d.id
+          UNION
+          SELECT e.id FROM content_exports e INNER JOIN delete_users d ON e.context_type = 'User' AND e.context_id = d.id
+        )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all SIS batch IDs
-      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_sis_batches AS SELECT s.id FROM sis_batches s INNER JOIN delete_accounts d ON s.account_id = d.id")
-      ActiveRecord::Base.connection.execute("ALTER TABLE delete_sis_batches ADD PRIMARY KEY (id)")
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_sis_batches (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+        INSERT INTO delete_sis_batches (
+          SELECT s.id FROM sis_batches s INNER JOIN delete_accounts d ON s.account_id = d.id
+          UNION
+          SELECT s.id FROM sis_batches s INNER JOIN delete_users d ON s.user_id = d.id
+        )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all gradebook upload IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_gradebook_uploads AS SELECT u.id FROM gradebook_uploads u INNER JOIN delete_courses d ON u.course_id = d.id")
@@ -260,10 +322,20 @@ class AccountRemover
 
       # Create temporary table with all calendar event IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_calendar_events (id BIGINT NOT NULL PRIMARY KEY)")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_calendar_events SELECT e.id FROM calendar_events e INNER JOIN delete_courses d ON e.context_type = 'Course' AND e.context_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_calendar_events SELECT e.id FROM calendar_events e INNER JOIN course_sections s ON e.context_type = 'CourseSection' AND e.context_id = s.id INNER JOIN delete_courses d ON s.course_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_calendar_events SELECT e.id FROM calendar_events e INNER JOIN delete_groups d ON e.context_type = 'Group' AND e.context_id = d.id")
-      ActiveRecord::Base.connection.execute("INSERT INTO delete_calendar_events SELECT e.id FROM calendar_events e INNER JOIN delete_users d ON e.context_type = 'User' AND e.context_id = d.id")
+      sql = <<-SQL
+        INSERT INTO delete_calendar_events (
+          SELECT e.id FROM calendar_events e INNER JOIN delete_courses d ON e.context_type = 'Course' AND e.context_id = d.id
+          UNION
+          SELECT e.id FROM calendar_events e INNER JOIN course_sections s ON e.context_type = 'CourseSection' AND e.context_id = s.id INNER JOIN delete_courses d ON s.course_id = d.id
+          UNION
+          SELECT e.id FROM calendar_events e INNER JOIN delete_groups d ON e.context_type = 'Group' AND e.context_id = d.id
+          UNION
+          SELECT e.id FROM calendar_events e INNER JOIN delete_users d ON e.context_type = 'User' AND e.context_id = d.id
+          UNION
+          SELECT e.id FROM calendar_events e INNER JOIN delete_users d ON e.user_id = d.id
+        )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all appointment group IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_appointment_groups (id BIGINT NOT NULL PRIMARY KEY)")
@@ -318,6 +390,17 @@ class AccountRemover
           SELECT p.id FROM wiki_pages p INNER JOIN delete_users d ON p.user_id = d.id
           UNION
           SELECT p.id FROM wiki_pages p INNER JOIN delete_wikis d ON p.wiki_id = d.id
+        )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
+
+      # Create temporary table with all account notification IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_account_notifications (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+        INSERT INTO delete_account_notifications (
+          SELECT n.id FROM account_notifications n INNER JOIN delete_accounts d ON n.account_id = d.id
+          UNION
+          SELECT n.id FROM account_notifications n INNER JOIN delete_users d ON n.user_id = d.id
         )
       SQL
       ActiveRecord::Base.connection.execute(sql)
@@ -469,10 +552,10 @@ class AccountRemover
 
       # LEVEL 8
       delete_accounts
-      delete_users
+      delete_sis_batches
 
       # LEVEL 9
-      delete_sis_batches
+      delete_users
     end
     Rails.logger.info "[ACCOUNT-REMOVER] Finished deleting data in Postgres in #{real_time.to_i} seconds."
   end
@@ -486,11 +569,11 @@ class AccountRemover
   end
 
   def delete_account_notification_roles
-    timed_exec("DELETE FROM account_notification_roles USING account_notifications n, delete_accounts d WHERE account_notification_id = n.id AND n.account_id = d.id")
+    timed_exec("DELETE FROM account_notification_roles USING delete_account_notifications d WHERE account_notification_id = d.id")
   end
 
   def delete_account_notifications
-    timed_exec("DELETE FROM account_notifications USING delete_accounts d WHERE account_id = d.id")
+    timed_exec("DELETE FROM account_notifications USING delete_account_notifications d WHERE account_notifications.id = d.id")
   end
 
   def delete_account_programs
@@ -561,6 +644,7 @@ class AccountRemover
 
   def delete_assignment_override_students
     timed_exec("DELETE FROM assignment_override_students USING delete_assignment_overrides d WHERE assignment_override_id = d.id")
+    timed_exec("DELETE FROM assignment_override_students USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_assignment_overrides
@@ -602,6 +686,7 @@ class AccountRemover
 
   def delete_collaborators
     timed_exec("DELETE FROM collaborators USING delete_collaborations d WHERE collaboration_id = d.id")
+    timed_exec("DELETE FROM collaborators USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_communication_channels
@@ -714,11 +799,14 @@ class AccountRemover
   end
 
   def delete_discussion_entries
-    timed_exec("DELETE FROM discussion_entries USING delete_discussion_topics d WHERE discussion_topic_id = d.id")
+    timed_exec("UPDATE discussion_entries SET parent_id = null FROM delete_discussion_entries d WHERE parent_id = d.id")
+    timed_exec("UPDATE discussion_entries SET root_entry_id = null FROM delete_discussion_entries d WHERE root_entry_id = d.id")
+    timed_exec("DELETE FROM discussion_entries USING delete_discussion_entries d WHERE discussion_entries.id = d.id")
   end
 
   def delete_discussion_entry_participants
-    timed_exec("DELETE FROM discussion_entry_participants USING delete_discussion_topics d, discussion_entries e WHERE e.discussion_topic_id = d.id AND discussion_entry_id = e.id")
+    timed_exec("DELETE FROM discussion_entry_participants USING delete_discussion_entries d WHERE discussion_entry_id = d.id")
+    timed_exec("DELETE FROM discussion_entry_participants USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_discussion_topic_materialized_views
@@ -727,6 +815,7 @@ class AccountRemover
 
   def delete_discussion_topic_participants
     timed_exec("DELETE FROM discussion_topic_participants USING delete_discussion_topics d WHERE discussion_topic_id = d.id")
+    timed_exec("DELETE FROM discussion_topic_participants USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_discussion_topics
@@ -799,6 +888,7 @@ class AccountRemover
 
   def delete_group_memberships
     timed_exec("DELETE FROM group_memberships USING delete_groups d WHERE group_id = d.id")
+    timed_exec("DELETE FROM group_memberships USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_groups
@@ -815,7 +905,7 @@ class AccountRemover
   end
 
   def delete_learning_outcome_results
-    timed_exec("DELETE FROM learning_outcome_results USING delete_learning_outcomes d WHERE learning_outcome_id = d.id")
+    timed_exec("DELETE FROM learning_outcome_results USING delete_learning_outcome_results d WHERE learning_outcome_results.id = d.id")
   end
 
   def delete_learning_outcomes
@@ -907,7 +997,7 @@ class AccountRemover
   end
 
   def delete_quiz_submissions
-    timed_exec("DELETE FROM quiz_submissions USING delete_quizzes d WHERE quiz_id = d.id")
+    timed_exec("DELETE FROM quiz_submissions USING delete_quiz_submissions d WHERE quiz_submissions.id = d.id")
   end
 
   def delete_quizzes
@@ -949,6 +1039,7 @@ class AccountRemover
 
   def delete_stream_item_instances
     timed_exec("DELETE FROM stream_item_instances USING delete_stream_items d WHERE stream_item_id = d.id")
+    timed_exec("DELETE FROM stream_item_instances USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_stream_items
@@ -956,11 +1047,12 @@ class AccountRemover
   end
 
   def delete_submission_comment_participants
+    timed_exec("DELETE FROM submission_comment_participants USING delete_submission_comments d WHERE submission_comment_id = d.id")
     timed_exec("DELETE FROM submission_comment_participants USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_submission_comments
-    timed_exec("DELETE FROM submission_comments USING delete_submissions d WHERE submission_id = d.id")
+    timed_exec("DELETE FROM submission_comments USING delete_submission_comments d WHERE submission_comments.id = d.id")
   end
 
   def delete_submission_versions
@@ -968,7 +1060,7 @@ class AccountRemover
   end
 
   def delete_submissions
-    timed_exec("DELETE FROM submissions USING delete_assignments d WHERE assignment_id = d.id")
+    timed_exec("DELETE FROM submissions USING delete_submissions d WHERE submissions.id = d.id")
   end
 
   def delete_thumbnails
@@ -1010,6 +1102,10 @@ class AccountRemover
   end
 
   def delete_users
+    timed_exec("UPDATE content_exports SET user_id = null FROM delete_users d WHERE content_exports.user_id = d.id")
+    timed_exec("UPDATE content_migrations SET user_id = null FROM delete_users d WHERE content_migrations.user_id = d.id")
+    timed_exec("UPDATE discussion_entries SET editor_id = null FROM delete_users d WHERE discussion_entries.editor_id = d.id")
+    timed_exec("UPDATE discussion_topics SET editor_id = null FROM delete_users d WHERE discussion_topics.editor_id = d.id")
     timed_exec("DELETE FROM users USING delete_users d WHERE users.id = d.id")
   end
 
@@ -1018,6 +1114,7 @@ class AccountRemover
     timed_exec("DELETE FROM versions USING delete_assessment_questions d WHERE versionable_type = 'AssessmentQuestion' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_assignment_overrides d WHERE versionable_type = 'AssignmentOverride' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_learning_outcomes d WHERE versionable_type = 'LearningOutcome' AND versionable_id = d.id")
+    timed_exec("DELETE FROM versions USING delete_learning_outcome_results d WHERE versionable_type = 'LearningOutcomeResult' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_quizzes d WHERE versionable_type = 'Quizzes::Quiz' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_quiz_submissions d WHERE versionable_type = 'Quizzes::QuizSubmission' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_rubrics d WHERE versionable_type = 'Rubric' AND versionable_id = d.id")
