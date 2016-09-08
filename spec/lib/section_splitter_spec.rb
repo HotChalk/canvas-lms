@@ -6,7 +6,7 @@ describe SectionSplitter do
     Setting.set('enable_page_views', 'cassandra')
     @admin_user = account_admin_user
 
-    @now = Time.zone.now
+    @now = Time.now
 
     @source_course = course({:course_name => "Course 1", :active_course => true})
     @source_course.start_at = @now - 1.month
@@ -82,7 +82,7 @@ describe SectionSplitter do
   def create_assignments
     @all_sections_assignment = assignment_model({:course => @source_course, :title => "All Sections Assignment"})
     @section2_assignment = assignment_model({:course => @source_course, :title => "Section 2 Assignment", :only_visible_to_overrides => true})
-    assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self]})
+    assignment_override_model({:assignment => @section2_assignment, :set => @sections[1][:self], :due_at => @now + 1.weeks, :lock_at => @now + 2.weeks, :unlock_at => @now + 1.days})
     @all_sections_assignment2 = assignment_model({:course => @source_course, :title => "All Sections Assignment 2", :submission_types => "online_upload"})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[0][:self], :due_at => @now + 1.weeks})
     assignment_override_model({:assignment => @all_sections_assignment2, :set => @sections[1][:self], :due_at => @now + 2.weeks})
@@ -224,6 +224,7 @@ describe SectionSplitter do
     submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][1]})
+    @section2_assignment.submissions.delete_all
     @section2_assignment1_submission = submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @section2_assignment, :user => @sections[1][:students][0]})
     submission_comment_model({:submission => @section2_assignment1_submission, :author => @sections[1][:teachers][1]})
     Auditors::GradeChange.record(@section2_assignment1_submission)
@@ -365,6 +366,25 @@ describe SectionSplitter do
       expect(all_sections_assignment2.assignment_overrides[0].set_id).to eq @result[2].course_sections.first.id
       expect(all_sections_assignment2.assignment_overrides[0].due_at).to eq (@now + 3.weeks)
 
+      section2_assignment = @result[0].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(section2_assignment).not_to be
+      section2_assignment = @result[1].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(section2_assignment).to be
+      expect(section2_assignment.only_visible_to_overrides).to eq true
+      expect(section2_assignment.assignment_overrides.length).to eq 1
+      expect(section2_assignment.assignment_overrides[0].set_type).to eq 'CourseSection'
+      expect(section2_assignment.assignment_overrides[0].set_id).to eq @result[1].default_section.id
+      expect(section2_assignment.assignment_overrides[0].due_at).to eq (@now + 1.weeks)
+      expect(section2_assignment.assignment_overrides[0].lock_at).to eq (@now + 2.weeks)
+      expect(section2_assignment.assignment_overrides[0].unlock_at).to eq (@now + 1.days)
+      expect(section2_assignment.assignment_overrides[0].assignment_override_students.length).to eq 0
+      section2_assignment = @result[2].assignments.find {|a| a.title == @section2_assignment.title }
+      expect(section2_assignment).not_to be
+
+      section3_assignment = @result[0].assignments.find {|a| a.title == @section3_assignment.title }
+      expect(section3_assignment).not_to be
+      section3_assignment = @result[1].assignments.find {|a| a.title == @section3_assignment.title }
+      expect(section3_assignment).not_to be
       section3_assignment = @result[2].assignments.find {|a| a.title == @section3_assignment.title }
       expect(section3_assignment).to be
       expect(section3_assignment.only_visible_to_overrides).to eq true

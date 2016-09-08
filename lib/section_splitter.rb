@@ -223,8 +223,12 @@ class SectionSplitter
     end
 
     def remove_based_on_overrides?(model)
-      overrides = model.active_assignment_overrides.select {|ao| ao.set_type == 'CourseSection'}
-      !overrides.empty? && !overrides.any? {|ao| ao.set_id == @source_section.id}
+      # The model should be included in the target course if the source model has no assignment overrides, or
+      # if the the overrides reference the source section or a student from the source section
+      return false if model.active_assignment_overrides.empty?
+      student_ids = @source_section.student_enrollments.map(&:user_id)
+      model.active_assignment_overrides.select {|ao| (ao.set_type == 'CourseSection' && ao.set_id == @source_section.id) ||
+        (ao.set_type == 'ADHOC' && (student_ids & ao.assignment_override_students.map(&:user_id)).any?)}.empty?
     end
 
     # Uses heuristics to locate the corresponding source content item in the source course for the given item in the target course.
@@ -262,6 +266,7 @@ class SectionSplitter
 
     def migrate_section
       @source_section.course = @target_course
+      @source_section.default_section = true
       @source_section.save!
     end
 
