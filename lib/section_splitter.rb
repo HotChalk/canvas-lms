@@ -103,6 +103,7 @@ class SectionSplitter
     source_course.settings.each do |setting|
       target_course.send("#{setting[0]}=".to_sym, setting[1])
     end
+    target_course.dynamic_tab_configuration = source_course.dynamic_tab_configuration.clone
     target_course.save!
 
     content_migration = target_course.content_migrations.build(:user => nil, :source_course => source_course, :context => target_course, :migration_type => 'course_copy_importer', :initiated_source => :manual)

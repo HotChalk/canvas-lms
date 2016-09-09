@@ -14,6 +14,7 @@ describe SectionSplitter do
     @source_course.time_zone = ActiveSupport::TimeZone.new('Pacific Time (US & Canada)')
     @source_course.public_syllabus = true
     @source_course.organize_epub_by_content_type = true
+    @source_course.dynamic_tab_configuration = [{:context_type => "external_url", :label => "Label", :url => "http://example.com"}]
     @source_course.save
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
@@ -341,6 +342,12 @@ describe SectionSplitter do
     @result.each do |course|
       expect(course.public_syllabus).to eq true
       expect(course.organize_epub_by_content_type).to eq true
+    end
+  end
+
+  it "should transfer dynamic tab configurations" do
+    @result.each do |course|
+      expect(course.dynamic_tab_configuration).to eq @source_course.dynamic_tab_configuration
     end
   end
 
