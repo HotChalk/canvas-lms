@@ -12,6 +12,8 @@ describe SectionSplitter do
     @source_course.start_at = @now - 1.month
     @source_course.conclude_at = @now + 1.month
     @source_course.time_zone = ActiveSupport::TimeZone.new('Pacific Time (US & Canada)')
+    @source_course.public_syllabus = true
+    @source_course.organize_epub_by_content_type = true
     @source_course.save
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
@@ -56,6 +58,7 @@ describe SectionSplitter do
     create_calendar_events
     create_group_categories
     create_groups
+    create_custom_gradebook_columns
 
     # User-generated data
     create_submissions
@@ -221,6 +224,27 @@ describe SectionSplitter do
     @sections[2][:self].students.each {|u| @section3_group.add_user(u)}
   end
 
+  def create_custom_gradebook_columns
+    @notes_column = @source_course.custom_gradebook_columns.build(:teacher_notes => true, :title => "Notes")
+    @notes_column.save!
+    @notes_column.custom_gradebook_column_data.build.tap do |data|
+      data.content = "Student1 Comment"
+      data.user_id = @sections[0][:students][0].id
+    end
+    @notes_column.custom_gradebook_column_data.build.tap do |data|
+      data.content = "Student3 Comment"
+      data.user_id = @sections[1][:students][2].id
+    end
+    @notes_column.save!
+    @other_column = @source_course.custom_gradebook_columns.build(:teacher_notes => false, :title => "Other Column")
+    @other_column.save!
+    @other_column.custom_gradebook_column_data.build.tap do |data|
+      data.content = "Student0 Other"
+      data.user_id = @sections[2][:students][0].id
+    end
+    @other_column.save!
+  end
+
   def create_submissions
     submission_model({:course => @source_course, :section => @sections[0][:self], :assignment => @all_sections_assignment, :user => @sections[0][:students][0]})
     submission_model({:course => @source_course, :section => @sections[1][:self], :assignment => @all_sections_assignment, :user => @sections[1][:students][0]})
@@ -310,6 +334,13 @@ describe SectionSplitter do
       expect(course.start_at).to eq @source_course.start_at
       expect(course.conclude_at).to eq @source_course.conclude_at
       expect(course.time_zone).to eq @source_course.time_zone
+    end
+  end
+
+  it "should transfer course settings" do
+    @result.each do |course|
+      expect(course.public_syllabus).to eq true
+      expect(course.organize_epub_by_content_type).to eq true
     end
   end
 
@@ -647,6 +678,20 @@ describe SectionSplitter do
   context "delayed messages" do
     it "should not generate emails" do
       expect(@previous_jobs.pluck(:id)).to match_array Delayed::Job.all.pluck(:id)
+    end
+  end
+
+  context "grades" do
+    it "should transfer custom gradebook columns" do
+      expect(@result[0].custom_gradebook_columns.length).to eq 2
+      expect(@result[0].custom_gradebook_columns.find {|cc| cc.teacher_notes == true}.custom_gradebook_column_data.length).to eq 1
+      expect(@result[0].custom_gradebook_columns.find {|cc| cc.teacher_notes == false}.custom_gradebook_column_data.length).to eq 0
+      expect(@result[1].custom_gradebook_columns.length).to eq 2
+      expect(@result[1].custom_gradebook_columns.find {|cc| cc.teacher_notes == true}.custom_gradebook_column_data.length).to eq 1
+      expect(@result[1].custom_gradebook_columns.find {|cc| cc.teacher_notes == false}.custom_gradebook_column_data.length).to eq 0
+      expect(@result[2].custom_gradebook_columns.length).to eq 2
+      expect(@result[2].custom_gradebook_columns.find {|cc| cc.teacher_notes == true}.custom_gradebook_column_data.length).to eq 0
+      expect(@result[2].custom_gradebook_columns.find {|cc| cc.teacher_notes == false}.custom_gradebook_column_data.length).to eq 1
     end
   end
 end

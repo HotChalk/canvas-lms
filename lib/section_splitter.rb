@@ -100,6 +100,9 @@ class SectionSplitter
     target_course = source_course.account.courses.new
     target_course.attributes = args
     target_course.workflow_state = source_course.workflow_state
+    source_course.settings.each do |setting|
+      target_course.send("#{setting[0]}=".to_sym, setting[1])
+    end
     target_course.save!
 
     content_migration = target_course.content_migrations.build(:user => nil, :source_course => source_course, :context => target_course, :migration_type => 'course_copy_importer', :initiated_source => :manual)
@@ -161,6 +164,7 @@ class SectionSplitter
       migrate_page_views_and_audit_logs
       migrate_asset_user_accesses
       migrate_content_participation_counts
+      migrate_custom_gradebook_columns
       @target_course.save!
     end
 
@@ -643,6 +647,20 @@ class SectionSplitter
     def migrate_content_participation_counts
       user_ids = @target_course.enrollments.map(&:user_id)
       @source_course.content_participation_counts.where(:user_id => user_ids).update_all(:context_id => @target_course.id)
+    end
+
+    def migrate_custom_gradebook_columns
+      user_ids = @target_course.enrollments.map(&:user_id)
+      @source_course.custom_gradebook_columns.each do |column|
+        new_column = column.clone
+        column.custom_gradebook_column_data.where(:user_id => user_ids).each do |datum|
+          new_column.custom_gradebook_column_data << datum
+        end
+        new_column.course = @target_course
+        @target_course.custom_gradebook_columns << new_column
+        new_column.save!
+      end
+      @target_course.save!
     end
 
     def cassandra?
