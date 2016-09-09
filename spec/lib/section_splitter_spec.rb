@@ -126,6 +126,7 @@ describe SectionSplitter do
     @as_root_s1_1_reply1_attachment = attachment_model(:context => @source_course)
     @as_root_s1_1_reply1 = DiscussionEntry.new(:user => @sections[0][:students][1], :message => <<-HTML, :discussion_topic => @all_sections_topic, :parent_entry => @as_root_s1_1)
     <p><a href="/courses/#{@source_course.id}/files/#{@as_root_s1_1_reply1_attachment.id}/download">This is a file link</a></p>
+    <p><a href="/courses/#{@source_course.id}/announcements">This is an Announcements link</a></p>
     HTML
     @as_root_s1_1_reply1.save!
     @as_root_s2_1_reply1 = DiscussionEntry.new(:user => @sections[1][:students][1], :message => "section 2 reply reply", :discussion_topic => @all_sections_topic, :parent_entry => @as_root_s2_1)
@@ -448,6 +449,17 @@ describe SectionSplitter do
         expect(found_entry_ids).to match_array(entry_ids)
         expect(found_user_ids).to match_array(user_ids)
       end
+    end
+
+    it "should translate links embedded in discussion entries" do
+      all_sections_topic = @result[0].discussion_topics.find {|d| d.title == @all_sections_topic.title }
+      expect(all_sections_topic).to be
+      entry = all_sections_topic.discussion_entries.find {|e| e.user == @sections[0][:students][1]}
+      expect(entry).to be
+      expect(entry.message).to match(/courses\/#{@result[0].id}\/files/)
+      expect(entry.message).to match(/courses\/#{@result[0].id}\/announcements/)
+      expect(entry.message).not_to match(/courses\/#{@source_course.id}\/files/)
+      expect(entry.message).not_to match(/courses\/#{@source_course.id}\/announcements/)
     end
   end
 

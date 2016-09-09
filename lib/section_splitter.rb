@@ -392,6 +392,7 @@ class SectionSplitter
     end
 
     def migrate_discussion_entries
+      # Update references to the new discussion topics
       section_user_ids = @target_course.enrollments.map(&:user_id).uniq
       @target_course.discussion_topics.each do |topic|
         source_topic = source_model(@source_course, topic)
@@ -412,6 +413,14 @@ class SectionSplitter
       end
       @source_course.reload
       @target_course.reload
+
+      # Update links within discussion entries
+      @target_course.discussion_entries.where("discussion_entries.message ~ '/courses/#{@source_course.id}'").each do |entry|
+        new_message = entry.message.gsub(/\/courses\/#{@source_course.id}/, "/courses/#{@target_course.id}")
+        DiscussionEntry.where(:id => entry.id).update_all(:message => new_message)
+      end
+
+      # Regenerate materialized views
       @target_course.discussion_topics.each do |topic|
         begin
           DiscussionTopic::MaterializedView.for(topic).update_materialized_view_without_send_later
