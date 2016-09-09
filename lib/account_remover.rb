@@ -20,6 +20,7 @@ class AccountRemover
     @include_cassandra = opts[:cassandra]
     @explain = opts[:explain]
     @truncate_messages = opts[:truncate_messages]
+    @drop_keys = opts[:drop_keys]
     raise "Must include at least one repository for data deletion: Postgres, Cassandra or both" unless @include_postgres || @include_cassandra
     raise "Cassandra is not enabled for this environment" if @include_cassandra && !cassandra?
     @account = opts[:account_id] && Account.find(opts[:account_id])
@@ -45,6 +46,7 @@ class AccountRemover
         # Delete object graph in Postgres
         if postgres?
           prepare_data
+          drop_foreign_keys
           @account.transaction do
             delete_in_postgres
           end
@@ -54,6 +56,43 @@ class AccountRemover
     rescue Exception => e
       Rails.logger.error "[ACCOUNT-REMOVER] Account removal failed: #{e.inspect}"
       Rails.logger.error e.backtrace.join("\n")
+    ensure
+      recreate_foreign_keys
+    end
+  end
+
+  def drop_foreign_keys
+    if @drop_keys
+      Rails.logger.info "[ACCOUNT-REMOVER] Dropping foreign keys..."
+      real_time = Benchmark.realtime do
+        sql = <<-SQL
+          SELECT
+            (quote_ident(ns.nspname) || '.' || quote_ident(tb.relname)) AS tbl_name,
+            quote_ident(conname) AS key_name,
+            pg_get_constraintdef(c.oid, true) AS ddl
+          FROM pg_constraint c
+            INNER JOIN pg_class tb ON tb.oid = c.conrelid
+            INNER JOIN pg_namespace ns ON ns.oid = tb.relnamespace
+          WHERE ns.nspname = 'public' AND c.contype = 'f';
+        SQL
+        @foreign_keys = ActiveRecord::Base.connection.exec_query(sql).map {|row| row.symbolize_keys}
+        @foreign_keys.each do |key_data|
+          ActiveRecord::Base.connection.execute("ALTER TABLE #{key_data[:tbl_name]} DROP CONSTRAINT #{key_data[:key_name]}")
+        end
+      end
+      Rails.logger.info "[ACCOUNT-REMOVER] Finished dropping foreign keys in #{real_time} seconds."
+    end
+  end
+
+  def recreate_foreign_keys
+    if @drop_keys
+      Rails.logger.info "[ACCOUNT-REMOVER] Recreating foreign keys..."
+      real_time = Benchmark.realtime do
+        @foreign_keys.each do |key_data|
+          ActiveRecord::Base.connection.execute("ALTER TABLE #{key_data[:tbl_name]} ADD CONSTRAINT #{key_data[:key_name]} #{key_data[:ddl]}")
+        end
+      end
+      Rails.logger.info "[ACCOUNT-REMOVER] Finished recreating foreign keys in #{real_time} seconds."
     end
   end
 
@@ -453,6 +492,7 @@ class AccountRemover
       delete_enrollments
       delete_enrollment_dates_overrides
       delete_eportfolio_entries
+      delete_error_reports
       delete_external_feed_entries
       delete_favorites
       delete_feature_flags
@@ -468,6 +508,7 @@ class AccountRemover
       delete_migration_issues
       delete_oauth_requests
       delete_page_comments
+      delete_page_views
       delete_page_views_rollups
       delete_profiles
       delete_quiz_groups
@@ -847,6 +888,11 @@ class AccountRemover
     timed_exec("DELETE FROM eportfolios USING delete_users d WHERE user_id = d.id")
   end
 
+  def delete_error_reports
+    timed_exec("DELETE FROM error_reports USING delete_accounts d WHERE account_id = d.id")
+    timed_exec("DELETE FROM error_reports USING delete_users d WHERE user_id = d.id")
+  end
+
   def delete_external_feed_entries
     timed_exec("DELETE FROM external_feed_entries USING delete_external_feeds d WHERE external_feed_id = d.id")
   end
@@ -939,6 +985,11 @@ class AccountRemover
 
   def delete_page_comments
     timed_exec("DELETE FROM page_comments USING delete_users d WHERE user_id = d.id")
+  end
+
+  def delete_page_views
+    timed_exec("DELETE FROM page_views USING delete_accounts d WHERE account_id = d.id")
+    timed_exec("DELETE FROM page_views USING delete_users d WHERE user_id = d.id")
   end
 
   def delete_page_views_rollups
@@ -1133,13 +1184,13 @@ class AccountRemover
 
   # Deletes data related to the specified account from Cassandra
   def delete_account_from_cassandra(account_id)
-    delete_page_views(account_id)
+    delete_page_views_main(account_id)
     delete_page_views_migration_metadata(account_id)
     delete_authentications(Switchman::Shard.global_id_for(account_id))
     delete_grade_changes(Switchman::Shard.global_id_for(account_id))
   end
 
-  def delete_page_views(account_id)
+  def delete_page_views_main(account_id)
     query = "SELECT request_id FROM page_views WHERE account_id = ? LIMIT 100 ALLOW FILTERING"
     loop do
       request_ids = []
