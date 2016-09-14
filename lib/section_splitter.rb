@@ -103,7 +103,6 @@ class SectionSplitter
     source_course.settings.each do |setting|
       target_course.send("#{setting[0]}=".to_sym, setting[1])
     end
-    target_course.dynamic_tab_configuration = source_course.dynamic_tab_configuration.clone
     target_course.save!
 
     content_migration = target_course.content_migrations.build(:user => nil, :source_course => source_course, :context => target_course, :migration_type => 'course_copy_importer', :initiated_source => :manual)
@@ -166,6 +165,7 @@ class SectionSplitter
       migrate_asset_user_accesses
       migrate_content_participation_counts
       migrate_custom_gradebook_columns
+      migrate_dynamic_tabs
       @target_course.save!
     end
 
@@ -261,10 +261,18 @@ class SectionSplitter
             source_course.calendar_events.where(:workflow_state => model.workflow_state, :title => model.title, :start_at => model.start_at, :end_at => model.end_at).first
           when GroupCategory
             source_course.group_categories.where(:name => model.name, :role => model.role, :deleted_at => model.deleted_at, :group_limit => model.group_limit).first
+          when WikiPage
+            source_course.wiki.wiki_pages.where(:workflow_state => model.workflow_state, :url => model.url).first
+          when ContentTag
+            source_module = source_course.context_modules.where(:name => model.context_module.name)
+            ContentTag.where(:context => source_course, :workflow_state => model.workflow_state, :context_module_id => source_module.id, :title => model.title).first
           else
             nil
         end
-      raise "Unable to find source item for [#{model.inspect}] in course ID=#{source_course.id}" unless source_model
+      unless source_model
+        Rails.logger.error "Unable to find source item for [#{model.inspect}] in course ID=#{source_course.id}"
+        return nil
+      end
       @source_asset_strings[source_model.asset_string] = model.asset_string if source_course == @source_course
       source_model
     end
@@ -662,6 +670,37 @@ class SectionSplitter
         new_column.save!
       end
       @target_course.save!
+    end
+
+    def migrate_dynamic_tabs
+      new_tabs = @source_course.dynamic_tab_configuration.map do |tab|
+        source_model = case tab[:context_type]
+                         when 'assignment'
+                           @source_course.assignments.where(:id => tab[:context_id]).first
+                         when 'discussion_topic'
+                           @source_course.discussion_topics.where(:id => tab[:context_id]).first
+                         when 'module_item'
+                           @source_course.content_tags.where(:id => tab[:context_id]).first
+                         when 'quiz'
+                           @source_course.quizzes.where(:id => tab[:context_id]).first
+                         when 'wiki_page'
+                           @source_course.wiki.wiki_pages.where(:id => tab[:context_id]).first
+                         else
+                           nil
+                       end
+        new_tab = tab.clone.to_hash
+        unless source_model.nil?
+          target_model = source_model(@target_course, source_model)
+          if target_model.nil?
+            new_tab = nil
+          else
+            new_tab[:context_id] = target_model.id
+          end
+        end
+        new_tab
+      end
+      Course.where(:id => @target_course.id).update_all(:dynamic_tab_configuration => new_tabs.compact.to_yaml)
+      @target_course.reload
     end
 
     def cassandra?

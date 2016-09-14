@@ -14,7 +14,6 @@ describe SectionSplitter do
     @source_course.time_zone = ActiveSupport::TimeZone.new('Pacific Time (US & Canada)')
     @source_course.public_syllabus = true
     @source_course.organize_epub_by_content_type = true
-    @source_course.dynamic_tab_configuration = [{:context_type => "external_url", :label => "Label", :url => "http://example.com"}]
     @source_course.save
     @sections = (1..3).collect do |n|
       {:index => n, :name => "Section #{n}"}
@@ -66,6 +65,7 @@ describe SectionSplitter do
     create_messages
     create_page_views
     create_page_views_rollups
+    create_dynamic_tabs
 
     # Track generated jobs
     @previous_jobs = Delayed::Job.all
@@ -320,6 +320,15 @@ describe SectionSplitter do
     PageViewsRollup.augment!(@source_course, (@now - 5.days).to_date, :announcements, 1, 0)
   end
 
+  def create_dynamic_tabs
+    @source_course.dynamic_tab_configuration = [
+      {:context_type => "external_url", :label => "Label", :url => "http://example.com"},
+      {:context_type => "assignment", :context_id => @all_sections_assignment.id, :label => "All Sections Assignment"},
+      {:context_type => "discussion_topic", :context_id => @section2_topic.discussion_topic.id, :label => "Section 2 Topic"}
+    ]
+    @source_course.save
+  end
+
   it "should create a new course shell per section" do
     expect(@result.length).to eq 3
     expect(@result.map(&:name)).to contain_exactly("Course 1", "Course 1", "Course 1")
@@ -346,9 +355,21 @@ describe SectionSplitter do
   end
 
   it "should transfer dynamic tab configurations" do
-    @result.each do |course|
-      expect(course.dynamic_tab_configuration).to eq @source_course.dynamic_tab_configuration
-    end
+    @result.each {|r| r.reload}
+    expect(@result[0].dynamic_tab_configuration).to be
+    expect(@result[0].dynamic_tab_configuration.length).to eq 2
+    all_sections_assignment = @result[0].assignments.find {|a| a.title == @all_sections_assignment.title }
+    all_sections_assignment_tab = @result[0].dynamic_tab_configuration.find {|tab| tab[:context_type] == "assignment"}
+    expect(all_sections_assignment_tab[:context_id]).to eq all_sections_assignment.id
+
+    expect(@result[1].dynamic_tab_configuration).to be
+    expect(@result[1].dynamic_tab_configuration.length).to eq 3
+    all_sections_assignment = @result[1].assignments.find {|a| a.title == @all_sections_assignment.title }
+    all_sections_assignment_tab = @result[1].dynamic_tab_configuration.find {|tab| tab[:context_type] == "assignment"}
+    expect(all_sections_assignment_tab[:context_id]).to eq all_sections_assignment.id
+    section2_topic = @result[1].discussion_topics.find {|d| d.title == @section2_topic.title }
+    section2_topic_tab = @result[1].dynamic_tab_configuration.find {|tab| tab[:context_type] == "discussion_topic"}
+    expect(section2_topic_tab[:context_id]).to eq section2_topic.id
   end
 
   context "announcements" do
