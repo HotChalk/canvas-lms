@@ -987,7 +987,7 @@ class DiscussionTopic < ActiveRecord::Base
     return active_participants unless course.is_a?(Course)
     users_with_visibility = self.for_assignment? ?
       AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id) :
-      DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id)
+      (context.is_a?(Course) ? DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id) : active_participants.map(&:id))
 
     # admin_ids = course.participating_admins.pluck(:id)
     # users_with_visibility.concat(admin_ids)
@@ -1014,7 +1014,7 @@ class DiscussionTopic < ActiveRecord::Base
     if course.is_a?(Course)
       users_with_visibility = self.for_assignment? ?
         AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id) :
-        DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id)
+        (context.is_a?(Course) ? DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id) : subscribed_users.map(&:id))
 
       # admin_ids = course.participating_admins.pluck(:id)
       observer_ids = course.participating_observers.pluck(:id)
