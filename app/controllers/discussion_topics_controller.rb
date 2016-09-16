@@ -243,7 +243,6 @@ class DiscussionTopicsController < ApplicationController
   include Api::V1::Assignment
   include Api::V1::AssignmentOverride
   include KalturaHelper
-  include ApplicationHelper
   include SubmittableHelper
 
   # @API List discussion topics
@@ -318,8 +317,6 @@ class DiscussionTopicsController < ApplicationController
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
-    @topics = @topics.map {|topic| AssignmentOverrideApplicator.assignment_overridden_for(topic, @current_user)}
-
     if states.present?
       @topics.reject! { |t| t.locked_for?(@current_user) } if states.include?('unlocked')
       @topics.select! { |t| t.locked_for?(@current_user) } if states.include?('locked')
@@ -361,9 +358,7 @@ class DiscussionTopicsController < ApplicationController
         render json: discussion_topics_api_json(@topics, @context, @current_user, session,
           :user_can_moderate => user_can_moderate,
           :plain_messages => value_to_boolean(params[:plain_messages]),
-          :include_all_dates => true,
-          :exclude_assignment_description => value_to_boolean(params[:exclude_assignment_descriptions]),
-          :include_overrides_names => true)
+          :exclude_assignment_description => value_to_boolean(params[:exclude_assignment_descriptions]))
       end
     end
   end
@@ -398,8 +393,7 @@ class DiscussionTopicsController < ApplicationController
         add_discussion_or_announcement_crumb
         add_crumb(@topic.title, named_context_url(@context, :context_discussion_topic_url, @topic.id))
         add_crumb t :edit_crumb, "Edit"
-        hash[:ATTRIBUTES] = discussion_topic_api_json(@topic, @context, @current_user, session, override_dates: false, include_overrides: true)
-        hash[:ATTRIBUTES][:unlock_at] = hash[:ATTRIBUTES][:delayed_post_at]
+        hash[:ATTRIBUTES] = discussion_topic_api_json(@topic, @context, @current_user, session, override_dates: false)
       end
       (hash[:ATTRIBUTES] ||= {})[:is_announcement] = @topic.is_announcement
       hash[:ATTRIBUTES][:can_group] = @topic.can_group?
@@ -420,19 +414,15 @@ class DiscussionTopicsController < ApplicationController
         hash[:ATTRIBUTES][:assignment][:has_student_submissions] = @topic.assignment.has_student_submissions?
       end
 
-      course_sections_count = @context.respond_to?(:course_sections) ? @context.active_course_sections.length : 0
-      sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
-      allow_everyone = (course_sections_count == sections.length) ? true : false
+      sections = @context.respond_to?(:course_sections) ? @context.course_sections.active : []
 
       js_hash = {DISCUSSION_TOPIC: hash,
                  SECTION_LIST: sections.map { |section| { id: section.id, name: section.name } },
-                 ALLOW_EVERYONE: allow_everyone,
                  GROUP_CATEGORIES: categories.
                      reject { |category| category.student_organized? }.
                      map { |category| { id: category.id, name: category.name } },
                  CONTEXT_ID: @context.id,
-                 CONTEXT_ACTION_SOURCE: :discussion_topic,
-                 LIMIT_PRIVILEGES_TO_COURSE_SECTION: (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section])
+                 CONTEXT_ACTION_SOURCE: :discussion_topic
       }
 
       post_to_sis = Assignment.sis_grade_export_enabled?(@context)
@@ -464,18 +454,11 @@ class DiscussionTopicsController < ApplicationController
   def show
     parent_id = params[:parent_id]
     @topic = @context.all_discussion_topics.find(params[:id])
-    user_sections = @context.respond_to?(:course_sections) ? @context.sections_visible_to(@current_user).active : []
-    topic_sections = @topic.sections_with_visibility(@current_user) || []
-    @filter_sections = (user_sections & topic_sections).sort_by(&:name)
     @presenter = DiscussionTopicPresenter.new(@topic, @current_user)
     @assignment = if @topic.for_assignment?
       AssignmentOverrideApplicator.assignment_overridden_for(@topic.assignment, @current_user)
     else
-      if @topic.is_a? Announcement
-        AssignmentOverrideApplicator.assignment_overridden_for(@topic, @current_user)
-      else
-        nil
-      end
+      nil
     end
     @context.require_assignment_group rescue nil
     add_discussion_or_announcement_crumb
@@ -489,11 +472,7 @@ class DiscussionTopicsController < ApplicationController
     if authorized_action(@topic, @current_user, :read)
       return unless enforce_assignment_visible(@topic)
       @headers = !params[:headless]
-      if !@topic.is_a? Announcement and !@assignment.nil?
-        @locked = @assignment.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true)
-      else
-        @locked = @topic.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true) || @topic.locked?
-      end
+      @locked = @topic.locked_for?(@current_user, :check_policies => true, :deep_check_if_needed => true) || @topic.locked?
       @unlock_at = @topic.available_from_for(@current_user)
       @topic.change_read_state('read', @current_user) if @topic.visible_for?(@current_user)
       if @topic.for_group_discussion?
@@ -510,9 +489,6 @@ class DiscussionTopicsController < ApplicationController
       @padless = true
 
       log_asset_access(@topic, 'topics', 'topics')
-
-      @overrides_names = get_overrides_names(@topic)
-
       respond_to do |format|
         if @topic.deleted?
           flash[:notice] = t :deleted_topic_notice, "That topic has been deleted"
@@ -532,7 +508,6 @@ class DiscussionTopicsController < ApplicationController
             end
 
             env_hash = {
-              :SECTION_IDS => @filter_sections.map(&:id),
               :APP_URL => named_context_url(@context, :context_discussion_topic_url, @topic),
               :TOPIC => {
                 :ID => @topic.id,
@@ -913,7 +888,6 @@ class DiscussionTopicsController < ApplicationController
 
     process_group_parameters(discussion_topic_hash)
     process_pin_parameters(discussion_topic_hash)
-    process_override_parameters(discussion_topic_hash)
 
     if @errors.present?
       render :json => {errors: @errors}, :status => :bad_request
@@ -930,7 +904,6 @@ class DiscussionTopicsController < ApplicationController
         unless @topic.root_topic_id?
           apply_assignment_parameters(params[:assignment], @topic)
         end
-        apply_override_parameters
         if publish_later
           @topic.publish!
           @topic.root_topic.try(:publish!)
@@ -1043,15 +1016,6 @@ class DiscussionTopicsController < ApplicationController
     @topic.add_to_list_bottom
   end
 
-  def process_override_parameters(discussion_topic_hash)
-    return unless params.has_key?('only_visible_to_overrides')
-    if params['only_visible_to_overrides'].blank?
-      params.delete('only_visible_to_overrides')
-      return
-    end
-    @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
-  end
-
   def apply_positioning_parameters
     if params[:position_after] && user_can_moderate
       other_topic = @context.discussion_topics.active.find(params[:position_after])
@@ -1090,31 +1054,6 @@ class DiscussionTopicsController < ApplicationController
     end
   end
 
-  def apply_override_parameters
-    if !params[:assignment] && !params[:assignment_id]
-      overrides = deserialize_overrides(params[:assignment_overrides])
-      overrides = [] if !overrides && params.has_key?(:assignment_overrides)
-      params.delete(:assignment_overrides)
-      return if overrides && !overrides.is_a?(Array)
-      do_overrides = true
-      if params.has_key? "update_overrides"
-        do_overrides = value_to_boolean(params['update_overrides'])
-      end
-
-      if do_overrides
-        if overrides
-          @topic.transaction do
-            if params.has_key? "only_visible_to_overrides"
-              @topic.only_visible_to_overrides = value_to_boolean(params['only_visible_to_overrides'])
-            end
-            @topic.save_without_broadcasting!
-            batch_update_assignment_overrides(@topic, overrides, @current_user)
-          end
-        end
-      end
-    end
-  end
-
   def child_topic
     if params[:headless]
       extra_params = {
@@ -1148,23 +1087,5 @@ class DiscussionTopicsController < ApplicationController
         hash[:assignment][:assignment_group_id] = params[:assignment_group_id] if params[:assignment_group_id]
       end
     end
-  end
-
-  def get_overrides_names(topic)
-    overrides = assignment_overrides_json(topic.assignment_overrides.active)
-    if !overrides.empty?
-      students = []
-      sections = []
-      overrides.each { |override| ids = override[:student_ids] ?  override[:student_ids] : []
-      ids.each { |id| students.push(User.find(id)) }
-
-      course_section_id = override[:course_section_id] ?  override[:course_section_id] : nil
-      if !course_section_id.nil?
-        sections.push(CourseSection.find(course_section_id).display_name)
-      end
-      }
-      overrides_names = sections.sort! + students.map(&:name).sort!
-    end
-    overrides_names
   end
 end

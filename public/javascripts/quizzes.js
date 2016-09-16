@@ -1722,7 +1722,7 @@ define([
         data.allowed_attempts = attempts;
         data['quiz[allowed_attempts]'] = attempts;
         var overrides = overrideView.getOverrides();
-        data['quiz[only_visible_to_overrides]'] = !overrideView.overridesContainDefault()
+        data['quiz[only_visible_to_overrides]'] = overrideView.containsSectionsWithoutOverrides();
         var validationData = {
           assignment_overrides: overrideView.getAllDates()
         };

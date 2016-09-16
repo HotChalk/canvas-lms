@@ -56,17 +56,4 @@ module AttachmentHelper
       crocodoc_session_url: attachment.crocodoc_url(@current_user),
     }
   end
-
-  def filter_by_section(scope, context)
-    unless @current_user.account_admin?(context) || !context.respond_to?(:sections_visible_to)
-      filtered_ids = scope.select { |file|
-        file.user.nil? ||
-          ((sections_current_user = context.sections_visible_to(@current_user).map(&:id)) &&
-            (sections_file_user = context.sections_visible_to(file.user).map(&:id)) &&
-            ((sections_current_user & sections_file_user).count > 0))
-      }.map(&:id)
-      scope.merge(-> { where(id: filtered_ids) })
-    end
-    scope
-  end
 end

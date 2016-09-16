@@ -1491,14 +1491,4 @@ class Submission < ActiveRecord::Base
     Rails.logger.info "GRADES: recomputing scores in course #{context.id} for users #{user_ids} because of bulk submission update"
     context.recompute_student_scores(user_ids)
   end
-
-  # NOTE: only use for courses with differentiated assignments on
-  scope :visible_to_users_in_course_with_da, lambda { |user_id, course_id|
-    scope = joins(sanitize_sql([<<-SQL, course_id, user_id]))
-      INNER JOIN assignment_user_visibilities ON (
-       assignment_user_visibilities.assignment_id = assignments.id
-       AND assignment_user_visibilities.course_id = %s
-       AND assignment_user_visibilities.user_id = %s)
-    SQL
-  }
 end

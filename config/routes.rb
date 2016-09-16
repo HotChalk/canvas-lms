@@ -914,7 +914,6 @@ CanvasRails::Application.routes.draw do
 
       get 'courses/:course_id/link_validation', action: :link_validation, as: 'course_link_validation'
       post 'courses/:course_id/link_validation', action: :start_link_validation
-      get 'courses/:course_id/user_sections', action: :user_sections
 
       post 'courses/:course_id/reset_content', :action => :reset_content
       get  'users/:user_id/courses', action: :user_index

@@ -44,7 +44,6 @@ class CalendarsController < ApplicationController
           ag_permission = {:all_sections => false, :section_ids => section_ids} if section_ids.any?
         end
       end
-
       info = {
         :name => context.nickname_for(@current_user),
         :asset_string => context.asset_string,
@@ -69,7 +68,7 @@ class CalendarsController < ApplicationController
         :can_create_appointment_groups => ag_permission
       }
       if context.respond_to?("course_sections")
-        info[:course_sections] = context.sections_visible_to(@current_user).select([:id, :name]).map do |cs|
+        info[:course_sections] = context.course_sections.active.select([:id, :name]).map do |cs|
           hash = { :id => cs.id, :asset_string => cs.asset_string, :name => cs.name}
           if ag_permission
             hash[:can_create_ag] = ag_permission[:all_sections] || ag_permission[:section_ids].include?(cs.id)

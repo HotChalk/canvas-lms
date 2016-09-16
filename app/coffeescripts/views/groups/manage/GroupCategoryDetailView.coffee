@@ -26,6 +26,7 @@ define [
       'click .clone-category' : 'cloneCategory'
 
     els:
+      '.randomly-assign-members': '$randomlyAssignMembersLink'
       '.al-trigger': '$groupCategoryActions'
       '.edit-category': '$editGroupCategoryLink'
       '.message-all-unassigned': '$messageAllUnassignedLink'
@@ -66,7 +67,6 @@ define [
       e.preventDefault()
       @createView ?= new GroupCreateView
         groupCategory: @model
-        sections: ENV.sections
         trigger: @$addGroupButton
       newGroup = new Group({group_category_id: @model.id}, {newAndEmpty: true})
       newGroup.once 'sync', =>

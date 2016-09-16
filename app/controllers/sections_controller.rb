@@ -109,7 +109,7 @@ class SectionsController < ApplicationController
 
       includes = Array(params[:include])
 
-      render :json => sections_json(@context.sections_visible_to(@current_user).active,
+      render :json => sections_json(@context.active_course_sections,
                                     @current_user, session, includes)
     end
   end

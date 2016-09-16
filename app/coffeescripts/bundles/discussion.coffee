@@ -73,25 +73,12 @@ require [
   scrollToTop = ->
     $container.scrollTo $subentries, offset: -49
 
-  checkSection = (sectionIds, entrySections) ->
-    _.isEmpty(entrySections) || !_.isEmpty(_.intersection(sectionIds, entrySections))
-
-  resetFilterEntryData = ->
-    selectedSectionId = $('#section_selected').val()
-    sectionIds = (if typeof selectedSectionId == 'undefined' or selectedSectionId == null or selectedSectionId == "0" then ENV.DISCUSSION.SECTION_IDS else [parseInt(selectedSectionId)])
-    entryData = data.get 'entries'
-    filterEntryData = _.filter(entryData, (e) -> checkSection(sectionIds, _.map(e.author.sections, (section) -> parseInt(section.id))))
-    entries.options.per_page = filterEntryData.length
-    entries.reset filterEntryData
-
   ##
   # connect them ...
-  data.on 'change', resetFilterEntryData
-
-  $('#section_selected').on 'change', ->
-    resetFilterEntryData()
-    entriesView.render()
-
+  data.on 'change', ->
+    entryData = data.get 'entries'
+    entries.options.per_page = entryData.length
+    entries.reset entryData
 
   ##
   # define function that syncs a discussion entry's

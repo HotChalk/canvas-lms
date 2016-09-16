@@ -25,17 +25,6 @@
       {{#if display_last_reply_at}}
         <small {{ contextSensitiveDatetimeTitle last_reply_at }}>{{#t "last_post_date"}}Last post {{display_last_reply_at}}{{/t}}</small>
       {{/if}}
-      {{#ifEqual context_type 'Course'}}
-        <small>- {{#if overrides_names}}
-            {{join overrides_names ','}}
-        {{else}}
-            {{#if course_sections}}
-                {{join course_sections ','}}
-            {{else}}
-                {{#t "all_sections"}}All Sections{{/t}}
-            {{/if}}
-        {{/if}}</small>
-      {{/ifEqual}}
     </div>
 
     <div class="discussion-date-available ellipses" data-view="date-available"></div>

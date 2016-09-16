@@ -199,7 +199,7 @@ class Enrollment < ActiveRecord::Base
     }
 
     p.dispatch :enrollment_accepted
-    p.to {(self.course.participating_admins.select {|a| (self.course.sections_visible_to(a) & self.course.sections_visible_to(self.user)).any?}) - [self.user] }  # only notify users who can access this enrollment's associated sections
+    p.to {self.course.participating_admins - [self.user] }
     p.whenever { |record|
       record.course &&
       !record.observer? &&
@@ -555,8 +555,7 @@ class Enrollment < ActiveRecord::Base
   end
 
   def infer_privileges
-    # Hotchalk: always infer privileges from the master course setting
-    self.limit_privileges_to_course_section = self.course.limit_section_visibility rescue true
+    self.limit_privileges_to_course_section = false if self.limit_privileges_to_course_section.nil?
     true
   end
 
@@ -1087,7 +1086,6 @@ class Enrollment < ActiveRecord::Base
         select("enrollments.*").
         readonly(false)
   }
-  scope :excluding_section, lambda { |course_section_id| where("course_section_id<>?", course_section_id) }
   def self.cached_temporary_invitations(email)
     if Enrollment.cross_shard_invitations?
       Shard.birth.activate do

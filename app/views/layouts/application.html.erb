@@ -109,9 +109,7 @@
               </a>
               <ul class="al-options">
                 <% @context.group_category.groups.active.by_name.each do |group| %>
-                  <% if @current_user.account_admin?(@context.context) || @context.context.sections_visible_to(@current_user).include?(group.course_section) %>
-                    <li><%= link_to group.short_name, group_path(group) %></li>
-                  <% end %>      
+                  <li><%= link_to group.short_name, group_path(group) %></li>
                 <% end %>
               </ul>
             <% end %>

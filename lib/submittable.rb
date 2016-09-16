@@ -3,7 +3,6 @@ module Submittable
     klass.belongs_to :assignment
     klass.belongs_to :old_assignment, class_name: 'Assignment'
     klass.has_many :assignment_student_visibilities, :through => :assignment
-    klass.has_many :assignment_user_visibilities, :through => :assignment
 
     klass.scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
       klass.without_assignment_in_course(course_ids)

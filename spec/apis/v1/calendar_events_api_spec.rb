@@ -27,7 +27,7 @@ describe CalendarEventsApiController, type: :request do
   context 'events' do
     expected_fields = [
       'all_day', 'all_day_date', 'child_events', 'child_events_count', 'comments',
-      'context_code', 'course_section_id', 'created_at', 'description', 'duplicates', 'end_at', 'hidden', 'html_url',
+      'context_code', 'created_at', 'description', 'duplicates', 'end_at', 'hidden', 'html_url',
       'id', 'location_address', 'location_name', 'parent_event_id', 'start_at',
       'title', 'type', 'updated_at', 'url', 'workflow_state'
     ]
@@ -1153,15 +1153,7 @@ describe CalendarEventsApiController, type: :request do
       end
 
       context 'as a teacher' do
-        it "shows events for active assignments in a section" do
-          json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
-            :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
-            :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})
-          expect(json.size).to eql 1
-        end
-
         it "shows events for all active assignment" do
-          @course.enroll_teacher(@teacher, :enrollment_state => 'active', :section => @section, :limit_privileges_to_course_section => true)
           json = api_call_as_user(@teacher, :get, "/api/v1/calendar_events?type=assignment&start_date=2011-01-08&end_date=2099-01-08&context_codes[]=course_#{@course.id}", {
             :controller => 'calendar_events_api', :action => 'index', :format => 'json', :type => 'assignment',
             :context_codes => ["course_#{@course.id}"], :start_date => '2011-01-08', :end_date => '2099-01-08'})

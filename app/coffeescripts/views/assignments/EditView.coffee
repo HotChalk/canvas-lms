@@ -264,67 +264,15 @@ AssignmentGroupSelector, GroupCategorySelector, toggleAccessibly, RCEKeyboardSho
         data = @groupCategorySelector.filterFormData data
       # should update the date fields.. pretty hacky.
       unless data.post_to_sis
-        data.post_to_sis = false      
-      # verify students overrides
-      _result_check = @verifyOverrides()
-      if ENV.SECTION_LIST.length > 0 and ENV.SECTION_LIST.length == @getSectionsOverrides().length and _result_check
-        data.lock_at = @dueDateOverrideView.getOverrides()[0]['lock_at']
-        data.unlock_at = @dueDateOverrideView.getOverrides()[0]['unlock_at']
-        data.due_at = @dueDateOverrideView.getOverrides()[0]['due_at']
-        data.only_visible_to_overrides = false
-        data.assignment_overrides = null
-      else 
-        defaultDates = @dueDateOverrideView.getDefaultDueDate()
-        data.lock_at = defaultDates?.get('lock_at') or null
-        data.unlock_at = defaultDates?.get('unlock_at') or null
-        data.due_at = defaultDates?.get('due_at') or null
-        data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
-        data.assignment_overrides = @dueDateOverrideView.getOverrides()
+        data.post_to_sis = false
+      defaultDates = @dueDateOverrideView.getDefaultDueDate()
+      data.lock_at = defaultDates?.get('lock_at') or null
+      data.unlock_at = defaultDates?.get('unlock_at') or null
+      data.due_at = defaultDates?.get('due_at') or null
+      data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+      data.assignment_overrides = @dueDateOverrideView.getOverrides()
       data.published = true if @shouldPublish
       return data
-
-    getSectionsOverrides: =>
-      _overrides = @dueDateOverrideView.getOverrides()
-      _new_overrides = []
-      _new_overrides = _.reject(_overrides, (o) ->
-        !_.has(o, 'course_section_id')
-      )
-      _new_overrides
-
-    getStudentsOverrides: =>
-      _overrides = @dueDateOverrideView.getOverrides()
-      _new_overrides = []
-      _new_overrides = _.reject(_overrides, (o) ->
-        _.has(o, 'course_section_id')
-      )
-      _new_overrides
-
-    verifyOverrides: () =>    
-      students_overrides = undefined
-      _new_students = undefined
-      _section = undefined
-      _self = undefined
-      _result = false
-      students_overrides = @getStudentsOverrides()
-      if students_overrides.length > 0
-        _self = this
-        _section = @getSectionsOverrides()
-        if _section.length > 0
-          _new_students = _.reject(students_overrides[0].student_ids, (s) ->
-            _arr_section_ids = undefined
-            _student_section_ids = undefined
-            _student_section_ids = _self.dueDateOverrideView.render().state.students[s].sections
-            _arr_section_ids = _student_section_ids.toString().trim().split(',')
-            _arr_section_ids = _.map(_arr_section_ids, (i) ->
-              i.trim()
-            )
-            _.intersection(_arr_section_ids, _.pluck(_section, 'course_section_id')).length > 0
-          )
-          if _new_students.length == 0
-            _result = true
-      else
-        _result = true
-      _result
 
     submit: (event) =>
       event.preventDefault()

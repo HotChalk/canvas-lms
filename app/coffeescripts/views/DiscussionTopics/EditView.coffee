@@ -66,7 +66,6 @@ ConditionalRelease) ->
     initialize: (options) ->
       @assignment = @model.get("assignment")
       @initialPointsPossible = @assignment.pointsPossible()
-      @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
       @model.on 'sync', =>
         @unwatchUnload()
@@ -230,13 +229,7 @@ ConditionalRelease) ->
         # create assignments unless the user checked "Use for Grading".
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
-        defaultDate = @discussionDueDateOverrideView.getDefaultDueDate()
-        data.lock_at = defaultDate?.get('lock_at') or null
-        data.delayed_post_at = defaultDate?.get('unlock_at') or null        
         data.assignment = @model.createAssignment(set_assignment: '0')
-        apply_overrides = @discussionDueDateOverrideView.$el.is(":visible")
-        override_assigned = !@discussionDueDateOverrideView.overridesContainDefault()
-        data.only_visible_to_overrides = if apply_overrides then override_assigned else null
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
@@ -251,7 +244,7 @@ ConditionalRelease) ->
       data.unlock_at = defaultDate?.get('unlock_at') or null
       data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
-      data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+      data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
 
       assignment = @model.get('assignment')
       assignment or= @model.createAssignment()
@@ -266,9 +259,8 @@ ConditionalRelease) ->
     submit: (event) =>
       event.preventDefault()
       event.stopPropagation()
-      overrideView = if (@model.get('set_assignment') is '1') then @dueDateOverrideView else @discussionDueDateOverrideView
-      if overrideView.containsSectionsWithoutOverrides()
-        sections = overrideView.sectionsWithoutOverrides()
+      if @dueDateOverrideView.containsSectionsWithoutOverrides()
+        sections = @dueDateOverrideView.sectionsWithoutOverrides()
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
@@ -309,10 +301,6 @@ ConditionalRelease) ->
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      unless data.set_assignment is '1' || !@discussionDueDateOverrideView.$el.is(":visible")
-        data2 =
-          assignment_overrides: @discussionDueDateOverrideView.getAllDates()
-        errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)

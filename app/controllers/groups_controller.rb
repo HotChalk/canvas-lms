@@ -140,10 +140,9 @@ class GroupsController < ApplicationController
   include Api::V1::Attachment
   include Api::V1::Group
   include Api::V1::GroupCategory
-  include Api::V1::CourseSection
 
   SETTABLE_GROUP_ATTRIBUTES = %w(
-    name description join_level is_public group_category avatar_attachment course_section
+    name description join_level is_public group_category avatar_attachment
     storage_quota_mb max_membership leader default_view
   ).freeze
 
@@ -240,16 +239,7 @@ class GroupsController < ApplicationController
   # @returns [Group]
   def context_index
     return unless authorized_action(@context, @current_user, :read_roster)
-    if @context.is_a?(Course)
-      if @current_user.account_admin?(@context)
-        @sections = @context.course_sections.active
-      else
-        @sections = @context.sections_visible_to(@current_user)
-      end
-    end
-    @sections ||= []
-
-    @groups   = all_groups = @context.groups.active.where(course_section_id: @sections)
+    @groups      = all_groups = @context.groups.active
                                   .order(GroupCategory::Bookmarker.order_by, Group::Bookmarker.order_by)
                                   .eager_load(:group_category)
 
@@ -277,9 +267,8 @@ class GroupsController < ApplicationController
 
         if @context.grants_right?(@current_user, session, :manage_groups)
           if @domain_root_account.enable_manage_groups2?
-            categories_json = @categories.map{ |cat| get_section_filtered_group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
-            sections_json = course_sections_json(@sections)
-            uncategorized = @context.groups.uncategorized.to_a
+            categories_json = @categories.map{ |cat| group_category_json(cat, @current_user, session, include: ["progress_url", "unassigned_users_count", "groups_count"]) }
+            uncategorized = @context.groups.active.uncategorized.to_a
             if uncategorized.present?
               json = group_category_json(GroupCategory.uncategorized, @current_user, session)
               json["groups"] = uncategorized.map{ |group| group_json(group, @current_user, session) }
@@ -288,8 +277,7 @@ class GroupsController < ApplicationController
 
             js_env group_categories: categories_json,
                    group_user_type: @group_user_type,
-                   allow_self_signup: @allow_self_signup,
-                   sections: sections_json
+                   allow_self_signup: @allow_self_signup
             # since there are generally lots of users in an account, always do large roster view
             @js_env[:IS_LARGE_ROSTER] ||= @context.is_a?(Account)
           end
@@ -316,16 +304,6 @@ class GroupsController < ApplicationController
         render :json => @paginated_groups.map { |g| group_json(g, @current_user, session, :include => Array(params[:include])) }
       end
     end
-  end
-
-  def get_section_filtered_group_category_json(group_category, user, session, options = {})
-    json = group_category_json(group_category, user, session, options)
-    #if the user is not admin we need to adjust the group count per category to account for visible sections
-    if !@current_user.account_admin?(@context)
-        sections = @context.sections_visible_to(user)
-        json['groups_count'] = group_category.groups.where(course_section_id: sections).length
-    end
-    json
   end
 
   # @API Get a single group
@@ -479,20 +457,9 @@ class GroupsController < ApplicationController
       end
     end
 
-    if params[:course_section_id]
-      course_section = CourseSection.active.find(params[:course_section_id])
-      return render :json => {}, :status => bad_request unless course_section
-      params[:course_section] = course_section
-    end
-
     attrs = api_request? ? params : params[:group]
     attrs.delete :storage_quota_mb unless @context.grants_right? @current_user, session, :manage_storage_quotas
     @group = @context.groups.temp_record(attrs.slice(*SETTABLE_GROUP_ATTRIBUTES))
-    unless params[:course_section_id]
-      user_sections = @context.respond_to?(:sections_visible_to) ? @context.sections_visible_to(@current_user).active : []
-      params[:course_section_id] = user_sections.present? ? user_sections.first.id : nil
-      @group.course_section_id = params[:course_section_id]
-    end
 
     if authorized_action(@group, @current_user, :create)
       respond_to do |format|
