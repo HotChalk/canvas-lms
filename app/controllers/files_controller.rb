@@ -388,6 +388,11 @@ class FilesController < ApplicationController
   # @API Get public inline preview url
   # Determine the URL that should be used for inline preview of the file.
   #
+  # @argument submission_id [Optional, Integer]
+  #   The id of the submission the file is associated with.  Provide this argument to gain access to a file
+  #   that has been submitted to an assignment (Canvas will verify that the file belongs to the submission
+  #   and the calling user has rights to view the submission).
+  #
   # @example_request
   #
   #   curl 'https://<canvas>/api/v1/files/1/public_url' \
@@ -404,7 +409,7 @@ class FilesController < ApplicationController
     # submission.
     @submission = Submission.find(params[:submission_id]) if params[:submission_id]
     # verify that the requested attachment belongs to the submission
-    return render_unauthorized_action if @submission && !@submission.attachments.where(:id => params[:id]).any?
+    return render_unauthorized_action if @submission && !@submission.includes_attachment?(@attachment)
     if @submission ? authorized_action(@submission, @current_user, :read) : authorized_action(@attachment, @current_user, :download)
       render :json  => { :public_url => @attachment.authenticated_s3_url(:secure => request.ssl?) }
     end
@@ -585,6 +590,9 @@ class FilesController < ApplicationController
     @attachment ||= Folder.find_attachment_in_context_with_path(@context, path)
 
     unless @attachment
+      # if the file doesn't exist, don't leak its existence (and the context's name) to an unauthenticated user
+      # (note that it is possible to have access to the file without :read on the context, e.g. with submissions)
+      return unless authorized_action(@context, @current_user, :read)
       return render 'shared/errors/file_not_found',
         status: :bad_request,
         formats: [:html]
@@ -748,6 +756,11 @@ class FilesController < ApplicationController
       if @context.respond_to?(:folders)
         if params[:attachment][:folder_id].present?
           @folder = @context.folders.active.where(id: params[:attachment][:folder_id]).first
+          return unless authorized_action(@folder, @current_user, :manage_contents)
+        end
+        if intent == 'submit' && context.respond_to?(:submissions_folder) &&
+            @asset && @asset.context.root_account.feature_enabled?(:submissions_folder)
+          @folder ||= @context.submissions_folder(@asset.context)
         end
         @folder ||= Folder.unfiled_folder(@context)
         @attachment.folder_id = @folder.id
@@ -830,7 +843,13 @@ class FilesController < ApplicationController
     json_params = { omit_verifier_in_app: true }
 
     if @attachment.context.is_a?(User) || @attachment.context.is_a?(Course)
-      json_params.merge!({ include: %w(enhanced_preview_url) })
+      json_params[:include] ||= []
+      json_params[:include] << 'enhanced_preview_url'
+    end
+
+    if @attachment.usage_rights_id.present?
+      json_params[:include] ||= []
+      json_params[:include] << 'usage_rights'
     end
 
     json = attachment_json(@attachment, @current_user, {}, json_params)
@@ -854,6 +873,7 @@ class FilesController < ApplicationController
   def create
     if (folder_id = params[:attachment].delete(:folder_id)) && folder_id.present?
       @folder = @context.folders.active.where(id: folder_id).first
+      return unless authorized_action(@folder, @current_user, :manage_contents)
     end
     @folder ||= Folder.unfiled_folder(@context)
     params[:attachment][:uploaded_data] ||= params[:attachment_uploaded_data]
@@ -888,7 +908,8 @@ class FilesController < ApplicationController
           end
         end
         if params[:attachment][:uploaded_data]
-          if Attachment.over_quota?(@context, params[:attachment][:uploaded_data].size)
+          if (@attachment.workflow_state_was != 'unattached' || params[:check_quota_after] != '0') &&
+              Attachment.over_quota?(@context, params[:attachment][:uploaded_data].size)
             @attachment.errors.add(:base, t('Upload failed, quota exceeded'))
           else
             success = @attachment.update_attributes(params[:attachment])
@@ -932,6 +953,7 @@ class FilesController < ApplicationController
   def update
     @attachment = @context.attachments.find(params[:id])
     @folder = @context.folders.active.find(params[:attachment][:folder_id]) rescue nil
+    return unless authorized_action(@folder, @current_user, :manage_contents) if @folder
     @folder ||= @attachment.folder
     @folder ||= Folder.unfiled_folder(@context)
     if authorized_action(@attachment, @current_user, :update)
@@ -1126,7 +1148,7 @@ class FilesController < ApplicationController
     if folder.name == 'profile pictures'
       json[:avatar] = avatar_json(@current_user, attachment, { :type => 'attachment' })
     end
-    Api.recursively_stringify_json_ids(json)
+    StringifyIds.recursively_stringify_ids(json)
 
     render :json => json, :as_text => true
   end

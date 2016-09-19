@@ -1,4 +1,4 @@
-define(['jsx/gradebook2/DataLoader', 'underscore'], (loadGradebookData, _) => {
+define(['jsx/gradebook2/DataLoader', 'underscore'], (DataLoader, _) => {
   module("Gradebook Data Loader", (hooks) => {
     let savedTrackEvent;
     let fakeXhr;
@@ -44,18 +44,18 @@ define(['jsx/gradebook2/DataLoader', 'underscore'], (loadGradebookData, _) => {
         assignmentGroupsParams: {ag_params: "ok"},
         customColumnsURL: "/customcols",
         studentsURL: "/students",
-        studentsPageCb: () => { console.log("students!"); },
+        studentsPageCb: () => {},
         studentsParams: {student_params: "whatever"},
         submissionsURL: "/submissions",
         submissionsParams: {submission_params: "blahblahblah"},
-        submissionsChunkCb: () => { console.log("submissions!") },
+        submissionsChunkCb: () => {},
         submissionsChunkSize: 2,
         customColumnDataURL: "/customcols/:id/data",
         customColumnDataParams: {custom_column_data_params: "..."},
-        customColumnDataPageCb: () => { console.log("custom column data!") },
+        customColumnDataPageCb: () => {},
       }
 
-      return loadGradebookData({...defaults, ...opts});
+      return DataLoader.loadGradebookData({...defaults, ...opts});
     }
 
     const respondToXhr = (url, status, headers, response) => {

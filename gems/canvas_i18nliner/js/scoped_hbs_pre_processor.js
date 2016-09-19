@@ -1,5 +1,5 @@
-var I18nlinerHbs = require("i18nliner-handlebars")["default"];
-var PreProcessor = require("i18nliner-handlebars/dist/lib/pre_processor")["default"];
+var I18nlinerHbs = require("i18nliner-handlebars");
+var PreProcessor = require("i18nliner-handlebars/dist/lib/pre_processor");
 var Handlebars = require("handlebars");
 var AST = Handlebars.AST;
 var StringNode = AST.StringNode;
@@ -23,6 +23,7 @@ PreProcessor.processStatement = function(statement) {
 }
 
 PreProcessor.injectScope = function(node) {
+  var pairs;
   if (!node.hash)
     node.hash = node.sexpr.hash = new HashNode([]);
   pairs = node.hash.pairs;

@@ -78,11 +78,26 @@ module LoginAndSessionMethods
     end
     get "/login"
     expect_new_page_load { fill_in_login_form(username, password) }
-    expect(f('#identity .logout')).to be_present
+    expect_logout_link_present
   end
 
   def masquerade_as(user)
     get "/users/#{user.id}/masquerade"
     f('.masquerade_button').click
+  end
+
+  def displayed_username
+    f('[aria-label="Main Navigation"] a[href="/profile"]').click
+    f('#global_nav_profile_display_name').text
+  end
+
+
+  def expect_logout_link_present
+    logout_element = begin
+      f('[aria-label="Main Navigation"] a[href="/profile"]').click
+      fj('form[action="/logout"] button:contains("Logout")')
+    end
+    expect(logout_element).to be_present
+    logout_element
   end
 end

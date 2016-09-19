@@ -207,7 +207,10 @@ module Api
 
   def self.relation_for_sis_mapping(relation, sis_mapping, ids, sis_root_account, current_user = nil)
     relation_for_sis_mapping_and_columns(relation,
-                                         sis_parse_ids(ids, sis_mapping[:lookups], current_user),
+                                         sis_parse_ids(ids,
+                                                       sis_mapping[:lookups],
+                                                       current_user,
+                                                       root_account: sis_root_account),
                                          sis_mapping,
                                          sis_root_account)
   end
@@ -288,10 +291,12 @@ module Api
 
   # Returns collection as the first return value, and the meta information hash
   # as the second return value
-  def self.jsonapi_paginate(collection, controller, base_url, pagination_args={})
+  def self.jsonapi_paginate(collection, controller, base_url, pagination_args = {})
     collection = paginate_collection!(collection, controller, pagination_args)
     meta = jsonapi_meta(collection, controller, base_url)
-
+    hash = build_links_hash(base_url, meta_for_pagination(controller, collection))
+    links = build_links_from_hash(hash)
+    controller.response.headers["Link"] = links.join(',') if links.length > 0
     return collection, meta
   end
 
@@ -466,46 +471,20 @@ module Api
 
     rewriter = UserContent::HtmlRewriter.new(context, user)
     rewriter.set_handler('files') do |match|
-      if match.obj_id
-        obj   = preloaded_attachments[match.obj_id]
-        obj ||= if context.is_a?(User) || context.nil?
-                  Attachment.where(id: match.obj_id).first
-                else
-                  context.attachments.find_by_id(match.obj_id)
-                end
-      end
-
-      unless obj && !obj.deleted? && ((is_public && !obj.locked_for?(user)) || user_can_download_attachment?(obj, context, user))
-        if obj && obj.previewable_media? && (uri = URI.parse(match.url) rescue nil)
-          uri.query = (uri.query.to_s.split("&") + ["no_preview=1"]).join("&")
-          next uri.to_s
-        else
-          next
-        end
-      end
-
-      if ["Course", "Group", "Account", "User"].include?(obj.context_type)
-        opts = {:only_path => true}
-        opts.merge!(:verifier => obj.uuid) unless respond_to?(:in_app?, true) && in_app? && !is_public
-        if match.rest.start_with?("/preview")
-          url = self.send("#{obj.context_type.downcase}_file_preview_url", obj.context_id, obj.id, opts)
-        else
-          opts[:download] = '1'
-          opts[:wrap] = '1' if match.rest.include?('wrap=1')
-          url = self.send("#{obj.context_type.downcase}_file_download_url", obj.context_id, obj.id, opts)
-        end
-      else
-        opts = {:download => '1', :only_path => true}
-        opts.merge!(:verifier => obj.uuid) unless respond_to?(:in_app?, true) && in_app? && !is_public
-        url = file_download_url(obj.id, opts)
-      end
-      url
+      UserContent::FilesHandler.new(
+        match: match,
+        context: context,
+        user: user,
+        preloaded_attachments: preloaded_attachments,
+        is_public: is_public,
+        in_app: (respond_to?(:in_app?, true) && in_app?)
+      ).processed_url
     end
     html = rewriter.translate_content(html)
 
     url_helper = Html::UrlProxy.new(self, context, host, protocol)
     account = Context.get_account(context) || @domain_root_account
-    include_mobile = respond_to?(:mobile_device?, true) && mobile_device?
+    include_mobile = !(respond_to?(:in_app?, true) && in_app?)
     Html::Content.rewrite_outgoing(html, account, url_helper, include_mobile: include_mobile)
   end
 
@@ -572,38 +551,6 @@ module Api
     end
     return nil unless api_type
     @inverse_map[api_type.downcase]
-  end
-
-  def self.recursively_stringify_json_ids(value, opts = {})
-    case value
-    when Hash
-      stringify_json_ids(value, opts)
-      value.each_value { |v| recursively_stringify_json_ids(v, opts) if v.is_a?(Hash) || v.is_a?(Array) }
-    when Array
-      value.each { |v| recursively_stringify_json_ids(v, opts) if v.is_a?(Hash) || v.is_a?(Array) }
-    end
-    value
-  end
-
-  def self.stringify_json_ids(value, opts = {})
-    return unless value.is_a?(Hash)
-    value.keys.each do |key|
-      if key =~ /(^|_)id$/
-        # id, foo_id, etc.
-        value[key] = stringify_json_id(value[key], opts)
-      elsif key =~ /(^|_)ids$/ && value[key].is_a?(Array)
-        # ids, foo_ids, etc.
-        value[key].map!{ |id| stringify_json_id(id, opts) }
-      end
-    end
-  end
-
-  def self.stringify_json_id(id, opts = {})
-    if opts[:reverse]
-      id.is_a?(String) ? id.to_i : id
-    else
-      id.is_a?(Integer) ? id.to_s : id
-    end
   end
 
   def accepts_jsonapi?

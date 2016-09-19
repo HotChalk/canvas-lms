@@ -16,7 +16,7 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
+require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper')
 
 describe CommunicationChannelsController do
   before :once do
@@ -635,6 +635,16 @@ describe CommunicationChannelsController do
         expect(@cc).to be_active
       end
 
+      it "should reject pseudonym unique_id changes when creating a new user" do
+        @user.accept_terms
+        @user.update_attribute(:workflow_state, 'creation_pending')
+        @cc = @user.communication_channels.create!(:path => 'jt@instructure.com')
+
+        post 'confirm', :nonce => @cc.confirmation_code, :enrollment => @enrollment.uuid, :register => 1, :pseudonym => {:unique_id => "haxxor@example.com", :password => 'asdfasdf', :password_confirmation => 'asdfasdf'}
+
+        expect(@user.reload.pseudonyms.first.unique_id).to eq "jt@instructure.com"
+      end
+
       it "should accept an invitation when merging with the current user" do
         @user.update_attribute(:workflow_state, 'creation_pending')
         @old_cc = @user.communication_channels.create!(:path => 'jt@instructure.com')
@@ -1173,6 +1183,23 @@ describe CommunicationChannelsController do
     expect(assigns[:user]).to eql(@user)
     expect(assigns[:enrollment]).to eql(@enrollment)
     expect(assigns[:enrollment].messages_sent).not_to be_nil
+  end
+
+  context "cross-shard user" do
+    specs_require_sharding
+    it "should re-send enrollment invitation for a cross-shard user" do
+      course(:active_all => true)
+      enrollment = nil
+      @shard1.activate do
+        user_with_pseudonym :active_cc => true
+        enrollment = @course.enroll_student(@user)
+      end
+      Notification.create(:name => 'Enrollment Invitation')
+      post 're_send_confirmation', :user_id => enrollment.user_id, :enrollment_id => enrollment.id
+      expect(response).to be_success
+      expect(assigns[:enrollment]).to eql(enrollment)
+      expect(assigns[:enrollment].messages_sent).not_to be_nil
+    end
   end
 
   it "should uncache user's cc's when retiring a CC" do

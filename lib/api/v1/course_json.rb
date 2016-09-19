@@ -2,12 +2,12 @@ module Api::V1
   class CourseJson
 
     BASE_ATTRIBUTES = %w(id name course_code account_id start_at default_view enrollment_term_id is_public
-                         grading_standard_id)
+                         grading_standard_id root_account_id).freeze
 
-    INCLUDE_CHECKERS = { :grading => 'needs_grading_count', :syllabus => 'syllabus_body',
-                         :url => 'html_url', :description => 'public_description', :permissions => "permissions", :state_by_date => "state_by_date" }
+    INCLUDE_CHECKERS = {grading: 'needs_grading_count', syllabus: 'syllabus_body',
+                        url: 'html_url', description: 'public_description', permissions: 'permissions', state_by_date: 'state_by_date'}.freeze
 
-    OPTIONAL_FIELDS = %w(needs_grading_count public_description enrollments)
+    OPTIONAL_FIELDS = %w(needs_grading_count public_description enrollments).freeze
 
     attr_reader :course, :user, :includes, :enrollments, :hash
 
@@ -28,7 +28,7 @@ module Api::V1
     end
 
     def methods_to_send
-      methods = ['end_at', 'public_syllabus', 'storage_quota_mb', 'is_public_to_auth_users']
+      methods = ['end_at', 'public_syllabus', 'public_syllabus_to_auth', 'storage_quota_mb', 'is_public_to_auth_users']
       methods << 'hide_final_grades' if @includes.include?(:hide_final_grades)
       methods << 'storage_quota_used_mb' if @includes.include?(:storage_quota_used_mb)
       methods
@@ -44,6 +44,9 @@ module Api::V1
       @hash['workflow_state'] = @course.api_state
       @hash['course_format'] = @course.course_format if @course.course_format.present?
       @hash['restrict_enrollments_to_course_dates'] = !!@course.restrict_enrollments_to_course_dates
+      if @includes.include?(:current_grading_period_scores)
+        @hash['multiple_grading_periods_enabled'] = @course.feature_enabled?(:multiple_grading_periods)
+      end
       clear_unneeded_fields(@hash)
     end
 

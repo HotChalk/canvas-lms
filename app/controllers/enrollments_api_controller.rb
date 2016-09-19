@@ -88,8 +88,18 @@
 #             "example": "SHEL93921",
 #             "type": "string"
 #           },
+#           "sis_account_id": {
+#             "description": "The SIS Account ID in which the enrollment is associated. Only displayed if present. This field is only included if the user has permission to view SIS information.",
+#             "example": "SHEL93921",
+#             "type": "string"
+#           },
 #           "sis_section_id": {
 #             "description": "The SIS Section ID in which the enrollment is associated. Only displayed if present. This field is only included if the user has permission to view SIS information.",
+#             "example": "SHEL93921",
+#             "type": "string"
+#           },
+#           "sis_user_id": {
+#             "description": "The SIS User ID in which the enrollment is associated. Only displayed if present. This field is only included if the user has permission to view SIS information.",
 #             "example": "SHEL93921",
 #             "type": "string"
 #           },
@@ -242,8 +252,8 @@ class EnrollmentsApiController < ApplicationController
     :inactive_role                     => 'Cannot create an enrollment with this role because it is inactive.',
     :base_type_mismatch                => 'The specified type must match the base type for the role',
     :concluded_course                  => 'Can\'t add an enrollment to a concluded course.',
-    :multiple_grading_periods_disabled => 'Multiple Grading Periods feature is disabled. Cannot filter by grading_period_id with this feature disabled'
-
+    :multiple_grading_periods_disabled => 'Multiple Grading Periods feature is disabled. Cannot filter by grading_period_id with this feature disabled',
+    :insufficient_sis_permissions      => 'Insufficient permissions to filter by SIS fields'
   }
 
   include Api::V1::User
@@ -291,6 +301,22 @@ class EnrollmentsApiController < ApplicationController
   #   Return grades for the given grading_period.  If this parameter is not
   #   specified, the returned grades will be for the whole course.
   #
+  # @argument sis_account_id[] [String]
+  #   Returns only enrollments for the specified SIS account ID(s). Does not
+  #   look into subaccounts. May pass in array or string.
+  #
+  # @argument sis_course_id[] [String]
+  #   Returns only enrollments matching the specified SIS course ID(s).
+  #   May pass in array or string.
+  #
+  # @argument sis_section_id[] [String]
+  #   Returns only section enrollments matching the specified SIS section ID(s).
+  #   May pass in array or string.
+  #
+  # @argument sis_user_id[] [String]
+  #   Returns only enrollments for the specified SIS user ID(s). May pass in
+  #   array or string.
+  #
   # @returns [Enrollment]
   def index
     endpoint_scope = (@context.is_a?(Course) ? (@section.present? ? "section" : "course") : "user")
@@ -305,6 +331,34 @@ class EnrollmentsApiController < ApplicationController
     has_courses = enrollments.where_values.any? { |cond| cond.is_a?(String) && cond =~ /courses\./ }
     enrollments = enrollments.joins(:course) if has_courses
     enrollments = enrollments.shard(@shard_scope) if @shard_scope
+
+    sis_context = @context.is_a?(Course) ? @context : @domain_root_account
+    unless check_sis_permissions(sis_context)
+      render_create_errors([@@errors[:insufficient_sis_permissions]])
+      return false
+    end
+
+    if params[:sis_user_id].present?
+      pseudonyms = @domain_root_account.pseudonyms.where(sis_user_id: params[:sis_user_id])
+      enrollments = enrollments.where(user_id: pseudonyms.pluck(:user_id))
+    end
+
+    if params[:sis_section_id].present?
+      sections = @domain_root_account.course_sections.where(sis_source_id: params[:sis_section_id])
+      enrollments = enrollments.where(course_section_id: sections.pluck(:id))
+    end
+
+    if params[:sis_account_id].present?
+      accounts = @domain_root_account.all_accounts.where(sis_source_id: params[:sis_account_id])
+      courses = @domain_root_account.all_courses.where(account_id: accounts.pluck(:id))
+      enrollments = enrollments.where(course_id: courses.pluck(:id))
+    end
+
+    if params[:sis_course_id].present?
+      courses = @domain_root_account.all_courses.where(sis_source_id: params[:sis_course_id])
+      enrollments = enrollments.where(course_id: courses.pluck(:id))
+    end
+
     if params[:grading_period_id].present?
       if @context.is_a? User
         unless @context.account.feature_enabled?(:multiple_grading_periods)
@@ -313,7 +367,7 @@ class EnrollmentsApiController < ApplicationController
         end
 
         grading_period = @context.courses.lazy.map do |course|
-          GradingPeriod.context_find(course, params[:grading_period_id])
+          GradingPeriod.for(course).find_by(id: params[:grading_period_id])
         end.detect(&:present?)
       else
         unless multiple_grading_periods?
@@ -321,7 +375,7 @@ class EnrollmentsApiController < ApplicationController
           return false
         end
 
-        grading_period = GradingPeriod.context_find(@context, params[:grading_period_id])
+        grading_period = GradingPeriod.for(@context).find_by(id: params[:grading_period_id])
       end
 
       unless grading_period
@@ -414,6 +468,13 @@ class EnrollmentsApiController < ApplicationController
   # @argument enrollment[self_enrolled] [Boolean]
   #   If true, marks the enrollment as a self-enrollment, which gives
   #   students the ability to drop the course if desired. Defaults to false.
+  #
+  # @argument enrollment[associated_user_id] [Integer]
+  #   For an observer enrollment, the ID of a student to observe. The
+  #   caller must have +manage_students+ permission in the course.
+  #   This is a one-off operation; to automatically observe all a
+  #   student's enrollments (for example, as a parent), please use
+  #   the {api:UserObserveesController#create User Observees API}.
   #
   # @example_request
   #   curl https://<canvas>/api/v1/courses/:course_id/enrollments \
@@ -528,46 +589,9 @@ class EnrollmentsApiController < ApplicationController
     end
   end
 
-  # @API Enrollment invitation
-  # Accept or reject enrollment invitation. Only the enrolled user can accept or reject its invitation.
-  #
-  # @argument task [String, "accept"|"reject"]
-  #   Accept or reject the invitation
-  #
-  # @example_request
-  #   curl https://<canvas>/api/v1/courses/:course_id/enrollments/:enrollment_id/invitation \
-  #     -X PUT \
-  #     -F 'task=accept'
-  #
-  # @returns Enrollment
-  def enrollment_invitation
-    errors = []
-    @enrollment = @context.enrollments.find(params[:id])
-
-    if params[:task].present? && ['accept','reject'].include?(params[:task])
-      if @current_user && @enrollment.user == @current_user
-        if @enrollment.invited?
-          if params[:task] == 'accept'
-            @enrollment.accept!
-          else
-            @enrollment.reject!
-          end
-        else
-          errors << "enrollment not in invited state. Cannot be accepted or rejected"
-        end
-      else
-        errors << "only the enrolled user can accept or reject the invitation"
-      end
-    else
-      return render(json: {message: "task=[accept|reject] parameter missing"}, status: :bad_request)
-    end
-
-    return render_create_errors(errors) if errors.present?
-    render :json => enrollment_json(@enrollment, @current_user, session)
-  end
-
-  # @API Conclude or deactivate an enrollment
-  # Delete, conclude or deactivate an enrollment.
+  # @API Conclude, deactivate, or delete an enrollment
+  # Conclude, deactivate, or delete an enrollment. If the +task+ argument isn't given, the enrollment
+  # will be concluded.
   #
   # @argument task [String, "conclude"|"delete"|"inactivate"|"deactivate"]
   #   The action to take on the enrollment.
@@ -756,6 +780,17 @@ class EnrollmentsApiController < ApplicationController
     end
 
     [ clauses.join(' AND '), replacements ]
+  end
+
+  def check_sis_permissions(sis_context)
+    sis_filters = %w(sis_account_id sis_course_id sis_section_id sis_user_id)
+    if (params.keys & sis_filters).present?
+      unless sis_context.grants_any_right?(@current_user, :read_sis, :manage_sis)
+        return false
+      end
+    end
+
+    true
   end
 
   def render_create_errors(errors)

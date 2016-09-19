@@ -495,30 +495,6 @@ class DiscussionTopic < ActiveRecord::Base
   alias_attribute :unlock_at, :delayed_post_at
   alias_attribute :available_until, :lock_at
 
-  def self.visible_ids_by_user(opts)
-    # pluck id, assignment_id, and user_id from discussions joined with the SQL view
-    plucked_visibilities = pluck_discussion_visibilities(opts).group_by{|r| r["user_id"]}
-    # discussions without an assignment are visible to all, so add them into every students hash at the end
-    ids_of_discussions_visible_to_all = self.without_assignment_in_course(opts[:course_id]).pluck(:id)
-    # format to be hash of user_id's with array of discussion_ids: {1 => [2,3,4], 2 => [2,4]}
-    opts[:user_id].reduce({}) do |vis_hash, student_id|
-      vis_hash[student_id] = begin
-        ids_from_pluck = (plucked_visibilities[student_id.to_s] || []).map{|r| r["id"]}
-        ids_from_pluck.concat(ids_of_discussions_visible_to_all).map(&:to_i)
-      end
-      vis_hash
-    end
-  end
-
-  def self.pluck_discussion_visibilities(opts)
-    # once on Rails 4 change this to a multi-column pluck
-    # and clean up reformatting in visible_ids_by_user
-    connection.select_all(
-      self.joins_assignment_student_visibilities(opts[:user_id],opts[:course_id]).
-        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_student_visibilities.user_id"])
-    )
-  end
-
   def should_lock_yet
     # not assignment or vdd aware! only use this to check the topic's own field!
     # you should be checking other lock statuses in addition to this one
@@ -663,8 +639,6 @@ class DiscussionTopic < ActiveRecord::Base
       false
     elsif self.root_topic_id && self.has_group_category?
       false
-    elsif self.assignment && self.assignment.submission_types == 'discussion_topic' && (!self.assignment.due_at || self.assignment.due_at > 1.week.from_now) # TODO: vdd
-      false
     else
       true
     end
@@ -787,7 +761,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   set_policy do
-    given { |user| self.user && self.user == user }
+    given { |user| self.visible_for?(user) }
     can :read
 
     given { |user| self.grants_right?(user, :read) }
@@ -802,15 +776,9 @@ class DiscussionTopic < ActiveRecord::Base
     given { |user| self.user && self.user == user and self.discussion_entries.active.empty? && self.available_for?(user) && !self.root_topic_id && context.user_can_manage_own_discussion_posts?(user) && context.grants_right?(user, :participate_as_student) }
     can :delete
 
-    given { |user, session| self.active? && self.context.grants_right?(user, session, :read_forum) }
-    can :read
-
     given { |user, session| !self.locked_for?(user, :check_policies => true) &&
         self.context.grants_right?(user, session, :post_to_forum) && self.visible_for?(user)}
     can :reply and can :read
-
-    given { |user, session| self.context.grants_any_right?(user, session, :read_forum, :post_to_forum) && self.visible_for?(user)}
-    can :read
 
     given { |user, session|
       !is_announcement &&
@@ -967,7 +935,7 @@ class DiscussionTopic < ActiveRecord::Base
 
   def active_participants_with_visibility
     return active_participants if !self.for_assignment?
-    users_with_visibility = AssignmentStudentVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id)
+    users_with_visibility = self.assignment.students_with_visibility.pluck(:id)
 
     admin_ids = course.participating_admins.pluck(:id)
     users_with_visibility.concat(admin_ids)
@@ -992,7 +960,7 @@ class DiscussionTopic < ActiveRecord::Base
     subscribed_users = participating_users(sub_ids).to_a
 
     if self.for_assignment?
-      students_with_visibility = AssignmentStudentVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id)
+      students_with_visibility = self.assignment.students_with_visibility.pluck(:id)
 
       admin_ids = course.participating_admins.pluck(:id)
       observer_ids = course.participating_observers.pluck(:id)
@@ -1039,33 +1007,28 @@ class DiscussionTopic < ActiveRecord::Base
   def visible_for?(user = nil)
     RequestCache.cache('discussion_visible_for', self, user) do
       # user is the topic's author
-      return true if user == self.user
+      next true if user && user == self.user
 
-      return false if user && !(is_announcement ? context.grants_right?(user, :read_announcements) : context.grants_right?(user, :read_forum))
+      next false unless (is_announcement ? context.grants_right?(user, :read_announcements) : context.grants_right?(user, :read_forum))
 
       # user is an admin in the context (teacher/ta/designer) OR
       # user is an account admin with appropriate permission
-      return true if context.grants_any_right?(user, :manage, :read_course_content)
+      next true if context.grants_any_right?(user, :manage, :read_course_content)
 
       # assignment exists and isnt assigned to user (differentiated assignments)
       if for_assignment? && !self.assignment.visible_to_user?(user)
-        return false
-      end
-
-      # locked by context module
-      if self.could_be_locked && locked_by_module_item?(user, true)
-        return false
+        next false
       end
 
       # topic is not published
       if !published?
-        false
+        next false
       elsif is_announcement && unlock_at = available_from_for(user)
       # unlock date exists and has passed
-        unlock_at < Time.now.utc
+        next unlock_at < Time.now.utc
       # everything else
       else
-        true
+        next true
       end
     end
   end
@@ -1076,7 +1039,6 @@ class DiscussionTopic < ActiveRecord::Base
   def locked_for?(user, opts={})
     return false if user == self.user
     return false if opts[:check_policies] && self.grants_right?(user, :update)
-    return {:asset_string => self.asset_string} if self.locked?
 
     Rails.cache.fetch(locked_cache_key(user), :expires_in => 1.minute) do
       locked = false
@@ -1088,6 +1050,8 @@ class DiscussionTopic < ActiveRecord::Base
         locked = l
       elsif self.could_be_locked && item = locked_by_module_item?(user, opts[:deep_check_if_needed])
         locked = {:asset_string => self.asset_string, :context_module => item.context_module.attributes}
+      elsif self.locked? # nothing more specific, it's just locked
+        locked = {:asset_string => self.asset_string, :can_view => true}
       elsif (self.root_topic && l = self.root_topic.locked_for?(user, opts))
         locked = l
       end

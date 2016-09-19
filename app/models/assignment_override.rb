@@ -122,9 +122,15 @@ class AssignmentOverride < ActiveRecord::Base
   scope :active, -> { where(:workflow_state => 'active') }
 
   scope :visible_students_only, -> (visible_ids) do
-    select("assignment_overrides.*").
-    joins(:assignment_override_students).
-    where(
+    scope = select("assignment_overrides.*").
+      joins(:assignment_override_students).
+      distinct
+
+    if CANVAS_RAILS4_0 && ActiveRecord::Relation === visible_ids
+      return scope.where("assignment_override_students.user_id IN (#{visible_ids.except(:select).select("users.id").to_sql})")
+    end
+
+    scope.where(
       assignment_override_students: { user_id: visible_ids },
     )
   end
@@ -192,9 +198,20 @@ class AssignmentOverride < ActiveRecord::Base
   end
 
   def visible_student_overrides(visible_student_ids)
-    assignment_override_students.any? do |aos|
-      visible_student_ids.include?(aos.user_id)
-    end
+    assignment_override_students.where(user_id: visible_student_ids).exists?
+  end
+
+  def self.visible_users_for(overrides, user=nil)
+    return [] if overrides.empty? || user.nil?
+    override = overrides.first
+    override.visible_users_for(user)
+  end
+
+  def visible_users_for(user)
+    assignment_or_quiz = self.assignment || self.quiz
+    UserSearch.scope_for(assignment_or_quiz.context, user, {
+      force_users_visible_to: true
+    })
   end
 
   override :due_at
@@ -216,6 +233,12 @@ class AssignmentOverride < ActiveRecord::Base
 
   def lock_at=(new_lock_at)
     write_attribute(:lock_at, CanvasTime.fancy_midnight(new_lock_at))
+  end
+
+  def availability_expired?
+    lock_at_overridden &&
+      lock_at.present? &&
+      lock_at <= Time.zone.now
   end
 
   def as_hash

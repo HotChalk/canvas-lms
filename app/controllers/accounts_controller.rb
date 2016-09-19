@@ -176,7 +176,6 @@ class AccountsController < ApplicationController
         end
         return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
         js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
-
         load_course_right_side
         @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses,
                                              :states => @states, :item_type => @item_type, :date_type => @date_type,
@@ -196,7 +195,8 @@ class AccountsController < ApplicationController
   end
 
   def course_user_search
-    can_read_course_list = @account.grants_right?(@current_user, session, :read_course_list)
+    return unless authorized_action(@account, @current_user, :read)
+    can_read_course_list = !@account.site_admin? && @account.grants_right?(@current_user, session, :read_course_list)
     can_read_roster = @account.grants_right?(@current_user, session, :read_roster)
     can_manage_account = @account.grants_right?(@current_user, session, :manage_account_settings)
 
@@ -221,7 +221,8 @@ class AccountsController < ApplicationController
         priority_zones: localized_timezones(I18nTimeZone.us_zones),
         timezones: localized_timezones(I18nTimeZone.all)
       },
-      ALL_ROLES: Role.account_role_data(@account, @current_user),
+      BASE_PATH: request.env['PATH_INFO'].sub(/\/search.*/, '') + '/search',
+      COURSE_ROLES: Role.course_role_data_for_account(@account, @current_user),
       URLS: {
         USER_LISTS_URL: course_user_lists_url("{{ id }}"),
         ENROLL_USERS_URL: course_enroll_users_url("{{ id }}", :format => :json)
@@ -401,7 +402,7 @@ class AccountsController < ApplicationController
 
     if includes.include?("total_students")
       student_counts = StudentEnrollment.where("enrollments.workflow_state NOT IN ('rejected', 'completed', 'deleted', 'inactive')").
-        where(:course_id => @courses).group(:course_id).count(:user_id, :distinct => true)
+        where(:course_id => @courses).group(:course_id).distinct.count(:user_id)
       @courses.each {|c| c.student_count = student_counts[c.id] || 0 }
     end
 
@@ -415,9 +416,12 @@ class AccountsController < ApplicationController
       unauthorized = false
 
       # account settings (:manage_account_settings)
-      account_settings = account_params.select {|k, v| [:name, :default_time_zone].include?(k.to_sym)}.with_indifferent_access
+      account_settings = account_params.select {|k, v| [:name, :default_time_zone, :settings].include?(k.to_sym)}.with_indifferent_access
       unless account_settings.empty?
         if @account.grants_right?(@current_user, session, :manage_account_settings)
+          if account_settings[:settings]
+            account_settings[:settings].slice!(:restrict_student_past_view, :restrict_student_future_view, :restrict_student_future_listing)
+          end
           @account.errors.add(:name, t(:account_name_required, 'The account name cannot be blank')) if account_params.has_key?(:name) && account_params[:name].blank?
           @account.errors.add(:default_time_zone, t(:unrecognized_time_zone, "'%{timezone}' is not a recognized time zone", :timezone => account_params[:default_time_zone])) if account_params.has_key?(:default_time_zone) && ActiveSupport::TimeZone.new(account_params[:default_time_zone]).nil?
         else
@@ -486,11 +490,23 @@ class AccountsController < ApplicationController
   # @argument account[default_group_storage_quota_mb] [Integer]
   #   The default group storage quota to be used, if not otherwise specified.
   #
-  # @argument account[settings][restrict_student_past_view] [Boolean]
+  # @argument account[settings][restrict_student_past_view][value] [Boolean]
   #   Restrict students from viewing courses after end date
   #
-  # @argument account[settings][restrict_student_future_view] [Boolean]
+  # @argument account[settings][restrict_student_past_view][locked] [Boolean]
+  #   Lock this setting for sub-accounts and courses
+  #
+  # @argument account[settings][restrict_student_future_view][value] [Boolean]
   #   Restrict students from viewing courses before start date
+  #
+  # @argument account[settings][restrict_student_future_view][locked] [Boolean]
+  #   Lock this setting for sub-accounts and courses
+  #
+  # @argument account[settings][restrict_student_future_listing][value] [Boolean]
+  #   Restrict students from viewing future enrollments in course list
+  #
+  # @argument account[settings][restrict_student_future_listing][locked] [Boolean]
+  #   Lock this setting for sub-accounts and courses
   #
   # @example_request
   #   curl https://<canvas>/api/v1/accounts/<account_id> \
@@ -509,12 +525,14 @@ class AccountsController < ApplicationController
 
         custom_help_links = params[:account].delete :custom_help_links
         if custom_help_links
-          @account.settings[:custom_help_links] = custom_help_links.select{|k, h| h['state'] != 'deleted'}.sort.map do |index_with_hash|
+          sorted_help_links = custom_help_links.select{|_k, h| h['state'] != 'deleted' && h['state'] != 'new'}.sort
+          @account.settings[:custom_help_links] = sorted_help_links.map do |index_with_hash|
             hash = index_with_hash[1]
             hash.delete('state')
-            hash.assert_valid_keys ["text", "subtext", "url", "available_to"]
+            hash.assert_valid_keys ["text", "subtext", "url", "available_to", "type"]
             hash
           end
+          @account.settings[:new_custom_help_links] = true
         end
 
         params[:account][:turnitin_host] = validated_turnitin_host(params[:account][:turnitin_host])
@@ -670,6 +688,8 @@ class AccountsController < ApplicationController
       @external_integration_keys = ExternalIntegrationKey.indexed_keys_for(@account)
 
       js_env({
+        CUSTOM_HELP_LINKS: @domain_root_account && @domain_root_account.help_links || [],
+        DEFAULT_HELP_LINKS: Canvas::Help.default_links,
         APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
         LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
         CONTEXT_BASE_URL: "/accounts/#{@context.id}",
@@ -924,7 +944,7 @@ class AccountsController < ApplicationController
 
   def build_course_stats
     teachers = TeacherEnrollment.for_courses_with_user_name(@courses).admin.of_base_teacher_type.active
-    course_to_student_counts = StudentEnrollment.student_in_claimed_or_available.where(:course_id => @courses).group(:course_id).count(:user_id, :distinct => true)
+    course_to_student_counts = StudentEnrollment.student_in_claimed_or_available.where(:course_id => @courses).group(:course_id).distinct.count(:user_id)
     courses_to_teachers = teachers.inject({}) do |result, teacher|
       result[teacher.course_id] ||= []
       result[teacher.course_id] << teacher

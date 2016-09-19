@@ -311,6 +311,7 @@ describe UsersController, type: :request do
   it "should format graded Submission with comments" do
     #set @domain_root_account
     @domain_root_account = Account.default
+    @domain_root_account.update_attributes(:default_time_zone => 'America/Denver')
 
     @assignment = @course.assignments.create!(:title => 'assignment 1', :description => 'hai', :points_possible => '14.2', :submission_types => 'online_text_entry')
     @teacher = User.create!(:name => 'teacher')
@@ -389,6 +390,7 @@ describe UsersController, type: :request do
         'name' => @course.name,
         'end_at' => @course.end_at,
         'account_id' => @course.account_id,
+        'root_account_id' => @course.root_account_id,
         'enrollment_term_id' => @course.enrollment_term_id,
         'start_at' => @course.start_at.as_json,
         'grading_standard_id'=>nil,
@@ -400,11 +402,13 @@ describe UsersController, type: :request do
         'default_view' => 'feed',
         'workflow_state' => 'available',
         'public_syllabus' => false,
+        'public_syllabus_to_auth' => false,
         'is_public' => @course.is_public,
         'is_public_to_auth_users' => @course.is_public_to_auth_users,
         'storage_quota_mb' => @course.storage_quota_mb,
         'apply_assignment_group_weights' => false,
-        'restrict_enrollments_to_course_dates' => false
+        'restrict_enrollments_to_course_dates' => false,
+        'time_zone' => 'America/Denver'
       },
 
       'user' => {
@@ -419,6 +423,7 @@ describe UsersController, type: :request do
   it "should format ungraded Submission with comments" do
     #set @domain_root_account
     @domain_root_account = Account.default
+    @domain_root_account.update_attributes(:default_time_zone => 'America/Denver')
 
     @assignment = @course.assignments.create!(:title => 'assignment 1', :description => 'hai', :points_possible => '14.2', :submission_types => 'online_text_entry')
     @teacher = User.create!(:name => 'teacher')
@@ -497,6 +502,7 @@ describe UsersController, type: :request do
         'name' => @course.name,
         'end_at' => @course.end_at,
         'account_id' => @course.account_id,
+        'root_account_id' => @course.root_account_id,
         'enrollment_term_id' => @course.enrollment_term_id,
         'start_at' => @course.start_at.as_json,
         'grading_standard_id'=>nil,
@@ -508,11 +514,13 @@ describe UsersController, type: :request do
         'default_view' => 'feed',
         'workflow_state' => 'available',
         'public_syllabus' => false,
+        'public_syllabus_to_auth' => false,
         'is_public' => @course.is_public,
         'is_public_to_auth_users' => @course.is_public_to_auth_users,
         'storage_quota_mb' => @course.storage_quota_mb,
         'apply_assignment_group_weights' => false,
-        'restrict_enrollments_to_course_dates' => false
+        'restrict_enrollments_to_course_dates' => false,
+        'time_zone' => 'America/Denver'
       },
 
       'user' => {

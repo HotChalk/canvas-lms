@@ -41,10 +41,13 @@ describe Login::SamlController do
            is_valid?: true,
            success_status?: true,
            name_id: unique_id,
+           name_identifier_format: nil,
            name_qualifier: nil,
+           sp_name_qualifier: nil,
            session_index: nil,
            process: nil,
-           issuer: "saml_entity"
+           issuer: "saml_entity",
+           saml_attributes: {},
           )
     )
 
@@ -81,10 +84,13 @@ describe Login::SamlController do
              is_valid?: true,
              success_status?: true,
              name_id: unique_id,
+             name_identifier_format: nil,
              name_qualifier: nil,
+             sp_name_qualifier: nil,
              session_index: nil,
              process: nil,
-             issuer: "such a lie"
+             issuer: "such a lie",
+             saml_attributes: {}
         )
     )
 
@@ -105,10 +111,13 @@ describe Login::SamlController do
            is_valid?: true,
            success_status?: true,
            name_id: unique_id,
+           name_identifier_format: nil,
            name_qualifier: nil,
+           sp_name_qualifier: nil,
            session_index: nil,
            process: nil,
-           issuer: "saml_entity"
+           issuer: "saml_entity",
+           saml_attributes: {}
           )
     )
 
@@ -146,16 +155,21 @@ describe Login::SamlController do
     account = account_with_saml
     ap = account.authentication_providers.first
     ap.update_attribute(:jit_provisioning, true)
+    ap.federated_attributes = { 'display_name' => 'eduPersonNickname' }
+    ap.save!
 
     Onelogin::Saml::Response.stubs(:new).returns(
       stub('response',
            is_valid?: true,
            success_status?: true,
            name_id: unique_id,
+           name_identifier_format: nil,
            name_qualifier: nil,
+           sp_name_qualifier: nil,
            session_index: nil,
            process: nil,
-           issuer: "saml_entity"
+           issuer: "saml_entity",
+           saml_attributes: { 'eduPersonNickname' => 'Cody Cutrer' }
           ))
 
     # We dont want to log them out of everything.
@@ -168,6 +182,68 @@ describe Login::SamlController do
     expect(response).to redirect_to(dashboard_url(login_success: 1))
     p = account.pseudonyms.active.by_unique_id(unique_id).first!
     expect(p.authentication_provider).to eq ap
+    expect(p.user.short_name).to eq 'Cody Cutrer'
+  end
+
+  it "updates federated attributes" do
+    account = account_with_saml
+    user_with_pseudonym(active_all: 1, account: account)
+
+    ap = account.authentication_providers.first
+    ap.federated_attributes = { 'display_name' => 'eduPersonNickname' }
+    ap.save!
+
+    Onelogin::Saml::Response.stubs(:new).returns(
+      stub('response',
+           is_valid?: true,
+           success_status?: true,
+           name_id: @pseudonym.unique_id,
+           name_identifier_format: nil,
+           name_qualifier: nil,
+           sp_name_qualifier: nil,
+           session_index: nil,
+           process: nil,
+           issuer: "saml_entity",
+           saml_attributes: { 'eduPersonNickname' => 'Cody Cutrer' })
+    )
+    LoadAccount.stubs(:default_domain_root_account).returns(account)
+
+    post :create, :SAMLResponse => "foo"
+    expect(response).to redirect_to(dashboard_url(login_success: 1))
+    expect(@user.reload.short_name).to eq 'Cody Cutrer'
+  end
+
+  it "handles student logout for parent registration" do
+    unique_id = 'foo@example.com'
+
+    account1 = account_with_saml(
+      parent_registration: true,
+      saml_log_out_url: "http://example.com/logout"
+    )
+    user1 = user_with_pseudonym({:active_all => true, :username => unique_id})
+    @pseudonym.account = account1
+    @pseudonym.save!
+
+    Onelogin::Saml::Response.stubs(:new).returns(
+        stub('response',
+             is_valid?: true,
+             success_status?: true,
+             name_id: unique_id,
+             name_identifier_format: nil,
+             name_qualifier: nil,
+             sp_name_qualifier: nil,
+             session_index: nil,
+             process: nil,
+             issuer: "such a lie",
+             saml_attributes: {}
+        )
+    )
+
+    controller.request.env['canvas.domain_root_account'] = account1
+    session[:parent_registration] = { observee: { unique_id: 'foo@example.com' } }
+    post :create, :SAMLResponse => "foo"
+    expect(response).to be_redirect
+    expect(response.location).to match(/example.com\/logout/)
   end
 
   context "multiple authorization configs" do
@@ -183,13 +259,16 @@ describe Login::SamlController do
       @aac2.save!
 
       @stub_hash = {
-          :issuer => @aac2.idp_entity_id,
-          :is_valid? => true,
-          :success_status? => true,
-          :name_id => @unique_id,
-          :name_qualifier => nil,
-          :session_index => nil,
-          :process => nil,
+          issuer: @aac2.idp_entity_id,
+          is_valid?: true,
+          success_status?: true,
+          name_id: @unique_id,
+          name_identifier_format: nil,
+          name_qualifier: nil,
+          sp_name_qualifier: nil,
+          session_index: nil,
+          process: nil,
+          saml_attributes: {}
       }
     end
 
@@ -234,9 +313,12 @@ describe Login::SamlController do
         is_valid?: true,
         success_status?: true,
         name_id: @unique_id,
+        name_identifier_format: nil,
         name_qualifier: nil,
+        sp_name_qualifier: nil,
         session_index: nil,
-        process: nil
+        process: nil,
+        saml_attributes: {},
       }
     end
 
@@ -375,6 +457,22 @@ describe Login::SamlController do
       get :destroy, :SAMLResponse => "foo", :RelayState => "/courses"
       expect(response.status).to eq 400
     end
+
+    it "renders an error if the IdP fails the request" do
+      Account.default.authentication_providers.create!(auth_type: 'saml',
+                                                       idp_entity_id: 'http://adfs.ryana.local/adfs/services/trust')
+      get :destroy,
+          SAMLResponse: <<SAML.delete("\n")
+fZLBboMwDIZfBeUOIRQojSjS1F4qdZe26mGXKSSmQ6IJi5Npe/sF0A6Vpp7iWP7j359To7gPIz+am/H
+uBDgajRAd9lvynrFCdmm1ioG1Ks6rTRpvKiXidbtismrbTIEk0RUs9kZvSZakJDogejhodEK7kEpZGa
+d5nJWXjPG05Pk6yTerNxLtAV2vhZuVH86NyCm1P0KLpA9q66XzFhJp7nQwt17TyeYUBpck2k0mpwbea
+m4E9si1uANyJ/n55fXIgxculyLuNY4g+64HFfzpvxkvZktk1ZVMMdaWKwVtCkURTiZLpYo8S/NCyIJl
+Xb6e5vy+Dxr5TOt539EaZ6QZSFPPNOwifS4SiGAnGqSZaAQYQnWYLEQGI8UwJ2io+uolIA2I0NV06dD
+UyxbPTjiPj7edURBdxeDhuQOcq/kJPn3YDVgS0aamj+/S/z5L8ws=
+SAML
+      expect(response).to redirect_to(login_url)
+      expect(flash[:delegated_message]).not_to be_nil
+    end
   end
 
   context "login attributes" do
@@ -398,7 +496,9 @@ describe Login::SamlController do
              is_valid?: true,
              success_status?: true,
              name_id: nil,
+             name_identifier_format: nil,
              name_qualifier: nil,
+             sp_name_qualifier: nil,
              session_index: nil,
              process: nil,
              issuer: "saml_entity",
@@ -423,10 +523,13 @@ describe Login::SamlController do
              is_valid?: true,
              success_status?: true,
              name_id: @unique_id,
+             name_identifier_format: nil,
              name_qualifier: nil,
+             sp_name_qualifier: nil,
              session_index: nil,
              process: nil,
-             issuer: "saml_entity"
+             issuer: "saml_entity",
+             saml_attributes: {}
             )
       )
 
@@ -454,7 +557,9 @@ describe Login::SamlController do
            is_valid?: true,
            success_status?: true,
            name_id: nil,
+           name_identifier_format: nil,
            name_qualifier: nil,
+           sp_name_qualifier: nil,
            session_index: nil,
            process: nil,
            issuer: "saml_entity",
@@ -483,10 +588,13 @@ describe Login::SamlController do
            is_valid?: true,
            success_status?: true,
            name_id: unique_id,
+           name_identifier_format: nil,
            name_qualifier: nil,
+           sp_name_qualifier: nil,
            session_index: nil,
            process: nil,
-           issuer: "saml_entity"
+           issuer: "saml_entity",
+           saml_attributes: {}
           )
     )
 

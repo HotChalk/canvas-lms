@@ -68,7 +68,8 @@ define [
       @$form = $('#edit_profile_form')
       @$form.find('.rich_text_area').editorBox()
       @$el.addClass('editing').removeClass('not-editing')
-      @$('.profile_links').removeClass('span6')
+      elementToFocus = document.querySelector("#name_input") || document.querySelector("#profile_bio")
+      elementToFocus.focus()
 
     initEdit: ->
       if @options.links?.length
@@ -81,7 +82,6 @@ define [
 
     cancelEditProfile: ->
       @$el.addClass('not-editing').removeClass('editing')
-      @$('.profile_links').addClass('span6')
 
     ##
     # Event handler that can also be called manually.

@@ -12,9 +12,8 @@ group :test do
   gem 'thin', '1.6.3'
     gem 'eventmachine', '1.0.4', require: false
 
-  gem 'rspec', '3.2.0'
-  gem 'rspec-rails', '3.2.3'
-  gem 'rspec-legacy_formatters', '1.0.0'
+  gem 'rspec', '3.4.0'
+  gem 'rspec-rails', '3.4.1'
   gem 'rspec_junit_formatter', '0.2.3'
   gem 'rspec-collection_matchers', '1.1.2'
   gem 'shoulda-matchers', '2.8.0'
@@ -23,15 +22,16 @@ group :test do
   gem 'rubocop-rspec', require: false
   gem 'rubocop-canvas', require: false, path: 'gems/rubocop-canvas'
 
-  gem 'once-ler', '0.0.15'
+  gem 'once-ler', '0.0.16'
 
   gem 'sequel', '4.5.0', require: false
-  gem 'selenium-webdriver', '2.53.0'
+  # Keep this gem synced with docker-compose/seleniumff/Dockerfile
+  gem 'selenium-webdriver', '2.53.4'
     gem 'childprocess', '0.5.0', require: false
     gem 'websocket', '1.0.7', require: false
   gem 'selinimum', '0.0.1', require: false, path: 'gems/selinimum'
-  gem 'test_after_commit', '0.4.2'
-  gem 'testrailtagging', '~> 0.3.1', git: 'https://github.com/instructure/testrailtagging', ref: '002c483ad2f0d2a288c96bde30ff70ed92f1fa50', require: false
+  gem 'test_after_commit', '1.1.0'
+  gem 'testrailtagging', '~> 0.3.6.9', require: false
 
   gem 'webmock', '1.22.3', require: false
     gem 'addressable', '2.3.8', require: false

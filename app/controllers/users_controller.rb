@@ -124,7 +124,7 @@ require 'atom'
 #           "type": "string"
 #         },
 #         "locale": {
-#           "description": "Optional: This field can be requested with certain API calls, and will return the users locale.",
+#           "description": "Optional: This field can be requested with certain API calls, and will return the users locale in RFC 5646 format.",
 #           "example": "tlh",
 #           "type": "string"
 #         },
@@ -175,7 +175,7 @@ class UsersController < ApplicationController
       add_crumb(@current_user.short_name, crumb_url)
       add_crumb(t('crumbs.grades', 'Grades'), grades_path)
 
-      current_active_enrollments = @user.enrollments.current.preload(:course).shard(@user).to_a
+      current_active_enrollments = @user.enrollments.current.preload(:course, :enrollment_state).shard(@user).to_a
 
       @presenter = GradesPresenter.new(current_active_enrollments)
 
@@ -199,7 +199,7 @@ class UsersController < ApplicationController
 
     course = enrollment.course
     grading_period_id = params[:grading_period_id].to_i
-    grading_period = GradingPeriod.context_find(course, grading_period_id)
+    grading_period = GradingPeriod.for(course).find_by(id: grading_period_id)
     grading_periods = {
       course.id => {
         :periods => [grading_period],
@@ -462,6 +462,7 @@ class UsersController < ApplicationController
     if request.post?
       if @user == @real_current_user
         session.delete(:become_user_id)
+        session.delete(:enrollment_uuid)
       else
         session[:become_user_id] = params[:user_id]
       end
@@ -1009,7 +1010,7 @@ class UsersController < ApplicationController
         shard(@user).
         where("enrollments.workflow_state<>'deleted' AND courses.workflow_state<>'deleted'").
         eager_load(:course).
-        preload(:associated_user, :course_section, course: { enrollment_term: :enrollment_dates_overrides }).to_a
+        preload(:associated_user, :course_section, :enrollment_state, course: { enrollment_term: :enrollment_dates_overrides }).to_a
 
       # restrict view for other users
       if @user != @current_user
@@ -1132,7 +1133,8 @@ class UsersController < ApplicationController
   #   {http://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html Ruby on Rails time zones}.
   #
   # @argument user[locale] [String]
-  #   The user's preferred language as a two-letter ISO 639-1 code.
+  #   The user's preferred language, from the list of languages Canvas supports.
+  #   This is in RFC-5646 format.
   #
   # @argument user[birthdate] [Date]
   #   The user's birth date.
@@ -1248,7 +1250,8 @@ class UsersController < ApplicationController
   #   {http://api.rubyonrails.org/classes/ActiveSupport/TimeZone.html Ruby on Rails time zones}.
   #
   # @argument user[locale] [String]
-  #   The user's preferred language as a two-letter ISO 639-1 code.
+  #   The user's preferred language, from the list of languages Canvas supports.
+  #   This is in RFC-5646 format.
   #
   # @argument user[birthdate] [Date]
   #   The user's birth date.
@@ -1439,7 +1442,8 @@ class UsersController < ApplicationController
   #   The default email address of the user.
   #
   # @argument user[locale] [String]
-  #   The user's preferred language as a two-letter ISO 639-1 code.
+  #   The user's preferred language, from the list of languages Canvas supports.
+  #   This is in RFC-5646 format.
   #
   # @argument user[avatar][token] [String]
   #   A unique representation of the avatar record to assign as the user's

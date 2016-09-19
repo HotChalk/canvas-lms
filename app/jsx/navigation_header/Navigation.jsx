@@ -8,10 +8,11 @@ define([
   'jsx/navigation_header/trays/GroupsTray',
   'jsx/navigation_header/trays/AccountsTray',
   'jsx/navigation_header/trays/ProfileTray',
+  'jsx/navigation_header/trays/HelpTray',
   'jsx/navigation_header/trays/ResourcesTray',
   'jsx/shared/SVGWrapper',
   'compiled/fn/preventDefault'
-], (_, $, I18n, React, Tray, CoursesTray, GroupsTray, AccountsTray, ProfileTray, ResourcesTray, SVGWrapper, preventDefault) => {
+], (_, $, I18n, React, Tray, CoursesTray, GroupsTray, AccountsTray, ProfileTray, HelpTray, ResourcesTray, SVGWrapper, preventDefault) => {
 
   var EXTERNAL_TOOLS_REGEX = /^\/accounts\/[^\/]*\/(external_tools)/;
   var ACTIVE_ROUTE_REGEX = /^\/(courses|groups|accounts|grades|calendar|conversations|profile|resources)/;
@@ -21,8 +22,9 @@ define([
 
   var TYPE_URL_MAP = {
     courses: '/api/v1/users/self/favorites/courses?include=term',
-    groups: '/api/v1/users/self/groups',
-    accounts: '/api/v1/accounts'
+    groups: '/api/v1/users/self/groups?include[]=can_access',
+    accounts: '/api/v1/accounts',
+    help: '/help_links'
   };
 
   var Navigation = React.createClass({
@@ -33,6 +35,7 @@ define([
         groups: [],
         accounts: [],
         courses: [],
+        help: [],
         unread_count: 0,
         unread_count_attempts: 0,
         isTrayOpen: false,
@@ -43,6 +46,8 @@ define([
         accountsAreLoaded: false,
         groupsLoading: false,
         groupsAreLoaded: false,
+        helpLoading: false,
+        helpAreLoaded: false,
         resources:[]
       };
     },
@@ -69,14 +74,18 @@ define([
       /// Click Events
       //////////////////////////////////
 
-      ['courses', 'groups', 'accounts', 'profile', 'resources'].forEach((type) => {
+      ['courses', 'groups', 'accounts', 'profile', 'resources', 'help'].forEach((type) => {
         $(`#global_nav_${type}_link`).on('click', preventDefault(this.handleMenuClick.bind(this, type)));
       });
     },
 
     componentDidMount () {
       if (this.state.unread_count_attempts == 0) {
-        if (window.ENV.current_user_id && this.unreadCountElement().length != 0 && !(window.ENV.current_user && window.ENV.current_user.fake_student)) {
+        if (window.ENV.current_user_id &&
+            !window.ENV.current_user_disabled_inbox &&
+            this.unreadCountElement().length != 0 &&
+            !(window.ENV.current_user &&
+            window.ENV.current_user.fake_student)) {
           this.pollUnreadCount();
         }
       }
@@ -143,6 +152,7 @@ define([
       if (TYPE_URL_MAP[type] && !this.state[`${type}AreLoaded`] && !this.state[`${type}Loading`]) {
         this.getResource(TYPE_URL_MAP[type], type);
       }
+
       if (this.state.isTrayOpen && (this.state.activeItem === type)) {
         this.closeTray();
       } else if (this.state.isTrayOpen && (this.state.activeItem !== type)) {
@@ -176,16 +186,53 @@ define([
     renderTrayContent () {
       switch (this.state.type) {
         case 'courses':
-          return <CoursesTray courses={this.state.courses} hasLoaded={this.state.coursesAreLoaded} closeTray={this.closeTray} />;
+          return (
+            <CoursesTray
+              courses={this.state.courses}
+              hasLoaded={this.state.coursesAreLoaded}
+              closeTray={this.closeTray}
+            />
+          );
         case 'groups':
-          return <GroupsTray groups={this.state.groups} hasLoaded={this.state.groupsAreLoaded} closeTray={this.closeTray} />;
+          return (
+            <GroupsTray
+              groups={this.state.groups}
+              hasLoaded={this.state.groupsAreLoaded}
+              closeTray={this.closeTray}
+            />
+          );
         case 'accounts':
-          return <AccountsTray accounts={this.state.accounts} hasLoaded={this.state.accountsAreLoaded} closeTray={this.closeTray} />;
+          return (
+            <AccountsTray
+              accounts={this.state.accounts}
+              hasLoaded={this.state.accountsAreLoaded}
+              closeTray={this.closeTray}
+            />
+          );
         case 'profile':
-          return <ProfileTray userDisplayName={window.ENV.current_user.display_name} userAvatarURL={window.ENV.current_user.avatar_image_url} closeTray={this.closeTray} />;
+          return (
+            <ProfileTray
+              userDisplayName={window.ENV.current_user.display_name}
+              userAvatarURL={window.ENV.current_user.avatar_image_url}
+              closeTray={this.closeTray}
+            />
+          );
         case 'resources':
-          this.state.resources = window.ENV.RESOURCES;
-          return <ResourcesTray resources={this.state.resources} hasLoaded={true} closeTray={this.closeTray} />;
+          return (
+            <ResourcesTray
+              resources={window.ENV.RESOURCES}
+              hasLoaded={true}
+              closeTray={this.closeTray}
+            />
+          );
+        case 'help':
+          return (
+            <HelpTray
+              links={this.state.help}
+              hasLoaded={this.state.helpAreLoaded}
+              closeTray={this.closeTray}
+            />
+          );
         default:
           return null;
       }
@@ -193,7 +240,13 @@ define([
 
     render () {
       return (
-        <Tray isOpen={this.state.isTrayOpen} onBlur={this.closeTray} closeTimeoutMS={400}>
+        <Tray
+          isOpen={this.state.isTrayOpen}
+          onBlur={this.closeTray}
+          closeTimeoutMS={400}
+          getAriaHideElement={() => $('#application')[0]}
+          getElementToFocus={() => $('.ic-NavMenu__closeButton')[0]}
+        >
           {this.renderTrayContent()}
         </Tray>
       );

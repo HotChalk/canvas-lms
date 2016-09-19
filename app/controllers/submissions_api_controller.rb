@@ -137,6 +137,19 @@
 #           "description": "Whether the assignment is excused.  Excused assignments have no impact on a user's grade.",
 #           "example": true,
 #           "type": "boolean"
+#         },
+#         "workflow_state": {
+#           "description": "The current state of the submission",
+#           "example": "submitted",
+#           "type": "string",
+#           "allowableValues": {
+#             "values": [
+#               "graded",
+#               "submitted",
+#               "unsubmitted",
+#               "pending_review"
+#             ]
+#           }
 #         }
 #       }
 #     }
@@ -171,6 +184,7 @@ class SubmissionsApiController < ApplicationController
   # @response_field url If the submission was made as a URL.
   # @response_field late Whether the submission was made after the applicable due date.
   # @response_field assignment_visible Whether this assignment is visible to the user who submitted the assignment.
+  # @response_field workflow_state The current status of the submission. Possible values: “submitted”, “unsubmitted”, “graded”, “pending_review”
   #
   # @returns [Submission]
   def index
@@ -329,7 +343,7 @@ class SubmissionsApiController < ApplicationController
 
     if params[:grouped].present?
       scope = (@section || @context).all_student_enrollments.
-          eager_load(:user).
+          eager_load(:user => :pseudonyms).
           where("users.id" => student_ids)
 
       submissions = if requested_assignment_ids.present?
@@ -457,7 +471,7 @@ class SubmissionsApiController < ApplicationController
     permission = :nothing if @user != @current_user
     # we don't check quota when uploading a file for assignment submission
     if authorized_action(@assignment, @current_user, permission)
-      api_attachment_preflight(@user, request, :check_quota => false)
+      api_attachment_preflight(@user, request, :check_quota => false, :submission_context => @context)
     end
   end
 
@@ -593,12 +607,16 @@ class SubmissionsApiController < ApplicationController
     end
 
     if authorized
-      submission = { :grader => @current_user }
+      submission = { grader: @current_user }
       if params[:submission].is_a?(Hash)
         submission[:grade] = params[:submission].delete(:posted_grade)
         submission[:excuse] = params[:submission].delete(:excuse)
         submission[:provisional] = value_to_boolean(params[:submission][:provisional])
         submission[:final] = value_to_boolean(params[:submission][:final]) && @context.grants_right?(@current_user, :moderate_grades)
+        if params[:submission][:submission_type] == 'basic_lti_launch' && (!@submission.has_submission? || @submission.submission_type == 'basic_lti_launch')
+          submission[:submission_type] = params[:submission][:submission_type]
+          submission[:url] = params[:submission][:url]
+        end
       end
       if submission[:grade] || submission[:excuse]
         begin
@@ -621,16 +639,20 @@ class SubmissionsApiController < ApplicationController
           assessment["criterion_#{crit_name}"] = assessment.delete(crit_name)
         end
         @rubric_assessment = @assignment.rubric_association.assess(
-          :assessor => @current_user, :user => @user, :artifact => @submission,
-          :assessment => assessment.merge(:assessment_type => 'grading'))
+          assessor: @current_user,
+          user: @user,
+          artifact: @submission,
+          assessment: assessment.merge(assessment_type: 'grading')
+        )
       end
 
       comment = params[:comment]
       if comment.is_a?(Hash)
         admin_in_context = !@context_enrollment || @context_enrollment.admin?
         comment = {
-          :comment => comment[:text_comment], :author => @current_user,
-          :hidden => @assignment.muted? && admin_in_context,
+          comment: comment[:text_comment],
+          author: @current_user,
+          hidden: @assignment.muted? && admin_in_context
         }.merge(
           comment.slice(:media_comment_id, :media_comment_type, :group_comment)
         ).with_indifferent_access

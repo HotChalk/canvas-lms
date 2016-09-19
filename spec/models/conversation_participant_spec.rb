@@ -31,6 +31,21 @@ describe ConversationParticipant do
     expect(convo.messages.size).to eq 1
   end
 
+  it "should not decrement unread_conversations_count to a negative number" do
+    sender = user
+    recipient = user
+    convo = sender.initiate_conversation([recipient])
+    convo.add_message('test')
+
+    User.where(:id => recipient).update_all(:unread_conversations_count => 0) # force into the wrong state
+
+    part = recipient.conversations.first
+    part.update_one(:event => 'mark_as_read')
+
+    recipient.reload
+    expect(recipient.unread_conversations_count).to eq 0
+  end
+
   it "should correctly manage messages" do
     sender = user
     recipient = user
@@ -235,8 +250,7 @@ describe ConversationParticipant do
     it "should not include shared contexts by default" do
       users = @convo.reload.participants
       users.each do |user|
-        expect(user.common_groups).to be_empty
-        expect(user.common_courses).to be_empty
+        expect(@me.address_book.cached?(user)).to be_falsey
       end
     end
 
@@ -247,12 +261,16 @@ describe ConversationParticipant do
 
     it "should include shared contexts if requested" do
       users = @convo.reload.participants(:include_participant_contexts => true)
+      address_book = @me.address_book
       users.each do |user|
-        expect(user.common_groups).to eq({})
+        expect(address_book.cached?(user)).to be_truthy
+        common_groups = address_book.common_groups(user)
+        common_courses = address_book.common_courses(user)
+        expect(common_groups).to eq({})
         if [@me.id, @u3.id].include? user.id
-          expect(user.common_courses).to eq({})
+          expect(common_courses).to eq({})
         else
-          expect(user.common_courses).to eq({@course.id => ["StudentEnrollment"]})
+          expect(common_courses).to eq({@course.id => ["StudentEnrollment"]})
         end
       end
     end

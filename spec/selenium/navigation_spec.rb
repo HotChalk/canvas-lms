@@ -13,7 +13,6 @@ describe 'Global Navigation' do
       it 'should show the profile tray upon clicking' do
         get "/"
         f('#global_nav_profile_link').click
-        wait_for_ajaximations
         expect(f('#global_nav_profile_header')).to be_displayed
       end
 
@@ -21,9 +20,7 @@ describe 'Global Navigation' do
       # the display_name in the tray header
       it 'should populate the profile tray with the current user display_name' do
         get "/"
-        f('#global_nav_profile_link').click
-        wait_for_ajaximations
-        expect(ff('#global_nav_profile_display_name')).not_to be_empty
+        expect(displayed_username).to eq(@user.name)
       end
     end
 
@@ -32,7 +29,7 @@ describe 'Global Navigation' do
         get "/"
         f('#global_nav_courses_link').click
         wait_for_ajaximations
-        expect(f('.ReactTray__primary-content')).to be_displayed
+        expect(f('.ic-NavMenu__primary-content')).to be_displayed
       end
 
       it 'should populate the courses tray when using the keyboard to open it' do
@@ -40,13 +37,13 @@ describe 'Global Navigation' do
         driver.execute_script('$("#global_nav_courses_link").focus()')
         f('#global_nav_courses_link').send_keys(:enter)
         wait_for_ajaximations
-        links = ff('.ReactTray__link-list li')
+        links = ff('.ic-NavMenu__link-list li')
         expect(links.count).to eql 2
       end
     end
 
     describe 'LTI Tools' do
-      it 'should show the Commons logo/link if it is enabled' do
+      it 'should show a custom logo/link for LTI tools' do
         Account.default.enable_feature! :lor_for_account
         @teacher.enable_feature! :lor_for_user
         @tool = Account.default.context_external_tools.new({
@@ -59,11 +56,12 @@ describe 'Global Navigation' do
           :url => "canvaslms.com",
           :visibility => "admins",
           :display_type => "full_width",
-          :text => "Commons"
+          :text => "Commons",
+          :icon_svg_path_64 => 'M100,37L70.1,10.5v17.6H38.6c-4.9,0-8.8,3.9-8.8,8.8s3.9,8.8,8.8,8.8h31.5v17.6L100,37z'
         })
         @tool.save!
         get "/"
-        expect(f('.ic-icon-svg--commons')).to be_displayed
+        expect(f('.ic-icon-svg--lti')).to be_displayed
       end
     end
   end

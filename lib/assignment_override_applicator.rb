@@ -78,11 +78,12 @@ module AssignmentOverrideApplicator
     Rails.cache.fetch(cache_key) do
       next [] if self.has_invalid_args?(assignment_or_quiz, user)
       context = assignment_or_quiz.context
-      visible_user_ids = UserSearch.scope_for(context, user, { force_users_visible_to: true }).map(&:id)
 
       if context.grants_right?(user, :read_as_admin)
         overrides = assignment_or_quiz.assignment_overrides
         if assignment_or_quiz.current_version?
+          visible_user_ids = UserSearch.scope_for(context, user, { force_users_visible_to: true }).except(:select, :order)
+
           overrides = if overrides.loaded?
                         ovs = overrides.select do |ov|
                           ov.workflow_state == 'active' &&
@@ -325,9 +326,13 @@ module AssignmentOverrideApplicator
 
   def self.overridden_unlock_at(assignment_or_quiz, overrides)
     applicable_overrides = overrides.select(&:unlock_at_overridden)
+
+    # CNVS-24849 if the override has been locked it's unlock_at no longer applies
+    applicable_overrides.reject!(&:availability_expired?)
+
     if applicable_overrides.empty?
       assignment_or_quiz.unlock_at
-    elsif override = applicable_overrides.detect{ |o| o.unlock_at.nil? }
+    elsif applicable_overrides.any? { |o| o.unlock_at.nil? }
       nil
     else
       applicable_overrides.sort_by(&:unlock_at).first.unlock_at
@@ -338,7 +343,7 @@ module AssignmentOverrideApplicator
     applicable_overrides = overrides.select(&:lock_at_overridden)
     if applicable_overrides.empty?
       assignment_or_quiz.lock_at
-    elsif override = applicable_overrides.detect{ |o| o.lock_at.nil? }
+    elsif applicable_overrides.detect{ |o| o.lock_at.nil? }
       nil
     else
       applicable_overrides.sort_by(&:lock_at).last.lock_at

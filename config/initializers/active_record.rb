@@ -6,7 +6,7 @@ class ActiveRecord::Base
   public :write_attribute
 
   class << self
-    delegate :distinct_on, to: :all
+    delegate :distinct_on, :find_ids_in_batches, :find_ids_in_ranges, to: :all
 
     attr_accessor :in_migration
   end
@@ -51,7 +51,7 @@ class ActiveRecord::Base
     return @all_models if @all_models.present?
     @all_models = (ActiveRecord::Base.models_from_files +
                    [Version]).compact.uniq.reject { |model|
-      (model.respond_to?(:tableless?) && model.tableless?) ||
+      (model < Tableless) ||
       model.abstract_class?
     }
   end
@@ -209,13 +209,8 @@ class ActiveRecord::Base
 
   def touch_user
     if self.respond_to?(:user_id) && self.user_id
-      shard = self.user.shard
-      User.where(:id => self.user_id).update_all(:updated_at => Time.now.utc)
       User.connection.after_transaction_commit do
-        shard.activate do
-          User.where(:id => self.user_id).update_all(:updated_at => Time.now.utc)
-        end if shard != Shard.current
-        User.invalidate_cache(self.user_id)
+        User.where(:id => self.user_id).update_all(:updated_at => Time.now.utc)
       end
     end
     true
@@ -551,41 +546,22 @@ class ActiveRecord::Base
     result
   end
 
-  # returns batch_size ids at a time, working through the primary key from
-  # smallest to largest.
-  #
-  # note this does a raw connection.select_values, so it doesn't work with scopes
-  def self.find_ids_in_batches(options = {})
-    batch_size = options[:batch_size] || 1000
-    key = "#{quoted_table_name}.#{primary_key}"
-    scope = except(:select).select(key).reorder(key).limit(batch_size)
-    ids = connection.select_values(scope.to_sql)
-    ids = ids.map(&:to_i) unless options[:no_integer_cast]
-    while ids.present?
-      yield ids
-      break if ids.size < batch_size
-      last_value = ids.last
-      ids = connection.select_values(scope.where("#{key}>?", last_value).to_sql)
-      ids = ids.map(&:to_i) unless options[:no_integer_cast]
+  def self.current_xlog_location
+    Shard.current(shard_category).database_server.unshackle do
+      Shackles.activate(:master) do
+        connection.select_value("SELECT pg_current_xlog_location()")
+      end
     end
   end
 
-  # returns 2 ids at a time (the min and the max of a range), working through
-  # the primary key from smallest to largest.
-  def self.find_ids_in_ranges(options = {})
-    batch_size = options[:batch_size].try(:to_i) || 1000
-    subquery_scope = all.except(:select).select("#{quoted_table_name}.#{primary_key} as id").reorder(primary_key).limit(batch_size)
-    subquery_scope = subquery_scope.where("#{quoted_table_name}.#{primary_key} <= ?", options[:end_at]) if options[:end_at]
+  def self.wait_for_replication(start: nil)
+    return unless Shackles.activate(:slave) { connection.readonly? }
 
-    first_subquery_scope = options[:start_at] ? subquery_scope.where("#{quoted_table_name}.#{primary_key} >= ?", options[:start_at]) : subquery_scope
-    ids = connection.select_rows("select min(id), max(id) from (#{first_subquery_scope.to_sql}) as subquery").first
-
-    while ids.first.present?
-      ids.map!(&:to_i) if columns_hash[primary_key.to_s].type == :integer
-      yield(*ids)
-      last_value = ids.last
-      next_subquery_scope = subquery_scope.where(["#{quoted_table_name}.#{primary_key}>?", last_value])
-      ids = connection.select_rows("select min(id), max(id) from (#{next_subquery_scope.to_sql}) as subquery").first
+    start ||= current_xlog_location
+    Shackles.activate(:slave) do
+      while connection.select_value("SELECT pg_last_xlog_replay_location()") < start
+        sleep 0.1
+      end
     end
   end
 
@@ -601,6 +577,12 @@ class ActiveRecord::Base
   # saves the record with all its save callbacks suspended.
   def save_without_callbacks
     suspend_callbacks(kind: [:validation, :save, (new_record? ? :create : :update)]) { save }
+  end
+
+  def self.touch_all_records
+    self.find_ids_in_ranges do |min_id, max_id|
+      self.where(primary_key => min_id..max_id).touch_all
+    end
   end
 end
 
@@ -623,6 +605,11 @@ ActiveRecord::Relation.class_eval do
   def includes(*args)
     return super if args.empty? || args == [nil]
     raise "Use preload or eager_load instead of includes"
+  end
+
+  def where!(*args)
+    raise "where!.not doesn't work in Rails 4.2" if args.empty?
+    super
   end
 
   def select_values_necessitate_temp_table?
@@ -650,9 +637,7 @@ ActiveRecord::Relation.class_eval do
       raise ArgumentError.new("GROUP and ORDER are incompatible with :start, as is an explicit select without the primary key") if options[:start]
       self.activate { find_in_batches_with_temp_table(options, &block) }
     else
-      find_in_batches_without_usefulness(options) do |batch|
-        klass.unscoped { yield batch }
-      end
+      find_in_batches_without_usefulness(options, &block)
     end
   end
   alias_method_chain :find_in_batches, :usefulness
@@ -696,9 +681,7 @@ ActiveRecord::Relation.class_eval do
   def in_transaction_in_test?
     return false unless Rails.env.test?
     transaction_method = ActiveRecord::ConnectionAdapters::DatabaseStatements.instance_method(:transaction).source_location.first
-    # don't anchor the end of the regex; test_after_commit does an alias_method_chain, thus
-    # changing the name (and source location) of this method
-    transaction_regex = /^#{Regexp.escape(transaction_method)}:\d+:in `transaction/.freeze
+    transaction_regex = /\A#{Regexp.escape(transaction_method)}:\d+:in `transaction'\z/.freeze
     # transactions due to spec fixtures are _not_in the callstack, so we only need to find 1
     !!caller.find { |s| s =~ transaction_regex && !s.include?('spec_helper.rb') }
   end
@@ -790,7 +773,7 @@ ActiveRecord::Relation.class_eval do
         end
       end
     ensure
-      unless $!.is_a?(ActiveRecord::StatementInvalid)
+      if !$!.is_a?(ActiveRecord::StatementInvalid) || connection.open_transactions == 0
         connection.execute "DROP TABLE #{table}"
       end
     end
@@ -870,6 +853,44 @@ ActiveRecord::Relation.class_eval do
     scopes << self
     sub_query = (scopes).map {|s| s.except(:select, :order).select(uniq_identifier).to_sql}.join(" UNION ALL ")
     engine.where("#{uniq_identifier} IN (#{sub_query})")
+  end
+
+  # returns batch_size ids at a time, working through the primary key from
+  # smallest to largest.
+  #
+  # note this does a raw connection.select_values, so it doesn't work with scopes
+  def find_ids_in_batches(options = {})
+    batch_size = options[:batch_size] || 1000
+    key = "#{quoted_table_name}.#{primary_key}"
+    scope = except(:select).select(key).reorder(key).limit(batch_size)
+    ids = connection.select_values(scope.to_sql)
+    ids = ids.map(&:to_i) unless options[:no_integer_cast]
+    while ids.present?
+      yield ids
+      break if ids.size < batch_size
+      last_value = ids.last
+      ids = connection.select_values(scope.where("#{key}>?", last_value).to_sql)
+      ids = ids.map(&:to_i) unless options[:no_integer_cast]
+    end
+  end
+
+  # returns 2 ids at a time (the min and the max of a range), working through
+  # the primary key from smallest to largest.
+  def find_ids_in_ranges(options = {})
+    batch_size = options[:batch_size].try(:to_i) || 1000
+    subquery_scope = except(:select).select("#{quoted_table_name}.#{primary_key} as id").reorder(primary_key).limit(batch_size)
+    subquery_scope = subquery_scope.where("#{quoted_table_name}.#{primary_key} <= ?", options[:end_at]) if options[:end_at]
+
+    first_subquery_scope = options[:start_at] ? subquery_scope.where("#{quoted_table_name}.#{primary_key} >= ?", options[:start_at]) : subquery_scope
+    ids = connection.select_rows("select min(id), max(id) from (#{first_subquery_scope.to_sql}) as subquery").first
+
+    while ids.first.present?
+      ids.map!(&:to_i) if columns_hash[primary_key.to_s].type == :integer
+      yield(*ids)
+      last_value = ids.last
+      next_subquery_scope = subquery_scope.where(["#{quoted_table_name}.#{primary_key}>?", last_value])
+      ids = connection.select_rows("select min(id), max(id) from (#{next_subquery_scope.to_sql}) as subquery").first
+    end
   end
 end
 

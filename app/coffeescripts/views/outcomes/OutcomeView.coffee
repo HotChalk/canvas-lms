@@ -39,7 +39,7 @@ define [
       'click .delete_rating_link': 'deleteRating'
       'click .save_rating_link': 'saveRating'
       'click .insert_rating': 'insertRating'
-      'change .calculation_method' : 'updateCalcInt'
+      'change .calculation_method' : 'updateCalcMethod'
       'keyup .mastery_points' : 'changeMasteryPoints'
     , OutcomeContentBase::events
 
@@ -113,7 +113,7 @@ define [
       $rating.find('.edit input:first').focus()
       @updateRatings()
 
-    updateCalcInt: (e) =>
+    updateCalcMethod: (e) =>
       e?.preventDefault()
       @model.set({
         calculation_method: $(e.target).val()
@@ -184,7 +184,7 @@ define [
             setQuizMastery: @setQuizMastery,
             useForScoring: @useForScoring,
             isLargeRoster: ENV.IS_LARGE_ROSTER,
-            assessedInContext: @model.outcomeLink.assessed
+            assessedInContext: @model.outcomeLink.assessed || (@model.isNative() && @model.get('assessed'))
 
       @$('input:first').focus()
       @screenreaderTitleFocus()

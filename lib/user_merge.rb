@@ -132,7 +132,10 @@ class UserMerge
             # a) delete empty submissions where there is a non-empty submission in the from user
             # b) don't delete otherwise
             subscope = scope.having_submission.select(unique_id)
-            already_scope.where(unique_id => subscope).without_submission.delete_all
+            scope_to_delete = already_scope.where(unique_id => subscope).without_submission
+            ModeratedGrading::ProvisionalGrade.where(:submission_id => scope_to_delete).delete_all
+            SubmissionComment.where(:submission_id => scope_to_delete).delete_all
+            scope_to_delete.delete_all
           end
           # for the from user
           # a) we ignore the empty submissions in our update unless the target user has no submission
@@ -165,8 +168,12 @@ class UserMerge
       user_merge_data.add_more_data(account_users)
       account_users.update_all(user_id: target_user)
 
+      attachments = Attachment.where(user_id: from_user)
+      user_merge_data.add_more_data(attachments)
+      Attachment.send_later(:migrate_attachments, from_user, target_user)
+
       updates = {}
-      ['access_tokens', 'asset_user_accesses', 'attachments',
+      ['access_tokens', 'asset_user_accesses',
        'calendar_events', 'collaborations',
        'context_module_progressions',
        'group_memberships', 'page_comments',
@@ -195,8 +202,6 @@ class UserMerge
           Rails.logger.error "migrating #{table} column #{column} failed: #{e}"
         end
       end
-
-      Attachment.send_later(:migrate_attachments, from_user, target_user)
 
       context_updates = ['calendar_events']
       context_updates.each do |table|
@@ -301,7 +306,11 @@ class UserMerge
     # record both records state sicne both will change
     user_merge_data.add_more_data(scope)
     # update the record on the target user to the better state of the from users enrollment
-    Enrollment.where(id: scope).where.not(id: keeper).update_all(workflow_state: keeper.workflow_state)
+
+    enrollment_ids = Enrollment.where(id: scope).where.not(id: keeper).pluck(:id)
+    Enrollment.where(:id => enrollment_ids).update_all(workflow_state: keeper.workflow_state)
+    EnrollmentState.force_recalculation(enrollment_ids)
+
     # mark the would be keeper from the from_user as deleted so it will not be moved later
     keeper.destroy
   end

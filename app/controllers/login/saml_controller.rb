@@ -82,6 +82,7 @@ class Login::SamlController < ApplicationController
       unique_id = response.saml_attributes["eduPersonPrincipalName"]
       unique_id = unique_id.split('@', 2)[0] if unique_id
     end
+    provider_attributes = response.saml_attributes
 
     logger.info "Attempting SAML login for #{aac.login_attribute} #{unique_id} in account #{@domain_root_account.id}"
 
@@ -115,7 +116,11 @@ class Login::SamlController < ApplicationController
         reset_session_for_login
 
         pseudonym = @domain_root_account.pseudonyms.for_auth_configuration(unique_id, aac)
-        pseudonym ||= aac.provision_user(unique_id) if aac.jit_provisioning?
+        if !pseudonym && aac.jit_provisioning?
+          pseudonym = aac.provision_user(unique_id, provider_attributes)
+        elsif pseudonym
+          aac.apply_federated_attributes(pseudonym, provider_attributes)
+        end
 
         if pseudonym
           # Successful login and we have a user
@@ -130,7 +135,9 @@ class Login::SamlController < ApplicationController
 
           session[:saml_unique_id] = unique_id
           session[:name_id] = response.name_id
+          session[:name_identifier_format] = response.name_identifier_format
           session[:name_qualifier] = response.name_qualifier
+          session[:sp_name_qualifier] = response.sp_name_qualifier
           session[:session_index] = response.session_index
           session[:return_to] = params[:RelayState] if params[:RelayState] && params[:RelayState] =~ /\A\/(\z|[^\/])/
           session[:login_aac] = aac.id
@@ -203,6 +210,12 @@ class Login::SamlController < ApplicationController
         aac.debug_set(:idp_logout_response_in_response_to, saml_response.in_response_to)
         aac.debug_set(:idp_logout_response_destination, saml_response.destination)
         aac.debug_set(:debugging, t('debug.logout_response_redirect_from_idp', "Received LogoutResponse from IdP"))
+      end
+
+      unless saml_response.success_status?
+        logger.error "Failed SAML LogoutResponse: #{saml_response.status_code}: #{saml_response.status_message}"
+        flash[:delegated_message] = t("There was a failure logging out at your IdP")
+        return redirect_to login_url
       end
 
       # for parent using self-registration to observe a student

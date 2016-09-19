@@ -85,7 +85,8 @@ class NotificationMessageCreator
 
         unless @notification.registration?
           if @notification.summarizable? && too_many_messages_for?(user) && no_daily_messages_in(delayed_messages)
-            delayed_messages << build_fallback_for(user)
+            fallback = build_fallback_for(user)
+            delayed_messages << fallback if fallback
           end
 
           unless user.pre_registered?
@@ -112,7 +113,8 @@ class NotificationMessageCreator
   end
 
   def build_fallback_for(user)
-    fallback_channel = immediate_channels_for(user).sort_by(&:path_type).first
+    fallback_channel = immediate_channels_for(user).find{ |cc| cc.path_type == 'email'}
+    return unless fallback_channel
     fallback_policy = nil
     NotificationPolicy.unique_constraint_retry do
       fallback_policy = fallback_channel.notification_policies.by('daily').where(:notification_id => nil).first
@@ -127,19 +129,21 @@ class NotificationMessageCreator
   end
 
   def build_summary_for(user, policy)
-    message = user.messages.build(message_options_for(user))
-    message.parse!('summary')
-    delayed_message = policy.delayed_messages.build(:notification => @notification,
-                                  :frequency => policy.frequency,
-                                  :communication_channel_id => policy.communication_channel_id,
-                                  :root_account_id => message.context_root_account.try(:id),
-                                  :linked_name => 'work on this link!!!',
-                                  :name_of_topic => message.subject,
-                                  :link => message.url,
-                                  :summary => message.body)
-    delayed_message.context = @asset
-    delayed_message.save! if Rails.env.test?
-    delayed_message
+    user.shard.activate do
+      message = user.messages.build(message_options_for(user))
+      message.parse!('summary')
+      delayed_message = policy.delayed_messages.build(:notification => @notification,
+                                    :frequency => policy.frequency,
+                                    :communication_channel_id => policy.communication_channel_id,
+                                    :root_account_id => message.context_root_account.try(:id),
+                                    :linked_name => 'work on this link!!!',
+                                    :name_of_topic => message.subject,
+                                    :link => message.url,
+                                    :summary => message.body)
+      delayed_message.context = @asset
+      delayed_message.save! if Rails.env.test?
+      delayed_message
+    end
   end
 
   def build_immediate_messages_for(user, channels=immediate_channels_for(user).reject(&:unconfirmed?))
@@ -201,9 +205,10 @@ class NotificationMessageCreator
     policies= []
     user_has_policy = unretired_policies_for(user).for(@notification).exists?
     if user_has_policy
-      policies += unretired_policies_for(user).for(@notification).by(['daily', 'weekly'])
+      policies += unretired_policies_for(user).for(@notification).by(['daily', 'weekly']).where("communication_channels.path_type='email'")
     elsif channel &&
-        channel.active? &&
+          channel.active? &&
+          channel.path_type == 'email' &&
         ['daily', 'weekly'].include?(@notification.default_frequency)
       policies << channel.notification_policies.create!(:notification => @notification,
                                             :frequency => @notification.default_frequency)
@@ -270,16 +275,22 @@ class NotificationMessageCreator
 
   # Finds channels for a user that should get this notification immediately
   #
-  # If the user doesn't have a policy for this notification and the default
-  # frequency is immediate, the user should get the notification by email.
+  # If the user doesn't have a policy for this notification on a non-push
+  # channel and the default frequency is immediate, the user should get the
+  # notification by email.
   # Unregistered users don't get notifications. (registration notifications
   # are a special case handled elsewhere)
   def immediate_channels_for(user)
     return [] unless user.registered?
 
-    user_has_a_policy = user.communication_channels.active.for(@notification).exists?
-    return [user.email_channel].compact if !user_has_a_policy && @notification.default_frequency == 'immediately'
-    user.communication_channels.active.for_notification_frequency(@notification, 'immediately')
+    active_channel_scope = user.communication_channels.active.for(@notification)
+    immediate_channel_scope = user.communication_channels.active.for_notification_frequency(@notification, 'immediately')
+
+    user_has_a_policy = active_channel_scope.where.not(path_type: 'push').exists?
+    if !user_has_a_policy && @notification.default_frequency == 'immediately'
+      return [user.email_channel, *immediate_channel_scope.where(path_type: 'push')].compact
+    end
+    immediate_channel_scope
   end
 
   def cancel_pending_duplicate_messages
