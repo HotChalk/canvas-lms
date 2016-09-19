@@ -94,7 +94,7 @@ define([
     var path = this.getContextPath() + "/users"
 
     $.getJSON(path,
-      {per_page: STUDENTS_FETCHED_PER_PAGE, page: pageNumber, enrollment_type: "student", include_inactive: false, include:"sections_ids"},
+      {per_page: STUDENTS_FETCHED_PER_PAGE, page: pageNumber, enrollment_type: "student", include_inactive: false},
       this._fetchStudentsForCourseSuccessHandler.bind(this, {})
     )
   }

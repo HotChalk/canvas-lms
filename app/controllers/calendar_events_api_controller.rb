@@ -828,11 +828,7 @@ class CalendarEventsApiController < ApplicationController
 
   def assignment_context_scope(user)
     # contexts have to be partitioned into two groups so they can be queried effectively
-    contexts = if params[:context_codes]
-      @contexts.select { |c| @context_codes.include?(c.asset_string) }
-    else
-      @contexts
-    end
+    contexts = @contexts.select { |c| @context_codes.include?(c.asset_string) }
     view_unpublished, other = contexts.partition { |c| c.grants_right?(user, session, :view_unpublished_items) }
 
     sql = []
@@ -865,8 +861,7 @@ class CalendarEventsApiController < ApplicationController
       end
     end
 
-    is_admin = (contexts.any? { |c| user.account_admin?(c) })
-    courses_to_filter_assignments = (is_admin ? [] : contexts).
+    courses_to_filter_assignments = other.
       # context can sometimes be a user, so must filter those out
       select{|context| context.is_a? Course }.
       reject{|course|
@@ -874,7 +869,7 @@ class CalendarEventsApiController < ApplicationController
       }
 
     # in courses with diff assignments on, only show the visible assignments
-    scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id), false)
+    scope = scope.filter_by_visibilities_in_given_courses(student_ids, courses_to_filter_assignments.map(&:id))
     scope
   end
 

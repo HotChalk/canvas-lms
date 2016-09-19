@@ -37,8 +37,7 @@ class Quizzes::Quiz < ActiveRecord::Base
     :require_lockdown_browser_for_results, :context, :notify_of_update,
     :one_question_at_a_time, :cant_go_back, :show_correct_answers_at, :hide_correct_answers_at,
     :require_lockdown_browser_monitor, :lockdown_browser_monitor_data,
-    :one_time_results, :only_visible_to_overrides, :show_correct_answers_last_attempt,
-    :course_section_id
+    :one_time_results, :only_visible_to_overrides, :show_correct_answers_last_attempt
 
   attr_readonly :context_id, :context_type
   attr_accessor :notify_of_update
@@ -50,11 +49,9 @@ class Quizzes::Quiz < ActiveRecord::Base
   has_many :attachments, :as => :context, :dependent => :destroy
   has_many :quiz_regrades, class_name: 'Quizzes::QuizRegrade'
   has_many :quiz_student_visibilities
-  has_many :quiz_user_visibilities
   belongs_to :context, polymorphic: [:course]
   belongs_to :assignment
   belongs_to :assignment_group
-  belongs_to :course_section
 
   validates_length_of :description, :maximum => maximum_long_text_length, :allow_nil => true, :allow_blank => true
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => true
@@ -1050,9 +1047,9 @@ class Quizzes::Quiz < ActiveRecord::Base
   scope :available, -> { where("quizzes.workflow_state = 'available'") }
 
   # NOTE: only use for courses with differentiated assignments on
-  scope :visible_to_users_in_course_with_da, lambda {|user_ids, course_ids|
-    joins(:quiz_user_visibilities).
-    where(:quiz_user_visibilities => { :user_id => user_ids, :course_id => course_ids })
+  scope :visible_to_students_in_course_with_da, lambda {|student_ids, course_ids|
+    joins(:quiz_student_visibilities).
+    where(:quiz_student_visibilities => { :user_id => student_ids, :course_id => course_ids })
   }
 
   def teachers

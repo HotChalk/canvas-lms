@@ -182,18 +182,6 @@
           <div class="discussion-header-content right-of-avatar">
             <div class="pull-left">
               <h1 class="discussion-title"><%= @topic.title %></h1>
-              <% if @context.is_a?(Course) %>
-                <div class="discussion-subtitle">
-                  <%
-                    if @overrides_names.nil?
-                      @names = (section_names = @topic.course_section_names(@context, @current_user)).present? ? section_names.join(',') : t(:all_sections, "All Sections")
-                    else
-                      @names = @overrides_names.join(',')
-                    end
-                  %>
-                  <%= @names %>
-                </div>
-              <% end %>
               <div class="discussion-subtitle">
                 <% if @topic.user %>
                   <a class="author" href="<%= context_url(@topic.context, :context_user_url, @topic.user_id) %>" title="<%= t :authors_name, "Author's name" %>"><%= context_user_name(@topic.context, @topic.user) %></a>
@@ -212,7 +200,7 @@
               <% if can_do(@context, @current_user, :moderate_forum) %>
                 <div class="discussion-pubdate"><%= friendly_datetime @topic.posted_at, context: @topic.context %></div>
               <% end %>
-              <%= render :partial => 'new_and_total_badge', :locals => { :unread_count => @topic.unread_count_for_enrollment(@context_membership, @current_user), :reply_count => @topic.discussion_subentry_count_for_enrollment(@context_membership) } %>
+              <%= render :partial => 'new_and_total_badge', :locals => { :unread_count => @topic.unread_count(@current_user), :reply_count => @topic.discussion_subentry_count } %>
             </div>
           </div>
         </header>
@@ -275,7 +263,7 @@
                 type             = "text"
                 aria-label       = "<%= t("Search entries or author") %>"
                 placeholder      = "<%= t("Search entries or author") %>"
-                size             = 40
+                size             = 50
               >
 
               <span class="screenreader-only" id="onlyUnreadAccessibleLabel"><%= t("Filter replies by unread") %></span>
@@ -285,16 +273,13 @@
                 aria-labelledby="onlyUnreadAccessibleLabel"/>
               <label for="onlyUnread" aria-hidden="true"><%= t('unread', 'Unread') %></label>
 
-              &nbsp;
+              &nbsp; &nbsp;
               <button id="collapseAll" class="btn disableWhileFiltering" title="<%= t('collapse_replies', 'Collapse replies') %>" aria-label="<%= t('collapse_replies', 'Collapse replies') %>">
                 <%= image_tag 'discussions/collapse_icon.png', :alt => t('collapse_replies', 'Collapse replies') %>
               </button>
               <button id="expandAll" class="btn disableWhileFiltering" title="<%= t('expand_replies', 'Expand replies') %>" aria-label="<%= t('expand_replies', 'Expand replies') %>">
                 <%= image_tag 'discussions/expand_icon.png', :alt => t('expand_replies', 'Expand replies') %>
               </button>
-              <% if @filter_sections.length > 1 %>
-                <%= select_tag :section_selected, options_for_select([[t('all_sections', 'All Sections'), 0]] + (@filter_sections.map {|s| [s.name, s.id]}), 0), :style => "width:160px" %>
-              <% end %>
             </div>
 
             <div class="span3 right-align">

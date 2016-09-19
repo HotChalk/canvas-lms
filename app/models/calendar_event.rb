@@ -29,7 +29,6 @@ class CalendarEvent < ActiveRecord::Base
   attr_accessible :title, :description, :start_at, :end_at, :location_name,
       :location_address, :time_zone_edited, :cancel_reason,
       :participants_per_appointment, :child_event_data,
-      :course_section_id,
       :remove_child_events, :all_day, :comments
   attr_accessor :cancel_reason, :imported
 
@@ -130,7 +129,6 @@ class CalendarEvent < ActiveRecord::Base
   scope :for_user_and_context_codes, lambda { |user, *args|
     codes = args.shift
     section_codes = args.shift || user.section_context_codes(codes)
-    section_ids = section_codes.map{ |id| id.delete('course_section_').to_i }
     effectively_courses_codes = [user.asset_string] + section_codes
     # the all_codes check is redundant, but makes the query more efficient
     all_codes = codes | effectively_courses_codes
@@ -142,9 +140,8 @@ class CalendarEvent < ActiveRecord::Base
     }.join(" OR ")
     codes_conditions = self.connection.quote(false) if codes_conditions.blank?
 
-    where(<<-SQL, all_codes, section_ids, codes, group_codes, effectively_courses_codes)
+    where(<<-SQL, all_codes, codes, group_codes, effectively_courses_codes)
       calendar_events.context_code IN (?)
-      AND (calendar_events.course_section_id IN (?) OR calendar_events.course_section_id IS NULL)
       AND (
         ( -- explicit contexts (e.g. course_123)
           calendar_events.context_code IN (?)

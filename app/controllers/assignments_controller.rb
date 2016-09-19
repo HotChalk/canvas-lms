@@ -422,7 +422,7 @@ class AssignmentsController < ApplicationController
         :KALTURA_ENABLED => !!feature_enabled?(:kaltura),
         :POST_TO_SIS => post_to_sis,
         :HAS_GRADED_SUBMISSIONS => @assignment.graded_submissions_exist?,
-        :SECTION_LIST => (@context.sections_visible_to(@current_user).active.map { |section|
+        :SECTION_LIST => (@context.course_sections.active.map { |section|
           {
             :id => section.id,
             :name => section.name,
@@ -437,7 +437,6 @@ class AssignmentsController < ApplicationController
             @current_user
             )),
         :ASSIGNMENT_INDEX_URL => polymorphic_url([@context, :assignments]),
-        :LIMIT_PRIVILEGES_TO_COURSE_SECTION => (!@current_user.account_admin?(@context) && @context_membership && @context_membership[:limit_privileges_to_course_section]),
         :VALID_DATE_RANGE => CourseDateRange.new(@context)
       }
 

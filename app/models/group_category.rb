@@ -370,13 +370,9 @@ class GroupCategory < ActiveRecord::Base
   end
 
   def auto_create_groups
-    if(context.is_a?(Course))
-      create_groups_course(@create_group_count) if @create_group_count
-    else
-      create_groups(@create_group_count) if @create_group_count
-      assign_unassigned_members if @assign_unassigned_members && @create_group_count
-      @create_group_count = @assign_unassigned_members = nil
-    end
+    create_groups(@create_group_count) if @create_group_count
+    assign_unassigned_members if @assign_unassigned_members && @create_group_count
+    @create_group_count = @assign_unassigned_members = nil
   end
 
   def create_groups(num)
@@ -385,37 +381,6 @@ class GroupCategory < ActiveRecord::Base
     group_name = group_name.singularize if I18n.locale == :en
     num.times do |idx|
       groups.create(name: "#{group_name} #{idx + 1}", :context => context)
-    end
-  end
-
-  def create_groups_course(num)
-    group_name = name
-    sections = []
-    #Get users and sections according to current user
-    if  @current_user.account_admin?(context)
-      sections = context.course_sections.active.select([:id, :name])
-     else
-      sections = context.sections_visible_to(@current_user)
-    end
-    group_name = group_name.singularize if I18n.locale == :en
-    start_progress
-    sections.each_with_index do |section, section_index|
-      students =  section.student_enrollments.map(&:user)
-      section_groups = []
-
-      num.times do |idx|
-        group = Group.create(name: "#{group_name} #{idx + 1 + section_index * num}", :context => context, :course_section => section)
-        section_groups <<  group
-        groups << group
-      end
-      assign_unassigned_members_course(students, section_groups) if @assign_unassigned_members && @create_group_count
-    end
-    complete_progress
-  end
-
-  def assign_unassigned_members_course(section_members, section_groups)
-    Delayed::Batch.serial_batch do
-      distribute_members_among_groups(section_members, section_groups)
     end
   end
 

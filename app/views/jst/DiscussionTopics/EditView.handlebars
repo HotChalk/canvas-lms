@@ -99,6 +99,32 @@
           </label>
         {{/if}}
         {{#if contextIsCourse}}
+          {{#if isAnnouncement}}
+            <label class="checkbox" for="delay_posting">
+              {{checkbox "delay_posting"
+                checked=delayed_post_at
+                class="element_toggler"
+                aria-controls="discussion_topic_delay_post_container"}}
+              {{#t "delay_posting"}}Delay posting{{/t}}
+            </label>
+            <label class="screenreader-only" id="discussion_topic_delay_post_accessible_label">
+              {{#t}}Delay posting this topic until{{/t}}
+              {{datepickerScreenreaderPrompt}}
+            </label>
+            <label id="discussion_topic_delay_post_container"
+                   style="{{hiddenUnless delayed_post_at}}"
+                   class="checkbox">
+              {{#t "post_at"}}Post At{{/t}}
+              <input type="text"
+                     class="datetime_field input-medium"
+                     name="delayed_post_at"
+                     {{! TODO: what would be the best way to get this formatted right? }}
+                     value="{{datetimeFormatted delayed_post_at}}"
+                     aria-labelledby="discussion_topic_delay_post_accessible_label"
+                     data-tooltip='{"position":"top","force_position":"true"}'
+                     title="{{accessibleDateFormat}}" />
+            </label>
+          {{/if}}
           <label class="checkbox" for="require_initial_post">
             {{checkbox "require_initial_post"}}
             {{#t "users_must_post_before_seeing_replies"}}Users must post before seeing replies{{/t}}
@@ -158,15 +184,6 @@
           </label>
         </div>
       </div>
-      {{#ifAll contextIsCourse isAnnouncement}}
-        <label class="control-label" style="margin-top:20px;">{{#t "assign"}}Post{{/t}}</label>
-        <div class="controls">
-          <div id="availability_options">
-            <div class="overrides-column-right js-overrides overrideFormFlex">
-            </div>
-          </div>
-        </div>
-      {{/ifAll}}
     </div>
     {{/ifAny}}
 
@@ -181,11 +198,51 @@
 
     {{#if contextIsCourse}}
       <div id="availability_options" style="{{hiddenIf set_assignment}}">
-        <div class="form-column-left">
-          {{#t}}Assign{{/t}}
-        </div>
-        <div class="overrides-column-right js-overrides overrideFormFlex">
-        </div>
+        <fieldset>
+          <div class="control-group">
+            <label class="control-label" for="delayed_post_at">
+              {{#t "available_from"}}Available From{{/t}}
+            </label>
+            <label class="screenreader-only" id="discussion_topic_available_from_accessible_label">
+              {{#t}}Discussion Topic will be available starting at{{/t}}
+              {{datepickerScreenreaderPrompt}}
+            </label>
+            <div class="controls">
+              <input type="text"
+                     class="datetime_field input-medium"
+                     name="delayed_post_at"
+                     id="delayed_post_at"
+                     aria-labelledby="discussion_topic_available_from_accessible_label"
+                     {{! TODO: what would be the best way to get this formatted right? }}
+                     value="{{datetimeFormatted delayed_post_at}}"
+                     data-tooltip='{"position":"top","force_position":"true"}'
+                     title="{{accessibleDateFormat}}"/>
+            </div>
+          </div>
+        </fieldset>
+
+        {{#if isTopic}}
+          <fieldset>
+            <div class="control-group">
+              <label class="control-label" for="lock_at">{{#t "until"}}Until{{/t}}</label>
+              <label class="screenreader-only" id="discussion_topic_available_until_accessible_label">
+                {{#t}}Discussion Topic will be available until{{/t}}
+                {{datepickerScreenreaderPrompt}}
+              </label>
+              <div class="controls">
+                <input type="text"
+                       class="datetime_field input-medium"
+                       name="lock_at"
+                       id="lock_at"
+                       aria-labelledby="discussion_topic_available_until_accessible_label"
+                       {{! TODO: what would be the best way to get this formatted right? }}
+                       value="{{datetimeFormatted lock_at}}"
+                       data-tooltip='{"position":"top","force_position":"true"}'
+                       title="{{accessibleDateFormat}}"/>
+              </div>
+            </div>
+          </fieldset>
+        {{/if}}
       </div>
     {{/if}}
   {{/if}}

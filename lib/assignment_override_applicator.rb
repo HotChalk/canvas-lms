@@ -96,11 +96,6 @@ module AssignmentOverrideApplicator
         else
           overrides = current_override_version(assignment_or_quiz, overrides)
         end
-        unless user.account_admin?(context)
-          # filter out section overrides for sections that the teacher can't see
-          section_ids = context.sections_visible_to(user).map(&:id)
-          overrides.reject! { |o| o.set_type == 'CourseSection' && !section_ids.include?(o.set_id) }
-        end
 
         return overrides
       end

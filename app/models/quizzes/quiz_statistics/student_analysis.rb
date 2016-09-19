@@ -186,7 +186,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
     end
   end
 
-  def to_csv(options = {})
+  def to_csv
     include_root_accounts = quiz.context.root_account.trust_exists?
     csv = CSV.generate do |csv|
       context = quiz.context
@@ -203,7 +203,7 @@ class Quizzes::QuizStatistics::StudentAnalysis < Quizzes::QuizStatistics::Report
       columns << I18n.t('statistics.csv_columns.submitted', 'submitted')
       columns << I18n.t('statistics.csv_columns.attempt', 'attempt') if includes_all_versions?
       first_question_index = columns.length
-      submissions = submissions_for_statistics(options)
+      submissions = submissions_for_statistics
       preload_attachments(submissions)
       found_question_ids = {}
       quiz_datas = [quiz.quiz_data] + submissions.map(&:quiz_data)

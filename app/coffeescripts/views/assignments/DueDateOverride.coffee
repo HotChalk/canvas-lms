@@ -25,7 +25,6 @@ define [
         overrides: @model.overrides.models,
         syncWithBackbone: @setNewOverridesCollection,
         sections: @model.sections.models,
-        showDueDate: @model.showDueDate,        
         defaultSectionId: @model.defaultDueDateSectionId,
         selectedGroupSetId: @model.assignment.get("group_category_id")
       })
@@ -47,7 +46,7 @@ define [
         rowErrors = dateValidator.validateDates()
         errors = _.extend(errors, rowErrors)
         for own element, msg of rowErrors
-          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]').filter(':visible')
+          $dateInput = $('[data-date-type="'+element+'"][data-row-key="'+override.rowKey+'"]')
           $dateInput.errorBox msg
         checkedRows.push(override.rowKey)
       errors
@@ -56,14 +55,13 @@ define [
       validRowKeys = _.pluck(data.assignment_overrides, "rowKey")
       blankOverrideMsg = I18n.t('blank_override', 'You must have a student or section selected')
       for row in $('.Container__DueDateRow-item')
-        unless $(row).is(':hidden')
-          rowKey = "#{$(row).data('row-key')}"
-          continue if _.contains(validRowKeys, rowKey)
-          identifier = 'tokenInputFor' + rowKey
-          $inputWrapper = $('[data-row-identifier="'+identifier+'"]')[0]
-          $nameInput = $($inputWrapper).find("input")
-          errors = _.extend(errors, { blankOverrides: [message: blankOverrideMsg] })
-          $nameInput.errorBox(blankOverrideMsg).css("z-index", "20")
+        rowKey = "#{$(row).data('row-key')}"
+        continue if _.contains(validRowKeys, rowKey)
+        identifier = 'tokenInputFor' + rowKey
+        $inputWrapper = $('[data-row-identifier="'+identifier+'"]')[0]
+        $nameInput = $($inputWrapper).find("input")
+        errors = _.extend(errors, { blankOverrides: [message: blankOverrideMsg] })
+        $nameInput.errorBox(blankOverrideMsg).css("z-index", "20")
       errors
 
     validateGroupOverrides: (data, errors) =>

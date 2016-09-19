@@ -77,7 +77,6 @@ class Course < ActiveRecord::Base
                   :course_format,
                   :time_zone,
                   :account_program,
-                  :limit_section_visibility,
                   :organize_epub_by_content_type
 
   time_zone_attribute :time_zone
@@ -223,7 +222,6 @@ class Course < ActiveRecord::Base
   after_save :update_final_scores_on_weighting_scheme_change
   after_save :update_account_associations_if_changed
   after_save :set_self_enrollment_code
-  after_save :set_section_visibility
 
   before_save :touch_root_folder_if_necessary
   before_validation :verify_unique_ids
@@ -1619,7 +1617,7 @@ class Course < ActiveRecord::Base
     enrollment_state = opts[:enrollment_state]
     enrollment_state ||= 'active' if type == 'ObserverEnrollment' && user.registered?
     section = opts[:section]
-    limit_privileges_to_course_section = ((type == 'TeacherEnrollment' || type == 'TaEnrollment') ? opts[:limit_privileges_to_course_section] : self.limit_section_visibility)
+    limit_privileges_to_course_section = opts[:limit_privileges_to_course_section]
     associated_user_id = opts[:associated_user_id]
 
     role = opts[:role] || Enrollment.get_built_in_role_for_type(type)
@@ -2017,7 +2015,7 @@ class Course < ActiveRecord::Base
       :storage_quota, :tab_configuration, :allow_wiki_comments,
       :turnitin_comments, :self_enrollment, :license, :indexed, :locale,
       :hide_final_grade, :hide_distribution_graphs,
-      :limit_section_visibility, :is_public_to_auth_users, :restrict_enrollments_to_course_dates,
+      :is_public_to_auth_users, :restrict_enrollments_to_course_dates,
       :restrict_student_past_view, :restrict_student_future_view,
       :allow_student_discussion_topics, :allow_student_discussion_editing, :lock_all_announcements,
       :organize_epub_by_content_type ]
@@ -2149,22 +2147,12 @@ class Course < ActiveRecord::Base
     end
   end
 
-  #return the users on the same section by user
-  def users_sections_visible_to(user, include_priors=false, opts={})
-    visibilities = section_visibilities_for(user)
-    scope = include_priors ? users : current_users
-    scope =  scope.where(:enrollments => {:workflow_state => opts[:enrollment_state]}) if opts[:enrollment_state]
-    # See also MessageableUsers (same logic used to get users across multiple courses) (should refactor)
-    scope.where(:enrollments => { :course_section_id => visibilities.map {|s| s[:course_section_id] } })
-  end
-
   # returns :all, :none, or an array of section ids
   def course_section_visibility(user, opts={})
     visibilities = section_visibilities_for(user, opts)
     visibility = enrollment_visibility_level_for(user, visibilities)
     if [:full, :limited, :restricted, :sections].include?(visibility)
-      account_admin = visibility == :full && visibilities.empty?
-      if visibility == :sections || (!account_admin && visibilities.all?{ |v| ['StudentEnrollment', 'StudentViewEnrollment', 'ObserverEnrollment'].include? v[:type] })
+      if visibility == :sections || visibilities.all?{ |v| ['StudentEnrollment', 'StudentViewEnrollment', 'ObserverEnrollment'].include? v[:type] }
         visibilities.map{ |s| s[:course_section_id] }
       else
         :all
@@ -2664,7 +2652,6 @@ class Course < ActiveRecord::Base
   add_setting :large_roster, :boolean => true, :default => lambda { |c| c.root_account.large_course_rosters? }
   add_setting :public_syllabus, :boolean => true, :default => false
   add_setting :course_format
-  add_setting :limit_section_visibility, :boolean => true, :default => true
   add_setting :organize_epub_by_content_type, :boolean => true, :default => false
   add_setting :is_public_to_auth_users, :boolean => true, :default => false
 
@@ -2752,8 +2739,8 @@ class Course < ActiveRecord::Base
     enrollments.select { |e| e.active? }.map(&:user).uniq
   end
 
-  def student_view_student(current_user = nil)
-    fake_student = find_or_create_student_view_student(current_user)
+  def student_view_student
+    fake_student = find_or_create_student_view_student
     fake_student = sync_enrollments(fake_student)
     fake_student
   end
@@ -2762,21 +2749,12 @@ class Course < ActiveRecord::Base
   # to appear is to ensure that it does not have a pseudonym or any
   # account_associations. if either of these conditions is false, something is
   # wrong.
-  def find_or_create_student_view_student(current_user = nil)
-    is_admin = current_user && current_user.account_admin?(self)
-    fake_student_sections = (!current_user || is_admin) ? nil : self.sections_visible_to(current_user).map(&:id).sort
-    student_view_students = self.student_view_students.active
-    if fake_student_sections
-      student_view_students = student_view_students.select { |s| s.preferences[:fake_student_sections] == fake_student_sections }
-    elsif is_admin
-      student_view_students = student_view_students.select { |s| !s.preferences.has_key?(:fake_student_sections) }
-    end
-    if student_view_students.count == 0
+  def find_or_create_student_view_student
+    if self.student_view_students.active.count == 0
       fake_student = nil
       User.skip_updating_account_associations do
         fake_student = User.new(:name => t('student_view_student_name', "Test Student"))
         fake_student.preferences[:fake_student] = true
-        fake_student.preferences[:fake_student_sections] = fake_student_sections if fake_student_sections
         fake_student.workflow_state = 'registered'
         fake_student.save
         # hash the unique_id so that it's hard to accidently enroll the user in
@@ -2786,7 +2764,7 @@ class Course < ActiveRecord::Base
       end
       fake_student
     else
-      student_view_students.first
+      self.student_view_students.active.first
     end
   end
   private :find_or_create_student_view_student
@@ -2796,9 +2774,7 @@ class Course < ActiveRecord::Base
   def sync_enrollments(fake_student)
     self.default_section unless course_sections.active.any?
     Enrollment.suspend_callbacks(:update_cached_due_dates) do
-      fake_student_sections = fake_student.preferences[:fake_student_sections]
       self.course_sections.active.each do |section|
-        next if fake_student_sections && !fake_student_sections.include?(section.id)
         # enroll fake_student will only create the enrollment if it doesn't already exist
         self.enroll_user(fake_student, 'StudentViewEnrollment',
                          :allow_multiple_enrollments => true,
@@ -3011,12 +2987,6 @@ class Course < ActiveRecord::Base
   def do_auto_publish
     logger.info "Auto-publishing course: #{self.inspect}"
     process_event('offer')
-  end
-
-  def set_section_visibility
-    self.current_enrollments.each do |e|
-      Enrollment.limit_privileges_to_course_section!(self, e.user, self.limit_section_visibility)
-    end
   end
 
   def syllabus_label

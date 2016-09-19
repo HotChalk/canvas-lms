@@ -28,7 +28,6 @@ class AssignmentOverride < ActiveRecord::Base
 
   belongs_to :assignment
   belongs_to :quiz, class_name: 'Quizzes::Quiz'
-  belongs_to :discussion_topic
   belongs_to :set, :polymorphic => true
   has_many :assignment_override_students, :dependent => :destroy, :validate => false
   validates_presence_of :assignment_version, :if => :assignment
@@ -43,8 +42,6 @@ class AssignmentOverride < ActiveRecord::Base
     :if => lambda{ |override| override.assignment? && override.active? && concrete_set.call(override) }
   validates_uniqueness_of :set_id, :scope => [:quiz_id, :set_type, :workflow_state],
     :if => lambda{ |override| override.quiz? && override.active? && concrete_set.call(override) }
-  validates_uniqueness_of :set_id, :scope => [:discussion_topic_id, :set_type, :workflow_state],
-    :if => lambda{ |override| override.discussion_topic? && override.active? && concrete_set.call(override) }
 
   validate :if => concrete_set do |record|
     if record.set && record.assignment && record.active?
@@ -65,8 +62,8 @@ class AssignmentOverride < ActiveRecord::Base
   end
 
   validate do |record|
-    if [record.assignment, record.quiz, record.discussion_topic].all?(&:nil?)
-      record.errors.add :base, "assignment, quiz or discussion topic required"
+    if [record.assignment, record.quiz].all?(&:nil?)
+      record.errors.add :base, "assignment or quiz required"
     end
   end
 
@@ -107,8 +104,6 @@ class AssignmentOverride < ActiveRecord::Base
   def assignment?; !!assignment_id; end
 
   def quiz?; !!quiz_id; end
-
-  def discussion_topic?; !!discussion_topic_id; end
 
   workflow do
     state :active

@@ -42,8 +42,7 @@ class Assignment < ActiveRecord::Base
     :notify_of_update, :time_zone_edited, :turnitin_enabled,
     :turnitin_settings, :context, :position, :allowed_extensions,
     :external_tool_tag_attributes, :freeze_on_copy,
-    :only_visible_to_overrides, :post_to_sis, :integration_id, :integration_data, :moderated_grading,
-    :course_section_id
+    :only_visible_to_overrides, :post_to_sis, :integration_id, :integration_data, :moderated_grading
 
   ALLOWED_GRADING_TYPES = %w(
     pass_fail percent letter_grade gpa_scale points not_graded
@@ -57,7 +56,6 @@ class Assignment < ActiveRecord::Base
   has_many :provisional_grades, :through => :submissions
   has_many :attachments, :as => :context, :dependent => :destroy
   has_many :assignment_student_visibilities
-  has_many :assignment_user_visibilities
   has_one :quiz, class_name: 'Quizzes::Quiz'
   belongs_to :assignment_group
   has_one :discussion_topic, -> { where(root_topic_id: nil).order(:created_at) }
@@ -72,7 +70,6 @@ class Assignment < ActiveRecord::Base
   validates_length_of :title, :maximum => maximum_string_length, :allow_nil => false, :allow_blank => true
   belongs_to :grading_standard
   belongs_to :group_category
-  belongs_to :course_section
 
   has_one :external_tool_tag, :class_name => 'ContentTag', :as => :context, :dependent => :destroy
   validates_associated :external_tool_tag, :if => :external_tool?
@@ -1007,7 +1004,7 @@ class Assignment < ActiveRecord::Base
   end
 
   def participants_with_visibility(opts={})
-    users = context.participating_admins.able_to_see_assignment_in_course_with_da(self.id, self.context_id)
+    users = context.participating_admins
 
     applicable_students = if opts[:excluded_user_ids]
                             students_with_visibility.reject{|s| opts[:excluded_user_ids].include?(s.id)}
@@ -1917,27 +1914,26 @@ class Assignment < ActiveRecord::Base
   scope :for_group_category, lambda { |group_category_id| where(:group_category_id => group_category_id) }
 
   # NOTE: only use for courses with differentiated assignments on
-  scope :visible_to_users_in_course_with_da, lambda { |user_id, course_id|
-    joins(:assignment_user_visibilities).
-    where(:assignment_user_visibilities => { :user_id => user_id, :course_id => course_id })
+  scope :visible_to_students_in_course_with_da, lambda { |user_id, course_id|
+    joins(:assignment_student_visibilities).
+    where(:assignment_student_visibilities => { :user_id => user_id, :course_id => course_id })
   }
 
   # course_ids should be courses that restrict visibility based on overrides
   # ie: courses with differentiated assignments on or in which the user is not a teacher
-  scope :filter_by_visibilities_in_given_courses, lambda { |user_ids, course_ids_that_have_da_enabled, only_students = true|
+  scope :filter_by_visibilities_in_given_courses, lambda { |user_ids, course_ids_that_have_da_enabled|
     if course_ids_that_have_da_enabled.nil? || course_ids_that_have_da_enabled.empty?
       active
     else
       user_ids = Array.wrap(user_ids).join(',')
       course_ids = Array.wrap(course_ids_that_have_da_enabled).join(',')
-      view_name = only_students ? AssignmentStudentVisibility.quoted_table_name : AssignmentUserVisibility.quoted_table_name
       scope = joins(sanitize_sql([<<-SQL, course_ids, user_ids]))
-        LEFT OUTER JOIN #{view_name} ON (
-         #{view_name}.assignment_id = assignments.id
-         AND #{view_name}.course_id IN (%s)
-         AND #{view_name}.user_id IN (%s))
+        LEFT OUTER JOIN #{AssignmentStudentVisibility.quoted_table_name} ON (
+         assignment_student_visibilities.assignment_id = assignments.id
+         AND assignment_student_visibilities.course_id IN (%s)
+         AND assignment_student_visibilities.user_id IN (%s))
       SQL
-      scope.where("(assignments.context_id NOT IN (?) AND assignments.workflow_state<>'deleted') OR (#{view_name}.assignment_id IS NOT NULL)", course_ids_that_have_da_enabled)
+      scope.where("(assignments.context_id NOT IN (?) AND assignments.workflow_state<>'deleted') OR (assignment_student_visibilities.assignment_id IS NOT NULL)", course_ids_that_have_da_enabled)
     end
   }
 

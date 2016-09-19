@@ -295,7 +295,6 @@ class CoursesController < ApplicationController
   skip_after_filter :update_enrollment_last_activity_at, only: [:enrollment_invitation, :activity_stream_summary]
 
   include Api::V1::Course
-  include Api::V1::CourseSection
   include Api::V1::Progress
 
   # @API List your courses
@@ -689,8 +688,6 @@ class CoursesController < ApplicationController
         @course.apply_assignment_group_weights = value_to_boolean apply_assignment_group_weights
       end
 
-      @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
-
       changes = changed_settings(@course.changes, @course.settings)
 
       respond_to do |format|
@@ -924,8 +921,7 @@ class CoursesController < ApplicationController
   def recent_students
     get_context
     if authorized_action(@context, @current_user, :read_reports)
-      course_sections = @current_user.account_admin?(@context) ? nil : @context.sections_visible_to(@current_user)
-      scope = User.for_course_with_last_login(@context, @context.root_account_id, 'StudentEnrollment', course_sections)
+      scope = User.for_course_with_last_login(@context, @context.root_account_id, 'StudentEnrollment')
       scope = scope.order('login_info_exists, last_login DESC')
       users = Api.paginate(scope, self, api_v1_course_recent_students_url)
       user_json_preloads(users)
@@ -1210,7 +1206,6 @@ class CoursesController < ApplicationController
       :show_total_grade_as_points,
       :allow_student_organized_groups,
       :hide_final_grades,
-      :limit_section_visibility,
       :hide_distribution_graphs,
       :lock_all_announcements,
       :restrict_student_past_view,
@@ -1817,7 +1812,7 @@ class CoursesController < ApplicationController
       # Enrollment settings hash
       # Change :limit_privileges_to_course_section to be an explicit true/false value
       enrollment_options = params.slice(:course_section_id, :enrollment_type, :limit_privileges_to_course_section)
-      limit_privileges = (['TeacherEnrollment', 'TaEnrollment'].include?(params[:enrollment_type]) ? value_to_boolean(enrollment_options[:limit_privileges_to_course_section]) : @context.limit_section_visibility)
+      limit_privileges = value_to_boolean(enrollment_options[:limit_privileges_to_course_section])
       enrollment_options[:limit_privileges_to_course_section] = limit_privileges
       enrollment_options[:role] = custom_role if custom_role
       list = UserList.new(params[:user_list],
@@ -2199,10 +2194,6 @@ class CoursesController < ApplicationController
         return unless process_course_event
       end
 
-      if params[:course].has_key?(:limit_section_visibility)
-        @course.limit_section_visibility = value_to_boolean(params[:course].delete(:limit_section_visibility))
-      end
-
       params[:course][:conclude_at] = params[:course].delete(:end_at) if api_request? && params[:course].has_key?(:end_at)
       @default_wiki_editing_roles_was = @course.default_wiki_editing_roles
 
@@ -2391,7 +2382,7 @@ class CoursesController < ApplicationController
     get_context
     if @current_user.fake_student? && authorized_action(@context, @real_current_user, :use_student_view)
       # destroy the exising student
-      @fake_student = @context.student_view_student(logged_in_user)
+      @fake_student = @context.student_view_student
       # but first, remove all existing quiz submissions / submissions
 
       AssessmentRequest.for_assessee(@fake_student).destroy_all
@@ -2411,7 +2402,7 @@ class CoursesController < ApplicationController
   end
 
   def enter_student_view
-    @fake_student = @context.student_view_student(logged_in_user)
+    @fake_student = @context.student_view_student
     session[:become_user_id] = @fake_student.id
     return_url = course_path(@context)
     session.delete(:masquerade_return_to)
@@ -2565,14 +2556,5 @@ class CoursesController < ApplicationController
     return render_unauthorized_action unless @current_user.present?
     @user = params[:user_id]=="self" ? @current_user : api_find(User,params[:user_id])
     authorized_action(@user,@current_user,:read)
-  end
-
-  def user_sections
-    get_context
-    return unless authorized_action(@context, @current_user, :read)
-
-    user_sections = @context.sections_visible_to(@current_user)
-    hash = course_sections_json(user_sections)
-    render :json => hash
   end
 end

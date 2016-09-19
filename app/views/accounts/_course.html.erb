@@ -64,29 +64,5 @@
       </div>
     </div>
   </div>
-  <% if course && course.active_course_sections && !course.active_course_sections.empty? %>
-    <div class="sections">
-      <% course.active_course_sections.each do |section| %>
-        <div class="row">
-          <div class="span">
-            <strong><%= before_label(t(:section, "Section")) %></strong><span> <%= section.name %></span>
-          </div>
-          <div class="span pull-right">
-            <% enrollments_count = section.student_enrollments.not_fake.where(:workflow_state => 'active').count %>
-            <strong><%= t('student_count', {:one => '1 Student', :other => '%{count} Students'}, :count => enrollments_count) %></strong>
-          </div>
-          <div class="span pull-right">
-            <% if section.start_at && section.end_at %>
-              <%= t('run_dates', '%{start_date} - %{end_date}', :start_date => friendly_datetime(section.start_at, context: @context, time: false).html_safe, :end_date => friendly_datetime(section.end_at, context: @context).html_safe) %>
-            <% elsif section.end_at %>
-              <%= t('runs_until', 'Ends %{end_date}', :end_date => friendly_datetime(section.end_at, context: @context).html_safe) %>
-            <% elsif section.start_at %>
-              <%= t('run_from', 'Starts %{start_date}', :start_date => friendly_datetime(section.start_at, context: @context).html_safe) %>
-            <% end %>
-          </div>
-        </div>
-      <% end %>
-    </div>
-  <% end %>
 </li>
 <% end %>

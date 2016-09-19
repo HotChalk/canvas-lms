@@ -25,7 +25,6 @@ define([
       defaultSectionNamer: React.PropTypes.func.isRequired,
       replaceDate: React.PropTypes.func.isRequired,
       canDelete: React.PropTypes.bool.isRequired,
-      showDueDate: React.PropTypes.bool.isRequired,
       currentlySearching: React.PropTypes.bool.isRequired,
       allStudentsFetched: React.PropTypes.bool.isRequired,
     },
@@ -153,7 +152,6 @@ define([
                             rowKey      = {this.props.rowKey}
                             overrides   = {this.props.overrides}
                             replaceDate = {this.props.replaceDate}
-                            showDueDate = {this.props.showDueDate}
                             sections    = {this.props.sections}/>
         </div>
       )

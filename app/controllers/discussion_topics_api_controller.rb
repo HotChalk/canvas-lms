@@ -108,26 +108,6 @@ class DiscussionTopicsApiController < ApplicationController
     if structure
       structure = resolve_placeholders(structure)
 
-      unless @current_user.account_admin?(@context)
-        # if the current enrollment has limited section visibility, ensure that only the visible parts of the discussion topic are returned
-        if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
-          visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
-          entries = JSON.parse(structure)
-          rejected_entries = entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
-          entries -= rejected_entries
-          entries.select {|e| e['replies'].present?}.each do |entry|
-            rejected_replies = entry['replies'].select {|r| !visible_user_ids.include?(r['user_id'].to_i) }
-            rejected_entries += rejected_replies
-            entry['replies'] -= rejected_replies
-          end
-          structure = entries.to_json
-          rejected_entries += new_entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
-          new_entries -= rejected_entries
-          participant_ids.reject! {|id| !visible_user_ids.include?(id) }
-          entry_ids -= rejected_entries.map {|r| r['id']}.uniq
-        end
-      end
-
       # we assume that json_structure will typically be served to users requesting string IDs
       unless stringify_json_ids?
         entries = JSON.parse(structure)
@@ -153,14 +133,6 @@ class DiscussionTopicsApiController < ApplicationController
         if include_enrollment_state
           enrolls = all_enrollments.select{|e| e.user_id == participant.id}
           json[:isInactive] = enrolls.any? && enrolls.all?(&:inactive?)
-        end
-
-        # in the context of a course discussion, include the list of sections that each participant belongs to
-        if @context && @context.is_a_context? && @topic.context_type == 'Course'
-          json.merge!({:sections => participant.cached_current_enrollments.select {|e| e.active? && e.course_id == @context.id}.
-              map(&:course_section).compact.uniq.
-              map {|s| {:id => s.id, :name => s.name}}.
-              sort_by {|x| x[:name]}})
         end
 
         json

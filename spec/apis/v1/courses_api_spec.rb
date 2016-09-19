@@ -2753,7 +2753,6 @@ describe CoursesController, type: :request do
         'allow_student_organized_groups' => true,
         'hide_distribution_graphs' => false,
         'hide_final_grades' => false,
-        'limit_section_visibility' => true,
         'lock_all_announcements' => false,
         'restrict_student_past_view' => false,
         'restrict_student_future_view' => false
@@ -2775,7 +2774,6 @@ describe CoursesController, type: :request do
         :allow_student_organized_groups => false,
         :hide_distribution_graphs => true,
         :hide_final_grades => true,
-        :limit_section_visibility => false,
         :lock_all_announcements => true,
         :restrict_student_past_view => true,
         :restrict_student_future_view => true
@@ -2789,7 +2787,6 @@ describe CoursesController, type: :request do
         'allow_student_organized_groups' => false,
         'hide_distribution_graphs' => true,
         'hide_final_grades' => true,
-        'limit_section_visibility' => false,
         'lock_all_announcements' => true,
         'restrict_student_past_view' => true,
         'restrict_student_future_view' => true
@@ -2801,7 +2798,6 @@ describe CoursesController, type: :request do
       expect(@course.allow_student_organized_groups).to eq false
       expect(@course.hide_distribution_graphs).to eq true
       expect(@course.hide_final_grades).to eq true
-      expect(@course.limit_section_visibility).to eq false
       expect(@course.lock_all_announcements).to eq true
     end
   end

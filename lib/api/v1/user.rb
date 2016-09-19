@@ -84,11 +84,6 @@ module Api::V1::User
           map(&:course_section).compact.uniq.
           map(&:name).join(", ")
       end
-      if includes.include?('sections_ids')
-        json[:sections] = user.enrollments.
-            map(&:course_section).compact.uniq.
-            map(&:id).join(", ")
-      end
 
       # make sure this only runs if user_json_preloads has
       # been called with {group_memberships: true} in opts

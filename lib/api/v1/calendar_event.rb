@@ -43,7 +43,7 @@ module Api::V1::CalendarEvent
     duplicates = options[:duplicates] || []
     participant = nil
 
-    hash = api_json(event, user, session, :only => %w(id created_at updated_at start_at end_at all_day all_day_date title location_address location_name workflow_state comments course_section_id))
+    hash = api_json(event, user, session, :only => %w(id created_at updated_at start_at end_at all_day all_day_date title location_address location_name workflow_state comments))
     hash['type'] = 'event'
     if event.context_type == "CourseSection"
       hash['title'] += " (#{context.name})"

@@ -27,11 +27,11 @@ module Api::V1::DiscussionTopics
   ALLOWED_TOPIC_FIELDS  = %w{
     id title assignment_id delayed_post_at lock_at
     last_reply_at posted_at root_topic_id podcast_has_student_posts
-    discussion_type position course_sections allow_rating only_graders_can_rate sort_by_rating
+    discussion_type position allow_rating only_graders_can_rate sort_by_rating
   }.freeze
 
   # Public: DiscussionTopic methods to serialize.
-  ALLOWED_TOPIC_METHODS = [:user_name].freeze
+  ALLOWED_TOPIC_METHODS = [:user_name, :discussion_subentry_count].freeze
 
   # Public: Serialize an array of DiscussionTopic objects for returning as JSON.
   #
@@ -63,7 +63,6 @@ module Api::V1::DiscussionTopics
   # Returns a hash.
   def discussion_topic_api_json(topic, context, user, session, opts = {})
     opts.reverse_merge!(
-      include_overrides: false,
       include_assignment: true,
       override_dates: true
     )
@@ -81,19 +80,7 @@ module Api::V1::DiscussionTopics
       excludes = opts[:exclude_assignment_description] ? ['description'] : []
       json[:assignment] = assignment_json(topic.assignment, user, session,
         include_discussion_topic: false, override_dates: opts[:override_dates],
-        include_all_dates: opts[:include_all_dates],
         exclude_response_fields: excludes)
-    end
-    if opts[:include_overrides]
-      active_overrides = topic.assignment_overrides.active
-      json[:assignment_overrides] = assignment_overrides_json(active_overrides)
-    end
-    if opts[:include_all_dates] && topic.assignment_overrides.present?
-      json[:all_dates] = topic.dates_hash_visible_to(user)
-    end
-    json[:only_visible_to_overrides] = value_to_boolean(topic.only_visible_to_overrides)
-    if opts[:include_overrides_names]
-      json[:overrides_names] = get_overrides_names(topic)
     end
 
     json
@@ -119,15 +106,13 @@ module Api::V1::DiscussionTopics
 
     fields = { require_initial_post: topic.require_initial_post?,
       user_can_see_posts: topic.user_can_see_posts?(user), podcast_url: url,
-      read_state: topic.read_state(user), unread_count: topic.unread_count_for_enrollment(@context_enrollment, user),
-      discussion_subentry_count: topic.discussion_subentry_count_for_enrollment(@context_enrollment),
+      read_state: topic.read_state(user), unread_count: topic.unread_count(user),
       subscribed: topic.subscribed?(user), topic_children: topic.child_topics.pluck(:id),
       attachments: attachments, published: topic.published?,
       can_unpublish: opts[:user_can_moderate] ? topic.can_unpublish?(opts) : false,
       locked: topic.locked?, can_lock: topic.can_lock?,
       author: user_display_json(topic.user, topic.context),
       html_url: html_url, url: html_url, pinned: !!topic.pinned,
-      course_sections: topic.course_section_names(context, user), context_type: topic.context_type,
       group_category_id: topic.group_category_id, can_group: topic.can_group?(opts) }
     unless opts[:exclude_messages]
       if opts[:plain_messages]
@@ -188,6 +173,7 @@ module Api::V1::DiscussionTopics
     json.merge!(discussion_entry_attachment(entry, user, context))
     json.merge!(discussion_entry_read_state(entry, user))
     json.merge!(discussion_entry_subentries(entry, user, context, session, includes))
+
     json
   end
 

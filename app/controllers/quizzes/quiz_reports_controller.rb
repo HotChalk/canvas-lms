@@ -168,12 +168,7 @@ class Quizzes::QuizReportsController < ApplicationController
     end
 
     statistics.abort_csv_generation if statistics.csv_generation_failed?
-    if @current_user.account_admin?(@context)
-      statistics.generate_csv_in_background
-    else
-       sections = @context.sections_visible_to(@current_user).collect(&:id)
-       statistics.generate_csv_in_background({section_ids: sections})
-    end
+    statistics.generate_csv_in_background
 
     expose statistics, backward_compatible_includes
   end

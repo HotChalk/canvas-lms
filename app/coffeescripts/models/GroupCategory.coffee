@@ -16,7 +16,6 @@ define [
 
     initialize: ->
       super
-      @current_section_id = null
       if groups = @get('groups')
         @groups groups
       @on 'change:group_limit', @updateGroups
@@ -29,11 +28,8 @@ define [
       @_groups = new GroupCollection models,
         category: this
         loadAll: true
-      @_groups.url()
       if @get('groups_count') is 0 or models?.length
         @_groups.loadedAll = true
-      else if @current_section_id
-        @_groups.filterBySection(@current_section_id)
       else
         @_groups.fetch()
       @_groups.on 'fetched:last', => @set('groups_count', @_groups.length)
@@ -53,11 +49,7 @@ define [
         @_unassignedUsers.increment group.usersCount()
 
       if not @get('allows_multiple_memberships') and (not users.loadedAll or not @_unassignedUsers.loadedAll)
-        if @current_section_id
-          options = {section_id : @current_section_id, force_search : true}
-          @_unassignedUsers.search('', options)
-        else
-          @_unassignedUsers.fetch()
+        @_unassignedUsers.fetch()
 
     reassignUser: (user, newGroup) ->
       oldGroup = user.get('group')
@@ -72,7 +64,7 @@ define [
       user.save group: newGroup
 
     groupsCount: ->
-      if @_groups?
+      if @_groups?.loadedAll
         @_groups.length
       else
         @get('groups_count')
@@ -86,7 +78,6 @@ define [
     unassignedUsers: ->
       @_unassignedUsers = new UnassignedGroupUserCollection null,
         category: this
-        section_id: @current_section_id
       @_unassignedUsers.on 'fetched:last', => @set('unassigned_users_count', @_unassignedUsers.length)
       @unassignedUsers = -> @_unassignedUsers
       @_unassignedUsers
@@ -115,9 +106,6 @@ define [
 
     setUpProgress: (response) =>
       @set progress_url: response.url
-
-    setCurrentSectionId: ( section_id ) ->
-      @current_section_id = section_id
 
     present: ->
       data = Backbone.Model::toJSON.call(this)

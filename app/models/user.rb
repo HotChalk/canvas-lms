@@ -88,9 +88,7 @@ class User < ActiveRecord::Base
   has_many :active_assignments, -> { where("assignments.workflow_state<>'deleted'") }, as: :context, class_name: 'Assignment'
   has_many :all_attachments, :as => 'context', :class_name => 'Attachment'
   has_many :assignment_student_visibilities
-  has_many :assignment_user_visibilities
   has_many :quiz_student_visibilities, :class_name => 'Quizzes::QuizStudentVisibility'
-  has_many :discussion_topic_user_visibilities
   has_many :folders, -> { order('folders.name') }, as: 'context'
   has_many :active_folders, -> { where("folders.workflow_state<>'deleted'").order('folders.name') }, class_name: 'Folder', as: :context
   has_many :calendar_events, -> { preload(:parent_event) }, as: 'context', dependent: :destroy
@@ -197,20 +195,14 @@ class User < ActiveRecord::Base
 
   # NOTE: only use for courses with differentiated assignments on
   scope :able_to_see_assignment_in_course_with_da, lambda {|assignment_id, course_id|
-    joins(:assignment_user_visibilities).
-    where(:assignment_user_visibilities => { :assignment_id => assignment_id, :course_id => course_id })
+    joins(:assignment_student_visibilities).
+    where(:assignment_student_visibilities => { :assignment_id => assignment_id, :course_id => course_id })
   }
 
   # NOTE: only use for courses with differentiated assignments on
   scope :able_to_see_quiz_in_course_with_da, lambda {|quiz_id, course_id|
     joins(:quiz_student_visibilities).
     where(:quiz_student_visibilities => { :quiz_id => quiz_id, :course_id => course_id })
-  }
-
-  # NOTE: only use for courses with differentiated assignments on
-  scope :able_to_see_discussion_topic_in_course_with_da, lambda {|discussion_topic_id, course_id|
-    joins(:discussion_topic_user_visibilities).
-    where(:discussion_topic_user_visibilities => { :discussion_topic_id => discussion_topic_id, :course_id => course_id })
   }
 
   scope :observing_students_in_course, lambda {|observee_ids, course_ids|
@@ -273,7 +265,7 @@ class User < ActiveRecord::Base
       group("users.id")
   }
 
-  scope :for_course_with_last_login, lambda { |course, root_account_id, enrollment_type, course_sections = nil|
+  scope :for_course_with_last_login, lambda { |course, root_account_id, enrollment_type|
     # add a field to each user that is the aggregated max from current_login_at and last_login_at from their pseudonyms
     scope = select("users.*, MAX(current_login_at) as last_login, MAX(current_login_at) IS NULL as login_info_exists").
       # left outer join ensures we get the user even if they don't have a pseudonym
@@ -283,7 +275,6 @@ class User < ActiveRecord::Base
       SQL
     scope = scope.where("enrollments.workflow_state<>'deleted'")
     scope = scope.where(:enrollments => { :type => enrollment_type }) if enrollment_type
-    scope = scope.where(:enrollments => { :course_section_id => course_sections.map(&:id) }) if course_sections
     # the trick to get unique users
     scope.group("users.id")
   }
@@ -607,8 +598,6 @@ class User < ActiveRecord::Base
     eager_load(:user_services).where(:user_services => { :service => service.to_s })
   }
   scope :enrolled_before, lambda { |date| where("enrollments.created_at<?", date) }
-
-  scope :enrolled_in_sections, lambda { |course_section_ids| where("enrollments.course_section_id IN (?)", course_section_ids) }
 
   def group_memberships_for(context)
     groups.where('groups.context_id' => context,
@@ -1441,11 +1430,10 @@ class User < ActiveRecord::Base
   end
 
   def assignments_visible_in_course(course)
-    return course.active_assignments if account_admin?(course)
-    user_is_instructor = course.user_is_instructor?(self)
-    visible_assignments = user_is_instructor ? course.active_assignments : course.active_assignments.published
-    visible_assignments = DifferentiableAssignment.scope_filter(visible_assignments,self,course, is_teacher: user_is_instructor)
-    visible_assignments
+    return course.active_assignments if course.grants_any_right?(self, :read_as_admin, :manage_grades, :manage_assignments)
+    published_visible_assignments = course.active_assignments.published
+    published_visible_assignments = DifferentiableAssignment.scope_filter(published_visible_assignments,self,course, is_teacher: false)
+    published_visible_assignments
   end
 
   def assignments_needing(purpose, participation_type, expires_in, opts={})
@@ -2475,7 +2463,7 @@ class User < ActiveRecord::Base
   end
 
   def sections_for_course(course)
-    course.current_enrollments.for_user(self).map { |e| e.course_section }
+    course.student_enrollments.active.for_user(self).map { |e| e.course_section }
   end
 
   def can_create_enrollment_for?(course, session, type)
@@ -2806,36 +2794,4 @@ class User < ActiveRecord::Base
     result = nil unless I18n.locale_available?(result)
     result
   end
-
-  def account_admin?(context)
-    return false if context.nil?
-    root_account = if context.is_a?(Course)
-                context.root_account
-              elsif context.is_a?(Account)
-                context.root_account? ? context : context.root_account
-              else
-                nil
-              end
-    account = if context.is_a?(Course)
-                context.account
-              elsif context.is_a?(Account)
-                context
-              else
-                nil
-              end
-
-    root_admin_roles = root_account && root_account.available_account_roles
-    admin_roles = account && account.available_account_roles
-    return false unless root_admin_roles && root_account && admin_roles && account
-
-    root_admin = root_account.account_users.for_user(self).where(role_id: root_admin_roles.map(&:id)).first.present?
-    if root_account == account
-      return root_admin
-    else
-      account_admin = account.account_users.for_user(self).where(role_id: admin_roles.map(&:id)).first.present?
-      root_admin || account_admin
-    end
-  end
-
-
 end
