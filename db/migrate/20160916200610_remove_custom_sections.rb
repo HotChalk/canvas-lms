@@ -7,6 +7,10 @@ class RemoveCustomSections < ActiveRecord::Migration
     self.connection.execute "DROP VIEW quiz_user_visibilities;"
     self.connection.execute "DROP VIEW assignment_user_visibilities;"
 
+    # Delete assignment override data that relates to discussion topics
+    AssignmentOverrideStudent.where("discussion_topic_id IS NOT NULL").delete_all
+    AssignmentOverride.where("discussion_topic_id IS NOT NULL").delete_all
+
     # Drop constraints
     remove_foreign_key :assignment_override_students, :discussion_topic
     remove_foreign_key :assignment_overrides, :discussion_topic
