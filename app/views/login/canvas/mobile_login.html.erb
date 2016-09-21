@@ -21,7 +21,7 @@
       <button type="submit" class="btn btn-primary btn-large"><%= @is_prelogin ? t('submit', 'Submit') : t('log_in', 'Log In') %></button>
   <% end %>
   <div class="forgotBlock">
-    <% if (@is_prelogin || @auth_url.blank?) && (url = params[:canvas_login].blank?) && @domain_root_account.try(:forgot_password_external_url) %>
+    <% if (@is_prelogin || @auth_url.blank?) && params[:canvas_login].blank? && url = @domain_root_account.try(:forgot_password_external_url) %>
       <%= link_to t('need_help', "Need help logging in?"), url, :class => 'forgot-password' %>
     <% else %>
       <a class="forgot-password flip-to-back"><%= t('dont_know_password', "Forgot Password?") %></a>
