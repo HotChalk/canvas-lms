@@ -246,13 +246,7 @@ module AssignmentOverrideApplicator
           # for any times in the value set, bring them back from raw UTC into the
           # current Time.zone before placing them in the assignment
           value = value.in_time_zone if value && value.respond_to?(:in_time_zone) && !value.is_a?(Date)
-          # Attempt to write the attribute if it exists; otherwise attempt to call the setter method
-          # (this deals with aliases used in DiscussionTopic and subclass)
-          if cloned_assignment_or_quiz.has_attribute?(field)
-            cloned_assignment_or_quiz.write_attribute(field, value)
-          elsif cloned_assignment_or_quiz.respond_to?(field.to_sym)
-            cloned_assignment_or_quiz.send("#{field}=".to_sym, value)
-          end
+          cloned_assignment_or_quiz.write_attribute(field, value)
         end
       end
     end

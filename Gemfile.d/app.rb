@@ -88,7 +88,7 @@ gem 'ritex', '1.0.1', require: false
 gem 'rotp', '1.6.1', require: false
 gem 'net-ldap', '0.10.1', require: false
 gem 'ruby-duration', '3.2.0', require: false
-gem 'ruby-saml-mod', '0.3.1'
+gem 'ruby-saml-mod-hc', '0.3.1', github: 'hotchalk/ruby-saml'
 gem 'saml2', '1.0.7', require: false
   gem 'nokogiri-xmlsec-me-harder', '0.9.3pre', require: false, github: 'instructure/nokogiri-xmlsec-me-harder', ref: '3236a249986413c6c399ef3477132a0af0410bb7'
 gem 'rubycas-client', '2.3.9', require: false
@@ -155,6 +155,6 @@ gem 'workflow', path: 'gems/workflow'
 # Using old version for now: see https://github.com/instructure/canvas-lms/issues/752#issuecomment-223089219
 gem 'newrelic_rpm', '3.12.0.288'
 # Lograge Logging
-gem "lograge", '0.3.6'
+gem "lograge", '0.4.1'
 # Rack CORS middleware
 gem 'rack-cors', '0.4.0', require: 'rack/cors'

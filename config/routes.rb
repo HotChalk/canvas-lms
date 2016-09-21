@@ -1004,7 +1004,6 @@ CanvasRails::Application.routes.draw do
     end
 
     scope(controller: :assignments_api) do
-      get 'assignments', action: :user_index, as: 'user_assignments'
       get 'courses/:course_id/assignments', action: :index, as: 'course_assignments'
       get 'users/:user_id/courses/:course_id/assignments', action: :user_index, as: 'user_course_assignments'
       get 'courses/:course_id/assignments/:id', action: :show, as: 'course_assignment'
@@ -1849,10 +1848,6 @@ CanvasRails::Application.routes.draw do
       end
     end
 
-    scope(controller: :gradebooks) do
-      get 'courses/:course_id/grades', action: :grade_summary
-    end
-    
     scope(controller: 'bookmarks/bookmarks') do
       get 'users/self/bookmarks/', action: :index, as: :bookmarks
       get 'users/self/bookmarks/:id', action: :show

@@ -46,8 +46,6 @@ module Api::V1::Quiz
       require_lockdown_browser_for_results
       require_lockdown_browser_monitor
       lockdown_browser_monitor_data
-      submission_for_current_user
-      quiz_submission_versions
       only_visible_to_overrides
       )
   }

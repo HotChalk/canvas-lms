@@ -2098,12 +2098,6 @@ class Assignment < ActiveRecord::Base
     @new_record = new_record if @simply_versioned_version_model
   end
 
-  def unpublished_module
-    return !!(self.locked_by_module_item?(@current_user, true) ||
-      (self.quiz && self.quiz.locked_by_module_item?(@current_user, true)) ||
-      (self.discussion_topic && self.discussion_topic.locked_by_module_item?(@current_user, true)))
-  end
-
   def quiz?
     submission_types == 'online_quiz' && quiz.present?
   end

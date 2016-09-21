@@ -89,6 +89,7 @@ module CC::Importer::Canvas
           add_warning(I18n.t('errors.bad_navigation_config', "Invalid course tab configuration"), $!)
         end
       end
+
       course
     end
 

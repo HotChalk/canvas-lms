@@ -590,7 +590,7 @@ class AssignmentsApiController < ApplicationController
         scope = scope.where(id: params[:assignment_ids])
       end
 
-      assignments = scope.all
+      assignments = Api.paginate(scope, self, api_v1_course_assignments_url(@context))
 
       if params[:assignment_ids] && assignments.length != params[:assignment_ids].length
         invalid_ids = params[:assignment_ids] - assignments.map(&:id).map(&:to_s)
@@ -655,51 +655,6 @@ class AssignmentsApiController < ApplicationController
                         )
       end
       hashes
-    end
-  end
-
-  def user_index
-    if @context == @current_user || authorized_action(@context, @current_user, :read)
-
-      # get assignment list
-      get_all_pertinent_contexts
-      get_sorted_assignments
-
-      @assignments.map! {|a| a.overridden_for(@current_user)}
-      if @current_user
-        @submissions = @current_user.submissions.with_each_shard
-        @submissions.each{ |s| s.mute if s.muted_assignment? }
-      else
-        @submissions = []
-      end
-
-      # sort and condense the assignment list
-      sorted = SortsAssignments.by_due_date({
-        :assignments => @assignments,
-        :user => @current_user,
-        :session => session,
-        :upcoming_limit => 1.week.from_now,
-        :submissions => @submissions
-      })
-      @past_assignments = sorted.past
-      @undated_assignments = sorted.undated
-      @ungraded_assignments = sorted.ungraded
-      @upcoming_assignments = sorted.upcoming
-      @future_assignments = sorted.future
-      @overdue_assignments = sorted.overdue
-
-      condense_assignments
-      categorized_assignments.each(&:sort!)
-
-      # clean up and prepare results
-      sortedAssignments = {}
-      sortedAssignments[:overdue] = assignments_json(@overdue_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:ungraded] = assignments_json(@ungraded_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:upcoming] = assignments_json(@upcoming_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:undated] = assignments_json(@undated_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:past] = assignments_json(@past_assignments, @current_user, session, { include_submission: true })
-
-      render :json => sortedAssignments
     end
   end
 
