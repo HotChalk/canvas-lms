@@ -123,7 +123,6 @@ module Api::V1::Assignment
 
     can_manage = assignment.context.grants_any_right?(user, :manage, :manage_grades, :manage_assignments)
     hash['muted'] = assignment.muted?
-    hash['unpublished_module'] = assignment.unpublished_module
     hash['html_url'] = course_assignment_url(assignment.context_id, assignment)
     if can_manage
       hash['has_overrides'] = assignment.has_overrides?
