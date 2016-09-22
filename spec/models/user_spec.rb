@@ -172,6 +172,7 @@ describe User do
     expect(@user.recent_stream_items.size).to eq 1
     @enrollment.end_at = @enrollment.start_at = Time.now - 1.day
     @enrollment.save!
+    @user = User.find(@user.id)
     expect(@user.recent_stream_items.size).to eq 0
   end
 
@@ -771,6 +772,10 @@ describe User do
       set_up_course_with_users
     end
 
+    before(:each) do
+      RequestStore.clear!
+    end
+
     def set_up_course_with_users
       @course = course_model(:name => 'the course')
       @this_section_teacher = @teacher
@@ -799,7 +804,7 @@ describe User do
     # should be putting more than a handful of users into the search results...
     # right?
     def search_messageable_users(viewing_user, *args)
-      viewing_user.search_messageable_users(*args).paginate(:page => 1, :per_page => 20)
+      viewing_user.address_book.search_users(*args).paginate(:page => 1, :per_page => 20)
     end
 
     it "should include yourself even when not enrolled in courses" do
@@ -954,16 +959,17 @@ describe User do
       # other_section_user is a teacher in one course, student in another
       @other_course.enroll_user(@other_section_user, 'TeacherEnrollment', :enrollment_state => 'active')
 
-      messageable_users = search_messageable_users(@admin)
-      this_section_user = messageable_users.detect{|u| u.id == @this_section_user.id}
-      expect(this_section_user.common_courses.keys).to include @first_course.id
-      expect(this_section_user.common_courses[@first_course.id].sort).to eql ['StudentEnrollment', 'TaEnrollment']
+      address_book = @admin.address_book
+      search_messageable_users(@admin)
+      common_courses = address_book.common_courses(@this_section_user)
+      expect(common_courses.keys).to include @first_course.id
+      expect(common_courses[@first_course.id].sort).to eql ['StudentEnrollment', 'TaEnrollment']
 
-      two_context_guy = messageable_users.detect{|u| u.id == @other_section_user.id}
-      expect(two_context_guy.common_courses.keys).to include @first_course.id
-      expect(two_context_guy.common_courses[@first_course.id].sort).to eql ['StudentEnrollment']
-      expect(two_context_guy.common_courses.keys).to include @other_course.id
-      expect(two_context_guy.common_courses[@other_course.id].sort).to eql ['TeacherEnrollment']
+      common_courses = address_book.common_courses(@other_section_user)
+      expect(common_courses.keys).to include @first_course.id
+      expect(common_courses[@first_course.id].sort).to eql ['StudentEnrollment']
+      expect(common_courses.keys).to include @other_course.id
+      expect(common_courses[@other_course.id].sort).to eql ['TeacherEnrollment']
     end
 
     it "should include users with no shared contexts iff admin" do
@@ -1046,38 +1052,38 @@ describe User do
       end
     end
 
-    context "admin_context" do
+    context "is_admin" do
       it "should find users in the course" do
-        expect(search_messageable_users(@admin, :context => @course.asset_string, :admin_context => @course).map(&:id).sort).to eq(
+        expect(search_messageable_users(@admin, context: @course.asset_string, is_admin: true).map(&:id).sort).to eq(
           [@this_section_teacher.id, @this_section_user.id, @other_section_user.id, @other_section_teacher.id]
         )
       end
 
       it "should find users in the section" do
-        expect(search_messageable_users(@admin, :context => "section_#{@course.default_section.id}", :admin_context => @course.default_section).map(&:id).sort).to eq(
+        expect(search_messageable_users(@admin, context: "section_#{@course.default_section.id}", is_admin: true).map(&:id).sort).to eq(
           [@this_section_teacher.id, @this_section_user.id]
         )
       end
 
       it "should find users in the group" do
-        expect(search_messageable_users(@admin, :context => @group.asset_string, :admin_context => @group).map(&:id).sort).to eq(
+        expect(search_messageable_users(@admin, context: @group.asset_string, is_admin: true).map(&:id).sort).to eq(
           [@this_section_user.id]
         )
       end
     end
 
-    context "strict_checks" do
+    context "weak_checks" do
       it "should optionally show invited enrollments" do
         course(:active_all => true)
         student_in_course(:user_state => 'creation_pending')
-        expect(search_messageable_users(@teacher, :strict_checks => false).map(&:id)).to include @student.id
+        expect(search_messageable_users(@teacher, weak_checks: true).map(&:id)).to include @student.id
       end
 
       it "should optionally show pending enrollments in unpublished courses" do
         course()
         teacher_in_course(:active_user => true)
         student_in_course()
-        expect(search_messageable_users(@teacher, :strict_checks => false, :context => @course.asset_string, :admin_context => @course).map(&:id)).to include @student.id
+        expect(search_messageable_users(@teacher, weak_checks: true, context: @course.asset_string, is_admin: true).map(&:id)).to include @student.id
       end
     end
   end
@@ -1717,7 +1723,7 @@ describe User do
           # trigger the after db filtering
           Setting.stubs(:get).with('filter_events_by_section_code_threshold', anything).returns(0)
           @course.enroll_student(@student, :section => @sections[1], :enrollment_state => 'active', :allow_multiple_enrollments => true)
-          expect(@student.upcoming_events(:limit => 1)).to eq [@events[1]]
+          expect(@student.upcoming_events(:limit => 2)).to eq [@events[1]]
         end
 
         it "should use the old behavior as a fallback" do
@@ -1725,7 +1731,7 @@ describe User do
           # the optimized call will retrieve the first two events, and then filter them out
           # since it didn't retrieve enough events it will use the old code as a fallback
           @course.enroll_student(@student, :section => @sections[2], :enrollment_state => 'active', :allow_multiple_enrollments => true)
-          expect(@student.upcoming_events(:limit => 1)).to eq [@events[2]]
+          expect(@student.upcoming_events(:limit => 2)).to eq [@events[2]]
         end
       end
     end
@@ -1968,6 +1974,16 @@ describe User do
         expect(@student.assignments_needing_submitting(contexts: Course.all).include?(assignment)).to be_falsey
       end
     end
+
+    context "sharding" do
+      specs_require_sharding
+
+      it "includes assignments from other shards" do
+        student = @shard1.activate { user }
+        assignment = create_course_with_assignment_needing_submitting(student: student, override: true)
+        expect(student.assignments_needing_submitting).to eq [assignment]
+      end
+    end
   end
 
   describe "submissions_needing_peer_review" do
@@ -2111,27 +2127,42 @@ describe User do
       expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct]
     end
 
-    it "should work for two levels of sub accounts" do
-      root_acct = root_acct1
-      sub_acct1 = Account.create!(:parent_account => root_acct)
-      sub_sub_acct1 = Account.create!(:parent_account => sub_acct1)
-      sub_sub_acct2 = Account.create!(:parent_account => sub_acct1)
-      sub_acct2 = Account.create!(:parent_account => root_acct)
+    context "two levels of sub accounts" do
+      let_once(:root_acct) { root_acct1 }
+      let_once(:sub_acct1) { Account.create!(:parent_account => root_acct) }
+      let_once(:sub_sub_acct1) { Account.create!(:parent_account => sub_acct1) }
+      let_once(:sub_sub_acct2) { Account.create!(:parent_account => sub_acct1) }
+      let_once(:sub_acct2) { Account.create!(:parent_account => root_acct) }
 
-      @user.user_account_associations.create!(:account_id => root_acct.id)
-      expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct]
+      it "finds the correct branch point" do
+        @user.user_account_associations.create!(:account_id => root_acct.id)
+        expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct]
 
-      @user.user_account_associations.create!(:account_id => sub_acct1.id)
-      expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1]
+        @user.user_account_associations.create!(:account_id => sub_acct1.id)
+        expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1]
 
-      @user.user_account_associations.create!(:account_id => sub_sub_acct1.id)
-      expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1, sub_sub_acct1]
+        @user.user_account_associations.create!(:account_id => sub_sub_acct1.id)
+        expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1, sub_sub_acct1]
 
-      @user.user_account_associations.create!(:account_id => sub_sub_acct2.id)
-      expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1]
+        @user.user_account_associations.create!(:account_id => sub_sub_acct2.id)
+        expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct, sub_acct1]
 
-      @user.user_account_associations.create!(:account_id => sub_acct2.id)
-      expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct]
+        @user.user_account_associations.create!(:account_id => sub_acct2.id)
+        expect(@user.reload.common_account_chain(root_acct)).to eql [root_acct]
+      end
+
+      it "breaks early if a user has an enrollment partway down the chain" do
+        course_with_student(user: @user, account: sub_acct1, active_all: true)
+        @user.user_account_associations.create!(:account_id => sub_sub_acct1.id)
+        @user.reload
+
+        full_chain = [root_acct, sub_acct1, sub_sub_acct1]
+        overlap = @user.user_account_associations.map(&:account_id) & full_chain.map(&:id)
+        expect(overlap.sort).to eql full_chain.map(&:id)
+        expect(@user.common_account_chain(root_acct)).to(
+          eql([root_acct, sub_acct1])
+        )
+      end
     end
   end
 
@@ -2702,6 +2733,19 @@ describe User do
         # ensure seeking user gets permissions it should on target user
         expect(target.grants_right?(seeker, :view_statistics)).to be_truthy
       end
+
+      it 'checks all shards, even if not actually associated' do
+        target = user()
+        # create account on another shard
+        account = @shard1.activate{ Account.create! }
+        # associate target user with that account
+        account_admin_user(user: target, account: account, role: Role.get_built_in_role('AccountMembership'))
+        # create seeking user as admin on that account
+        seeker = account_admin_user(account: account, role: Role.get_built_in_role('AccountAdmin'))
+        seeker.stubs(:associated_shards).returns([])
+        # ensure seeking user gets permissions it should on target user
+        expect(target.grants_right?(seeker, :view_statistics)).to eq true
+      end
     end
   end
 
@@ -2952,5 +2996,46 @@ describe User do
     @user.report_avatar_image!
     @user.reload
     expect(@user.avatar_state).to eq :reported
+  end
+
+  describe "submissions_folder" do
+    before(:once) do
+      student_in_course
+    end
+
+    it "creates the root submissions folder on demand" do
+      f = @user.submissions_folder
+      expect(@user.submissions_folders.where(parent_folder_id: Folder.root_folders(@user).first, name: 'Submissions').first).to eq f
+    end
+
+    it "finds the existing root submissions folder" do
+      f = @user.folders.build
+      f.parent_folder_id = Folder.root_folders(@user).first
+      f.name = 'blah'
+      f.submission_context_code = 'root'
+      f.save!
+      expect(@user.submissions_folder).to eq f
+    end
+
+    it "creates a submissions folder for a course" do
+      f = @user.submissions_folder(@course)
+      expect(@user.submissions_folders.where(submission_context_code: @course.asset_string, parent_folder_id: @user.submissions_folder, name: @course.name).first).to eq f
+    end
+
+    it "finds an existing submissions folder for a course" do
+      f = @user.folders.build
+      f.parent_folder_id = @user.submissions_folder
+      f.name = 'bleh'
+      f.submission_context_code = @course.asset_string
+      f.save!
+      expect(@user.submissions_folder(@course)).to eq f
+    end
+  end
+
+  it { is_expected.to have_many(:submission_comment_participants) }
+  it do
+    is_expected.to have_many(:submission_comments).
+      conditions(-> { published }).
+        through(:submission_comment_participants)
   end
 end

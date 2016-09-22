@@ -113,6 +113,19 @@ describe ConversationsController, type: :request do
       ]
     end
 
+    it "should properly respond to include[]=participant_avatars" do
+      conversation(@bob, :workflow_state => 'read')
+
+      json = api_call(:get, "/api/v1/conversations.json",
+              { :controller => 'conversations', :action => 'index',
+                :format => 'json', :include => ["participant_avatars"] })
+      json.each do |conversation|
+        conversation["participants"].each do |user|
+          expect(user).to have_key "avatar_url"
+        end
+      end
+    end
+
     it "should stringify audience ids if requested" do
       @c1 = conversation(@bob, :workflow_state => 'read')
       @c2 = conversation(@bob, @billy, :workflow_state => 'unread', :subscribed => false)
@@ -1967,6 +1980,91 @@ describe ConversationsController, type: :request do
       json = api_call(:get, '/api/v1/conversations/unread_count.json',
                       {:controller => 'conversations', :action => 'unread_count', :format => 'json'})
       expect(json).to eql({'unread_count' => '1'})
+    end
+  end
+
+  context 'deleted_conversations' do
+    before :once do
+      @me = nil
+      @c1 = conversation(@bob)
+      @c1.remove_messages(:all)
+
+      @c2 = conversation(@billy)
+      @c2.remove_messages(:all)
+
+      account_admin_user(:account => Account.site_admin)
+    end
+
+    it 'returns a list of deleted conversation messages' do
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id })
+
+      expect(json.count).to eql 1
+      expect(json[0]).to include(
+        "attachments",
+        "body",
+        "author_id",
+        "conversation_id",
+        "created_at",
+        "deleted_at",
+        "forwarded_messages",
+        "generated",
+        "id",
+        "media_comment",
+        "participating_user_ids",
+        "user_id"
+      )
+    end
+
+    it 'returns a paginated response with proper link headers' do
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id })
+
+      links = response.headers['Link'].split(",")
+      expect(links.all?{ |l| l =~ /api\/v1\/conversations\/deleted/ }).to be_truthy
+      expect(links.find{ |l| l.match(/rel="current"/)}).to match /page=1&per_page=10>/
+      expect(links.find{ |l| l.match(/rel="first"/)}).to match /page=1&per_page=10>/
+      expect(links.find{ |l| l.match(/rel="last"/)}).to match /page=1&per_page=10>/
+    end
+
+    it 'can respond with multiple users data' do
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => [@bob.id, @billy.id]})
+
+      expect(json.count).to eql 2
+    end
+
+    it 'will only get the provided conversation id' do
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => [@bob.id, @billy.id], :conversation_id => @c1.conversation_id })
+
+      expect(json.count).to eql 1
+    end
+
+    it 'can filter based on the deletion date' do
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id, :deleted_before => 1.hour.from_now })
+      expect(json.count).to eql 1
+
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id, :deleted_before => 1.hour.ago })
+      expect(json.count).to eql 0
+
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id, :deleted_after => 1.hour.ago })
+      expect(json.count).to eql 1
+
+      json = api_call(:get, "/api/v1/conversations/deleted",
+              { :controller => 'conversations', :action => 'deleted_index', :format => 'json',
+                :user_id => @bob.id, :deleted_after => 1.hour.from_now })
+      expect(json.count).to eql 0
     end
   end
 

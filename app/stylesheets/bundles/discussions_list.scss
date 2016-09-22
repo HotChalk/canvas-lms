@@ -55,9 +55,13 @@ $announcements_disscussion-summary-color: $ic-color-dark;
     @media screen and (max-width: 1100px) { max-width: 520px; }
   }
 
+  .discussion-actions-container {
+    float: right;
+    margin-top: -50px;
+  }
   .discussion-info-icons { float: right; }
   .discussion-unread-container, .discussion-last-reply, .discussion-info-icons {
-    float: right;
+    display: inline-block;
     padding: 11px 10px 0;
     // 'not-important' styles
     color: $announcements_disscussion-summary-color;
@@ -210,6 +214,15 @@ $announcements_disscussion-summary-color: $ic-color-dark;
     vertical-align: baseline;
     margin-left: 3px;
   }
+
+  .element_toggler {
+    background: none;
+    border: none;
+
+    .icon-mini-arrow-down {
+      vertical-align: initial;
+    }
+  }
 }
 
 .discussion {
@@ -273,8 +286,11 @@ $announcements_disscussion-summary-color: $ic-color-dark;
       }
     }
     &.discussion-published {
-      .discussion-type, .discussion-title a {
-        @if $use_new_styles { color: $ic-color-success; }
+      .discussion-type {
+        color: $ic-color-success;
+      }
+      .discussion-title a {
+        @if $use_new_styles { color: $ic-font-color-dark; }
         @else { color: #33802a; }
       }
     }
@@ -289,7 +305,7 @@ $announcements_disscussion-summary-color: $ic-color-dark;
   .discussion-type {
     text-align: center;
     width: 36px;
-    @if $use_new_styles { padding-right: $ic-sp; }
+    @if $use_new_styles { padding-right: $ic-sp;}
   }
 
   @if $use_new_styles {
@@ -392,4 +408,3 @@ $announcements_disscussion-summary-color: $ic-color-dark;
   @include accessibility-prompt;
   @include fontSize(14px);
 }
-

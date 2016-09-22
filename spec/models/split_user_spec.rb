@@ -65,6 +65,20 @@ describe SplitUsers do
         expect(enrollment5.reload.user).to eq user3
       end
 
+      it 'should handle conflicting enrollments' do
+        enrollment1 = course1.enroll_student(user1, enrollment_state: 'active')
+        UserMerge.from(user1).into(user2)
+        enrollment2 = course1.enroll_student(user1, enrollment_state: 'active')
+        SplitUsers.split_db_users(user2)
+
+        user1.reload
+        user2.reload
+        expect(user1).not_to be_deleted
+        expect(user2).not_to be_deleted
+        expect(enrollment1.reload.user).to eq user2
+        expect(enrollment2.reload.user).to eq user1
+      end
+
       it 'should handle user_observers' do
         observer1 = user_model
         observer2 = user_model
@@ -76,6 +90,27 @@ describe SplitUsers do
 
         expect(user1.observers).to eq [observer1]
         expect(user2.observers).to eq [observer2]
+      end
+
+      it 'should handle attachments' do
+        attachment1 = Attachment.create!(user: user1,
+          context: user1,
+          filename: "test.txt",
+          uploaded_data: StringIO.new("first"))
+        attachment2 = Attachment.create!(user: user2,
+          context: user2,
+          filename: "test2.txt",
+          uploaded_data: StringIO.new("second"))
+
+        UserMerge.from(user1).into(user2)
+        run_jobs
+
+        expect(attachment1.reload.context).to eq user2
+        expect(user1.reload.attachments).to eq []
+
+        SplitUsers.split_db_users(user2)
+        expect(user1.reload.attachments).to eq [attachment1]
+        expect(user2.reload.attachments).to eq [attachment2]
       end
 
       it 'should handle user_observees' do
@@ -170,14 +205,17 @@ describe SplitUsers do
       expect(submission2.reload.user).to eq user2
     end
 
-    it 'should restore admins' do
+    it 'should restore admins even with stale data' do
       admin = account1.account_users.create(user: user1)
-      admin2 = sub_account.account_users.create(user: user2)
+      admin2 = sub_account.account_users.create(user: user1)
+      admin3 = sub_account.account_users.create(user: user2)
       UserMerge.from(user1).into(user2)
+      admin.reload.destroy
       SplitUsers.split_db_users(user2)
 
-      expect(admin.reload.user).to eq user1
-      expect(admin2.reload.user).to eq user2
+      expect{admin.reload}.to raise_error(ActiveRecord::RecordNotFound)
+      expect(admin2.reload.user).to eq user1
+      expect(admin3.reload.user).to eq user2
     end
 
     context 'sharding' do

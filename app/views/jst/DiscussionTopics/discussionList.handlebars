@@ -1,19 +1,20 @@
 <div class="ig-header">
-  <h2 class="ig-header-title element_toggler"
-     aria-controls="{{listID}}"
-     aria-expanded="true"
-     tabindex="0">
+  <button
+    class="ig-header-title element_toggler"
+    aria-controls="{{listID}}"
+    aria-expanded="true"
+  >
     <i class="icon-mini-arrow-down"></i>
     {{title}}
-    <a href="#" role="button" class="screenreader-only" tabindex="-1">{{toggleMessage}}</a>
-  </h2>
-  {{#if orderedBy}}
+    <span class="screenreader-only">{{toggleMessage}}</span>
+  </button>
+  {{#if titleHelp}}
     <span class="pull-right title-help">
-        {{orderedBy}}
-        <select class="ordered_by">
-            <option value="dateComparator">{{recentActivity}}</option>
-            <option value="dueDateComparator">{{dueDate}}</option>
-        </select>
+      {{orderedBy}}
+      <select class="ordered_by">
+        <option value="dateComparator">{{recentActivity}}</option>
+        <option value="dueDateComparator">{{dueDate}}</option>
+      </select>
     </span>
   {{/if}}
 </div>

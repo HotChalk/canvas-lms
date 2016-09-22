@@ -38,25 +38,33 @@ define([
 
         <div className="content-box" role='grid'>
           <div role='row' className="grid-row border border-b pad-box-mini">
-            <div className="col-md-3">
+            <div className="col-xs-5">
               <div className="grid-row">
                 <div className="col-xs-2">
                 </div>
                 <div className="col-xs-10" role='columnheader'>
-                  <strong><small>{I18n.t("Course")}</small></strong>
+                  <span className="courses-user-list-header">
+                    {I18n.t("Course")}
+                  </span>
                 </div>
               </div>
             </div>
             <div role='columnheader' className="col-xs-1">
-              <strong><small>{I18n.t("SIS ID")}</small></strong>
+              <span className="courses-user-list-header">
+                {I18n.t("SIS ID")}
+              </span>
             </div>
-            <div role='columnheader' className="col-md-3">
-              <strong><small>{I18n.t("Teacher")}</small></strong>
+            <div role='columnheader' className="col-xs-3">
+              <span className="courses-user-list-header">
+                {I18n.t("Teacher")}
+              </span>
             </div>
-            <div role='columnheader' className="col-md-3">
-              <strong><small>{I18n.t("Enrollments")}</small></strong>
+            <div role='columnheader' className="col-xs-1">
+              <span className="courses-user-list-header">
+                {I18n.t("Enrollments")}
+              </span>
             </div>
-            <div role='columnheader' className="col-md-2">
+            <div role='columnheader' className="col-xs-2">
               <span className='screenreader-only'>{I18n.t("Course option links")}</span>
             </div>
           </div>
@@ -68,9 +76,6 @@ define([
                 ENROLL_USERS_URL: $.replaceTags(this.props.addUserUrls.ENROLL_USERS_URL, 'id', course.id)
               };
 
-              let rolesForCourse = this.props.roles.filter((roleObj) => roleObj.course_id === course.id);
-              rolesForCourse = (rolesForCourse.length) ? rolesForCourse[0].roles : [];
-
               const sectionsForCourse = this.state.sections.filter((section) => {
                 return section.course_id === parseInt(course.id, 10);
               });
@@ -79,7 +84,7 @@ define([
                 <CoursesListRow
                   key={course.id}
                   courseModel={courses}
-                  roles={rolesForCourse}
+                  roles={this.props.roles}
                   urls={urlsForCourse}
                   sections={sectionsForCourse}
                   {...course}

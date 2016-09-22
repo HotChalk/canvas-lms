@@ -124,6 +124,8 @@ class AssignmentsController < ApplicationController
         :EXTERNAL_TOOLS => external_tools_json(@external_tools, @context, @current_user, session)
       })
 
+      conditional_release_js_env(@assignment)
+
       @can_view_grades = @context.grants_right?(@current_user, session, :view_all_grades)
       @can_grade = @assignment.grants_right?(@current_user, session, :grade)
       if @can_view_grades || @can_grade
@@ -138,7 +140,7 @@ class AssignmentsController < ApplicationController
 
       @assignment_menu_tools = external_tools_display_hashes(:assignment_menu)
 
-      @mark_done = MarkDonePresenter.new(self, @context, params["module_item_id"], @current_user)
+      @mark_done = MarkDonePresenter.new(self, @context, params["module_item_id"], @current_user, @assignment)
 
       respond_to do |format|
         format.html { render }
@@ -300,12 +302,12 @@ class AssignmentsController < ApplicationController
       @undated_events = @events.select {|e| e.start_at == nil}
       @dates = (@events.select {|e| e.start_at != nil}).map {|e| e.start_at.to_date}.uniq.sort.sort
       if @context.grants_right?(@current_user, session, :read)
-        @syllabus_body = api_user_content(@context.syllabus_body, @context)
+        @syllabus_body = public_user_content(@context.syllabus_body, @context)
       else
         # the requesting user may not have :read if the course syllabus is public, in which
         # case, we pass nil as the user so verifiers are added to links in the syllabus body
         # (ability for the user to read the syllabus was checked above as :read_syllabus)
-        @syllabus_body = api_user_content(@context.syllabus_body, @context, nil, {}, true)
+        @syllabus_body = public_user_content(@context.syllabus_body, @context, nil, true)
       end
 
       hash = { :CONTEXT_ACTION_SOURCE => :syllabus }
@@ -450,7 +452,6 @@ class AssignmentsController < ApplicationController
       append_sis_data(hash)
       js_env(hash)
       conditional_release_js_env(@assignment)
-      @padless = true
       render :edit
     end
   end

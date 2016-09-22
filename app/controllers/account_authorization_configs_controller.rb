@@ -119,6 +119,9 @@
 #         "jit_provisioning": {
 #           "description": "Just In Time provisioning. Valid for all providers except Canvas (which has the similar in concept self_registration setting).",
 #           "type": "boolean"
+#         },
+#         "federated_attributes": {
+#           "type": "FederatedAttributesConfig"
 #         }
 #       }
 #     }
@@ -160,6 +163,61 @@
 #           "example": "https://example.com/register_for_canvas",
 #           "type": "string"
 #        }
+#       }
+#     }
+#
+# @model FederatedAttributesConfig
+#     {
+#       "description": "A mapping of Canvas attribute names to attribute names that a provider may send, in order to update the value of these attributes when a user logs in. The values can be a FederatedAttributeConfig, or a raw string corresponding to the \"attribute\" property of a FederatedAttributeConfig. In responses, full FederatedAttributeConfig objects are returned if JIT provisioning is enabled, otherwise just the attribute names are returned.",
+#       "properties": {
+#         "display_name": {
+#           "description": "The full display name of the user"
+#         },
+#         "email": {
+#           "description": "The user's e-mail address"
+#         },
+#         "given_name": {
+#           "description": "The first, or given, name of the user"
+#         },
+#         "integration_id": {
+#           "description": "The secondary unique identifier for SIS purposes"
+#         },
+#         "locale": {
+#           "description": "The user's prefererred locale/language"
+#         },
+#         "name": {
+#           "description": "The full name of the user"
+#         },
+#         "sis_user_id": {
+#           "description": "The unique SIS identifier"
+#         },
+#         "sortable_name": {
+#           "description": "The full name of the user for sorting purposes"
+#         },
+#         "surname": {
+#           "description": "The surname, or last name, of the user"
+#         },
+#         "timezone": {
+#           "description": "The user's preferred time zone"
+#         }
+#       }
+#     }
+#
+# @model FederatedAttributeConfig
+#     {
+#       "description": "A single attribute name to be federated when a user logs in",
+#       "properties": {
+#         "attribute": {
+#           "description": "The name of the attribute as it will be sent from the authentication provider",
+#           "type": "string",
+#           "example": "mail"
+#         },
+#         "provisioning_only": {
+#           "description": "If the attribute should be applied only when provisioning a new user, rather than all logins",
+#           "type": "boolean",
+#           "default": false,
+#           "example": false
+#         }
 #       }
 #     }
 #
@@ -436,6 +494,22 @@ class AccountAuthorizationConfigsController < ApplicationController
   #
   # For SAML, the additional recognized parameters are:
   #
+  # - metadata [Optional]
+  #
+  #   An XML document to parse as SAML metadata, and automatically populate idp_entity_id,
+  #   log_in_url, log_out_url, certificate_fingerprint, and identifier_format
+  #
+  # - metadata_uri [Optional]
+  #
+  #   A URI to download the SAML metadata from, and automatically populate idp_entity_id,
+  #   log_in_url, log_out_url, certificate_fingerprint, and identifier_format. This URI
+  #   will also be saved, and the metadata periodically refreshed, automatically. If
+  #   the metadata contains multiple entities, also supply idp_entity_id to distinguish
+  #   which one you want (otherwise the only entity in the metadata will be inferred).
+  #   If you provide the URI 'urn:mace:incommon', the InCommon metadata aggregate will
+  #   be used instead, and additional validation checks will happen (including
+  #   validating that the metadata has been properly signed with the InCommon key).
+  #
   # - idp_entity_id
   #
   #   The SAML IdP's entity ID
@@ -444,7 +518,7 @@ class AccountAuthorizationConfigsController < ApplicationController
   #
   #   The SAML service's SSO target URL
   #
-  # - log_out_url
+  # - log_out_url [Optional]
   #
   #   The SAML service's SLO target URL
   #
@@ -474,9 +548,13 @@ class AccountAuthorizationConfigsController < ApplicationController
   #   - urn:oasis:names:tc:SAML:1.1:nameid-format:WindowsDomainQualifiedName
   #   - urn:oasis:names:tc:SAML:1.1:nameid-format:X509SubjectName
   #
-  # - requested_authn_context
+  # - requested_authn_context [Optional]
   #
   #   The SAML AuthnContext
+  #
+  # - federated_attributes [Optional]
+  #
+  #   See FederatedAttributesConfig. Any value is allowed for the provider attribute names.
   #
   # For Twitter, the additional recognized parameters are:
   #
@@ -552,10 +630,19 @@ class AccountAuthorizationConfigsController < ApplicationController
     end
     update_deprecated_account_settings_data(aac_data, account_config)
 
+    unless account_config.save
+      respond_to do |format|
+        format.html do
+          flash[:error] = account_config.errors.full_messages
+          redirect_to(account_authentication_providers_path(@account))
+        end
+        format.json { raise ActiveRecord::RecordInvalid.new(account_config) }
+      end
+      return
+    end
+
     if position.present?
       account_config.insert_at(position.to_i)
-    else
-      account_config.save!
     end
 
     respond_to do |format|
@@ -594,7 +681,18 @@ class AccountAuthorizationConfigsController < ApplicationController
     end
 
     deselect_parent_registration(data, aac)
-    aac.update_attributes(data)
+    aac.assign_attributes(data)
+
+    unless aac.save
+      respond_to do |format|
+        format.html do
+          flash[:error] = aac.errors.full_messages
+          redirect_to(account_authentication_providers_path(@account))
+        end
+        format.json { raise ActiveRecord::RecordInvalid.new(account_config) }
+      end
+      return
+    end
 
     if position.present?
       aac.insert_at(position.to_i)
@@ -877,7 +975,10 @@ class AccountAuthorizationConfigsController < ApplicationController
   protected
   def filter_data(data)
     auth_type = data.delete(:auth_type)
-    data = data.permit(*AccountAuthorizationConfig.find_sti_class(auth_type).recognized_params)
+    klass = AccountAuthorizationConfig.find_sti_class(auth_type)
+    federated_attributes = data[:federated_attributes]
+    data = data.permit(klass.recognized_params)
+    data[:federated_attributes] = federated_attributes if federated_attributes
     data[:auth_type] = auth_type
     if data[:auth_type] == 'ldap'
       data[:auth_over_tls] = 'start_tls' unless data.has_key?(:auth_over_tls)

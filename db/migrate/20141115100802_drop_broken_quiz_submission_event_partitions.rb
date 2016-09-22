@@ -3,16 +3,11 @@ class DropBrokenQuizSubmissionEventPartitions < ActiveRecord::Migration
   BAD_PARTITIONS = [
     Time.new(2014, 11),
     Time.new(2014, 12),
-    Time.new(2015, 1),
-    Time.new(2015, 2),
-    Time.new(2015, 3),
-    Time.new(2015, 4),
-    Time.new(2015, 5),
-    Time.new(2015, 6)
+    Time.new(2015, 1)
   ]
 
   def up
-    partman = CanvasPartman::PartitionManager.new(Quizzes::QuizSubmissionEvent)
+    partman = CanvasPartman::PartitionManager.create(Quizzes::QuizSubmissionEvent)
 
     # This is a manual fix needed for the very first two partitions created
     # before canvas-partman supported real migrations for managing partition

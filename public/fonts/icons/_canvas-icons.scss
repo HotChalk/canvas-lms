@@ -297,6 +297,7 @@ Either use `<a>` with icon desired icon class added or insert `<i>` inside `<but
   <span class="span3"><i class="icon-files-fair-use"></i> icon-files-fair-use</span>
   <span class="span3"><i class="icon-files-obtained-permission"></i>icon-files-obtained-permission</span>
   <span class="span3"><i class="icon-files-public-domain"></i> icon-files-public-domain</span>
+  <span class="span3"><i class="icon-folder-locked"></i> icon-folder-locked</span>
 </div>
 <div class="row-fluid">
   <span class="span3"><i class="icon-import"></i> icon-import</span>
@@ -309,6 +310,9 @@ Either use `<a>` with icon desired icon class added or insert `<i>` inside `<but
   <span class="span3"><i class="icon-post-to-sis"></i> icon-post-to-sis</span>
   <span class="span3"><i class="icon-masquerade"></i> icon-masquerade</span>
   <span class="span3"><i class="icon-table"></i> icon-table</span>
+</div>
+<div class="row-fluid">
+  <span class="span3"><i class="icon-keyboard-shortcuts"></i> icon-keyboard-shortcuts</span>
 </div>
 */
 
@@ -353,14 +357,16 @@ i[class*=icon-], i[class^=icon-] {
   width: 16px; height: 16px; line-height: 16px;
 
   // adjust icon sizes to look good with our large-size button class
-  .btn-large & {
+  .btn-large &,
+  .Button--large & {
     width: 18px; height: 18px; line-height: 18px;
     &:before{ font-size: 18px }
   }
 
   // most icons do not look good this small, so use sparingly.
   // this should only be used for things like: icon-settings and icon-mini-arrow-down
-  .btn-mini & {
+  .btn-mini &,
+  .Button--mini {
     width: 12px; height: 12px; line-height: 12px;
     &:before{ font-size: 12px }
   }
@@ -371,14 +377,6 @@ i[class*=icon-], i[class^=icon-] {
 // things look nicer
 a[class*=icon-], a[class^=icon-] {
   &:before { margin-right: 4px; }
-}
-
-// icons should be a little lighter than the text in a .btn,
-// we're aware and ok that this wont have any effect in ie8
-.btn:not(.btn-primary, .btn-warning, .btn-danger, .btn-success, .btn-info, .btn-inverse) {
-  i[class*=icon-], i[class^=icon-] {
-    color: lighten( $grayDark, 15% );
-  }
 }
 
 .standalone-icon {
@@ -403,3 +401,9 @@ h1, h2, h3, h4, .h1, .h2, .h3, .h4, p {
 
 <%= glyphs %>
 
+// conversations_new uses bootstrap-select to show a dropdown picker of which
+// course to show messages for, bootstrap-select adds the markup <i class="icon-ok...>
+// to designate which item in the menu is selected. we want that to use our .icon-check
+// icon, but since we don't control the markup it adds, we can't tell it to use .icon-check
+// instead, we just have .icon-ok copy .icon-check's styles here
+.icon-ok {@extend .icon-check}

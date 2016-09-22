@@ -3,16 +3,11 @@ class RecreateQuizSubmissionEventPartitions < ActiveRecord::Migration
   BAD_PARTITIONS = [
     Time.new(2014, 11),
     Time.new(2014, 12),
-    Time.new(2015, 1),
-    Time.new(2015, 2),
-    Time.new(2015, 3),
-    Time.new(2015, 4),
-    Time.new(2015, 5),
-    Time.new(2015, 6)
+    Time.new(2015, 1)
   ]
 
   def up
-    partman = CanvasPartman::PartitionManager.new(Quizzes::QuizSubmissionEvent)
+    partman = CanvasPartman::PartitionManager.create(Quizzes::QuizSubmissionEvent)
 
     # This is a continuation of the manual fix for the first two partitions
     # documented in:
@@ -26,7 +21,7 @@ class RecreateQuizSubmissionEventPartitions < ActiveRecord::Migration
   end
 
   def down
-    partman = CanvasPartman::PartitionManager.new(Quizzes::QuizSubmissionEvent)
+    partman = CanvasPartman::PartitionManager.create(Quizzes::QuizSubmissionEvent)
 
     BAD_PARTITIONS.each do |date|
       partman.drop_partition(date) if partman.partition_exists?(date)

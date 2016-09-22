@@ -9,15 +9,6 @@ describe 'new ui' do
     Account.default.enable_feature!(:use_new_styles)
   end
 
-  context 'as admin' do
-
-    it 'should not show k-12 template in the theme editor pulldown if disabled', priority: "2", test_id: 295290 do
-      admin_logged_in
-      get "/accounts/#{Account.default.id}/theme_editor"
-      expect(f('#sharedThemes')).not_to include_text('K12 Theme')
-    end
-  end
-
   context 'as teacher' do
 
     before(:each) do
@@ -114,7 +105,7 @@ describe 'new ui' do
       wait_for_ajaximations
       f = FeatureFlag.last
       expect(f.state).to eq 'on'
-      expect(f('.profile_settings.active').css_value('background-color')).to eq('rgba(0, 150, 219, 1)')
+      expect(f('.profile_settings.active').css_value('background-color')).to eq('rgba(0, 142, 226, 1)')
     end
 
     it 'should not break tiny mce css', priority: "2", test_id: 244891 do
@@ -150,7 +141,7 @@ describe 'new ui' do
       expect(global_nav_courses_link).to be_displayed
       global_nav_courses_link.click
       wait_for_ajaximations
-      course_link_list = fj('ul.ReactTray__link-list')
+      course_link_list = fj('ul.ic-NavMenu__link-list')
       course_link_list.find_element(:link_text, 'All Courses').click
 
       # and now actually go to the "/courses" page and make sure it shows up there too as "unpublisned"

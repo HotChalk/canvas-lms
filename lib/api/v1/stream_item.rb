@@ -129,8 +129,7 @@ module Api::V1::StreamItem
         scope = scope.where("submissions.submission_comments_count>0")
         scope = scope.where("submissions.user_id=?", opts[:submission_user_id]) if opts.has_key?(:submission_user_id)
       end
-      # Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 100).to_a
-      scope
+      Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 21).to_a
     end
     items.select!(&:stream_item)
     stream_item_preloads(items.map(&:stream_item))

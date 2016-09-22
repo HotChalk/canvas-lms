@@ -95,6 +95,10 @@ define [
   test 'returns the textareas parent as the renderingTarget when no custom function given', ->
     equal RCELoader.getRenderingTarget(@$textarea.get(0)), @$div.get(0)
 
+  test 'returned parent has class `ic-RichContentEditor`', ->
+    target = RCELoader.getRenderingTarget(@$textarea.get(0))
+    ok $(target).hasClass('ic-RichContentEditor')
+
   test 'uses a custom get target function if given', ->
     customFn = -> "someCustomTarget"
     RCELoader.loadOnTarget(@$textarea, {getRenderingTarget: customFn}, ()->)
@@ -124,6 +128,11 @@ define [
     opts = {defaultContent: "default text"}
     props = RCELoader.createRCEProps(@$textarea.get(0), opts)
     equal props.mirroredAttrs.name, "elementName"
+
+  test 'adds onFocus to props', ->
+    opts = {onFocus: ->}
+    props = RCELoader.createRCEProps(@$textarea.get(0), opts)
+    equal props.onFocus, opts.onFocus
 
   test 'renders with rce', ->
     RCELoader.loadOnTarget(@$div, {}, ()->)
@@ -183,3 +192,9 @@ define [
     ok @rce.renderSidebarIntoDiv.called
     props = @rce.renderSidebarIntoDiv.args[0][1]
     equal(typeof props.refreshToken, 'function')
+
+  test 'passes brand config json url', ->
+    ENV.active_brand_config_json_url = {}
+    RCELoader.loadSidebarOnTarget(@$div, ->)
+    props = @rce.renderSidebarIntoDiv.args[0][1]
+    equal props.themeUrl, ENV.active_brand_config_json_url

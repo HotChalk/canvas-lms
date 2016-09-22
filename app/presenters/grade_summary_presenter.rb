@@ -74,7 +74,9 @@ class GradeSummaryPresenter
   end
 
   def student_enrollment_for(course, user)
-    course.all_student_enrollments.where(user_id: user).where.not(:workflow_state => "inactive").first
+    enrollment = course.all_student_enrollments.where(user_id: user)
+    enrollment = enrollment.where.not(workflow_state: "inactive") unless user_has_elevated_permissions?
+    enrollment.first
   end
 
   def selectable_courses
@@ -142,7 +144,7 @@ class GradeSummaryPresenter
   end
 
   def grading_period_assignments(grading_period_id, assignments)
-    grading_period = GradingPeriod.context_find(@context, grading_period_id)
+    grading_period = GradingPeriod.for(@context).find_by(id: grading_period_id)
     if grading_period
       grading_period.assignments_for_student(assignments, student)
     else

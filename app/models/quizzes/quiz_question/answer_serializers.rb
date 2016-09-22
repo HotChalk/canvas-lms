@@ -1,4 +1,7 @@
 module Quizzes::QuizQuestion::AnswerSerializers
+  class Error < StandardError
+  end
+
   class << self
     # Get an instance of an AnswerSerializer appropriate for the given question.
     #
@@ -16,7 +19,14 @@ module Quizzes::QuizQuestion::AnswerSerializers
 
       klass = question_type.gsub(/_question$/, '').demodulize.camelize
 
-      "Quizzes::QuizQuestion::AnswerSerializers::#{klass}".constantize.new(question)
+
+      begin
+        # raise name_error because `::Error` is in the namespace, but is not a valid answer type
+        raise NameError if klass == 'Error'
+        "Quizzes::QuizQuestion::AnswerSerializers::#{klass}".constantize.new(question)
+      rescue NameError
+        Quizzes::QuizQuestion::AnswerSerializers::Unknown.new(question)
+      end
     end
   end
 end

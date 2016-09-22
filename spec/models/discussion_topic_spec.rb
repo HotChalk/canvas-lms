@@ -182,6 +182,11 @@ describe DiscussionTopic do
       expect(@topic.visible_for?(@student)).to be_truthy
     end
 
+    it "should not be visible to unauthenticated users in a public course" do
+      @course.update_attribute(:is_public, true)
+      expect(@topic.visible_for?(nil)).to be_falsey
+    end
+
     it "should be visible when no delayed_post but assignment unlock date in future" do
       @topic.delayed_post_at = nil
       group_category = @course.group_categories.create(:name => "category")
@@ -304,47 +309,6 @@ describe DiscussionTopic do
           expect(@topic.active_participants_with_visibility.include?(@student)).to be_truthy
         end
       end
-    end
-  end
-
-  def discussion_with_assignment(opts={})
-    assignment = @course.assignments.create!(:title => "some discussion assignment", only_visible_to_overrides: !!opts[:only_visible_to_overrides])
-    assignment.submission_types = 'discussion_topic'
-    assignment.save!
-    topic = assignment.discussion_topic
-    topic.save!
-    [topic, assignment]
-  end
-
-  context "visible_ids_by_user" do
-    before :once do
-      @course = course(:active_course => true)
-      discussion_topic_model(:user => @teacher)
-      @topic_without_assignment = @topic
-      @course_section = @course.course_sections.create
-      @student1, @student2, @student3 = create_users(3, return_type: :record)
-
-      @topic_with_assignment_and_only_vis, @assignment = discussion_with_assignment(only_visible_to_overrides: true)
-      @topic_with_assignment_and_visible_to_all, @assignment2 = discussion_with_assignment(only_visible_to_overrides: false)
-      @topic_with_override_for_section_with_no_students, @assignment3 = discussion_with_assignment(only_visible_to_overrides: true)
-      @topic_with_no_override, @assignment4 = discussion_with_assignment(only_visible_to_overrides: true)
-
-      @course.enroll_student(@student2, :enrollment_state => 'active')
-      @section = @course.course_sections.create!(name: "test section")
-      @section2 = @course.course_sections.create!(name: "second test section")
-      student_in_section(@section, user: @student1)
-      create_section_override_for_assignment(@assignment, {course_section: @section})
-      create_section_override_for_assignment(@assignment3, {course_section: @section2})
-      @course.reload
-      @vis_hash = DiscussionTopic.visible_ids_by_user(course_id: @course.id, user_id: [@student1, @student2, @student3].map(&:id))
-    end
-
-    it "should return both topics for a student with an override" do
-      expect(@vis_hash[@student1.id].sort).to eq [@topic_without_assignment.id, @topic_with_assignment_and_only_vis.id, @topic_with_assignment_and_visible_to_all.id].sort
-    end
-
-    it "should not return differentiated topics to a student with no overrides" do
-      expect(@vis_hash[@student2.id].sort).to eq [@topic_without_assignment.id, @topic_with_assignment_and_visible_to_all.id].sort
     end
   end
 
@@ -817,6 +781,15 @@ describe DiscussionTopic do
       expect(@teacher.stream_item_instances.count).to eq 1
     end
 
+    it "should send stream items to students for graded discussions" do
+      @topic = @course.discussion_topics.build(:title => "topic")
+      @assignment = @course.assignments.build(:submission_types => 'discussion_topic', :title => @topic.title)
+      @assignment.saved_by = :discussion_topic
+      @topic.assignment = @assignment
+      @topic.save
+
+      expect(@student.stream_item_instances.count).to eq 1
+    end
   end
 
   context "posting first to view" do
@@ -1496,13 +1469,9 @@ describe DiscussionTopic do
       topic_with_nested_replies
     end
 
-    before :each do
+    around do |example|
       # materialized view jobs are now delayed
-      Timecop.travel(Time.now + 20.seconds)
-    end
-
-    after :each do
-      Timecop.return
+      Timecop.freeze(Time.zone.now + 20.seconds, &example)
     end
 
     it "should return nil if the view has not been built yet, and schedule a job" do
@@ -1596,7 +1565,7 @@ describe DiscussionTopic do
       @context = @course
       discussion_topic_model(:user => @teacher)
       account.destroy
-      expect { @topic.reply_from(:user => @teacher, :text => "entry") }.to raise_error(IncomingMail::Errors::UnknownAddress)
+      expect { @topic.reload.reply_from(:user => @teacher, :text => "entry") }.to raise_error(IncomingMail::Errors::UnknownAddress)
     end
 
     it "should prefer html to text" do

@@ -78,11 +78,12 @@ module AssignmentOverrideApplicator
     Rails.cache.fetch(cache_key) do
       next [] if self.has_invalid_args?(assignment_or_quiz, user)
       context = assignment_or_quiz.context
-      visible_user_ids = UserSearch.scope_for(context, user, { force_users_visible_to: true }).map(&:id)
 
       if context.grants_right?(user, :read_as_admin)
         overrides = assignment_or_quiz.assignment_overrides
         if assignment_or_quiz.current_version?
+          visible_user_ids = UserSearch.scope_for(context, user, { force_users_visible_to: true }).except(:select, :order)
+
           overrides = if overrides.loaded?
                         ovs = overrides.select do |ov|
                           ov.workflow_state == 'active' &&
@@ -245,13 +246,7 @@ module AssignmentOverrideApplicator
           # for any times in the value set, bring them back from raw UTC into the
           # current Time.zone before placing them in the assignment
           value = value.in_time_zone if value && value.respond_to?(:in_time_zone) && !value.is_a?(Date)
-          # Attempt to write the attribute if it exists; otherwise attempt to call the setter method
-          # (this deals with aliases used in DiscussionTopic and subclass)
-          if cloned_assignment_or_quiz.has_attribute?(field)
-            cloned_assignment_or_quiz.write_attribute(field, value)
-          elsif cloned_assignment_or_quiz.respond_to?(field.to_sym)
-            cloned_assignment_or_quiz.send("#{field}=".to_sym, value)
-          end
+          cloned_assignment_or_quiz.write_attribute(field, value)
         end
       end
     end
@@ -325,9 +320,13 @@ module AssignmentOverrideApplicator
 
   def self.overridden_unlock_at(assignment_or_quiz, overrides)
     applicable_overrides = overrides.select(&:unlock_at_overridden)
+
+    # CNVS-24849 if the override has been locked it's unlock_at no longer applies
+    applicable_overrides.reject!(&:availability_expired?)
+
     if applicable_overrides.empty?
       assignment_or_quiz.unlock_at
-    elsif override = applicable_overrides.detect{ |o| o.unlock_at.nil? }
+    elsif applicable_overrides.any? { |o| o.unlock_at.nil? }
       nil
     else
       applicable_overrides.sort_by(&:unlock_at).first.unlock_at
@@ -338,7 +337,7 @@ module AssignmentOverrideApplicator
     applicable_overrides = overrides.select(&:lock_at_overridden)
     if applicable_overrides.empty?
       assignment_or_quiz.lock_at
-    elsif override = applicable_overrides.detect{ |o| o.lock_at.nil? }
+    elsif applicable_overrides.detect{ |o| o.lock_at.nil? }
       nil
     else
       applicable_overrides.sort_by(&:lock_at).last.lock_at

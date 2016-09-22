@@ -1,11 +1,13 @@
 define [
   'i18n!grading_cell'
-  'compiled/gradebook2/GRADEBOOK_TRANSLATIONS'
+  'compiled/gradebook2/GradebookTranslations'
+  'compiled/gradebook2/GradebookHelpers'
+  'jsx/grading/helpers/OutlierScoreHelper'
   'underscore'
   'ember'
   'jquery'
   'jquery.ajaxJSON'
-], (I18n, GRADEBOOK_TRANSLATIONS, _, Ember, $) ->
+], (I18n, GRADEBOOK_TRANSLATIONS, GradebookHelpers, OutlierScoreHelper, _, Ember, $) ->
 
   GradingCellComponent = Ember.Component.extend
 
@@ -18,13 +20,7 @@ define [
     isLetterGrade: Ember.computed.equal('assignment.grading_type', 'letter_grade')
     isPassFail: Ember.computed.equal('assignment.grading_type', 'pass_fail')
     isInPastGradingPeriodAndNotAdmin: ( ->
-      return false unless ENV.GRADEBOOK_OPTIONS.multiple_grading_periods_enabled
-      return false unless ENV.GRADEBOOK_OPTIONS.latest_end_date_of_admin_created_grading_periods_in_the_past
-      return false if ENV.current_user_roles.contains("admin")
-
-      latest_end_date = new Date(ENV.GRADEBOOK_OPTIONS.latest_end_date_of_admin_created_grading_periods_in_the_past)
-
-      @assignment.due_at <= latest_end_date
+      GradebookHelpers.gradeIsLocked(@assignment, ENV)
     ).property('assignment')
     nilPointsPossible: Ember.computed.none('assignment.points_possible')
     isGpaScale: Ember.computed.equal('assignment.grading_type', 'gpa_scale')
@@ -111,6 +107,10 @@ define [
 
     onUpdateSuccess: (submission) ->
       @sendAction 'on-submit-grade', submission.all_submissions
+      unless submission.excused
+        outlierScoreHelper = new OutlierScoreHelper(submission.score, @assignment.points_possible)
+        $.flashWarning(outlierScoreHelper.warningMessage()) if outlierScoreHelper.hasWarning()
+
 
     onUpdateError: ->
       $.flashError(GRADEBOOK_TRANSLATIONS.submission_update_error)

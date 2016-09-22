@@ -1,13 +1,14 @@
 define [
-  'compiled/gradebook2/GRADEBOOK_TRANSLATIONS'
-  'str/htmlEscape'
   'jquery'
   'underscore'
+  'compiled/gradebook2/GradebookTranslations'
+  'jsx/grading/helpers/OutlierScoreHelper'
+  'str/htmlEscape'
   'compiled/gradebook2/Turnitin'
   'compiled/util/round'
   'jquery.ajaxJSON'
   'jquery.instructure_misc_helpers' # raw
-], (GRADEBOOK_TRANSLATIONS, htmlEscape,$, _, {extractData},round) ->
+], ($, _, GRADEBOOK_TRANSLATIONS, OutlierScoreHelper, htmlEscape, {extractData}, round) ->
 
   class SubmissionCell
 
@@ -16,7 +17,7 @@ define [
 
     init: () ->
       submission = @opts.item[@opts.column.field]
-      @$wrapper = $(@cellWrapper("<input #{htmlEscape @ariaLabel(submission.submission_type)} class='grade'/>")).appendTo(@opts.container)
+      @$wrapper = $(@cellWrapper("<input #{@ariaLabelTemplate(submission.submission_type)} class='grade'/>")).appendTo(@opts.container)
       @$input = @$wrapper.find('input').focus().select()
 
     destroy: () ->
@@ -43,9 +44,11 @@ define [
         submission.excused = true
       else
         submission.grade = htmlEscape state
+        pointsPossible = @opts.column.object.points_possible
+        outlierScoreHelper = new OutlierScoreHelper(state, pointsPossible)
+        $.flashWarning(outlierScoreHelper.warningMessage()) if outlierScoreHelper.hasWarning()
       @wrapper?.remove()
       @postValue(item, state)
-      # TODO: move selection down to the next row, same column
 
     postValue: (item, state) ->
       submission = item[@opts.column.field]
@@ -126,7 +129,7 @@ define [
       </div>
       """
 
-    ariaLabel: (submission_type) ->
+    ariaLabelTemplate: (submission_type) ->
       label = GRADEBOOK_TRANSLATIONS["submission_tooltip_#{submission_type}"]
       if label?
         "aria-label='#{label}'"
@@ -167,7 +170,7 @@ define [
       @$wrapper = $(@cellWrapper("""
         <div class="overflow-wrapper">
           <div class="grade-and-outof-wrapper">
-            <input type="text" #{htmlEscape @ariaLabel(submission.submission_type)} class="grade"/><span class="outof"><span class="divider">/</span>#{htmlEscape @opts.column.object.points_possible}</span>
+            <input type="text" #{@ariaLabelTemplate(submission.submission_type)} class="grade"/><span class="outof"><span class="divider">/</span>#{htmlEscape @opts.column.object.points_possible}</span>
           </div>
         </div>
       """, { classes: 'gradebook-cell-out-of-formatter' })).appendTo(@opts.container)
@@ -177,7 +180,7 @@ define [
     @formatter: (row, col, submission, assignment, student) ->
       innerContents = if submission.excused
         "EX"
-      else if submission.score
+      else if submission.score?
         "#{htmlEscape submission.grade}<span class='letter-grade-points'>#{htmlEscape submission.score}</span>"
       else
         submission.grade
@@ -202,14 +205,31 @@ define [
       else
         { pass: 'pass', complete: 'pass', fail: 'fail', incomplete: 'fail' }[submission.grade] || ''
 
+    iconClassFromSubmission = (submission) ->
+      { pass: 'icon-check', complete: 'icon-check', fail: 'icon-x', incomplete: 'icon-x' }[submission.grade] || ''
+
+    checkboxButtonTemplate = (iconClass) ->
+      if _.isEmpty(iconClass)
+        '-'
+      else
+        """
+        <i class="#{htmlEscape iconClass}" role="presentation"></i>
+        """
+
     htmlFromSubmission: (options={}) ->
       cssClass = classFromSubmission(options.submission)
+      iconClass = iconClassFromSubmission(options.submission)
+      editable = if options.editable
+        'editable'
+      else
+        ''
       SubmissionCell::cellWrapper("""
-        <a data-value="#{htmlEscape cssClass}"
-           class="gradebook-checkbox gradebook-checkbox-#{htmlEscape cssClass}
-           #{htmlEscape('editable' if options.editable)}" href="#"
-        >#{htmlEscape cssClass}</a>
-      """, options)
+        <button
+          data-value="#{htmlEscape cssClass}"
+          class="Button Button--icon-action gradebook-checkbox gradebook-checkbox-#{htmlEscape cssClass} #{htmlEscape(editable)}"
+          type="button"
+          aria-label="#{htmlEscape cssClass}"><span class="screenreader-only">#{htmlEscape cssClass}</span>#{checkboxButtonTemplate(iconClass)}</button>
+        """, options)
 
     @formatter: (row, col, submission, assignment, student) ->
       return SubmissionCell.formatter.apply(this, arguments) unless submission.grade?

@@ -53,7 +53,7 @@ class GradeCalculator
     @submissions = @course.submissions.
         except(:order, :select).
         for_user(@user_ids).
-        where(assignment_id: @assignments.map(&:id)).
+        where(assignment_id: @assignments).
         select("submissions.id, user_id, assignment_id, score, excused, submissions.workflow_state")
     submissions_by_user = @submissions.group_by(&:user_id)
 
@@ -78,22 +78,6 @@ class GradeCalculator
       clear_assignment_visibilities_cache
     end
     result
-  end
-
-  def compute_group_scores
-    @submissions = @course.submissions.
-        except(:order, :select).
-        for_user(@user_ids).
-        select("submissions.id, user_id, assignment_id, score")
-    submissions_by_user = @submissions.group_by(&:user_id)
-    @user_ids.map do |user_id|
-      user_submissions = submissions_by_user[user_id] || []
-      current, current_groups = calculate_current_score(user_id, user_submissions)
-      {
-        :final_score => current,
-        :group_scores => current_groups
-      }
-    end
   end
 
   def compute_and_save_scores
@@ -180,6 +164,7 @@ class GradeCalculator
 
       group_submissions.reject! { |s| s[:score].nil? } if ignore_ungraded
       group_submissions.reject! { |s| s[:excused] }
+      group_submissions.reject! { |s| s[:assignment].omit_from_final_grade? }
       group_submissions.each { |s| s[:score] ||= 0 }
 
       logged_submissions = group_submissions.map { |s| loggable_submission(s) }

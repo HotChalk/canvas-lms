@@ -14,31 +14,13 @@ module FilesCommon
     end
   end
 
-  # This method downloads the file from top toolbar in New Files
-  def download_from_toolbar(row_selected = 0)
-    ff('.ef-item-row')[row_selected].click
-    f('.btn-download').click
-  end
-
-  # This method downloads the file using the Download option on Cog menu button
-  def download_from_cog_icon(row_selected = 0)
-    ff('.al-trigger')[row_selected].click
-    ff('.al-options .ui-menu-item')[0].click
-  end
-
   def edit_name_from_cog_icon(file_name_new, row_selected = 0)
     ff('.al-trigger-gray')[row_selected].click
     fln("Rename").click
     expect(f(".ef-edit-name-cancel")).to be_displayed
-    file_name_textbox_el = f('.input-block-level')
+    file_name_textbox_el = f('.ef-edit-name-form__input')
     replace_content(file_name_textbox_el, file_name_new)
     file_name_textbox_el.send_keys(:return)
-  end
-
-  # This method downloads the file from the file preview
-  def download_from_preview
-    fln("example.pdf").click
-    f('.icon-download').click
   end
 
   def delete(row_selected = 0, delete_using = :cog_icon)
@@ -77,7 +59,7 @@ module FilesCommon
 
   def move_multiple_using_toolbar(files = [])
     files.each do |file_name|
-      file = driver.find_element(xpath: "//span[contains(text(), '#{file_name}') and @class='media-body']")
+      file = driver.find_element(xpath: "//span[contains(text(), '#{file_name}') and @class='ef-name-col__text']")
                    .find_element(xpath: "../..")
       driver.action.key_down(:control).click(file).key_up(:control).perform
     end
@@ -124,11 +106,9 @@ module FilesCommon
     course_with_teacher_logged_in
     get "/files"
     wait_for_ajaximations
-    keep_trying_until do
-      f(".add_folder_link").click
-      wait_for_ajaximations
-      expect(f("#files_content .add_folder_form #folder_name")).to be_displayed
-    end
+    f(".add_folder_link").click
+    wait_for_ajaximations
+    expect(f("#files_content .add_folder_form #folder_name")).to be_displayed
     f("#files_content .add_folder_form #folder_name").send_keys("my folder\n")
     wait_for_ajaximations
     expect(f(".node.folder span")).to have_class('ui-droppable')
@@ -140,13 +120,10 @@ module FilesCommon
   def should_show_students_link_to_download_zip_of_folder
     course_with_student_logged_in
     get "/courses/#{@course.id}/files"
-    link = keep_trying_until do
-      link = f(".links a.download_zip_link")
-      wait_for_ajaximations
-      expect(link).to be_displayed
-      link
-    end
-    expect(link.attribute('href')).to match(%r"/courses/#{@course.id}/folders/\d+/download")
+    link = f(".links a.download_zip_link")
+    wait_for_ajaximations
+    expect(link).to be_displayed
+    expect(link).to have_attribute('href', %r"/courses/#{@course.id}/folders/\d+/download")
   end
 
   def confirm_delete_on_dialog
@@ -161,17 +138,15 @@ module FilesCommon
 
   def add_folder(name = 'new folder')
     click_new_folder_button
-    new_folder = f("input.input-block-level")
+    new_folder = f("input.ef-edit-name-form__input")
     new_folder.send_keys(name)
     new_folder.send_keys(:return)
     wait_for_ajaximations
   end
 
   def click_new_folder_button
-    keep_trying_until do
-      f(".btn-add-folder").click
-      wait_for_ajaximations
-    end
+    f(".btn-add-folder").click
+    wait_for_ajaximations
   end
 
   def create_new_folder

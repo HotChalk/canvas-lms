@@ -85,6 +85,7 @@ class ContextExternalTool < ActiveRecord::Base
   end
 
   def extension_setting(type, property = nil)
+    return settings[property] unless type
     type = type.to_sym
     return settings[type] unless property && settings[type]
     settings[type][property] || settings[property] || extension_default_value(type, property)
@@ -100,8 +101,22 @@ class ContextExternalTool < ActiveRecord::Base
     hash[:enabled] = Canvas::Plugin.value_to_boolean(hash[:enabled]) if hash[:enabled]
     settings[type] = {}.with_indifferent_access
 
-    extension_keys = [:custom_fields, :default, :display_type, :enabled, :icon_url, :canvas_icon_class,
-                      :selection_height, :selection_width, :text, :url, :message_type]
+    extension_keys = [
+      :canvas_icon_class,
+      :custom_fields,
+      :default,
+      :display_type,
+      :enabled,
+      :icon_svg_path_64,
+      :icon_url,
+      :message_type,
+      :selection_height,
+      :selection_width,
+      :text,
+      :windowTarget,
+      :url
+    ]
+
     if custom_keys = CUSTOM_EXTENSION_KEYS[type]
       extension_keys += custom_keys
     end
@@ -295,6 +310,7 @@ class ContextExternalTool < ActiveRecord::Base
   def icon_url
     settings[:icon_url]
   end
+
   def canvas_icon_class=(i_url)
     settings[:canvas_icon_class] = i_url
   end
@@ -386,7 +402,7 @@ class ContextExternalTool < ActiveRecord::Base
   def change_domain!(new_domain)
     replace_host = lambda do |url, host|
       uri = Addressable::URI.parse(url)
-      uri.host = host
+      uri.host = host if uri.host
       uri.to_s
     end
 
@@ -542,9 +558,11 @@ class ContextExternalTool < ActiveRecord::Base
   def self.find_external_tool(url, context, preferred_tool_id=nil)
     contexts = contexts_to_search(context)
     preferred_tool = ContextExternalTool.active.where(id: preferred_tool_id).first if preferred_tool_id
-    if preferred_tool && contexts.member?(preferred_tool.context) && preferred_tool.matches_domain?(url)
+    if preferred_tool && contexts.member?(preferred_tool.context) && (url == nil || preferred_tool.matches_domain?(url))
       return preferred_tool
     end
+
+    return nil unless url
 
     all_external_tools = ContextExternalTool.shard(context.shard).polymorphic_where(context: contexts).active.to_a
     sorted_external_tools = all_external_tools.sort_by { |t| [contexts.index { |c| c.id == t.context_id && c.class.name == t.context_type }, t.precedence, t.id == preferred_tool_id ? CanvasSort::First : CanvasSort::Last] }
@@ -599,7 +617,7 @@ class ContextExternalTool < ActiveRecord::Base
     context = context.account if context.is_a?(User)
 
     tool = context.context_external_tools.having_setting(type).where(id: id).first
-    tool ||= ContextExternalTool.having_setting(type).where(context_type: 'Account', context_id: context.account_chain, id: id).first
+    tool ||= ContextExternalTool.having_setting(type).where(context_type: 'Account', context_id: context.account_chain_ids, id: id).first
     raise ActiveRecord::RecordNotFound if !tool && raise_error
 
     tool
@@ -611,7 +629,7 @@ class ContextExternalTool < ActiveRecord::Base
     if !context.is_a?(Account) && context.respond_to?(:context_external_tools)
       tools += context.context_external_tools.having_setting(type.to_s)
     end
-    tools += ContextExternalTool.having_setting(type.to_s).where(context_type: 'Account', context_id: context.account_chain)
+    tools += ContextExternalTool.having_setting(type.to_s).where(context_type: 'Account', context_id: context.account_chain_ids)
   end
 
   def self.serialization_excludes; [:shared_secret,:settings]; end

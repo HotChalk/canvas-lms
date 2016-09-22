@@ -8,9 +8,16 @@ require [
   'compiled/calendar/sidebar'
   'compiled/calendar/EventDataSource'
   'compiled/calendar/UndatedEventsList'
+  'jsx/calendar/scheduler/store/configureStore'
   'compiled/jquery.kylemenu'
-], ($, Calendar, MiniCalendar, CalendarHeader, drawSidebar, EventDataSource, UndatedEventsList) ->
+], ($, Calendar, MiniCalendar, CalendarHeader, drawSidebar, EventDataSource, UndatedEventsList, configureSchedulerStore) ->
   @eventDataSource = new EventDataSource(ENV.CALENDAR.CONTEXTS)
+
+  @schedulerStore = if ENV.CALENDAR.BETTER_SCHEDULER then configureSchedulerStore() else null
+
+  console.log(@schedulerStore?.getState())
+
+
   @header = new CalendarHeader(
     el: "#calendar_header"
     calendar2Only: ENV.CALENDAR.CAL2_ONLY
@@ -45,6 +52,8 @@ require [
   $(".calendar-button").on "focusout", (e) =>
     $(e.target).find(".accessibility-warning").addClass("screenreader-only")
 
+  $(".rs-section .accessibility-warning").on "focus", (e) =>
+    $(e.target).removeClass("screenreader-only")
 
-
-
+  $(".rs-section .accessibility-warning").on "focusout", (e) =>
+    $(e.target).addClass("screenreader-only")
