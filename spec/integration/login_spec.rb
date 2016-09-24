@@ -104,7 +104,7 @@ describe 'login' do
       get '/login/cas', ticket: 'ST-abcd'
       expect(response).to redirect_to(login_url)
       get login_url
-      expect(flash[:delegated_message]).to match(/Canvas doesn't have an account for user/)
+      expect(flash[:delegated_message]).to match(/HotChalk Ember doesn't have an account for user/)
     end
 
     it "should redirect to a custom url if the user CAS account doesn't exist" do

@@ -168,6 +168,7 @@ describe 'RequestThrottle' do
     end
 
     it "should throttle if bucket is full" do
+      Canvas.stubs(:redis_enabled?).returns(true)  # HC: without this we get random failures
       bucket = throttled_request
       bucket.expects(:remaining).returns(-2)
       expected = rate_limit_exceeded
