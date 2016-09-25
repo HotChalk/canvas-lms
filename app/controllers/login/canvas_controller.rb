@@ -36,7 +36,7 @@ class Login::CanvasController < ApplicationController
 
   def create
     load_root_account(params[:account_id])
-    params[:pseudonym_session][:account_id] = params[:account_id]
+    params[:pseudonym_session][:account_id] = params[:account_id] if params.key?(:pseudonym_session)
 
     # Check referer and authenticity token.  If the token is invalid but the referer is trusted
     # and one is not provided then continue.  If the referer is trusted and they provide a token

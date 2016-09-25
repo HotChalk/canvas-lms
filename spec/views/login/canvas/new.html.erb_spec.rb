@@ -44,7 +44,7 @@ describe "login/canvas/new.html.erb" do
   it "should use internal forgot password mechanism by default" do
     render
     page = Nokogiri(response.body)
-    expect(page.css("#login_forgot_password")[0]['href']).to eq '#'
+    expect(page.css("#login_forgot_password")[0]['href']).to eq 'https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support'
   end
 
   context "with external mechanism specified" do

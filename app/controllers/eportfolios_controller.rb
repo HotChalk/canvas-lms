@@ -214,7 +214,7 @@ class EportfoliosController < ApplicationController
   end
 
   def load_root_account
-    return if @current_user
+    return if @current_user || !params.key?(:id) || params[:id].blank?
     @portfolio = Eportfolio.active.find(params[:id])
     if @portfolio && @portfolio.user && (pseudonym = @portfolio.user.active_pseudonyms.first)
       @domain_root_account = pseudonym.account.root_account || pseudonym.account
