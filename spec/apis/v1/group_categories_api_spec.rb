@@ -21,7 +21,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../file_uploads_spec_helper'
 
 describe "Group Categories API", type: :request do
   def category_json(category)
-    {
+    json = {
       'id' => category.id,
       'name' => category.name,
       'role' => category.role,
@@ -36,6 +36,11 @@ describe "Group Categories API", type: :request do
       'auto_leader' => category.auto_leader,
       'is_member' => false
     }
+    json["#{category.context_type.underscore}_name"] = category.context.name
+    if category.context_type == 'Course'
+      json["course_code"] = category.context.course_code
+    end
+    json
   end
 
   before :once do

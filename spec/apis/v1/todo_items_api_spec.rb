@@ -55,6 +55,8 @@ describe UsersController, type: :request do
         'html_url' => "#{course_assignment_url(@a1.context_id, @a1.id)}#submit",
         'context_type' => 'Course',
         'course_id' => @student_course.id,
+        'course_name' => 'Unnamed Course',
+        'course_code' => 'Unnamed'
       }
     @a2_json =
       {
@@ -66,6 +68,8 @@ describe UsersController, type: :request do
         'html_url' => speed_grader_course_gradebook_url(@a2.context_id, :assignment_id => @a2.id),
         'context_type' => 'Course',
         'course_id' => @teacher_course.id,
+        'course_name' => 'Unnamed Course',
+        'course_code' => 'Unnamed'
       }
   end
 

@@ -154,6 +154,8 @@ describe UsersController, type: :request do
         },
       ],
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed'
     }]
   end
 
@@ -240,6 +242,8 @@ describe UsersController, type: :request do
         },
       ],
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed'
     }]
   end
 
@@ -417,6 +421,8 @@ describe UsersController, type: :request do
 
       'context_type' => 'Course',
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed'
     }]
   end
 
@@ -529,6 +535,8 @@ describe UsersController, type: :request do
 
       'context_type' => 'Course',
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed'
     }]
   end
 
@@ -573,6 +581,8 @@ describe UsersController, type: :request do
       'read_state' => StreamItemInstance.last.read?,
       'context_type' => 'Course',
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed',
       'html_url' => "http://www.example.com/courses/#{@course.id}/collaborations/#{@collaboration.id}",
       'created_at' => StreamItem.last.created_at.as_json,
       'updated_at' => StreamItem.last.updated_at.as_json,
@@ -595,6 +605,8 @@ describe UsersController, type: :request do
       'message' => 'mydesc',
       'context_type' => 'Course',
       'course_id' => @course.id,
+      'course_name' => 'Unnamed Course',
+      'course_code' => 'Unnamed',
       'html_url' => "http://www.example.com/courses/#{@course.id}/conferences/#{@conference.id}",
       'created_at' => StreamItem.last.created_at.as_json,
       'updated_at' => StreamItem.last.updated_at.as_json,
