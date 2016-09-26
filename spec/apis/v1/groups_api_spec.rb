@@ -61,11 +61,15 @@ describe "Groups API", type: :request do
       json['sis_import_id'] = group.sis_batch_id
       json['sis_group_id'] = group.sis_source_id
     end
+    json["#{group.context_type.underscore}_name"] = group.context.name
+    if group.context_type == 'Course'
+      json["course_code"] = group.context.course_code
+    end
     json
   end
 
   def group_category_json(group_category, user)
-    {
+    json = {
       "auto_leader" => group_category.auto_leader,
       "group_limit" => group_category.group_limit,
       "id" => group_category.id,
@@ -78,6 +82,11 @@ describe "Groups API", type: :request do
       "allows_multiple_memberships" => group_category.allows_multiple_memberships?,
       "is_member" => group_category.is_member?(user)
     }
+    json["#{group_category.context_type.underscore}_name"] = group_category.context.name
+    if group_category.context_type == 'Course'
+      json["course_code"] = group_category.context.course_code
+    end
+    json
   end
 
   def users_json(users, opts)
