@@ -19,7 +19,7 @@
 class GroupCategory < ActiveRecord::Base
   attr_accessible :name, :role, :context
   attr_reader :create_group_count
-  attr_accessor :assign_unassigned_members,:current_user
+  attr_accessor :assign_unassigned_members
 
   belongs_to :context, polymorphic: [:course, :account]
   has_many :groups, :dependent => :destroy
@@ -364,6 +364,7 @@ class GroupCategory < ActiveRecord::Base
         DueDateCacher.recompute_course(context_id, Assignment.where(context_type: context_type, context_id: context_id, group_category_id: self).pluck(:id))
       end
     end
+    complete_progress
     new_memberships
   end
 
@@ -395,7 +396,6 @@ class GroupCategory < ActiveRecord::Base
   def assign_unassigned_members
     Delayed::Batch.serial_batch do
       distribute_members_among_groups(unassigned_users, groups.active)
-      complete_progress
     end
   end
 

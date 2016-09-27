@@ -512,7 +512,7 @@ class Account < ActiveRecord::Base
 
   def fast_course_filters(opts)
     columns = "courses.id, courses.name, courses.workflow_state, courses.course_code, courses.sis_source_id, courses.enrollment_term_id, courses.settings"
-    associated_courses = self.associated_courses.for_workflow_states(opts[:states]) if opts[:states].present?
+    associated_courses = opts[:states].present? ? self.associated_courses.for_workflow_states(opts[:states]) : self.associated_courses.active
     #Check dates
     if opts[:from_date].present? && opts[:to_date].present? && opts[:date_type].present?
       if opts[:date_type] == 'start_date'

@@ -123,7 +123,7 @@ describe EnrollmentTerm do
     term.start_at = Time.now
     term.end_at = 3.days.ago
 
-    term.valid?.should be_false
+    expect(term.valid?).to eq false
   end
 
   describe "deletion" do

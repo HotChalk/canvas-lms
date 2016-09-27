@@ -646,6 +646,7 @@ class Group < ActiveRecord::Base
       #{ :id => TAB_PROFILE, :label => t('#tabs.profile', 'Profile'), :css_class => 'profile', :href => :group_profile_path},
       { :id => TAB_CONFERENCES, :label => t('#tabs.conferences', "Conferences"), :css_class => 'conferences', :href => :group_conferences_path },
       { :id => TAB_COLLABORATIONS, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_collaborations_path },
+      { :id => TAB_COLLABORATIONS_NEW, :label => t('#tabs.collaborations', "Collaborations"), :css_class => 'collaborations', :href => :group_lti_collaborations_path },
       { :id => TAB_SETTINGS, :label => t('#tabs.settings', 'Settings'), :css_class => 'settings', :href => :group_settings_path }
     ]
   end
@@ -721,6 +722,7 @@ class Group < ActiveRecord::Base
     tabs.each do |tab|
       #tab[:hidden_unused] = true if tab[:id] == TAB_PROFILE && root_account.try(:canvas_network_enabled?)
       tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS && !(user && self.grants_right?(user, :read))
+      tab[:hidden_unused] = true if tab[:id] == TAB_COLLABORATIONS_NEW && !(user && self.grants_right?(user, :read))
       tab[:hidden_unused] = true if tab[:id] == TAB_CONFERENCES && !(user && self.grants_right?(user, :read))
     end
 

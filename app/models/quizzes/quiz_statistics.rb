@@ -76,6 +76,7 @@ class Quizzes::QuizStatistics < ActiveRecord::Base
       self.csv_attachment.display_name = options[:display_name]
       self.csv_attachment.content_type = options[:content_type]
       self.csv_attachment.save
+      self.csv_attachment
     else
       self.csv_attachment ||= begin
         build_csv_attachment(options).tap do |attachment|

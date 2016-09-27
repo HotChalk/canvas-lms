@@ -1564,8 +1564,9 @@ describe Course, "tabs_available" do
       expect(tab_ids).to eql(Course.default_tabs.map{|t| t[:id] })
     end
 
-    it "should not include Announcements without read_announcements rights" do
+    it "should not include Announcements without read_announcements and manage_announcements rights" do
       @course.account.role_overrides.create!(:role => teacher_role, :permission => 'read_announcements', :enabled => false)
+      @course.account.role_overrides.create!(:role => teacher_role, :permission => 'manage_announcements', :enabled => false) # HC this permission was customized
       tab_ids = @course.uncached_tabs_available(@teacher, {}).map{|t| t[:id] }
       expect(tab_ids).to_not include(Course::TAB_ANNOUNCEMENTS)
     end
