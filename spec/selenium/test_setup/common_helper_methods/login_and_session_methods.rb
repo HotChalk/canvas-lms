@@ -76,7 +76,7 @@ module LoginAndSessionMethods
     if Onceler.open_transactions > 0
       raise "don't use real logins with once-ler, since a session cookie could be valid across specs if the pseudonym is shared"
     end
-    get "/login"
+    get "/login/canvas?direct=1"
     expect_new_page_load { fill_in_login_form(username, password) }
     expect_logout_link_present
   end

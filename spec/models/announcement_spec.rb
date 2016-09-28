@@ -96,6 +96,7 @@ describe Announcement do
     it 'does not allow announcements to be viewed without :read_announcements (even with moderate_forum)' do
       course_with_teacher(active_all: true)
       @course.account.role_overrides.create!(permission: 'read_announcements', role: teacher_role, enabled: false)
+      @course.account.role_overrides.create!(permission: 'manage_announcements', role: teacher_role, enabled: false)
       a = @course.announcements.create!(valid_announcement_attributes)
       expect(a.grants_right?(@user, :read)).to be(false)
     end

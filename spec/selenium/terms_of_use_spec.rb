@@ -1,7 +1,7 @@
 require File.expand_path(File.dirname(__FILE__) + '/common')
 
 def login
-  get "/login"
+  get "/login/canvas?direct=1"
   expect_new_page_load { fill_in_login_form("nobody@example.com", "asdfasdf") }
 end
 describe "terms of use test" do

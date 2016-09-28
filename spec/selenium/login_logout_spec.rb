@@ -24,28 +24,28 @@ describe "login logout test" do
   end
 
   it "should show error message if wrong credentials are used", priority: "2" do
-    get "/login"
+    get "/login/canvas?direct=1"
     fill_in_login_form("fake@user.com", "fakepass")
     assert_flash_error_message(/Invalid username/)
   end
 
   it "should show invalid password message if password is nil", priority: "2" do
     expected_error = "Invalid password"
-    get "/login"
+    get "/login/canvas?direct=1"
     fill_in_login_form("fake@user.com", nil)
     should_show_message(expected_error, @login_error_box_css)
   end
 
   it "should show invalid login message if username is nil", priority: "2" do
     expected_error = "Invalid login"
-    get "/login"
+    get "/login/canvas?direct=1"
     fill_in_login_form(nil, "123")
     should_show_message(expected_error, @login_error_box_css)
   end
 
   it "should should invalid login message if both username and password are nil", priority: "2" do
     expected_error = "Invalid login"
-    get "/login"
+    get "/login/canvas?direct=1"
     fill_in_login_form(nil, nil)
     should_show_message(expected_error, @login_error_box_css)
   end
@@ -75,7 +75,7 @@ describe "login logout test" do
   it "should fail on an invalid authenticity token", priority: "1" do
     begin
       user_with_pseudonym({:active_user => true})
-      get "/login"
+      get "/login/canvas?direct=1"
       driver.execute_script "$.cookie('_csrf_token', '42')"
       fill_in_login_form("nobody@example.com", 'asdfasdf')
       assert_flash_error_message /Invalid Authenticity Token/
@@ -87,7 +87,7 @@ describe "login logout test" do
   it "should login when a trusted referer exists", priority: "2" do
     Account.any_instance.stubs(:trusted_referer?).returns(true)
     user_with_pseudonym(active_user: true)
-    get "/login"
+    get "/login/canvas?direct=1"
     driver.execute_script "$.cookie('_csrf_token', '', { expires: -1 })"
     driver.execute_script "$('[name=authenticity_token]').remove()"
     fill_in_login_form("nobody@example.com", 'asdfasdf')
