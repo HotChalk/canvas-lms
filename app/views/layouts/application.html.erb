@@ -28,6 +28,7 @@
     @body_classes << 'with-fixed-bottom' if @show_fixed_bottom
     @body_classes << 'pages' if controller.js_env[:WIKI_PAGE].present?
     @body_classes << @active_tab
+    @body_classes << 'Underline-All-Links__enabled' if @current_user && @current_user.feature_enabled?(:underline_all_links)
     @body_classes << 'is-masquerading-or-student-view' if @real_current_user && @real_current_user != @current_user
   end
 
@@ -44,7 +45,15 @@
 <%= render :partial => "layouts/head" %>
 <body class="<%= (@body_classes).uniq.join(" ") %>">
 <%= include_google_tag_manager %>
-
+<%if @real_current_user && @real_current_user != @current_user %>
+  <div class="screenreader-only">
+    <% if @current_user.fake_student? %>
+        <%= t("You are currently logged into Student View") %>
+      <% else %>
+        <%= t("You are currently masquerading as %{user_name}", :user_name => @current_user.short_name) %>
+    <% end %>
+  </div>
+<% end %>
 <%# Flash messages must be outside of #application or they won't work in screenreaders with modals open. %>
 <%= render :partial => 'shared/static_notices' %>
 <%= render :partial => 'shared/flash_notices' %>
@@ -109,9 +118,7 @@
               </a>
               <ul class="al-options">
                 <% @context.group_category.groups.active.by_name.each do |group| %>
-                  <% if @current_user.account_admin?(@context.context) || @context.context.sections_visible_to(@current_user).include?(group.course_section) %>
-                    <li><%= link_to group.short_name, group_path(group) %></li>
-                  <% end %>      
+                  <li><%= link_to group.short_name, group_path(group) %></li>
                 <% end %>
               </ul>
             <% end %>

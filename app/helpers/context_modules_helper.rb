@@ -20,7 +20,7 @@ module ContextModulesHelper
   def cache_if_module(context_module, editable, user, context, &block)
     if context_module
       visible_assignments = user ? user.assignment_and_quiz_visibilities(context) : []
-      cache_key_items = ['context_module_render_16_', context_module.cache_key, editable, true, Time.zone, Digest::MD5.hexdigest(visible_assignments.to_s)]
+      cache_key_items = ['context_module_render_17_', context_module.cache_key, editable, true, Time.zone, Digest::MD5.hexdigest(visible_assignments.to_s)]
       cache_key = cache_key_items.join('/')
       cache_key = add_menu_tools_to_cache_key(cache_key)
       cache(cache_key, nil, &block)
@@ -71,6 +71,44 @@ module ContextModulesHelper
   def module_item_unpublishable?(item)
     return true if item.nil? || !item.content || !item.content.respond_to?(:can_unpublish?)
     item.content.can_unpublish?
+  end
+
+  def preload_modules_content(modules, can_edit)
+    ActiveRecord::Associations::Preloader.new.preload(modules, :content_tags => :content)
+    preload_can_unpublish(@context, @modules) if can_edit
+  end
+
+  def process_module_data(mod, is_cyoe_on = false, is_student = false, cyoe_data = nil)
+    # pre-calculated module view data can be added here
+    module_data = {
+      published_status: mod.published? ? 'published' : 'unpublished',
+      items: mod.content_tags_visible_to(@current_user).map
+    }
+
+    items_data = {}
+    module_data[:items].each do |item|
+      # pre-calculated module item view data can be added here
+      item_data = {
+        published_status: item.published? ? 'published' : 'unpublished'
+      }
+
+      if is_cyoe_on && is_student
+        item_data[:is_trigger_assignment] = cyoe_data ? cyoe_data.has_key?(item.id) : false
+        item_data[:is_in_conditional] = false # TODO: check against cyoe_data
+
+        # FIXME: use CYOE data to figure out if
+        if item.graded?
+          item_data[:has_submission] = item.content.submissions.length > 0 if defined? item.content.submissions
+          item_data[:has_submission] = item.content.quiz_submissions.length > 0 if defined? item.content.quiz_submissions
+        end
+      end
+
+      items_data[item.id] = item_data
+    end
+
+    module_data[:items_data] = items_data
+
+    return module_data
   end
 
   def module_item_translated_content_type(item)

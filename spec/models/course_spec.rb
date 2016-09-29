@@ -42,6 +42,35 @@ describe Course do
     expect(@course.apply_group_weights?).to eq true
   end
 
+  it "should return course visibility flag" do
+    @course.update_attribute(:is_public, nil)
+    @course.update_attribute(:is_public_to_auth_users, nil)
+
+    expect(@course.course_visibility).to eq('course')
+    @course.update_attribute(:is_public, nil)
+    @course.update_attribute(:is_public_to_auth_users, nil)
+
+    @course.update_attribute(:is_public_to_auth_users, true)
+    expect(@course.course_visibility).to eq('institution')
+
+    @course.update_attribute(:is_public, true)
+    expect(@course.course_visibility).to eq('public')
+  end
+
+  it "should return syllabus visibility flag" do
+    @course.update_attribute(:public_syllabus, nil)
+    @course.update_attribute(:public_syllabus_to_auth, nil)
+    expect(@course.syllabus_visibility_option).to eq('course')
+
+    @course.update_attribute(:public_syllabus, nil)
+    @course.update_attribute(:public_syllabus_to_auth, true)
+    expect(@course.syllabus_visibility_option).to eq('institution')
+
+    @course.update_attribute(:public_syllabus, true)
+    expect(@course.syllabus_visibility_option).to eq('public')
+
+  end
+
   describe "soft-concluded?" do
     before :once do
       @term = Account.default.enrollment_terms.create!
@@ -397,6 +426,7 @@ describe Course do
     end
 
     def make_date_completed
+      @enrollment.reload
       @enrollment.start_at = 4.days.ago
       @enrollment.end_at = 2.days.ago
       @enrollment.save!
@@ -489,6 +519,17 @@ describe Course do
       it "should not grant read_user_notes or view_all_grades to designer" do
         expect(c.grants_right?(@designer, :read_user_notes)).to be_falsey
         expect(c.grants_right?(@designer, :view_all_grades)).to be_falsey
+      end
+    end
+
+    context "as a 'student view' student" do
+      it "should grant read rights for unpublished courses" do
+        course
+        test_student = @course.student_view_student
+
+        expect(@course.grants_right?(test_student, :read)).to be_truthy
+        expect(@course.grants_right?(test_student, :read_grades)).to be_truthy
+        expect(@course.grants_right?(test_student, :read_forum)).to be_truthy
       end
     end
 
@@ -699,6 +740,14 @@ describe Course do
       category1.destroy
       course.reload
       expect(course.all_group_categories.count).to eq 2
+    end
+  end
+
+  context "turnitin" do
+    it "should return turnitin_originality" do
+      @course.account.turnitin_originality = "after_grading"
+      @course.account.save!
+      expect(@course.turnitin_originality).to eq("after_grading")
     end
   end
 end
@@ -1255,7 +1304,16 @@ describe Course, "gradebook_to_csv" do
     e.update_attribute :workflow_state, 'completed'
 
     expect(GradebookExporter.new(@course, @teacher).to_csv).not_to include @student.name
-    expect(GradebookExporter.new(@course, @teacher, include_priors: true).to_csv).to include @student.name
+
+    @teacher.preferences[:gradebook_settings] =
+      { @course.id =>
+        {
+          'show_inactive_enrollments' => 'false',
+          'show_concluded_enrollments' => 'true'
+        }
+      }
+    @teacher.save!
+    expect(GradebookExporter.new(@course, @teacher).to_csv).to include @student.name
   end
 
   context "accumulated points" do
@@ -1506,8 +1564,9 @@ describe Course, "tabs_available" do
       expect(tab_ids).to eql(Course.default_tabs.map{|t| t[:id] })
     end
 
-    it "should not include Announcements without read_announcements rights" do
+    it "should not include Announcements without read_announcements and manage_announcements rights" do
       @course.account.role_overrides.create!(:role => teacher_role, :permission => 'read_announcements', :enabled => false)
+      @course.account.role_overrides.create!(:role => teacher_role, :permission => 'manage_announcements', :enabled => false) # HC this permission was customized
       tab_ids = @course.uncached_tabs_available(@teacher, {}).map{|t| t[:id] }
       expect(tab_ids).to_not include(Course::TAB_ANNOUNCEMENTS)
     end
@@ -1553,6 +1612,63 @@ describe Course, "tabs_available" do
 
       expect(tabs).to be_include(t1.asset_string)
       expect(tabs).not_to be_include(t2.asset_string)
+    end
+
+    it 'sets the target value on the tab if the external tool has a windowTarget' do
+      tool = @course.context_external_tools.create!(
+        :url => "http://example.com/ims/lti",
+        :consumer_key => "asdf",
+        :shared_secret => "hjkl",
+        :name => "external tools",
+        :course_navigation => {
+          :text => "blah",
+          :url =>  "http://example.com/ims/lti",
+          :default => false,
+        }
+      )
+      tool.settings[:windowTarget] = "_blank"
+      tool.save!
+      tabs = @course.tabs_available
+      tab = tabs.find {|tab| tab[:id] == tool.asset_string}
+      expect(tab[:target]).to eq '_blank'
+    end
+
+    it 'includes in the args "display: borderless" if a target is set' do
+      tool = @course.context_external_tools.create!(
+        :url => "http://example.com/ims/lti",
+        :consumer_key => "asdf",
+        :shared_secret => "hjkl",
+        :name => "external tools",
+        :course_navigation => {
+          :text => "blah",
+          :url =>  "http://example.com/ims/lti",
+          :default => false,
+        }
+      )
+      tool.settings[:windowTarget] = "_blank"
+      tool.save!
+      tabs = @course.tabs_available
+      tab = tabs.find {|tab| tab[:id] == tool.asset_string}
+      expect(tab[:args]).to include({display: 'borderless'})
+    end
+
+    it 'does not let value other than "_blank" be set for target' do
+      tool = @course.context_external_tools.create!(
+        :url => "http://example.com/ims/lti",
+        :consumer_key => "asdf",
+        :shared_secret => "hjkl",
+        :name => "external tools",
+        :course_navigation => {
+          :text => "blah",
+          :url =>  "http://example.com/ims/lti",
+          :default => false,
+        }
+      )
+      tool.settings[:windowTarget] = "parent"
+      tool.save!
+      tabs = @course.tabs_available
+      tab = tabs.find {|tab| tab[:id] == tool.asset_string}
+      expect(tab.keys).not_to include :target
     end
 
     it "should not include tabs for external tools if opt[:include_external] is false" do
@@ -2878,7 +2994,8 @@ describe Course, 'tabs_available' do
 
   it "should include external tools if configured on the account" do
     @account = @course.root_account.sub_accounts.create!(:name => "sub-account")
-    @course.move_to_account(@account.root_account, @account)
+    @course.account = @account
+    @course.save!
     tool = new_external_tool @account
     tool.course_navigation = {:url => "http://www.example.com", :text => "Example URL"}
     tool.save!
@@ -2895,7 +3012,8 @@ describe Course, 'tabs_available' do
 
   it "should include external tools if configured on the root account" do
     @account = @course.root_account.sub_accounts.create!(:name => "sub-account")
-    @course.move_to_account(@account.root_account, @account)
+    @course.account = @account
+    @course.save!
     tool = new_external_tool @account.root_account
     tool.course_navigation = {:url => "http://www.example.com", :text => "Example URL"}
     tool.save!
@@ -3295,9 +3413,47 @@ describe Course, "section_visibility" do
       expect(@course.users_visible_to(@ta).sort_by(&:id)).to      eql [@teacher, @ta, @student1, @observer]
     end
 
+    it "should return users including inactive when included from all sections" do
+      enrollment = @course.enrollments.where(user: @student2).first
+      enrollment.deactivate
+
+      expect(@course.users_visible_to(@teacher, include: [:inactive])).to include(@student2)
+    end
+
+    it "should not return inactive users when not included from all sections" do
+      enrollment = @course.enrollments.where(user: @student2).first
+      enrollment.deactivate
+
+      expect(@course.users_visible_to(@teacher)).not_to include(@student2)
+    end
+
+    it "should return users including concluded when included from all sections" do
+      enrollment = @course.enrollments.where(user: @student2).first
+      enrollment.conclude
+
+      expect(@course.users_visible_to(@teacher, include: [:completed])).to include(@student2)
+    end
+
+    it "should not return concluded users when not included from all sections" do
+      enrollment = @course.enrollments.where(user: @student2).first
+      enrollment.conclude
+
+      expect(@course.users_visible_to(@teacher)).not_to include(@student2)
+    end
+
     it "should return student view students to account admins" do
       @course.student_view_student
       @admin = account_admin_user
+      visible_enrollments = @course.apply_enrollment_visibility(@course.student_enrollments, @admin)
+      expect(visible_enrollments.map(&:user)).to be_include(@course.student_view_student)
+    end
+
+    it "should return student view students to account admins who are also observers for some reason" do
+      @course.student_view_student
+      @admin = account_admin_user
+
+      @course.enroll_user(@admin, "ObserverEnrollment")
+
       visible_enrollments = @course.apply_enrollment_visibility(@course.student_enrollments, @admin)
       expect(visible_enrollments.map(&:user)).to be_include(@course.student_view_student)
     end
@@ -4004,21 +4160,18 @@ describe Course do
         # Both of these need to be defined, as they're both involved in SIS imports
         # and expected manual enrollment behavior
         @enrollment.sis_batch_id = batch.id
-        @enrollment.sis_source_id = 'abc:1234'
         @enrollment.save
       end
 
       it 'should retain SIS attributes if re-enrolled, but the SIS enrollment is still active' do
         e2 = @course.enroll_student @user
         expect(e2.sis_batch_id).not_to eql nil
-        expect(e2.sis_source_id).not_to eql nil
       end
 
       it 'should remove SIS attributes from enrollments when re-created manually' do
         @enrollment.destroy
         @enrollment = @course.enroll_student @user
         expect(@enrollment.sis_batch_id).to eql nil
-        expect(@enrollment.sis_source_id).to eql nil
       end
     end
 
@@ -4315,6 +4468,8 @@ describe Course, 'touch_root_folder_if_necessary' do
       expect { course.broadcast_notifications }.to_not raise_error
     end
   end
+
+  it { is_expected.to have_many(:submission_comments).conditions(-> { published }) }
 end
 
 describe Course, 'invited_count_visible_to' do
@@ -4419,5 +4574,28 @@ describe Course, "#apply_nickname_for!" do
     @course.apply_nickname_for!(@user)
     @course.apply_nickname_for!(nil)
     expect(@course.name).to eq 'some terrible name'
+  end
+end
+
+describe Course, "#image" do
+  before(:once) do
+    course_with_teacher(active_all: true)
+    attachment_with_context(@course)
+  end
+
+  it "returns the image_url when image_url is set" do
+    @course.image_url = "http://example.com"
+    @course.save!
+    expect(@course.image).to eq "http://example.com"
+  end
+
+  it "returns the download_url for a course file if image_id is set" do
+    @course.image_id = @attachment.id
+    @course.save!
+    expect(@course.image).to eq @attachment.download_url
+  end
+
+  it "returns nil if image_id and image_url are not set" do
+    expect(@course.image).to be_nil
   end
 end

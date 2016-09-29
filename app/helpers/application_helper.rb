@@ -278,9 +278,14 @@ module ApplicationHelper
       bundles = css_bundles.map do |(bundle,plugin)|
         css_url_for(bundle, plugin)
       end
+      bundles << css_url_for("disable_transitions") if disable_css_transitions?
       bundles << {:media => 'all'}
       stylesheet_link_tag(*bundles)
     end
+  end
+
+  def disable_css_transitions?
+    Rails.env.test? && ENV.fetch("DISABLE_CSS_TRANSITIONS", "1") == "1"
   end
 
   def css_variant
@@ -322,7 +327,9 @@ module ApplicationHelper
     tabs = @context.tabs_available(@current_user, :for_reordering => true, :root_account => @domain_root_account)
     tabs.select do |tab|
       if (tab[:id] == @context.class::TAB_COLLABORATIONS rescue false)
-        Collaboration.any_collaborations_configured?(@context)
+        Collaboration.any_collaborations_configured?(@context) && !@context.feature_enabled?(:new_collaborations)
+      elsif (tab[:id] == @context.class::TAB_COLLABORATIONS_NEW rescue false)
+        @context.feature_enabled?(:new_collaborations)
       elsif (tab[:id] == @context.class::TAB_CONFERENCES rescue false)
         feature_enabled?(:web_conferences)
       else
@@ -377,19 +384,25 @@ module ApplicationHelper
   end
 
   def active_external_tool_by_id(tool_id)
-    # don't use for groups. they don't have account_chain_ids
-    tool = @context.context_external_tools.active.where(tool_id: tool_id).first
-    return tool if tool
+    @cached_external_tools ||= {}
+    @cached_external_tools[tool_id] ||= Rails.cache.fetch(['active_external_tool_for', @context, tool_id].cache_key, :expires_in => 1.hour) do
+      # don't use for groups. they don't have account_chain_ids
+      tool = @context.context_external_tools.active.where(tool_id: tool_id).first
 
-    # account_chain_ids is in the order we need to search for tools
-    # unfortunately, the db will return an arbitrary one first.
-    # so, we pull all the tools (probably will only have one anyway) and look through them here
-    tools = ContextExternalTool.active.where(:context_type => 'Account', :context_id => @context.account_chain, :tool_id => tool_id).to_a
-    @context.account_chain.each do |account|
-      tool = tools.find {|t| t.context_id == account.id}
-      return tool if tool
+      unless tool
+        # account_chain_ids is in the order we need to search for tools
+        # unfortunately, the db will return an arbitrary one first.
+        # so, we pull all the tools (probably will only have one anyway) and look through them here
+        account_chain_ids = @context.account_chain_ids
+
+        tools = ContextExternalTool.active.where(:context_type => 'Account', :context_id => account_chain_ids, :tool_id => tool_id).to_a
+        account_chain_ids.each do |account_id|
+          tool = tools.find {|t| t.context_id == account_id}
+          break if tool
+        end
+      end
+      tool
     end
-    nil
   end
 
   def external_tool_tab_visible(tool_id)
@@ -400,7 +413,14 @@ module ApplicationHelper
 
   def license_help_link
     @include_license_dialog = true
+    css_bundle('license_help')
+    js_bundle('license_help')
     link_to(image_tag('help.png', :alt => I18n.t("Help with content licensing")), '#', :class => 'license_help_link no-hover', :title => I18n.t("Help with content licensing"))
+  end
+
+  def visibility_help_link
+    js_bundle('visibility_help')
+    link_to(image_tag('help.png', :alt => I18n.t("Help with course visibilities")), '#', :class => 'visibility_help_link no-hover', :title => I18n.t("Help with course visibilities"))
   end
 
   def equella_enabled?
@@ -422,7 +442,7 @@ module ApplicationHelper
   #
   # Returns an HTML string.
   def sidebar_button(url, label, img = nil)
-    link_to(url, :class => 'btn button-sidebar-wide') do
+    link_to(url) do
       img ? ("<i class='icon-" + img + "'></i> ").html_safe + label : label
     end
   end
@@ -688,7 +708,7 @@ module ApplicationHelper
   end
 
   def show_help_link?
-    show_feedback_link? || support_url
+    show_feedback_link? || support_url.present?
   end
 
   def help_link_classes(additional_classes = [])
@@ -697,6 +717,16 @@ module ApplicationHelper
     css_classes << "help_dialog_trigger" if show_feedback_link?
     css_classes.concat(additional_classes) if additional_classes
     css_classes.join(" ")
+  end
+
+  def help_link_icon
+    (@domain_root_account && @domain_root_account.settings[:help_link_icon]) ||
+      (Account.default && Account.default.settings[:help_link_icon]) || 'help'
+  end
+
+  def help_link_name
+    (@domain_root_account && @domain_root_account.settings[:help_link_name]) ||
+      (Account.default && Account.default.settings[:help_link_name]) || I18n.t('Help')
   end
 
   def help_link_data
@@ -708,7 +738,7 @@ module ApplicationHelper
 
   def help_link
     if show_help_link?
-      link_content = t('Help')
+      link_content = help_link_name
       link_to link_content.html_safe, help_link_url,
         :class => help_link_classes,
         :data => help_link_data
@@ -726,24 +756,38 @@ module ApplicationHelper
     js_env(:RESOURCES => resources_data)
   end
 
-  def active_brand_config(opts={})
+  def active_brand_config_cache
     @active_brand_config_cache ||= {}
-    return @active_brand_config_cache[opts] if @active_brand_config_cache.key?(opts)
-    @active_brand_config_cache[opts] = begin
-      if !use_new_styles? || (!opts[:ignore_high_contrast_preference] && @current_user && @current_user.prefers_high_contrast?)
-        nil
-      elsif session.key?(:brand_config_md5)
+  end
+
+  def active_brand_config(opts={})
+    return active_brand_config_cache[opts] if active_brand_config_cache.key?(opts)
+
+    ignore_branding = !use_new_styles? || (@current_user.try(:prefers_high_contrast?) && !opts[:ignore_high_contrast_preference])
+    active_brand_config_cache[opts] = if ignore_branding
+      nil
+    else
+      # If the user is actively working on unapplied changes in theme editor, session[:brand_config_md5]
+      # will either be the md5 of the thing they are working on or `false`, meaning they want
+      # to start from a blank slate.
+      brand_config = if session.key?(:brand_config_md5)
         BrandConfig.where(md5: session[:brand_config_md5]).first
       else
         brand_config_for_account(opts)
       end
+      # If the account does not have a brandConfig, or they explicitly chose to start from a blank
+      # slate in the theme editor, do one last check to see if we should actually use the k12 theme
+      if !brand_config && k12?
+        brand_config = BrandConfig.k12_config
+      end
+      brand_config
     end
   end
 
   def active_brand_config_json_url(opts={})
     path = active_brand_config(opts).try(:public_json_path)
     path ||= BrandableCSS.public_default_json_path
-    "/#{path}"
+    "#{Canvas::Cdn.config.host}/#{path}"
   end
 
   def brand_config_for_account(opts={})
@@ -769,11 +813,7 @@ module ApplicationHelper
       account ||= @domain_root_account
     end
 
-    if account && (brand_config = account.effective_brand_config)
-      brand_config
-    elsif k12?
-      BrandConfig.k12_config
-    end
+    account.try(:effective_brand_config)
   end
   private :brand_config_for_account
 
@@ -820,6 +860,8 @@ module ApplicationHelper
     includes = if use_new_styles?
       if @domain_root_account.allow_global_includes? && (abc = active_brand_config(ignore_high_contrast_preference: true))
         abc.css_and_js_overrides[:js_overrides]
+      else
+        Account.site_admin.brand_config.try(:css_and_js_overrides).try(:[], :js_overrides)
       end
     else
       get_global_includes.each_with_object([]) do |global_include, memo|
@@ -861,6 +903,8 @@ module ApplicationHelper
     includes = if use_new_styles?
       if @domain_root_account.allow_global_includes? && (abc = active_brand_config(ignore_high_contrast_preference: true))
         abc.css_and_js_overrides[:css_overrides]
+      else
+        Account.site_admin.brand_config.try(:css_and_js_overrides).try(:[], :css_overrides)
       end
     else
       get_global_includes.each_with_object([]) do |global_include, css_includes|
@@ -952,16 +996,16 @@ module ApplicationHelper
 
   def translated_due_date(assignment)
     if assignment.multiple_due_dates_apply_to?(@current_user)
-      t('#due_dates.multiple_due_dates', 'due: Multiple Due Dates')
+      t('Due: Multiple Due Dates')
     else
       assignment = assignment.overridden_for(@current_user)
 
       if assignment.due_at
-        t('#due_dates.due_at', 'due: %{assignment_due_date_time}', {
-          :assignment_due_date_time => datetime_string(force_zone(assignment.due_at))
-        })
+        t('Due: %{assignment_due_date_time}',
+          assignment_due_date_time: datetime_string(force_zone(assignment.due_at))
+        )
       else
-        t('#due_dates.no_due_date', 'due: No Due Date')
+        t('Due: No Due Date')
       end
     end
   end

@@ -1,8 +1,10 @@
 define [
-  'i18n!submission_details_dialog'
   'jquery'
   'jst/SubmissionDetailsDialog'
+  'i18n!submission_details_dialog'
+  'compiled/gradebook2/GradebookHelpers'
   'compiled/gradebook2/Turnitin'
+  'jsx/grading/helpers/OutlierScoreHelper'
   'jst/_submission_detail' # a partial needed by the SubmissionDetailsDialog template
   'jst/_turnitinScore' # a partial needed by the submission_detail partial
   'jquery.ajaxJSON'
@@ -12,7 +14,7 @@ define [
   'jquery.instructure_misc_plugins'
   'vendor/jquery.scrollTo'
   'vendor/jquery.ba-tinypubsub'
-], (I18n, $, submissionDetailsDialog, {extractDataFor}) ->
+], ($, submissionDetailsDialog, I18n, GradebookHelpers, {extractDataFor}, OutlierScoreHelper) ->
 
   class SubmissionDetailsDialog
     constructor: (@assignment, @student, @options) ->
@@ -22,15 +24,7 @@ define [
         null
 
       isInPastGradingPeriodAndNotAdmin = ((assignment) ->
-        return false unless ENV.GRADEBOOK_OPTIONS.multiple_grading_periods_enabled
-        return false unless ENV.GRADEBOOK_OPTIONS.latest_end_date_of_admin_created_grading_periods_in_the_past
-
-        return false unless ENV.current_user_roles
-        return false unless typeof ENV.current_user_roles.find == 'function'
-        return false if ENV.current_user_roles.find (elem) -> elem == 'admin'
-
-        latest_end_date = new Date(ENV.GRADEBOOK_OPTIONS.latest_end_date_of_admin_created_grading_periods_in_the_past)
-        assignment.due_at <= latest_end_date
+        GradebookHelpers.gradeIsLocked(assignment, ENV)
       )(@assignment)
 
       @url = @options.change_grade_url.replace(":assignment", @assignment.id).replace(":submission", @student.id)
@@ -63,6 +57,9 @@ define [
           formData = {"submission[excuse]": true}
         $(event.currentTarget.form).disableWhileLoading $.ajaxJSON @url, 'PUT', formData, (data) =>
           @update(data)
+          unless data.excused
+            outlierScoreHelper = new OutlierScoreHelper(@submission.score, @submission.assignment.points_possible)
+            $.flashWarning(outlierScoreHelper.warningMessage()) if outlierScoreHelper.hasWarning()
           $.publish 'submissions_updated', [@submission.all_submissions]
           setTimeout =>
             @dialog.dialog('close')

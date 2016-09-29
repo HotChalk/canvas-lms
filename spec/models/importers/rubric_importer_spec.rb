@@ -36,7 +36,7 @@ describe "Importing Rubrics" do
         data[:rubrics_to_import][data[:migration_id]] = true
         Importers::RubricImporter.import_from_migration(data, migration)
         Importers::RubricImporter.import_from_migration(data, migration)
-        expect(context.rubrics.count).to eq 1
+        expect(context.rubrics.count).to eq 2 # Per LMS-1330, course copy imports should duplicate existing rubrics that have already been imported
         r = Rubric.where(migration_id: data[:migration_id]).first
         
         expect(r.title).to eq data[:title]

@@ -81,7 +81,7 @@
         <td class="form-label"><%= f.blabel :name, :course_name, :en => "Name" %></td>
         <td class="nobr">
           <% if can_rename_course %>
-            <%= f.text_field :name, :class => "course_form", :maxlength => '255', :style => "width: 500px;" %>
+            <%= f.text_field :name, :class => "course_form", :maxlength => '255', :style => "width: 150px;" %>
           <% else %>
             <span id="course_name"><%= @context.name %></span>
           <% end %>
@@ -91,7 +91,7 @@
         <td class="form-label nobr"><%= f.blabel :course_code, :en => "Course Code" %></td>
         <td class="nobr">
           <% if can_rename_course %>
-            <%= f.text_field :course_code, :maxlength => '255', :style => "width: 500px;" %>
+            <%= f.text_field :course_code, :maxlength => '255', :style => "width: 100px;" %>
           <% else %>
             <span id="course_course_code"><%= @context.course_code %></span>
           <% end %>
@@ -115,7 +115,7 @@
           <td class="form-label"><%= f.blabel :sis_source_id, :en => "SIS ID" %></td>
           <td>
             <% if can_manage && can_do(@context, @current_user, :manage_sis) %>
-              <%= f.text_field :sis_source_id, :style => "width: 500px;", :title => t('sis_source_id', "SIS ID"), :value => @context.sis_source_id %>
+              <%= f.text_field :sis_source_id, :style => "width: 202px;", :title => t('sis_source_id', "SIS ID"), :value => @context.sis_source_id %>
             <% else %>
               <span id="course_sis_source_id">
                 <%= @context.sis_source_id %>
@@ -129,7 +129,7 @@
           <td><%= link_to @context.root_account.name, account_url(@context.root_account.id), :id => "course_root_account" %></td>
       <% end %>
       </tr><tr>
-        <td class="form-label"><%= f.blabel :account_id, :en => "Department" %></td>
+        <td class="form-label"><%= f.blabel :account_id, :en => "Subaccount" %></td>
         <td>
           <% can_edit_account = false %>
           <% if can_manage %>
@@ -298,20 +298,23 @@
       </tr><tr>
         <td class="form-label"><label for="course_visibility"><%= before_label('course_visibility', %{Visibility}) %></label></td>
         <td colspan="3" id="course_visibility">
-          <span>
-            <%= f.check_box :public_syllabus, :disabled => !can_manage %>
-            <%= f.label :public_syllabus, :en => "Make the syllabus for this course publicly visible" %>
-          </span>
-          <div>
-            <%= f.check_box :is_public, :class => "is_public_checkbox", :disabled => !can_manage %>
-            <%= f.label :is_public, t("Make this course publicly visible (student data will remain private)") %>
-          </div>
-          <div>
+          <% if can_manage %>
             <span>
-              <%= f.check_box :is_public_to_auth_users, :disabled => !can_manage %>
-              <%= f.label :is_public_to_auth_users, :en => "Make this course visible to authenticated users" %>
+              <%= f.select :course_visibility, @context.course_visibility_options.map{ |id, attrs| [attrs[:setting], id] } %>
+              <%= visibility_help_link %>
             </span>
-          </div>
+            <div class="panel-border">
+              <%= f.check_box :custom_course_visibility %>
+              <%= f.label :custom_course_visibility, :en => "Customize" %>
+              <% @context.customize_course_visibility_list.map do |setting, options| %>
+                <div id="customize_course_visibility">
+                  <%= f.label :syllabus_visibility_option, options[:setting] %>
+                  <%= f.select :syllabus_visibility_option, @context.course_visibility_options.map{ |id, attrs| [attrs[:setting], "#{id}"] }, {}, :id => options[:setting] %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+          <br/>
           <div class="public_options">
             <%= f.check_box :indexed, :disabled => !can_manage %>
             <%= f.label :indexed, :en => "Include this course in the public course index" %>
@@ -403,8 +406,6 @@
             <%= f.label :hide_distribution_graphs, :en => "Hide grade distribution graphs from students" %><br/>
             <%= f.check_box :lock_all_announcements, :disabled => !can_manage %>
             <%= label_tag :course_lock_all_announcements, :en => 'Disable comments on announcements' %><br />
-            <%= f.check_box :limit_section_visibility%>
-            <%= f.label :limit_section_visibility, :en => "Limit users to only see fellow section users" %><br/>
             <%= f.select :default_wiki_editing_roles, [
               [t('#course.wiki_permissions.only_teachers', "Only Teachers"), "teachers"],
               [t('#course.wiki_permissions.teachers_students', "Teacher and Students"), "teachers,students"],
@@ -439,7 +440,7 @@
   <div id="tab-sections">
     <h2 style="margin-top: 10px;"><%= t('headings.sections', %{Course Sections}) %></h2>
     <ul id="sections">
-      <% @context.course_sections.active.each do |section| %>
+      <% @context.course_sections.active.order(CourseSection.best_unicode_collation_key('name')).each do |section| %>
         <li class="section">
           <% if can_do section, @current_user, :read %>
             <a href="<%= context_url(@context, :context_section_url, section) %>" class="name">
@@ -485,7 +486,7 @@
           <%= form_for :course_section, :url => context_url(@context, :context_sections_url), :html => {:id => "add_section_form", :class => "form-inline", :style => "margin-top: 20px;"} do |f| %>
             <h3><%= f.blabel :name, :course_section_name, :en => "Add a New Section" %></h3>
             <%= f.text_field :name %>
-            <button class="btn btn-primary" type="submit"><i class="icon-add"></i> <%= t('buttons.add_section', %{Add Section}) %></button>
+            <button class="btn btn-primary" type="submit" title="<%= t('Add Section') %>" aria-label="<%= t('Add Section') %>"><i class="icon-plus" role="presentation"></i> <%= t('buttons.add_section', %{Section}) %></button>
           <% end %>
         </li>
       <% end %>
@@ -537,10 +538,10 @@
 
               <ul id="content-1" class="al-options" role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" aria-activedescendant="content-2">
                 <li role="presentation">
-                  <a href="#" class="icon-x disable_nav_item_link" id="disable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Disable this item">Disable</a>
+                  <a href="#" class="icon-x disable_nav_item_link" id="disable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Disable this item"><%= t("Disable") %></a>
                 </li>
                 <li role="presentation">
-                  <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item">Move</a>
+                  <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item"><%= t("Move") %></a>
                 </li>
               </ul>
             </div>
@@ -574,10 +575,10 @@
 
                 <ul id="content-2" class="al-options" role="menu" tabindex="0" aria-hidden="true" aria-expanded="false" aria-activedescendant="content-3">
                   <li role="presentation">
-                    <a href="#" class="icon-plus enable_nav_item_link" id="enable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Enable this item">Enable</a>
+                    <a href="#" class="icon-plus enable_nav_item_link" id="enable_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Enable this item"><%= t("Enable") %></a>
                   </li>
                   <li role="presentation">
-                    <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item">Move</a>
+                    <a href="#" class="icon-updown move_nav_item_link" id="move_nav_item_link_<%= tab[:id] %>" role="menuitem" title="Move this item"><%= t("Move") %></a>
                   </li>
                 </ul>
               </div>
@@ -687,9 +688,8 @@
   </div>
 <% end %>
 <div id="edit_letter_grades_form" style="display: none;" data-context_code="<%= @context.asset_string %>">
-  <%= render :partial => "shared/grading_standard", :object => @context.grading_standard, :locals => {:read_only => !can_manage} %>
+  <%= render partial: "shared/grading_standard", object: @context.grading_standard, locals: {read_only: !can_manage} %>
   <a href="<%= context_url(@context, :context_grading_standards_url) %>" style="display: none;" class="create_grading_standard_url">&nbsp;</a>
   <a href="<%= context_url(@context, :context_grading_standard_url, "{{ id }}") %>" style="display: none;" id="update_grading_standard_url">&nbsp;</a>
   <a href="<%= context_url(@context, :context_url) %>" style="display: none;" id="update_course_url">&nbsp;</a>
 </div>
-

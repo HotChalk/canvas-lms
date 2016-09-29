@@ -29,7 +29,6 @@ class CalendarEvent < ActiveRecord::Base
   attr_accessible :title, :description, :start_at, :end_at, :location_name,
       :location_address, :time_zone_edited, :cancel_reason,
       :participants_per_appointment, :child_event_data,
-      :course_section_id,
       :remove_child_events, :all_day, :comments
   attr_accessor :cancel_reason, :imported
 
@@ -130,7 +129,6 @@ class CalendarEvent < ActiveRecord::Base
   scope :for_user_and_context_codes, lambda { |user, *args|
     codes = args.shift
     section_codes = args.shift || user.section_context_codes(codes)
-    section_ids = section_codes.map{ |id| id.delete('course_section_').to_i }
     effectively_courses_codes = [user.asset_string] + section_codes
     # the all_codes check is redundant, but makes the query more efficient
     all_codes = codes | effectively_courses_codes
@@ -142,9 +140,8 @@ class CalendarEvent < ActiveRecord::Base
     }.join(" OR ")
     codes_conditions = self.connection.quote(false) if codes_conditions.blank?
 
-    where(<<-SQL, all_codes, section_ids, codes, group_codes, effectively_courses_codes)
+    where(<<-SQL, all_codes, codes, group_codes, effectively_courses_codes)
       calendar_events.context_code IN (?)
-      AND (calendar_events.course_section_id IN (?) OR calendar_events.course_section_id IS NULL)
       AND (
         ( -- explicit contexts (e.g. course_123)
           calendar_events.context_code IN (?)
@@ -175,6 +172,9 @@ class CalendarEvent < ActiveRecord::Base
 
   scope :events_without_child_events, -> { where("NOT EXISTS (SELECT 1 FROM #{CalendarEvent.quoted_table_name} children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')") }
   scope :events_with_child_events, -> { where("EXISTS (SELECT 1 FROM #{CalendarEvent.quoted_table_name} children WHERE children.parent_calendar_event_id = calendar_events.id AND children.workflow_state<>'deleted')") }
+
+  scope :user_created, -> { where(:timetable_code => nil) }
+  scope :for_timetable, -> { where.not(:timetable_code => nil) }
 
   def validate_context!
     @validate_context = true
@@ -338,13 +338,13 @@ class CalendarEvent < ActiveRecord::Base
 
   set_broadcast_policy do
     dispatch :new_event_created
-    to { participants - [@updating_user] }
+    to { participants(include_observers: true) - [@updating_user] }
     whenever {
       !appointment_group && context.available? && just_created && !hidden?
     }
 
     dispatch :event_date_changed
-    to { participants - [@updating_user] }
+    to { participants(include_observers: true) - [@updating_user] }
     whenever {
       !appointment_group &&
       context.available? && (
@@ -354,7 +354,8 @@ class CalendarEvent < ActiveRecord::Base
     }
 
     dispatch :appointment_reserved_by_user
-    to { appointment_group.instructors }
+    to { appointment_group.instructors +
+         User.observing_students_in_course(@updating_user.id, appointment_group.active_contexts.select{ |c| c.is_a?(Course) }) }
     whenever {
       @updating_user && appointment_group && parent_event &&
       just_created &&
@@ -363,7 +364,8 @@ class CalendarEvent < ActiveRecord::Base
     data { {:updating_user => @updating_user} }
 
     dispatch :appointment_canceled_by_user
-    to { appointment_group.instructors }
+    to { appointment_group.instructors +
+         User.observing_students_in_course(@updating_user.id, appointment_group.active_contexts.select{ |c| c.is_a?(Course) }) }
     whenever {
       appointment_group && parent_event &&
       deleted? &&
@@ -397,10 +399,17 @@ class CalendarEvent < ActiveRecord::Base
     } }
   end
 
-  def participants
-    # TODO: User#participants should probably be fixed to return [self],
-    # then we can simplify this again
-    context_type == 'User' ? [context] : context.participants(include_observers: true)
+  def participants(include_observers: false)
+    if context_type == 'User'
+      if appointment_group? && include_observers
+        course_ids = appointment_group.appointment_group_contexts.where(context_type: 'Course').pluck(:context_id)
+        [context] + User.observing_students_in_course(context, course_ids)
+      else
+        [context]
+      end
+    else
+      context.participants(include_observers: include_observers)
+    end
   end
 
   attr_reader :updating_user

@@ -380,7 +380,9 @@ class AppointmentGroupsController < ApplicationController
         return redirect_to calendar2_url(:anchor => anchor)
       end
 
-      render :json => appointment_group_json(@group, @current_user, session, :include => ((params[:include] || []) | ['appointments']))
+      render :json => appointment_group_json(@group, @current_user, session,
+                                             :include => ((params[:include] || []) | ['appointments']),
+                                             :include_past_appointments => @group.grants_right?(@current_user, :manage))
     end
   end
 
@@ -514,7 +516,7 @@ class AppointmentGroupsController < ApplicationController
     if authorized_action(@group, @current_user, :read)
       return render :json => [] unless @group.participant_type == type
       render :json => Api.paginate(
-        @group.possible_participants(params[:registration_status]),
+        @group.possible_participants(registration_status: params[:registration_status]),
         self,
         send("api_v1_appointment_group_#{params[:action]}_url", @group)
       ).map(&formatter)

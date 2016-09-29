@@ -103,40 +103,30 @@ class DiscussionTopicsApiController < ApplicationController
   def view
     return unless authorized_action(@topic, @current_user, :read_replies)
 
-    structure, participant_ids, entry_ids, new_entries = @topic.materialized_view(:include_new_entries => params[:include_new_entries] == '1')
+    mobile_brand_config = !in_app? && @context.account.root_account.feature_enabled?(:use_new_styles) &&
+      @context.account.effective_brand_config
+    opts = {
+      :include_new_entries => value_to_boolean(params[:include_new_entries]),
+      :include_mobile_overrides => !!mobile_brand_config
+    }
+    structure, participant_ids, entry_ids, new_entries = @topic.materialized_view(opts)
 
     if structure
       structure = resolve_placeholders(structure)
 
-      unless @current_user.account_admin?(@context)
-        # if the current enrollment has limited section visibility, ensure that only the visible parts of the discussion topic are returned
-        if @context_membership && @context_membership.respond_to?(:limit_privileges_to_course_section) && @context_membership.limit_privileges_to_course_section
-          visible_user_ids = @topic.context.users_visible_to(@current_user).pluck(:id)
-          entries = JSON.parse(structure)
-          rejected_entries = entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
-          entries -= rejected_entries
-          entries.select {|e| e['replies'].present?}.each do |entry|
-            rejected_replies = entry['replies'].select {|r| !visible_user_ids.include?(r['user_id'].to_i) }
-            rejected_entries += rejected_replies
-            entry['replies'] -= rejected_replies
-          end
-          structure = entries.to_json
-          rejected_entries += new_entries.select {|e| !visible_user_ids.include?(e['user_id'].to_i) }
-          new_entries -= rejected_entries
-          participant_ids.reject! {|id| !visible_user_ids.include?(id) }
-          entry_ids -= rejected_entries.map {|r| r['id']}.uniq
-        end
-      end
-
       # we assume that json_structure will typically be served to users requesting string IDs
-      unless stringify_json_ids?
+      if !stringify_json_ids? || mobile_brand_config
         entries = JSON.parse(structure)
-        Api.recursively_stringify_json_ids(entries, reverse: true)
+        StringifyIds.recursively_stringify_ids(entries, reverse: true) if !stringify_json_ids?
+        DiscussionTopic::MaterializedView.include_mobile_overrides(entries, mobile_brand_config.css_and_js_overrides) if mobile_brand_config
         structure = entries.to_json
       end
 
       participants = Shard.partition_by_shard(participant_ids) do |shard_ids|
-        User.find(shard_ids)
+        # Preload accounts because they're needed to figure out if a user's avatar should be shown in
+        # AvatarHelper#avatar_url_for_user, which is used by user_display_json. We get an N+1 on the
+        # number of discussion participants if we don't do this.
+        User.where(id: shard_ids).preload({pseudonym: :account}).to_a
       end
 
       include_enrollment_state = params[:include_enrollment_state] && (@context.is_a?(Course) || @context.is_a?(Group)) &&
@@ -145,22 +135,15 @@ class DiscussionTopicsApiController < ApplicationController
       if include_enrollment_state
         enrollment_context = @context.is_a?(Course) ? @context : @context.context
         all_enrollments = enrollment_context.enrollments.where(:user_id => participants).to_a
-        Canvas::Builders::EnrollmentDateBuilder.preload(all_enrollments)
+        Canvas::Builders::EnrollmentDateBuilder.preload_state(all_enrollments)
+        all_enrollments = all_enrollments.group_by(&:user_id)
       end
 
       participant_info = participants.map do |participant|
         json = user_display_json(participant, @context.is_a_context? && @context)
         if include_enrollment_state
-          enrolls = all_enrollments.select{|e| e.user_id == participant.id}
+          enrolls = all_enrollments[participant.id] || []
           json[:isInactive] = enrolls.any? && enrolls.all?(&:inactive?)
-        end
-
-        # in the context of a course discussion, include the list of sections that each participant belongs to
-        if @context && @context.is_a_context? && @topic.context_type == 'Course'
-          json.merge!({:sections => participant.cached_current_enrollments.select {|e| e.active? && e.course_id == @context.id}.
-              map(&:course_section).compact.uniq.
-              map {|s| {:id => s.id, :name => s.name}}.
-              sort_by {|x| x[:name]}})
         end
 
         json

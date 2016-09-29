@@ -138,7 +138,7 @@ class ContentTag < ActiveRecord::Base
     content_ids.each do |type, ids|
       klass = type.constantize
       next unless klass < ActiveRecord::Base
-      next if klass.respond_to?(:tableless?) && klass.tableless?
+      next if klass < Tableless
       if klass.new.respond_to?(:could_be_locked=)
         klass.where(:id => ids).update_all(:could_be_locked => true)
       end
@@ -435,7 +435,7 @@ class ContentTag < ActiveRecord::Base
 
   # Scopes For Differentiated Assignment Filtering:
 
-  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
+  scope :visible_to_students_in_course_with_da, lambda { |user_ids, course_ids|
     for_non_differentiable_classes(user_ids, course_ids).union(
     for_non_differentiable_discussions(user_ids, course_ids),
     for_differentiable_assignments(user_ids, course_ids),

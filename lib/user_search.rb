@@ -3,7 +3,7 @@ module UserSearch
   def self.for_user_in_context(search_term, context, searcher, session=nil, options = {})
     search_term = search_term.to_s
     return User.none if search_term.strip.empty?
-    base_scope = scope_for(context, searcher, options.slice(:enrollment_type, :enrollment_role, :enrollment_role_id, :exclude_groups, :enrollment_state, :include_inactive_enrollments, :section_id))
+    base_scope = scope_for(context, searcher, options.slice(:enrollment_type, :enrollment_role, :enrollment_role_id, :exclude_groups, :enrollment_state, :include_inactive_enrollments))
     if search_term.to_s =~ Api::ID_REGEX
       db_id = Shard.relative_id_for(search_term, Shard.current, Shard.current)
       scope = base_scope.where(id: db_id)
@@ -50,7 +50,6 @@ module UserSearch
     include_prior_enrollments = !options[:enrollment_state].nil?
     include_inactive_enrollments = !!options[:include_inactive_enrollments]
     exclude_groups = Array(options[:exclude_groups]) if options[:exclude_groups]
-    course_section_ids = Array(options[:section_id]) if options[:section_id]
 
     users = if context.is_a?(Account)
               User.of_account(context).active
@@ -61,10 +60,6 @@ module UserSearch
               context.users_visible_to(searcher).uniq
             end
     users = users.order_by_sortable_name
-
-    if course_section_ids
-      users = users.restrict_to_sections(course_section_ids)
-    end
 
     if enrollment_role_ids || enrollment_roles
       if enrollment_role_ids
@@ -85,6 +80,9 @@ module UserSearch
       enrollment_types = enrollment_types.map { |e| "#{e.camelize}Enrollment" }
       if enrollment_types.any?{ |et| !Enrollment.readable_types.keys.include?(et) }
         raise ArgumentError, 'Invalid Enrollment Type'
+      end
+      if context.is_a?(Group) && context.context_type == "Course"
+        users = users.joins(:enrollments).where(:enrollments => {:course_id => context.context_id})
       end
       users = users.where(:enrollments => { :type => enrollment_types })
     end

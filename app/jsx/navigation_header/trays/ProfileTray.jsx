@@ -13,25 +13,13 @@ define([
       userAvatarURL: React.PropTypes.string.isRequired
     },
 
-    getInitialState () {
-      return {
-        logoutFormSubmitted: false
-      };
-    },
-
-    submitLogoutForm() {
-      if (!this.state.logoutFormSubmitted) {
-        this.setState({logoutFormSubmitted: true}, () => this.refs.logoutForm.getDOMNode().submit());
-      }
-    },
-
     render() {
       return (
         <div>
-          <div className="ReactTray__header ReactTray__header--is-profile" id="global_nav_profile_header">
-            <div className="ReactTray-profile-header-close">
+          <div className="ic-NavMenu__header ic-NavMenu__header--is-profile" id="global_nav_profile_header">
+            <div className="ic-NavMenu-profile-header-close">
               <button
-                className="Button Button--icon-action ReactTray__closeBtn"
+                className="Button Button--icon-action ic-NavMenu__closeButton"
                 type="button" onClick={this.props.closeTray}>
                 <i className="icon-x" aria-hidden="true"></i>
                 <span className="screenreader-only">{I18n.t('Close')}</span>
@@ -41,11 +29,11 @@ define([
               <img
                 src={this.props.userAvatarURL}
                 alt={I18n.t('User profile picture')}
-                className="ReactTray-profile-header-avatar-image"
+                className="ic-NavMenu-profile-header-avatar-image"
               />
             </div>
             <h1
-              className="ReactTray__headline ellipsis"
+              className="ic-NavMenu__headline ellipsis"
               id="global_nav_profile_display_name"
               title={this.props.userDisplayName}
             >
@@ -55,7 +43,7 @@ define([
               ref="logoutForm"
               action="/logout"
               method="post"
-              className="ReactTray-profile-header-logout-form"
+              className="ic-NavMenu-profile-header-logout-form"
             >
               <input name="utf8" value="✓" type="hidden"/>
               <input name="_method" value="delete" type="hidden"/>
@@ -67,22 +55,24 @@ define([
               </button>
             </form>
           </div>
-          <ul className="ReactTray__link-list">
-            <li className="ReactTray-list-item">
-              <a href="/profile" className="ReactTray-list-item__link">{I18n.t('Profile')}</a>
+          <ul className="ic-NavMenu__link-list">
+            <li className="ic-NavMenu-list-item">
+              <a href="/profile" className="ic-NavMenu-list-item__link">{I18n.t('Profile')}</a>
             </li>
-            <li className="ReactTray-list-item">
-              <a href="/profile/settings" className="ReactTray-list-item__link">{I18n.t('Settings')}</a>
+            <li className="ic-NavMenu-list-item">
+              <a href="/profile/settings" className="ic-NavMenu-list-item__link">{I18n.t('Settings')}</a>
             </li>
-            <li className="ReactTray-list-item">
-              <a href="/profile/communication" className="ReactTray-list-item__link">{I18n.t('Notifications')}</a>
+            <li className="ic-NavMenu-list-item">
+              <a href="/profile/communication" className="ic-NavMenu-list-item__link">{I18n.t('Notifications')}</a>
             </li>
-            <li className="ReactTray-list-item">
-              <a href="/files" className="ReactTray-list-item__link">{I18n.t('Files')}</a>
+            <li className="ic-NavMenu-list-item">
+              <a href="/files" className="ic-NavMenu-list-item__link">{I18n.t('Files')}</a>
             </li>
-            <li className="ReactTray-list-item">
-              <a href="/dashboard/eportfolios" className="ReactTray-list-item__link">{I18n.t('ePortfolios')}</a>
-            </li>
+            {window.ENV.SETTINGS.eportfolios_enabled &&
+              <li className="ic-NavMenu-list-item">
+                <a href="/dashboard/eportfolios" className="ic-NavMenu-list-item__link">{I18n.t('ePortfolios')}</a>
+              </li>
+            }
           </ul>
         </div>
       );

@@ -1,8 +1,7 @@
 <% js_bundle :link_content_dialog %>
 <% css_bundle :select_content_dialog %>
 <% only ||= nil # only is an optimization, so that tabs that aren't going to be used won't have their data loaded %>
-<% is_admin = @current_user.account_admin?(@context) %>
-<% cache([@context, @current_user, 'link_context_content_dialog', only].cache_key) do %>
+<% cache([@context, 'link_context_content_dialog', only].cache_key) do %>
   <div id="link_context_content_dialog" style="display: none;">
     <div style="<%= hidden if only && only.size == 1 %>">
       <a href="<%= context_url(@context, :context_external_tool_resource_selection_url, "{{ id }}") %>" id="select_content_resource_selection_url" style="display: none;">&nbsp;</a>
@@ -73,11 +72,7 @@
         </div>
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
-          <% quizzes = @context.quizzes.active.limit(400) %>
-          <% unless is_admin %>
-              <% quizzes = DifferentiableAssignment.scope_filter(quizzes, @current_user, @context) %>
-          <% end %>
-          <% quizzes.each do |quiz| %>
+          <% @context.quizzes.active.limit(400).each do |quiz| %>
             <option value="<%= quiz.id %>"><%= quiz.title %></option>
           <% end %>
         </select>
@@ -94,11 +89,7 @@
         <select class="module_item_select" multiple>
           <% @context.assignment_groups.active.include_active_assignments.each do |group| %>
             <optgroup label="<%= group.name %>">
-            <% assignments = group.active_assignments.no_graded_quizzes_or_topics.limit(200) %>
-            <% unless is_admin %>
-              <% assignments = DifferentiableAssignment.scope_filter(assignments, @current_user, @context) %>
-            <% end %>
-            <% assignments.each do |assignment| %>
+            <% group.active_assignments.no_submittables.limit(200).each do |assignment| %>
               <option value="<%= assignment.id %>"><%= assignment.title %></option>
             <% end %>
             </optgroup>
@@ -138,12 +129,7 @@
         </div>
         <div style="margin-top: 5px;">
         <select class="module_item_select" multiple>
-          <% discussion_topic_ids = @context.discussion_topics.active.only_discussion_topics.limit(200).pluck(:id) %>
-          <% discussion_topics = DiscussionTopic.where(id: discussion_topic_ids) %>
-          <% unless is_admin || !@context.is_a?(Course) %>
-            <% discussion_topics = DifferentiableAssignment.scope_filter(discussion_topics, @current_user, @context) %>
-          <% end %>
-          <% discussion_topics.each do |topic| %>
+          <% @context.discussion_topics.active.only_discussion_topics.limit(200).each do |topic| %>
             <option value="<%= topic.id %>"><%= topic.title %></option>
           <% end %>
         </select>

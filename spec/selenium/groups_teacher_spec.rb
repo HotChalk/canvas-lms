@@ -123,6 +123,8 @@ describe "new groups" do
       # Verifies group leader silhouette and leader's name appear in the group header
       expect(f('.span3.ellipsis.group-leader')).to be_displayed
       expect(f('.span3.ellipsis.group-leader')).to include_text(@students.first.name)
+
+      check_element_has_focus f(".group-user-actions[data-user-id='#{@students.first.id}']")
     end
 
     it "should allow a teacher to set up a group set with member limits", priority: "1", test_id: 94160 do
@@ -188,7 +190,7 @@ describe "new groups" do
       f(".set-group").click
       wait_for_ajaximations
       f(".group[data-id=\"#{@testgroup[1].id}\"] .toggle-group").click
-      expect(f(".icon-user.group-leader")).to be_nil
+      expect(f("#content")).not_to contain_css(".icon-user.group-leader")
       expect(f(".group[data-id=\"#{@testgroup[1].id}\"] .group-user")).to include_text("Test Student 1")
     end
 
@@ -287,7 +289,7 @@ describe "new groups" do
 
       f(".group[data-id=\"#{@testgroup[1].id}\"] .toggle-group").click
 
-      expect(f(".icon-user.group-leader")).to be_nil
+      expect(f("#content")).not_to contain_css(".icon-user.group-leader")
       expect(f(".group[data-id=\"#{@testgroup[1].id}\"] .group-user")).to include_text("Test Student 1")
     end
 
@@ -320,7 +322,7 @@ describe "new groups" do
       expect(f(".group[data-id=\"#{@testgroup[0].id}\"] .group-user")).to include_text("Test Student 1")
       expect(f(".group[data-id=\"#{@testgroup[1].id}\"] .group-user")).to include_text("Test Student 2")
       expect(f(".group[data-id=\"#{@testgroup[0].id}\"] .group-leader")).to be_displayed
-      expect(f(".group[data-id=\"#{@testgroup[1].id}\"] .group-leader")).to be_nil
+      expect(f("#content")).not_to contain_css(".group[data-id=\"#{@testgroup[1].id}\"] .group-leader")
     end
 
     it 'should remove group leader', priority: "1", test_id: 96025 do
@@ -351,7 +353,7 @@ describe "new groups" do
       wait_for_ajaximations
 
       expect(f(".group[data-id=\"#{@testgroup[0].id}\"] .group-user")).not_to include_text('Test Student 1')
-      expect(f('.row-fluid .group-leader')).to be_nil
+      expect(f("#content")).not_to contain_css('.row-fluid .group-leader')
     end
 
     it "should split students into groups automatically", priority: "1", test_id: 163990 do
@@ -401,6 +403,7 @@ describe "new groups" do
     end
 
     it 'should create a group with a given name and limit', priority: "2", test_id: 94166 do
+      skip("broken qa-729")
       group_test_setup(5,1,1)
       3.times do |n|
         add_user_to_group(@students[n+1], @testgroup.first, false)
@@ -553,7 +556,7 @@ describe "new groups" do
       drag_and_drop_element(fj(drag_item1), fj(drop_target1))
       wait_for_ajaximations
 
-      expect(f('.icon-user.group-leader')).to be_nil
+      expect(f("#content")).not_to contain_css('.icon-user.group-leader')
       expect(fj(drop_target1)).to include_text('Test Student 5')
     end
 

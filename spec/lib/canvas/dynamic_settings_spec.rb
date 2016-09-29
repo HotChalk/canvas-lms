@@ -225,15 +225,19 @@ module Canvas
       end
 
       context "using catastrophic cache fallback" do
+        let!(:now) { Time.zone.now }
+
         before(:each) do
           stub_consul_with("rce.insops.com")
           DynamicSettings.from_cache(parent_key) # prime cache
-          Timecop.travel(Time.zone.now + 11.minutes)
         end
 
         after(:each) do
-          Timecop.return
           Canvas.unstub(:timeout_protection)
+        end
+
+        around do |example|
+          Timecop.freeze(now + 11.minutes, &example)
         end
 
         it "still returns old values if connection fails after timeout" do
@@ -245,18 +249,13 @@ module Canvas
         end
 
         it "returns old value during connection timeout" do
-          Canvas.stubs(:timeout_protection).with('consul', raise_on_timeout: true).
+
+          Timeout.stubs(:timeout).with(DynamicSettings::TIMEOUT_INTERVAL).
             raises(Timeout::Error, 'consul took too long')
           value = DynamicSettings.from_cache(parent_key, expires_in: 10.minutes)
           expect(value["app-host"]).to eq("rce.insops.com")
         end
 
-        it "uses cached values during TimeoutCutoff events" do
-          Canvas.stubs(:timeout_protection).with('consul', raise_on_timeout: true).
-            raises(TimeoutCutoff, 'consul took too long too many times')
-          value = DynamicSettings.from_cache(parent_key, expires_in: 10.minutes)
-          expect(value["app-host"]).to eq("rce.insops.com")
-        end
       end
     end
 

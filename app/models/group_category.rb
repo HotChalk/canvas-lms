@@ -19,7 +19,7 @@
 class GroupCategory < ActiveRecord::Base
   attr_accessible :name, :role, :context
   attr_reader :create_group_count
-  attr_accessor :assign_unassigned_members,:current_user
+  attr_accessor :assign_unassigned_members
 
   belongs_to :context, polymorphic: [:course, :account]
   has_many :groups, :dependent => :destroy
@@ -186,11 +186,15 @@ class GroupCategory < ActiveRecord::Base
   end
 
   def group_for(user)
-    groups.active.where("EXISTS (?)", GroupMembership.active.where("group_id=groups.id").where(user_id: user)).first
+    shard.activate do
+      groups.active.where("EXISTS (?)", GroupMembership.active.where("group_id=groups.id").where(user_id: user)).take
+    end
   end
 
   def is_member?(user)
-    groups.active.where("EXISTS (?)", GroupMembership.active.where("group_id=groups.id").where(user_id: user)).any?
+    shard.activate do
+      groups.active.where("EXISTS (?)", GroupMembership.active.where("group_id=groups.id").where(user_id: user)).exists?
+    end
   end
 
   alias_method :destroy_permanently!, :destroy
@@ -360,6 +364,7 @@ class GroupCategory < ActiveRecord::Base
         DueDateCacher.recompute_course(context_id, Assignment.where(context_type: context_type, context_id: context_id, group_category_id: self).pluck(:id))
       end
     end
+    complete_progress
     new_memberships
   end
 
@@ -370,13 +375,9 @@ class GroupCategory < ActiveRecord::Base
   end
 
   def auto_create_groups
-    if(context.is_a?(Course))
-      create_groups_course(@create_group_count) if @create_group_count
-    else
-      create_groups(@create_group_count) if @create_group_count
-      assign_unassigned_members if @assign_unassigned_members && @create_group_count
-      @create_group_count = @assign_unassigned_members = nil
-    end
+    create_groups(@create_group_count) if @create_group_count
+    assign_unassigned_members if @assign_unassigned_members && @create_group_count
+    @create_group_count = @assign_unassigned_members = nil
   end
 
   def create_groups(num)
@@ -388,37 +389,6 @@ class GroupCategory < ActiveRecord::Base
     end
   end
 
-  def create_groups_course(num)
-    group_name = name
-    sections = []
-    #Get users and sections according to current user
-    if  @current_user.account_admin?(context)
-      sections = context.course_sections.active.select([:id, :name])
-     else
-      sections = context.sections_visible_to(@current_user)
-    end
-    group_name = group_name.singularize if I18n.locale == :en
-    start_progress
-    sections.each_with_index do |section, section_index|
-      students =  section.student_enrollments.map(&:user)
-      section_groups = []
-
-      num.times do |idx|
-        group = Group.create(name: "#{group_name} #{idx + 1 + section_index * num}", :context => context, :course_section => section)
-        section_groups <<  group
-        groups << group
-      end
-      assign_unassigned_members_course(students, section_groups) if @assign_unassigned_members && @create_group_count
-    end
-    complete_progress
-  end
-
-  def assign_unassigned_members_course(section_members, section_groups)
-    Delayed::Batch.serial_batch do
-      distribute_members_among_groups(section_members, section_groups)
-    end
-  end
-
   def unassigned_users
     context.users_not_in_groups(allows_multiple_memberships? ? [] : groups.active)
   end
@@ -426,7 +396,6 @@ class GroupCategory < ActiveRecord::Base
   def assign_unassigned_members
     Delayed::Batch.serial_batch do
       distribute_members_among_groups(unassigned_users, groups.active)
-      complete_progress
     end
   end
 

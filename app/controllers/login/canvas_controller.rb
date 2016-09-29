@@ -29,7 +29,6 @@ class Login::CanvasController < ApplicationController
     @pseudonym_session = PseudonymSession.new
     @headers = false
     @is_prelogin = true unless params[:direct] || !@is_prelogin.nil?
-    @aacs_with_buttons = @domain_root_account.authentication_providers.active.select { |aac| aac.class.login_button? }
     flash.now[:error] = params[:message] if params[:message]
 
     maybe_render_mobile_login
@@ -37,7 +36,7 @@ class Login::CanvasController < ApplicationController
 
   def create
     load_root_account(params[:account_id])
-    params[:pseudonym_session][:account_id] = params[:account_id]
+    params[:pseudonym_session][:account_id] = params[:account_id] if params.key?(:pseudonym_session)
 
     # Check referer and authenticity token.  If the token is invalid but the referer is trusted
     # and one is not provided then continue.  If the referer is trusted and they provide a token
@@ -100,6 +99,7 @@ class Login::CanvasController < ApplicationController
     end
 
     if !found && params[:pseudonym_session]
+      # TODO this can and should be reverted to upstream code, but will require testing multi-tenant SSO and logins
       search_account_ids = Account.all(:select => :id).collect(&:id)
       pseudonym = Pseudonym.authenticate(params[:pseudonym_session],
                                          search_account_ids,
@@ -128,7 +128,7 @@ class Login::CanvasController < ApplicationController
       user = pseudonym.login_assertions_for_user
       successful_login(user, pseudonym)
     else
-      unsuccessful_login t("Incorrect username and/or password")
+      unsuccessful_login t("Invalid username or password")
     end
   end
 
@@ -205,6 +205,7 @@ class Login::CanvasController < ApplicationController
       )
       render :mobile_login, layout: 'mobile_auth', status: status
     else
+      @aacs_with_buttons = @domain_root_account.authentication_providers.active.select { |aac| aac.class.login_button? }
       render :new, status: status
     end
   end

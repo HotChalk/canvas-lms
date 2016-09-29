@@ -24,8 +24,8 @@ describe 'announcement_created_by_you.twitter' do
     announcement_model
     @object = @a
     @message = generate_message(:announcement_created_by_you, :twitter, @object)
-    expect(@message.subject).to eq "Canvas Alert"
+    expect(@message.subject).to eq "HotChalk Ember Alert"
     expect(@message.url).to match(/\/courses\/\d+\/announcements\/\d+/)
-    expect(@message.body).to include("Canvas Alert - You created this Announcement: value for title")
+    expect(@message.body).to include("HotChalk Ember Alert - You created this Announcement: value for title")
   end
 end

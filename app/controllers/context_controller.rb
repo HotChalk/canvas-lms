@@ -189,11 +189,7 @@ class ContextController < ApplicationController
         sections = @context.course_sections.active.select([:id, :course_id, :name, :end_at, :restrict_enrollments_to_section_dates]).preload(:course)
         concluded_sections = sections.select{|s| s.concluded?}.map{|s| "section_#{s.id}"}
       else
-        if @current_user.account_admin?(@context)
-          sections = @context.course_sections.active.select([:id, :name])
-        else
-          sections = @context.sections_visible_to(@current_user)
-        end
+        sections = @context.course_sections.active.select([:id, :name])
         concluded_sections = []
       end
 
@@ -234,9 +230,7 @@ class ContextController < ApplicationController
       end
       @primary_users = { t('roster.group_members', 'Group Members') => @users }
       if course = @context.context.try(:is_a?, Course) && @context.context
-        section_ids = course.sections_visible_to(@current_user).collect{|s| s.id}
-        section_instructors = course.participating_instructors.restrict_to_sections(section_ids).order_by_sortable_name.uniq
-        @secondary_users = { t('roster.teachers_and_tas', 'Teachers & TAs') => section_instructors }
+        @secondary_users = { t('roster.teachers_and_tas', 'Teachers & TAs') => course.participating_instructors.order_by_sortable_name.uniq }
       end
     end
 

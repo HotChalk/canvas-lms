@@ -130,7 +130,7 @@ define([
       if (onSubmit) {
         var loadingPromise = $.Deferred(),
             oldHandlers = {};
-        onSubmit(loadingPromise, formData);
+        onSubmit.call(this, loadingPromise, formData);
         $.each(['success', 'error'], function(i, successOrError){
           oldHandlers[successOrError] = options[successOrError];
           options[successOrError] = function() {
@@ -964,6 +964,12 @@ define([
     $('#aria_alerts').empty();
     $.each(errors, function(name, msg) {
       var $obj = $form.find(":input[name='" + name + "'],:input[name*='[" + name + "]']").filter(":visible").first();
+      if(!$obj || $obj.length === 0) {
+        var $hiddenInput = $form.find("[name='" + name + "'],[name*='[" + name + "]']").filter(":not(:visible)").first();
+        if ($hiddenInput && $hiddenInput.length > 0) {
+          $obj = $hiddenInput.prev();
+        }
+      }
       if(!$obj || $obj.length === 0 || name == "general") {
         $obj = $form;
       }
@@ -1135,7 +1141,7 @@ define([
     if (options.object_name) {
       required = $._addObjectName(required, options.object_name);
     }
-    $form = $(this);
+    var $form = $(this);
     $.each(required, function(i, name) {
       var field = $form.find('[name="'+name+'"]');
       if (!field.length) {return;}

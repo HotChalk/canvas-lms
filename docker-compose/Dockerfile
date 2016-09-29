@@ -1,7 +1,7 @@
 FROM instructure/ruby-passenger:2.1
 
 USER root
-RUN curl -sL https://deb.nodesource.com/setup_0.12 | bash -
+RUN curl -sL https://deb.nodesource.com/setup_6.x | bash -
 RUN  apt-get update -qq \
   && apt-get install -qqy \
        nodejs \
@@ -9,6 +9,7 @@ RUN  apt-get update -qq \
        libxmlsec1-dev \
        unzip \
        fontforge \
+       python-lxml \
   && npm install -g gulp \
   && rm -rf /var/lib/apt/lists/*
 
@@ -20,10 +21,13 @@ RUN if [ -e /var/lib/gems/$RUBY_MAJOR.0/gems/bundler-* ]; then BUNDLER_INSTALL="
   && make \
   && cp sfnt2woff /usr/local/bin \
   && gem uninstall --all --ignore-dependencies --force $BUNDLER_INSTALL bundler \
-  && gem install bundler --no-document -v 1.11.2 \
+  && gem install bundler --no-document -v 1.12.5 \
   && find $GEM_HOME ! -user docker | xargs chown docker:docker
 
 USER docker
+
+RUN mkdir -p /home/docker/.gem/ruby/$RUBY_MAJOR.0
 WORKDIR /usr/src/app
 
 ENV RAILS_ENV development
+ENV NGINX_MAX_UPLOAD_SIZE 10g

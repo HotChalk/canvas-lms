@@ -338,7 +338,14 @@ class CommunicationChannelsController < ApplicationController
         if @pseudonym && params[:register]
           @user.require_acceptance_of_terms = require_terms?
           @user.attributes = params[:user] if params[:user]
-          @pseudonym.attributes = params[:pseudonym] if params[:pseudonym]
+
+          if params[:pseudonym]
+            if @pseudonym.unique_id.present?
+              params[:pseudonym].delete(:unique_id)
+            end
+            @pseudonym.attributes = params[:pseudonym]
+          end
+
           @pseudonym.communication_channel = cc
 
           # ensure the password gets validated, but don't require confirmation
@@ -406,7 +413,8 @@ class CommunicationChannelsController < ApplicationController
   # params[:enrollment_id] is optional
   def re_send_confirmation
     @user = User.find(params[:user_id])
-    @enrollment = params[:enrollment_id] && @user.enrollments.find(params[:enrollment_id])
+    # the active shard needs to be searched for the enrollment (not the user's shard)
+    @enrollment = params[:enrollment_id] && Enrollment.where(id: params[:enrollment_id], user_id: @user).first!
     if @enrollment && (@enrollment.invited? || @enrollment.active?)
       @enrollment.re_send_confirmation!
     else

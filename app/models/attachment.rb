@@ -273,6 +273,14 @@ class Attachment < ActiveRecord::Base
     dup
   end
 
+  def copy_to_folder!(folder, on_duplicate = :rename)
+    copy = self.clone_for(folder.context, nil, force_copy: true)
+    copy.folder = folder
+    copy.save!
+    copy.handle_duplicates(on_duplicate)
+    copy
+  end
+
   def ensure_media_object
     return true if self.class.skip_media_object_creation?
     in_the_right_state = self.file_state == 'available' && self.workflow_state !~ /^unattached/
@@ -324,6 +332,7 @@ class Attachment < ActiveRecord::Base
     application/msword
     application/vnd.openxmlformats-officedocument.wordprocessingml.document
     application/pdf
+    application/vnd.oasis.opendocument.text
     text/plain
     text/html
     application/rtf
@@ -452,9 +461,9 @@ class Attachment < ActiveRecord::Base
     write_attribute(:namespace, new_namespace)
 
     self.store.change_namespace(old_full_filename)
-    self.save
-
-    Attachment.where(:root_attachment_id => self).update_all(:namespace => new_namespace)
+    shard.activate do
+      Attachment.where("id=? OR root_attachment_id=?", self, self).update_all(namespace: new_namespace)
+    end
   end
 
   def process_s3_details!(details)
@@ -594,6 +603,7 @@ class Attachment < ActiveRecord::Base
 
           if context.is_a?(User)
             excluded_attachment_ids = context.attachments.joins(:attachment_associations).where("attachment_associations.context_type = ?", "Submission").pluck(:id)
+            excluded_attachment_ids += context.attachments.where(folder_id: context.submissions_folders).pluck(:id)
             attachment_scope = attachment_scope.where("id NOT IN (?)", excluded_attachment_ids) if excluded_attachment_ids.any?
           end
 
@@ -641,6 +651,7 @@ class Attachment < ActiveRecord::Base
     elsif method == :overwrite
       atts = self.folder.active_file_attachments.where("display_name=? AND id<>?", self.display_name, self.id)
       atts.update_all(:replacement_attachment_id => self) # so we can find the new file in content links
+      copy_access_attributes!(atts.first) unless atts.empty?
       atts.each do |a|
         # update content tags to refer to the new file
         ContentTag.where(:content_id => a, :content_type => 'Attachment').update_all(:content_id => self)
@@ -652,6 +663,15 @@ class Attachment < ActiveRecord::Base
       end
     end
     return deleted_attachments
+  end
+
+  def copy_access_attributes!(source)
+    self.file_state = 'hidden' if source.file_state == 'hidden'
+    self.locked = source.locked
+    self.unlock_at = source.unlock_at
+    self.lock_at = source.lock_at
+    self.usage_rights_id = source.usage_rights_id
+    save! if changed?
   end
 
   def self.destroy_files(ids)
@@ -982,14 +1002,15 @@ class Attachment < ActiveRecord::Base
   end
 
   set_policy do
-    given { |user|
-      self.context.grants_right?(user, :manage_files) &&
-      !self.associated_with_submission?
+    given { |user, session|
+      self.context.grants_right?(user, session, :manage_files) &&
+        !self.associated_with_submission? &&
+        (!self.folder || self.folder.grants_right?(user, session, :manage_contents))
     }
-    can :delete
+    can :delete and can :update
 
-    given { |user, session| self.context.grants_right?(user, session, :manage_files) } #admins.include? user }
-    can :read and can :update and can :create and can :download and can :read_as_admin
+    given { |user, session| self.context.grants_right?(user, session, :manage_files) }
+    can :read and can :create and can :download and can :read_as_admin
 
     given { self.public? }
     can :read and can :download
@@ -1170,6 +1191,30 @@ class Attachment < ActiveRecord::Base
     true
   end
 
+  def make_childless(preferred_child = nil)
+    preferred_child = nil if preferred_child && preferred_child.filename.nil?
+    child = preferred_child || children.where.not(filename: nil).take
+    if !child && children.exists?
+      Attachment.where(root_attachment_id: self).update_all(root_attachment_id: child)
+      return
+    end
+    raise "must be a child" unless child.root_attachment_id == id
+    child.root_attachment_id = nil
+    child.filename ||= filename if filename
+    if Attachment.s3_storage?
+      if filename && s3object.exists? && !child.s3object.exists?
+        s3object.copy_to(child.s3object)
+      end
+    else
+      old_content_type = self.content_type
+      Attachment.where(:id => self).update_all(:content_type => "invalid/invalid") # prevents find_existing_attachment_for_md5 from reattaching the child to the old root
+      child.uploaded_data = open
+      Attachment.where(:id => self).update_all(:content_type => old_content_type)
+    end
+    child.save!
+    Attachment.where(root_attachment_id: self).where.not(id: child).update_all(root_attachment_id: child)
+  end
+
   def restore
     self.file_state = 'available'
     self.save
@@ -1234,7 +1279,10 @@ class Attachment < ActiveRecord::Base
       }, attempt
     elsif canvadocable?
       doc = canvadoc || create_canvadoc
-      doc.upload annotatable: opts[:wants_annotation]
+      doc.upload({
+        annotatable: opts[:wants_annotation],
+        preferred_plugins: opts[:preferred_plugins]
+      })
       update_attribute(:workflow_state, 'processing')
     end
   rescue => e
@@ -1540,8 +1588,9 @@ class Attachment < ActiveRecord::Base
     end
   end
 
-  def self.migrate_attachments(from_context, to_context)
-    from_attachments = from_context.shard.activate do
+  def self.migrate_attachments(from_context, to_context, scope = nil)
+    from_attachments = scope
+    from_attachments ||= from_context.shard.activate do
       Attachment.where(:context_type => from_context.class.name, :context_id => from_context).not_deleted.to_a
     end
 
@@ -1552,25 +1601,37 @@ class Attachment < ActiveRecord::Base
         match = to_attachments.detect{|a| attachment.matches_full_display_path?(a.full_display_path)}
         next if match && match.md5 == attachment.md5
 
-        new_attachment = Attachment.new
-        new_attachment.assign_attributes(attachment.attributes.except(*EXCLUDED_COPY_ATTRIBUTES), :without_protection => true)
-
-        new_attachment.context = to_context
-        new_attachment.folder = Folder.assert_path(attachment.folder_path, to_context)
-        new_attachment.namespace = new_attachment.infer_namespace
-        if existing_attachment = new_attachment.find_existing_attachment_for_md5
-          new_attachment.root_attachment = existing_attachment
+        if from_context.shard == to_context.shard
+          og_attachment = attachment
+          og_attachment.context = to_context
+          og_attachment.folder = Folder.assert_path(attachment.folder_path, to_context)
+          og_attachment.save_without_broadcasting!
+          if match
+            og_attachment.folder.reload
+            og_attachment.handle_duplicates(:rename)
+          end
         else
-          new_attachment.write_attribute(:filename, attachment.filename)
-          new_attachment.uploaded_data = attachment.open
-        end
+          new_attachment = Attachment.new
+          new_attachment.assign_attributes(attachment.attributes.except(*EXCLUDED_COPY_ATTRIBUTES), :without_protection => true)
 
-        new_attachment.content_type = attachment.content_type
+          new_attachment.user_id = to_context.id if to_context.is_a? User
+          new_attachment.context = to_context
+          new_attachment.folder = Folder.assert_path(attachment.folder_path, to_context)
+          new_attachment.namespace = new_attachment.infer_namespace
+          if existing_attachment = new_attachment.find_existing_attachment_for_md5
+            new_attachment.root_attachment = existing_attachment
+          else
+            new_attachment.write_attribute(:filename, attachment.filename)
+            new_attachment.uploaded_data = attachment.open
+          end
 
-        new_attachment.save_without_broadcasting!
-        if match
-          new_attachment.folder.reload
-          new_attachment.handle_duplicates(:rename)
+          new_attachment.content_type = attachment.content_type
+
+          new_attachment.save_without_broadcasting!
+          if match
+            new_attachment.folder.reload
+            new_attachment.handle_duplicates(:rename)
+          end
         end
       end
     end

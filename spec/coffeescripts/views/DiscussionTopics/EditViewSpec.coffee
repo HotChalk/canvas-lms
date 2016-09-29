@@ -12,45 +12,54 @@ define [
   'compiled/collections/AssignmentGroupCollection'
   'compiled/views/assignments/GroupCategorySelector'
   'helpers/fakeENV'
+  'jsx/shared/rce/RichContentEditor'
   'helpers/jquery.simulate'
 ], ($, _, SectionCollection, Assignment, DueDateList, Section, DiscussionTopic,
 Announcement, DueDateOverrideView, EditView, AssignmentGroupCollection,
-GroupCategorySelector, fakeENV) ->
+GroupCategorySelector, fakeENV, RichContentEditor) ->
+
+  editView = (opts = {}) ->
+    modelClass = if opts.isAnnouncement then Announcement else DiscussionTopic
+
+    discussOpts = {}
+    if opts.withAssignment
+      assignmentOpts = _.extend {}, opts.assignmentOpts,
+        name: 'Test Assignment'
+        assignment_overrides: []
+      discussOpts.assignment = assignmentOpts
+    discussion = new modelClass(discussOpts, parse: true)
+    assignment = discussion.get('assignment')
+    sectionList = new SectionCollection [Section.defaultDueDateSection()]
+    dueDateList = new DueDateList assignment.get('assignment_overrides'), sectionList, assignment
+
+    app = new EditView
+      model: discussion
+      permissions: opts.permissions || {}
+      views:
+        'js-assignment-overrides': new DueDateOverrideView
+          model: dueDateList
+          views: {}
+
+    (app.assignmentGroupCollection = new AssignmentGroupCollection).contextAssetString = ENV.context_asset_string
+    @stub(app, 'scrollSidebar')
+    app.render()
 
   module 'EditView',
     setup: ->
       fakeENV.setup()
     teardown: ->
       fakeENV.teardown()
-    editView: (opts = {}) ->
-      modelClass = if opts.isAnnouncement then Announcement else DiscussionTopic
-
-      discussOpts = {}
-      if opts.withAssignment
-        assignmentOpts = _.extend {}, opts.assignmentOpts,
-          name: 'Test Assignment'
-          assignment_overrides: []
-        discussOpts.assignment = assignmentOpts
-      discussion = new modelClass(discussOpts, parse: true)
-      assignment = discussion.get('assignment')
-      sectionList = new SectionCollection [Section.defaultDueDateSection()]
-      dueDateList = new DueDateList assignment.get('assignment_overrides'), sectionList, assignment
-
-      app = new EditView
-        model: discussion
-        permissions: opts.permissions || {}
-        views:
-          'js-assignment-overrides': new DueDateOverrideView
-            model: dueDateList
-            views: {}
-
-      (app.assignmentGroupCollection = new AssignmentGroupCollection).contextAssetString = ENV.context_asset_string
-      @stub(app, 'scrollSidebar')
-      app.render()
+    editView: ->
+      editView.apply(this, arguments)
 
   test 'renders', ->
     view = @editView()
     ok view
+
+  test 'tells RCE to manage the parent', ->
+    lne = @stub(RichContentEditor, 'loadNewEditor')
+    EditView.prototype.loadNewEditor.call()
+    ok lne.firstCall.args[1].manageParent, 'manageParent flag should be set'
 
   test 'does error message show on assignment point change with submissions', ->
     view = @editView
@@ -85,7 +94,22 @@ GroupCategorySelector, fakeENV) ->
     equal view.$el.find('#podcast_enabled').length, 1
     equal view.$el.find('#podcast_has_student_posts_container').length, 0
 
-  conditionalReleaseEnv = { assignment: { id: 1 }, jwt: 'foo' }
+  module 'EditView - ConditionalRelease',
+    setup: ->
+      fakeENV.setup()
+      $(document).on 'submit', -> false
+    teardown: ->
+      fakeENV.teardown()
+      $(document).off 'submit'
+    editView: ->
+      editView.apply(this, arguments)
+
+  enableConditionalRelease = ->
+    conditionalReleaseEnv = { assignment: { id: 1 }, jwt: 'foo' }
+
+    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
+    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+
   test 'does not show conditional release tab when feature not enabled', ->
     ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = false
     view = @editView()
@@ -93,8 +117,7 @@ GroupCategorySelector, fakeENV) ->
     equal view.$el.find('#discussion-edit-view').hasClass('ui-tabs'), false
 
   test 'shows disabled conditional release tab when feature enabled, but not assignment', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+    enableConditionalRelease()
     view = @editView()
     view.renderTabs()
     view.loadConditionalRelease()
@@ -103,8 +126,7 @@ GroupCategorySelector, fakeENV) ->
     equal view.$discussionEditView.tabs("option", "disabled"), true
 
   test 'shows enabled conditional release tab when feature enabled, and assignment', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+    enableConditionalRelease()
     view = @editView({ withAssignment: true })
     view.renderTabs()
     view.loadConditionalRelease()
@@ -113,8 +135,7 @@ GroupCategorySelector, fakeENV) ->
     equal view.$discussionEditView.tabs("option", "disabled"), false
 
   test 'enables conditional release tab when changed to assignment', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+    enableConditionalRelease()
     view = @editView()
     view.loadConditionalRelease()
     view.renderTabs()
@@ -125,8 +146,7 @@ GroupCategorySelector, fakeENV) ->
     equal view.$discussionEditView.tabs("option", "disabled"), false
 
   test 'disables conditional release tab when changed from assignment', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+    enableConditionalRelease()
     view = @editView({ withAssignment: true })
     view.loadConditionalRelease()
     view.renderTabs()
@@ -137,27 +157,65 @@ GroupCategorySelector, fakeENV) ->
     equal view.$discussionEditView.tabs("option", "disabled"), true
 
   test 'renders conditional release tab content', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+    enableConditionalRelease()
     view = @editView({ withAssignment: true })
     view.loadConditionalRelease()
     equal 1, view.$conditionalReleaseTarget.children().size()
 
-  test 'conditional release editor is disabled on change', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
+  test 'conditional release editor is updated on tab change', ->
+    enableConditionalRelease()
     view = @editView({ withAssignment: true })
+    view.renderTabs()
+    view.renderGroupCategoryOptions()
     view.loadConditionalRelease()
-    view.onChange()
-    equal false, view.conditionalReleaseEditor.enabled()
-
-  test 'conditional release editor is disabled only once', ->
-    ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED = true
-    ENV.CONDITIONAL_RELEASE_ENV = conditionalReleaseEnv
-    view = @editView({ withAssignment: true })
-    view.loadConditionalRelease()
-    debugger
-    stub = @stub(view.conditionalReleaseEditor, 'setProps')
-    view.onChange()
-    view.onChange()
+    stub = @stub(view.conditionalReleaseEditor, 'updateAssignment')
+    view.$discussionEditView.tabs("option", "active", 1)
     ok stub.calledOnce
+
+    stub.reset()
+    view.$discussionEditView.tabs("option", "active", 0)
+    view.onChange()
+    view.$discussionEditView.tabs("option", "active", 1)
+    ok stub.calledOnce
+
+  test 'validates conditional release', (assert) ->
+    enableConditionalRelease()
+    resolved = assert.async()
+    view = @editView({ withAssignment: true })
+    _.defer =>
+      stub = @stub(view.conditionalReleaseEditor, 'validateBeforeSave').returns 'foo'
+      errors = view.validateBeforeSave(view.getFormData(), {})
+      ok errors['conditional_release'] == 'foo'
+      resolved()
+
+  test 'calls save in conditional release', (assert) ->
+    enableConditionalRelease()
+    resolved = assert.async()
+    view = @editView({ withAssignment: true })
+    _.defer =>
+      superPromise = $.Deferred().resolve({}).promise()
+      crPromise = $.Deferred().resolve({}).promise()
+      mockSuper = sinon.mock(EditView.__super__)
+      mockSuper.expects('saveFormData').returns superPromise
+      stub = @stub(view.conditionalReleaseEditor, 'save').returns crPromise
+
+      finalPromise = view.saveFormData()
+      finalPromise.then ->
+        mockSuper.verify()
+        ok stub.calledOnce
+        resolved()
+
+  test 'does not call conditional release save for an announcement', (assert) ->
+    enableConditionalRelease()
+    resolved = assert.async()
+    view = @editView({ isAnnouncement: true })
+    _.defer =>
+      superPromise = $.Deferred().resolve({}).promise()
+      mockSuper = sinon.mock(EditView.__super__)
+      mockSuper.expects('saveFormData').returns superPromise
+
+      savePromise = view.saveFormData()
+      savePromise.then ->
+        mockSuper.verify()
+        notOk view.conditionalReleaseEditor
+        resolved()

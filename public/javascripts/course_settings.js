@@ -243,7 +243,7 @@ define([
       $("#nav_dynamic_list li").each(function() {
         var tab_id = dynamic_tab_id_from_el(this);
         var tab_id_arr = tab_id.split('_');
-        if (tab_id !== null) { 
+        if (tab_id !== null) {
           var id, url;
           var id_tmp = tab_id_arr.pop();
           if (isFinite(id_tmp)){
@@ -253,12 +253,12 @@ define([
           {
             url = id_tmp;
           }
-          dynamic_tabs.push({ 
+          dynamic_tabs.push({
             context_id: id,
-            context_type: tab_id_arr.join('_'), 
+            context_type: tab_id_arr.join('_'),
             label: $($(this).contents()[0]).text().trim(),
             url: url
-          }); 
+          });
         }
       });
       $("#dynamic_tabs_json").val(JSON.stringify(dynamic_tabs));
@@ -474,6 +474,44 @@ define([
       event.preventDefault();
       $(this).parents('li').remove();
     });
+
+    $("#course_custom_course_visibility").click(function(event) {
+      $("#customize_course_visibility").toggle(this.checked);
+    });
+
+    $("#course_custom_course_visibility").ready(function(event) {
+      if($("#course_custom_course_visibility")[0].checked) {
+        $("#customize_course_visibility").toggle(true);
+      } else {
+        $("#customize_course_visibility").toggle(false);
+      }
+    });
+
+    $("#course_course_visibility").change(function(event) {
+      var order = $(this).children();
+      var selected = $(this).find(":selected");
+      $.each($('#customize_course_visibility select'), function(i, sel){
+        $(sel).children('option').remove();
+        for(var i=$.inArray(selected[0], order), len=order.length; i < len; i++) {
+          $(order[i]).clone().appendTo($(sel));
+        }
+      });
+      $('#customize_course_visibility select').val($("#course_course_visibility").val())
+    });
+
+    $("#course_custom_course_visibility").ready(function(event) {
+      var order = $("#course_course_visibility").children();
+      var selected = $("#course_course_visibility").find(":selected");
+      var current = $('#customize_course_visibility select').find(":selected");
+      $.each($('#customize_course_visibility select'), function(i, sel){
+        $(sel).children('option').remove();
+        for(var i=$.inArray(selected[0], order), len=order.length; i < len; i++) {
+          $(order[i]).clone().appendTo($(sel));
+        }
+      });
+      $('#customize_course_visibility select').val($(current).val())
+    });
+
     $.scrollSidebar();
   });
 });

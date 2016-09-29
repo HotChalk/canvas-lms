@@ -322,7 +322,7 @@
 #           "type": "boolean"
 #         },
 #         "external_tool_tag_attributes": {
-#           "description": "(Optional) assignment's settings for external tools if submission_types include 'external_tool'. Only url and new_tab are included. Use the 'External Tools' API if you need more information about an external tool.",
+#           "description": "(Optional) assignment's settings for external tools if submission_types include 'external_tool'. Only url and new_tab are included (new_tab defaults to false).  Use the 'External Tools' API if you need more information about an external tool.",
 #           "$ref": "ExternalToolTagAttributes"
 #         },
 #         "peer_reviews": {
@@ -403,6 +403,7 @@
 #               "discussion_topic",
 #               "online_quiz",
 #               "on_paper",
+#               "not_graded",
 #               "none",
 #               "external_tool",
 #               "online_text_entry",
@@ -518,12 +519,17 @@
 #           "description": "(Optional) If 'overrides' is included in the 'include' parameter, includes an array of assignment override objects.",
 #           "type": "array",
 #           "items": { "$ref": "AssignmentOverride" }
+#         },
+#         "omit_from_final_grade": {
+#           "description": "(Optional) If true, the assignment will be ommitted from the student's final grade",
+#           "example": true,
+#           "type": "boolean"
 #         }
 #       }
 #     }
 class AssignmentsApiController < ApplicationController
   before_filter :require_context
-  before_filter :require_user_or_observer, :only=>[:user_index]
+  before_filter :require_user_visibility, :only=>[:user_index]
   include Api::V1::Assignment
   include Api::V1::Submission
   include Api::V1::AssignmentOverride
@@ -540,8 +546,9 @@ class AssignmentsApiController < ApplicationController
   #   Apply assignment overrides for each assignment, defaults to true.
   # @argument needs_grading_count_by_section [Boolean]
   #   Split up "needs_grading_count" by sections into the "needs_grading_count_by_section" key, defaults to false
-  # @argument bucket [String, "past"|"overdue"|"undated"|"ungraded"|"upcoming"|"future"]
+  # @argument bucket [String, "past"|"overdue"|"undated"|"ungraded"|"unsubmitted"|"upcoming"|"future"]
   #   If included, only return certain assignments depending on due date and submission status.
+  # @argument assignment_ids[] if set, return only assignments specified
   # @returns [Assignment]
   def index
     error_or_array= get_assignments(@current_user)
@@ -565,7 +572,6 @@ class AssignmentsApiController < ApplicationController
           preload(:rubric_association, :rubric).
           reorder("assignment_groups.position, assignments.position")
       scope = Assignment.search_by_attribute(scope, :title, params[:search_term])
-
       include_params = Array(params[:include])
 
       if params[:bucket]
@@ -574,11 +580,22 @@ class AssignmentsApiController < ApplicationController
         users = current_user_and_observed(
                     include_observed: include_params.include?("observed_users"))
         submissions_for_user = scope.with_submissions_for_user(users).flat_map(&:submissions)
-        scope = SortsAssignments.bucket_filter(scope, params[:bucket], session, user, @context, submissions_for_user)
+        scope = SortsAssignments.bucket_filter(scope, params[:bucket], session, user, @current_user, @context, submissions_for_user)
       end
 
-      assignments = scope.all
+      if params[:assignment_ids]
+        if params[:assignment_ids].length > Api.max_per_page
+          return render json: { message: "Request contains too many assignment_ids.  Limit #{Api.max_per_page}" }, status: 400
+        end
+        scope = scope.where(id: params[:assignment_ids])
+      end
 
+      assignments = Api.paginate(scope, self, api_v1_course_assignments_url(@context))
+
+      if params[:assignment_ids] && assignments.length != params[:assignment_ids].length
+        invalid_ids = params[:assignment_ids] - assignments.map(&:id).map(&:to_s)
+        return render json: { message: "Invalid assignment_ids: #{invalid_ids.join(',')}" }, status: 400
+      end
 
       submissions = submissions_hash(include_params, assignments, submissions_for_user)
 
@@ -638,51 +655,6 @@ class AssignmentsApiController < ApplicationController
                         )
       end
       hashes
-    end
-  end
-
-  def user_index
-    if @context == @current_user || authorized_action(@context, @current_user, :read)
-
-      # get assignment list
-      get_all_pertinent_contexts
-      get_sorted_assignments
-
-      @assignments.map! {|a| a.overridden_for(@current_user)}
-      if @current_user
-        @submissions = @current_user.submissions.with_each_shard
-        @submissions.each{ |s| s.mute if s.muted_assignment? }
-      else
-        @submissions = []
-      end
-
-      # sort and condense the assignment list
-      sorted = SortsAssignments.by_due_date({
-        :assignments => @assignments,
-        :user => @current_user,
-        :session => session,
-        :upcoming_limit => 1.week.from_now,
-        :submissions => @submissions
-      })
-      @past_assignments = sorted.past
-      @undated_assignments = sorted.undated
-      @ungraded_assignments = sorted.ungraded
-      @upcoming_assignments = sorted.upcoming
-      @future_assignments = sorted.future
-      @overdue_assignments = sorted.overdue
-
-      condense_assignments
-      categorized_assignments.each(&:sort!)
-
-      # clean up and prepare results
-      sortedAssignments = {}
-      sortedAssignments[:overdue] = assignments_json(@overdue_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:ungraded] = assignments_json(@ungraded_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:upcoming] = assignments_json(@upcoming_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:undated] = assignments_json(@undated_assignments, @current_user, session, { include_submission: true })
-      sortedAssignments[:past] = assignments_json(@past_assignments, @current_user, session, { include_submission: true })
-
-      render :json => sortedAssignments
     end
   end
 
@@ -814,14 +786,8 @@ class AssignmentsApiController < ApplicationController
   #   assign scores to each member of the group.
   #
   # @argument assignment[external_tool_tag_attributes]
-  #   Hash of attributes if submission_types is ["external_tool"]
-  #   Example:
-  #     external_tool_tag_attributes: {
-  #       // url to the external tool
-  #       url: "http://instructure.com",
-  #       // create a new tab for the module, defaults to false.
-  #       new_tab: false
-  #     }
+  #   Hash of external tool parameters if submission_types is ["external_tool"].
+  #   See Assignment object definition for format.
   #
   # @argument assignment[points_possible] [Float]
   #   The maximum points possible on the assignment.
@@ -871,6 +837,9 @@ class AssignmentsApiController < ApplicationController
   # @argument assignment[grading_standard_id] [Integer]
   #   The grading standard id to set for the course.  If no value is provided for this argument the current grading_standard will be un-set from this course.
   #   This will update the grading_type for the course to 'letter_grade' unless it is already 'gpa_scale'.
+  #
+  # @argument assignment[omit_from_final_grade] [Boolean]
+  #   Whether this assignment is counted towards a student's final grade.
   #
   # @returns Assignment
   def create
@@ -958,14 +927,8 @@ class AssignmentsApiController < ApplicationController
   #   assign scores to each member of the group.
   #
   # @argument assignment[external_tool_tag_attributes]
-  #   Hash of attributes if submission_types is ["external_tool"]
-  #   Example:
-  #     external_tool_tag_attributes: {
-  #       // url to the external tool
-  #       url: "http://instructure.com",
-  #       // create a new tab for the module, defaults to false.
-  #       new_tab: false
-  #     }
+  #   Hash of external tool parameters if submission_types is ["external_tool"].
+  #   See Assignment object definition for format.
   #
   # @argument assignment[points_possible] [Float]
   #   The maximum points possible on the assignment.
@@ -1023,6 +986,9 @@ class AssignmentsApiController < ApplicationController
   #
   # NOTE: The assignment overrides feature is in beta.
   #
+  # @argument assignment[omit_from_final_grade] [Boolean]
+  #   Whether this assignment is counted towards a student's final grade.
+  #
   # @returns Assignment
   def update
     @assignment = @context.active_assignments.find(params[:id])
@@ -1035,7 +1001,7 @@ class AssignmentsApiController < ApplicationController
 
   def save_and_render_response
     @assignment.content_being_saved_by(@current_user)
-    if update_api_assignment(@assignment, params[:assignment], @current_user)
+    if update_api_assignment(@assignment, params[:assignment], @current_user, @context)
       render :json => assignment_json(@assignment, @current_user, session), :status => 201
     else
       errors = @assignment.errors.as_json[:errors]
@@ -1050,9 +1016,14 @@ class AssignmentsApiController < ApplicationController
     return render :json => @context.errors, :status => :bad_request
   end
 
-  def require_user_or_observer
+  def require_user_visibility
     return render_unauthorized_action unless @current_user.present?
     @user = params[:user_id]=="self" ? @current_user : api_find(User, params[:user_id])
-    authorized_action(@user,@current_user, :read_as_parent)
+    if @context.grants_right?(@current_user, :view_all_grades)
+      # teacher, ta
+      return if @context.students_visible_to(@current_user).include?(@user)
+    end
+    # self, observer
+    authorized_action(@user, @current_user, [:read_as_parent, :read])
   end
 end

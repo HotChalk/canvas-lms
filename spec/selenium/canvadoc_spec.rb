@@ -15,10 +15,16 @@ describe 'Canvadoc' do
 
   def turn_on_plugin_settings
     get '/plugins/canvadocs'
-    if element_exists('#accounts_select')
-        f("#accounts_select option:nth-child(2)").click
+    # whee different UI for plugins
+    if element_exists?('#accounts_select')
+      f("#accounts_select option:nth-child(2)").click
+      if !f(".save_button").enabled?
+        f(".copy_settings_button").click
+      end
+      if f("#plugin_setting_disabled")[:checked]
         f("#plugin_setting_disabled").click
-        wait_for_ajaximations
+      end
+      wait_for_ajaximations
     end
   end
 
@@ -57,9 +63,7 @@ describe 'Canvadoc' do
       ff(".name.text")[2].click
       wait_for_ajaximations
       f(".btn-primary").click
-      keep_trying_until do
-       expect(f(".scribd_file_preview_link")).to be_present
-      end
+      expect(f(".scribd_file_preview_link")).to be_present
     end
   end
 end

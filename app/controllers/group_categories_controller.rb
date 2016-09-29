@@ -300,16 +300,7 @@ class GroupCategoriesController < ApplicationController
   # @returns [Group]
   def groups
     if authorized_action(@context, @current_user, :manage_groups)
-      section_id = params[:section_id]
-      if section_id
-        @groups = @group_category.groups.active.where(course_section_id: section_id)
-      elsif @context.is_a?(Account) || @current_user.account_admin?(@context)
-        @groups = @group_category.groups.active.by_name
-      else 
-        sections = @context.sections_visible_to(@current_user)
-        @groups = @group_category.groups.active.where(course_section_id: sections)
-      end
-
+      @groups = @group_category.groups.active.by_name
       @groups = Api.paginate(@groups, self, api_v1_group_category_groups_url)
       render :json => @groups.map { |g| group_json(g, @current_user, session) }
     end
@@ -347,7 +338,6 @@ class GroupCategoriesController < ApplicationController
     @group_category ||= @context.group_categories.where(id: params[:category_id]).first
     exclude_groups = value_to_boolean(params[:unassigned]) ? @group_category.groups.active.pluck(:id) : []
     search_params[:exclude_groups] = exclude_groups
-    search_params[:section_id] = params[:section_id]
 
     if search_term
       context = @context.is_a?(Account) ? @context.root_account : @context
@@ -456,34 +446,26 @@ class GroupCategoriesController < ApplicationController
     # option disabled for student organized groups or section-restricted
     # self-signup groups. (but self-signup is ignored for non-Course groups)
     return render(:json => {}, :status => :bad_request) if @group_category.student_organized?
-    if @context.is_a?(Course) 
-      if @group_category.restricted_self_signup? 
-        return render(:json => {}, :status => :bad_request)
-      else
-        progress = @group_category.current_progress || @group_category.progresses.order(:completion).limit(1).first
-        render :json => progress_json(progress, @current_user, session)
-      end
-    else
-      if value_to_boolean(params[:sync])
-        # do the distribution and note the changes
-        memberships = @group_category.assign_unassigned_members
+    return render(:json => {}, :status => :bad_request) if @context.is_a?(Course) && @group_category.restricted_self_signup?
 
-        # render the changes
-        json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
-          { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
-        end
-        render :json => json
-      else
-        @group_category.assign_unassigned_members_in_background
-        render :json => progress_json(@group_category.current_progress, @current_user, session)
+    if value_to_boolean(params[:sync])
+      # do the distribution and note the changes
+      memberships = @group_category.assign_unassigned_members
+
+      # render the changes
+      json = memberships.group_by{ |m| m.group_id }.map do |group_id, new_members|
+        { :id => group_id, :new_members => new_members.map{ |m| m.user.group_member_json(@context) } }
       end
+      render :json => json
+    else
+      @group_category.assign_unassigned_members_in_background
+      render :json => progress_json(@group_category.current_progress, @current_user, session)
     end
   end
 
   def populate_group_category_from_params
     args = api_request? ? params : params[:category]
     @group_category = GroupCategories::ParamsPolicy.new(@group_category, @context).populate_with(args)
-    @group_category.current_user = @current_user
     unless @group_category.save
       render :json => @group_category.errors, :status => :bad_request
       return false

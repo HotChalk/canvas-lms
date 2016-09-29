@@ -25,13 +25,28 @@ describe "/context_modules/url_show" do
     view_context(@course, @user)
     @module = @course.context_modules.create!(:name => 'teh module')
     @tag = @module.add_item(:type => 'external_url',
+                            :url => 'https://example.com/lolcats',
+                            :title => 'pls view')
+    assigns[:module] = @module
+    assigns[:tag] = @tag
+    render 'context_modules/url_show'
+    doc = Nokogiri::HTML.parse(response.body)
+    expect(doc.at_css('iframe')['src']).to eq 'https://example.com/lolcats'
+    expect(doc.css('a').collect{ |a| [a['href'], a.inner_text] }).to be_include ['https://example.com/lolcats', 'pls view']
+  end
+
+  it "should not render insecure content" do
+    course
+    view_context(@course, @user)
+    @module = @course.context_modules.create!(:name => 'teh module')
+    @tag = @module.add_item(:type => 'external_url',
                             :url => 'http://example.com/lolcats',
                             :title => 'pls view')
     assigns[:module] = @module
     assigns[:tag] = @tag
     render 'context_modules/url_show'
     doc = Nokogiri::HTML.parse(response.body)
-    expect(doc.at_css('iframe')['src']).to eq 'http://example.com/lolcats'
-    expect(doc.css('a').collect{ |a| [a['href'], a.inner_text] }).to be_include ['http://example.com/lolcats', 'pls view']
+    expect(doc.at_css('iframe')).not_to be
+    expect(doc.css('a').collect{ |a| [a['href'], a.inner_text] }).to be_include ['http://example.com/lolcats', 'Please click here to view pls view']
   end
 end

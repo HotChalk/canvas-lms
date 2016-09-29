@@ -165,7 +165,7 @@ class ConferencesController < ApplicationController
     return unless @current_user
     conferences = @context.grants_right?(@current_user, :manage_content) ?
       @context.web_conferences :
-      @current_user.web_conferences.where(context_type: @context.class.to_s, context_id: @context.id)
+      @current_user.web_conferences.shard(@context.shard).where(context_type: @context.class.to_s, context_id: @context.id)
     conferences = conferences.with_config.order("created_at DESC, id DESC")
     api_request? ? api_index(conferences) : web_index(conferences)
   end
@@ -182,11 +182,13 @@ class ConferencesController < ApplicationController
       conference.ended_at.nil?
     }
     log_asset_access([ "conferences", @context ], "conferences", "other")
-    scope = @context.users
-    if @context.respond_to?(:participating_typical_users)
-      scope = @context.participating_typical_users
+    if @context.is_a? Course
+      enrollments = @context.typical_current_enrollments.eager_load(:user).where.not(user_id: @current_user.id).order(User.sortable_name_order_by_clause).to_a
+      Canvas::Builders::EnrollmentDateBuilder.preload_state(enrollments)
+      @users = enrollments.select(&:active?).map(&:user).uniq
+    else
+      @users = @context.users.where("users.id<>?", @current_user).order(User.sortable_name_order_by_clause).to_a.uniq
     end
-    @users = scope.where("users.id<>?", @current_user).order(User.sortable_name_order_by_clause).to_a.uniq
     # exposing the initial data as json embedded on page.
     js_env(
       current_conferences: ui_conferences_json(@new_conferences, @context, @current_user, session),
@@ -209,7 +211,7 @@ class ConferencesController < ApplicationController
           return redirect_to(urls.first[:url])
         end
       end
-      log_asset_access(@conference, "conferences", "conferences")
+      return redirect_to course_conferences_url(@context, :anchor => "conference_#{@conference.id}")
     end
   end
 

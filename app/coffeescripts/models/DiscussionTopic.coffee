@@ -7,10 +7,8 @@ define [
   'compiled/collections/DiscussionEntriesCollection'
   'compiled/models/Assignment'
   'compiled/models/DateGroup'
-  'compiled/collections/AssignmentOverrideCollection'
-  'compiled/collections/DateGroupCollection'
   'str/stripTags'
-], (I18n, Backbone, $, _, ParticipantCollection, DiscussionEntriesCollection, Assignment, DateGroup, AssignmentOverrideCollection, DateGroupCollection, stripTags) ->
+], (I18n, Backbone, $, _, ParticipantCollection, DiscussionEntriesCollection, Assignment, DateGroup, stripTags) ->
 
   class DiscussionTopic extends Backbone.Model
     resourceName: 'discussion_topics'
@@ -38,10 +36,6 @@ define [
       @entries = new DiscussionEntriesCollection
       @entries.url = => "#{_.result this, 'url'}/entries"
       @entries.participants = @participants
-      if (overrides = @get('assignment_overrides'))?
-        @set 'assignment_overrides', new AssignmentOverrideCollection(overrides)
-      if (all_dates = @get('all_dates'))?
-        @set 'all_dates', new DateGroupCollection(all_dates)
 
     parse: (json) ->
       json.set_assignment = json.assignment?
@@ -51,9 +45,6 @@ define [
       json.assignment = @createAssignment(assign_attributes)
       json.publishable = json.can_publish
       json.unpublishable = !json.published or json.can_unpublish
-
-      json.assignment_overrides or= []
-      json.all_dates or= []
 
       json
 
@@ -87,15 +78,14 @@ define [
     toJSON: ->
       json = super
       delete json.assignment unless json.set_assignment
-      json.assignment_overrides = json.assignment_overrides.toJSON() if json.assignment_overrides
       _.extend json,
         summary: @summary()
         unread_count_tooltip: @unreadTooltip()
         reply_count_tooltip: @replyTooltip()
         assignment: json.assignment?.toJSON()
         defaultDates: @defaultDates().toJSON()
-        multipleDueDates: @multipleDueDates()
-        allDates: @allDates()
+      delete json.assignment.rubric if json.assignment
+      json
 
     toView: ->
       _.extend @toJSON(),
@@ -160,45 +150,41 @@ define [
         lock_at:   @lockAt()
       return group
 
-    multipleDueDates: =>
-      dateGroups = @get("all_dates")
-      dateGroups && dateGroups.length > 1
-
-    allDates: =>
-      groups = @get("all_dates")
-      models = (groups and groups.models) or []
-      result = _.map models, (group) -> group.toJSON()
-
     dueAt: ->
       @get('assignment')?.get('due_at')
 
     unlockAt: ->
       if unlock_at = @get('assignment')?.get('unlock_at')
         return unlock_at
-      else if @allDates().length == 1
-        return @allDates()[0].unlockAt
       @get('delayed_post_at')
 
     lockAt:  ->
       if lock_at = @get('assignment')?.get('lock_at')
         return lock_at
-      else if @allDates().length == 1
-        return @allDates()[0].lockAt
       @get('lock_at')
 
+    focusAfterMoving: ->
+      $el = $(".discussion[data-id='#{@get('id')}']")
+      $prev = $el.prev(".discussion")
+      if $prev.length
+        $(".title", $prev)
+      else
+        $el.closest(".discussion-list")
+
     updateBucket: (data) ->
+      $toFocus = @focusAfterMoving()
       _.defaults data,
         pinned: @get('pinned')
         locked: @get('locked')
       @set('position', null)
       @updatePartial(data)
+      # assign focus only if it was lost; a discussion in multiple categories might not have actually moved
+      if !document.activeElement? || document.activeElement.nodeName == "BODY"
+        $toFocus = $('.ig-header-title', $toFocus) if $toFocus.hasClass('discussion-list')
+        $toFocus.focus()
 
     groupCategoryId: (id) =>
       return @get( 'group_category_id' ) unless arguments.length > 0
       @set 'group_category_id', id
 
     canGroup: -> @get('can_group')
-
-    isOnlyVisibleToOverrides: (override_flag) ->
-      return @get('only_visible_to_overrides') || false unless arguments.length > 0
-      @set 'only_visible_to_overrides', override_flag

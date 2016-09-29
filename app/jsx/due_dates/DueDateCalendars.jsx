@@ -12,7 +12,6 @@ define([
       rowKey: React.PropTypes.string.isRequired,
       overrides: React.PropTypes.array.isRequired,
       replaceDate: React.PropTypes.func.isRequired,
-      showDueDate: React.PropTypes.bool.isRequired,
       sections: React.PropTypes.object.isRequired
     },
 
@@ -34,9 +33,9 @@ define([
       )
     },
 
-    dueDate(){
-      if (this.props.showDueDate) {
-        return (
+    render(){
+      return (
+        <div>
           <div className="ic-Form-group">
             <div className="ic-Form-control">
               <label id         = {this.labelledByForType("due_at")}
@@ -47,14 +46,6 @@ define([
               {this.datePicker("due_at")}
             </div>
           </div>
-        )
-      }
-    },
-
-    render(){
-      return (
-        <div>
-          {this.dueDate()}
           <div className="ic-Form-group">
             <div className="ic-Form-control">
               <label id         = {this.labelledByForType("unlock_at")}

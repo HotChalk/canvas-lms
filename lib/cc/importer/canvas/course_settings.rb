@@ -59,14 +59,14 @@ module CC::Importer::Canvas
         val = get_node_val(doc, string_type)
         course[string_type] = val unless val.nil?
       end
-      ['is_public', 'public_syllabus', 'indexed', 'allow_student_wiki_edits',
+      ['is_public', 'public_syllabus', 'public_syllabus_to_auth', 'indexed', 'allow_student_wiki_edits',
        'allow_student_assignment_edits', 'show_public_context_messages',
        'allow_student_forum_attachments', 'allow_student_organized_groups', 'lock_all_announcements',
        'open_enrollment', 'allow_wiki_comments',
        'self_enrollment', 'hide_final_grade', 'grading_standard_enabled',
        'hide_distribution_graphs', 'allow_student_discussion_topics','allow_student_discussion_editing', 
        'is_public_to_auth_users', 'restrict_student_past_view', 'restrict_student_future_view', 
-       'limit_section_visibility', 'restrict_enrollments_to_course_dates'].each do |bool_val|
+       'restrict_enrollments_to_course_dates'].each do |bool_val|
         val = get_bool_val(doc, bool_val)
         course[bool_val] = val unless val.nil?
       end
@@ -89,6 +89,7 @@ module CC::Importer::Canvas
           add_warning(I18n.t('errors.bad_navigation_config', "Invalid course tab configuration"), $!)
         end
       end
+
       course
     end
 

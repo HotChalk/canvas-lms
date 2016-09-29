@@ -21,13 +21,19 @@ require "selenium-webdriver"
 require "socket"
 require "timeout"
 require 'coffee-script'
-require File.expand_path(File.dirname(__FILE__) + '/test_setup/custom_selenium_rspec_matchers')
-require File.expand_path(File.dirname(__FILE__) + '/test_setup/selenium_driver_setup')
+require_relative 'test_setup/custom_selenium_rspec_matchers'
+require_relative 'test_setup/selenium_driver_setup'
+require_relative 'test_setup/selenium_extensions'
 
 if ENV["TESTRAIL_RUN_ID"]
   require 'testrailtagging'
   RSpec.configure do |config|
     TestRailRSpecIntegration.register_rspec_integration(config,:canvas, add_formatter: false)
+  end
+elsif ENV["TESTRAIL_ENTRY_RUN_ID"]
+  require "testrailtagging"
+  RSpec.configure do |config|
+    TestRailRSpecIntegration.add_rspec_callback(config, :canvas)
   end
 end
 
@@ -55,21 +61,26 @@ at_exit do
   end
 end
 
-shared_context "in-process server selenium tests" do
-  include SeleniumDriverSetup
-  include CustomSeleniumRspecMatchers
-  include OtherHelperMethods
-  include CustomSeleniumActions
-  include CustomAlertActions
-  include CustomPageLoaders
-  include CustomScreenActions
-  include CustomValidators
-  include CustomWaitMethods
-  include CustomDateHelpers
-  include LoginAndSessionMethods
+module SeleniumErrorRecovery
+  class RecoverableException < StandardError
+    extend Forwardable
+    def_delegators :@exception, :class, :message, :backtrace
 
-  # set up so you can use rails urls helpers in your selenium tests
-  include Rails.application.routes.url_helpers
+    def initialize(exception)
+      @exception = exception
+    end
+  end
+
+  # this gets called wherever an exception happens (example, before/after/around, each/all)
+  #
+  # the example will still fail, but if we recover successfully, subsequent
+  # specs should pass. additionally, the rerun phase will exempt this
+  # failure from the threshold, since it's not a problem with the spec
+  # per se
+  def set_exception(exception, *args)
+    exception = RecoverableException.new(exception) if maybe_recover_from_exception(exception)
+    super exception, *args
+  end
 
   def maybe_recover_from_exception(exception)
     case exception
@@ -88,19 +99,28 @@ shared_context "in-process server selenium tests" do
     end
     false
   end
+end
+RSpec::Core::Example.prepend(SeleniumErrorRecovery)
 
-  around do |example|
-    begin
-      example.run
-    rescue # before/after/around ... always re-raise so the example fails
-      maybe_recover_from_exception $ERROR_INFO
-      raise
-    end
-    maybe_recover_from_exception example.example.exception
-  end
+shared_context "in-process server selenium tests" do
+  include SeleniumDriverSetup
+  include OtherHelperMethods
+  include CustomSeleniumActions
+  include CustomAlertActions
+  include CustomPageLoaders
+  include CustomScreenActions
+  include CustomValidators
+  include CustomWaitMethods
+  include CustomDateHelpers
+  include LoginAndSessionMethods
+  include SeleniumErrorRecovery
+
+  # set up so you can use rails urls helpers in your selenium tests
+  include Rails.application.routes.url_helpers
 
   prepend_before :each do
     SeleniumDriverSetup.allow_requests!
+    driver.ready_for_interaction = false # need to `get` before we do anything selenium-y in a spec
   end
 
   prepend_before :all do
@@ -129,6 +149,8 @@ shared_context "in-process server selenium tests" do
   end
 
   before do
+    raise "all specs need to use transactional fixtures" unless self.use_transactional_fixtures
+
     HostUrl.stubs(:default_host).returns($app_host_and_port)
     HostUrl.stubs(:file_host).returns($app_host_and_port)
   end
@@ -137,31 +159,29 @@ shared_context "in-process server selenium tests" do
   # (even if on a different thread - i.e. the server's thread), so that it will be in
   # the same transaction and see the same data
   before do
-    if self.use_transactional_fixtures
-      @db_connection = ActiveRecord::Base.connection
-      @dj_connection = Delayed::Backend::ActiveRecord::Job.connection
+    @db_connection = ActiveRecord::Base.connection
+    @dj_connection = Delayed::Backend::ActiveRecord::Job.connection
 
-      # synchronize db connection methods for a modicum of thread safety
-      methods_to_sync = %w{execute exec_cache exec_no_cache query transaction}
-      [@db_connection, @dj_connection].each do |conn|
-        methods_to_sync.each do |method_name|
-          if conn.respond_to?(method_name, true) && !conn.respond_to?("#{method_name}_with_synchronization", true)
-            arg_list = "*args"
-            arg_list << ", &Proc.new" if method_name == "transaction"
-            conn.class.class_eval <<-RUBY, __FILE__, __LINE__ + 1
-              def #{method_name}_with_synchronization(*args)
-                SeleniumDriverSetup.request_mutex.synchronize { #{method_name}_without_synchronization(#{arg_list}) }
-              end
-              alias_method_chain :#{method_name}, :synchronization
-            RUBY
-          end
+    # synchronize db connection methods for a modicum of thread safety
+    methods_to_sync = %w{execute exec_cache exec_no_cache query transaction}
+    [@db_connection, @dj_connection].each do |conn|
+      methods_to_sync.each do |method_name|
+        if conn.respond_to?(method_name, true) && !conn.respond_to?("#{method_name}_with_synchronization", true)
+          arg_list = "*args"
+          arg_list << ", &Proc.new" if method_name == "transaction"
+          conn.class.class_eval <<-RUBY, __FILE__, __LINE__ + 1
+            def #{method_name}_with_synchronization(*args)
+              SeleniumDriverSetup.request_mutex.synchronize { #{method_name}_without_synchronization(#{arg_list}) }
+            end
+            alias_method_chain :#{method_name}, :synchronization
+          RUBY
         end
       end
-
-      ActiveRecord::ConnectionAdapters::ConnectionPool.any_instance.stubs(:connection).returns(@db_connection)
-      Delayed::Backend::ActiveRecord::Job.stubs(:connection).returns(@dj_connection)
-      Delayed::Backend::ActiveRecord::Job::Failed.stubs(:connection).returns(@dj_connection)
     end
+
+    ActiveRecord::ConnectionAdapters::ConnectionPool.any_instance.stubs(:connection).returns(@db_connection)
+    Delayed::Backend::ActiveRecord::Job.stubs(:connection).returns(@dj_connection)
+    Delayed::Backend::ActiveRecord::Job::Failed.stubs(:connection).returns(@dj_connection)
   end
 
   around do |example|
@@ -172,7 +192,6 @@ shared_context "in-process server selenium tests" do
 
   before do |example|
     start_capturing_video
-    move_mouse_to_known_position
   end
 
   after(:each) do |example|
@@ -181,6 +200,7 @@ shared_context "in-process server selenium tests" do
       # while disallow_requests! would generally get these, there's a small window
       # between the ajax request starting up and the middleware actually processing it
       wait_for_ajax_requests
+      move_mouse_to_known_position
     rescue Selenium::WebDriver::Error::WebDriverError
       # we want to ignore selenium errors when attempting to wait here
     ensure
@@ -188,7 +208,6 @@ shared_context "in-process server selenium tests" do
       SeleniumDriverSetup.note_recent_spec_run(example, exception)
       record_errors(example, exception, Rails.logger.captured_messages)
       SeleniumDriverSetup.disallow_requests!
-      truncate_all_tables unless self.use_transactional_fixtures
     end
   end
 end

@@ -21,7 +21,6 @@ require File.expand_path(File.dirname(__FILE__) + '/../spec_helper')
 describe BrandConfigsController do
   before :each do
     @account = Account.default
-    @account.enable_feature!(:use_new_styles)
     @bc = BrandConfig.create(variables: {"ic-brand-primary" => "#321"})
   end
 

@@ -84,7 +84,7 @@ class EportfoliosController < ApplicationController
       if @current_user
         # if profiles are enabled and I can message the portfolio's owner, link
         # to their profile
-        @owner_url = user_profile_url(@portfolio.user) if @domain_root_account.enable_profiles? && @current_user.load_messageable_user(@portfolio.user)
+        @owner_url = user_profile_url(@portfolio.user) if @domain_root_account.enable_profiles? && @current_user.address_book.known_user(@portfolio.user)
 
         # otherwise, if I'm the portfolio's owner (implying I can message
         # myself, so therefore profiles just aren't enabled), link to my
@@ -214,7 +214,7 @@ class EportfoliosController < ApplicationController
   end
 
   def load_root_account
-    return if @current_user
+    return if @current_user || !params.key?(:id) || params[:id].blank?
     @portfolio = Eportfolio.active.find(params[:id])
     if @portfolio && @portfolio.user && (pseudonym = @portfolio.user.active_pseudonyms.first)
       @domain_root_account = pseudonym.account.root_account || pseudonym.account

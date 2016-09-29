@@ -20,7 +20,7 @@
 require 'atom'
 
 # Force loaded so that it will be in ActiveRecord::Base.descendants for switchman to use
-require_dependency 'assignment_user_visibility'
+require_dependency 'assignment_student_visibility'
 
 class DiscussionTopic < ActiveRecord::Base
 
@@ -32,14 +32,12 @@ class DiscussionTopic < ActiveRecord::Base
   include HtmlTextHelper
   include ContextModuleItem
   include SearchTermHelper
-  include DatesOverridable
   include Submittable
 
   attr_accessible(
     :title, :message, :user, :delayed_post_at, :lock_at, :assignment,
     :plaintext_message, :podcast_enabled, :podcast_has_student_posts,
     :require_initial_post, :threaded, :discussion_type, :context, :pinned, :locked,
-    :course_section_id, :only_visible_to_overrides,
     :group_category, :allow_rating, :only_graders_can_rate, :sort_by_rating
   )
   attr_accessor :user_has_posted, :saved_by
@@ -70,8 +68,6 @@ class DiscussionTopic < ActiveRecord::Base
   has_many :discussion_entry_participants, :through => :discussion_entries
 
   belongs_to :user
-  belongs_to :course_section
-  has_many :discussion_topic_user_visibilities
 
   validates_presence_of :context_id, :context_type
   validates_inclusion_of :discussion_type, :in => DiscussionTypes::TYPES
@@ -495,47 +491,9 @@ class DiscussionTopic < ActiveRecord::Base
     SQL
   }
 
-  scope :visible_to_users_in_course_with_da, lambda { |user_ids, course_ids|
-    with_discussion_topic_overrides(user_ids, course_ids).union(joins_assignment_user_visibilities(user_ids, course_ids))
-  }
-
-  scope :with_discussion_topic_overrides, lambda { |user_ids, course_ids|
-    joins(:discussion_topic_user_visibilities).
-      where(:discussion_topic_user_visibilities => { :user_id => user_ids, :course_id => course_ids })
-  }
-
-  scope :joins_assignment_user_visibilities, lambda { |user_ids, course_ids|
-    joins(:assignment_user_visibilities)
-      .where(assignment_user_visibilities: { user_id: user_ids, course_id: course_ids })
-  }
-
   alias_attribute :available_from, :delayed_post_at
   alias_attribute :unlock_at, :delayed_post_at
   alias_attribute :available_until, :lock_at
-
-  def self.visible_ids_by_user(opts)
-    # pluck id, assignment_id, and user_id from discussions joined with the SQL view
-    plucked_visibilities = pluck_discussion_visibilities(opts).group_by{|r| r["user_id"]}
-    # format to be hash of user_id's with array of discussion_ids: {1 => [2,3,4], 2 => [2,4]}
-    opts[:user_id].reduce({}) do |vis_hash, student_id|
-      vis_hash[student_id] = begin
-        ids_from_pluck = (plucked_visibilities[student_id.to_s] || []).map{|r| r["id"]}
-        ids_from_pluck.map(&:to_i)
-      end
-      vis_hash
-    end
-  end
-
-  def self.pluck_discussion_visibilities(opts)
-    # once on Rails 4 change this to a multi-column pluck
-    # and clean up reformatting in visible_ids_by_user
-    connection.select_all(
-      self.joins_assignment_user_visibilities(opts[:user_id],opts[:course_id]).
-        select(["discussion_topics.id", "discussion_topics.assignment_id", "assignment_user_visibilities.user_id"]).
-        union(self.with_discussion_topic_overrides(opts[:user_id],opts[:course_id]).
-        select(["discussion_topics.id", "NULL", "discussion_topic_user_visibilities.user_id"]))
-    )
-  end
 
   def should_lock_yet
     # not assignment or vdd aware! only use this to check the topic's own field!
@@ -681,8 +639,6 @@ class DiscussionTopic < ActiveRecord::Base
       false
     elsif self.root_topic_id && self.has_group_category?
       false
-    elsif self.assignment && self.assignment.submission_types == 'discussion_topic' && (!self.assignment.due_at || self.assignment.due_at > 1.week.from_now) # TODO: vdd
-      false
     else
       true
     end
@@ -805,7 +761,7 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   set_policy do
-    given { |user| self.user && self.user == user }
+    given { |user| self.visible_for?(user) }
     can :read
 
     given { |user| self.grants_right?(user, :read) }
@@ -820,15 +776,9 @@ class DiscussionTopic < ActiveRecord::Base
     given { |user| self.user && self.user == user and self.discussion_entries.active.empty? && self.available_for?(user) && !self.root_topic_id && context.user_can_manage_own_discussion_posts?(user) && context.grants_right?(user, :participate_as_student) }
     can :delete
 
-    given { |user, session| self.active? && self.context.grants_right?(user, session, :read_forum) }
-    can :read
-
     given { |user, session| !self.locked_for?(user, :check_policies => true) &&
         self.context.grants_right?(user, session, :post_to_forum) && self.visible_for?(user)}
     can :reply and can :read
-
-    given { |user, session| self.context.grants_any_right?(user, session, :read_forum, :post_to_forum) && self.visible_for?(user)}
-    can :read
 
     given { |user, session|
       !is_announcement &&
@@ -984,13 +934,11 @@ class DiscussionTopic < ActiveRecord::Base
   end
 
   def active_participants_with_visibility
-    return active_participants unless course.is_a?(Course)
-    users_with_visibility = self.for_assignment? ?
-      AssignmentUserVisibility.where(assignment_id: self.assignment_id, course_id: course.id).pluck(:user_id) :
-      DiscussionTopicUserVisibility.where(discussion_topic_id: self.id, course_id: course.id).pluck(:user_id)
+    return active_participants if !self.for_assignment?
+    users_with_visibility = self.assignment.students_with_visibility.pluck(:id)
 
-    # admin_ids = course.participating_admins.pluck(:id)
-    # users_with_visibility.concat(admin_ids)
+    admin_ids = course.participating_admins.pluck(:id)
+    users_with_visibility.concat(admin_ids)
 
     # observers will not be returned, which is okay for the functions current use cases (but potentially not others)
     active_participants.select{|p| users_with_visibility.include?(p.id)}
@@ -1011,19 +959,17 @@ class DiscussionTopic < ActiveRecord::Base
 
     subscribed_users = participating_users(sub_ids).to_a
 
-    if course.is_a?(Course)
-      users_with_visibility = self.for_assignment? ?
-        AssignmentUserVisibility.where(course_id: course.id, assignment_id: assignment_id).pluck(:user_id) :
-        DiscussionTopicUserVisibility.where(course_id: course.id, discussion_topic_id: self.id).pluck(:user_id)
+    if self.for_assignment?
+      students_with_visibility = self.assignment.students_with_visibility.pluck(:id)
 
-      # admin_ids = course.participating_admins.pluck(:id)
+      admin_ids = course.participating_admins.pluck(:id)
       observer_ids = course.participating_observers.pluck(:id)
       observed_students = ObserverEnrollment.observed_student_ids_by_observer_id(course, observer_ids)
 
       subscribed_users.select!{ |user|
-        users_with_visibility.include?(user.id) ||
+        students_with_visibility.include?(user.id) || admin_ids.include?(user.id) ||
         # an observer with no students or one with students who have visibility
-        (observed_students[user.id] && (observed_students[user.id] == [] || (observed_students[user.id] & users_with_visibility).any?))
+        (observed_students[user.id] && (observed_students[user.id] == [] || (observed_students[user.id] & students_with_visibility).any?))
       }
     end
 
@@ -1061,38 +1007,28 @@ class DiscussionTopic < ActiveRecord::Base
   def visible_for?(user = nil)
     RequestCache.cache('discussion_visible_for', self, user) do
       # user is the topic's author
-      return true if user == self.user
+      next true if user && user == self.user
 
-      return false if user && !(is_announcement ? context.grants_right?(user, :read_announcements) : context.grants_right?(user, :read_forum))
+      next false unless (is_announcement ? context.grants_right?(user, :read_announcements) : context.grants_right?(user, :read_forum))
 
       # user is an admin in the context (teacher/ta/designer) OR
       # user is an account admin with appropriate permission
-      return true if user && user.account_admin?(context)
-
-      # discussion has no assignment and isn't assigned to user (differentiated assignments)
-      if !for_assignment? && !self.visible_to_user?(user)
-        return false
-      end
+      next true if context.grants_any_right?(user, :manage, :read_course_content)
 
       # assignment exists and isnt assigned to user (differentiated assignments)
       if for_assignment? && !self.assignment.visible_to_user?(user)
-        return false
-      end
-
-      # locked by context module
-      if self.could_be_locked && locked_by_module_item?(user, true)
-        return false
+        next false
       end
 
       # topic is not published
       if !published?
-        false
+        next false
       elsif is_announcement && unlock_at = available_from_for(user)
       # unlock date exists and has passed
-        unlock_at < Time.now.utc
+        next unlock_at < Time.now.utc
       # everything else
       else
-        true
+        next true
       end
     end
   end
@@ -1103,7 +1039,6 @@ class DiscussionTopic < ActiveRecord::Base
   def locked_for?(user, opts={})
     return false if user == self.user
     return false if opts[:check_policies] && self.grants_right?(user, :update)
-    return {:asset_string => self.asset_string} if self.locked?
 
     Rails.cache.fetch(locked_cache_key(user), :expires_in => 1.minute) do
       locked = false
@@ -1115,6 +1050,8 @@ class DiscussionTopic < ActiveRecord::Base
         locked = l
       elsif self.could_be_locked && item = locked_by_module_item?(user, opts[:deep_check_if_needed])
         locked = {:asset_string => self.asset_string, :context_module => item.context_module.attributes}
+      elsif self.locked? # nothing more specific, it's just locked
+        locked = {:asset_string => self.asset_string, :can_view => true}
       elsif (self.root_topic && l = self.root_topic.locked_for?(user, opts))
         locked = l
       end
@@ -1253,118 +1190,6 @@ class DiscussionTopic < ActiveRecord::Base
   # synchronously create/update the materialized view
   def create_materialized_view
     DiscussionTopic::MaterializedView.for(self).update_materialized_view_without_send_later
-  end
-
-  # count of all active discussion_entries for a given enrollment, considering section visibility restrictions
-  def discussion_subentry_count_for_enrollment(enrollment = nil)
-    return discussion_entries.active.count unless self.context.is_a?(Course)
-    # if the current enrollment has limited section visibility, ensure that discussion_subentry_count only counts the visible entries
-    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
-      visible_user_ids = self.context.users_visible_to(enrollment.user).pluck(:id)
-      # get the valid entries by user
-      valid_users_entries = discussion_entries.active.where(user_id: visible_user_ids)
-      # get the root_entry_id from all the valid entries
-      entries_roots_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:root_entry_id)
-      # get the not valid entries ids accourding by root entry id
-      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_roots_ids, visible_user_ids)
-      not_allowed_ids = entries_not_allowed.map{|e|e.id}
-      rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['root_entry_id'].to_i) }
-      # take out the entries not allowed
-      valid_users_entries -= rejected_entries
-      # get the parent_id from all the valid entries
-      entries_parent_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:parent_id)
-      # get the not valid entries ids accourding by parent id
-      entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)
-      not_allowed_ids = entries_not_allowed.map{|e|e.id}
-      rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['parent_id'].to_i) }
-      # take out the entries not allowed
-      valid_users_entries -= rejected_entries
-      return valid_users_entries.count
-    end
-    if enrollment && enrollment.user
-      visibilities = self.context.section_visibilities_for(enrollment.user)
-      if visibilities.length == 0 || visibilities.first[:admin]
-        discussion_entries.active.count
-      else
-        visible_user_ids = self.context.users_sections_visible_to(enrollment.user).pluck(:id)
-        discussion_entries.active.where(user_id: visible_user_ids).count
-      end
-    else
-      discussion_entries.active.count
-    end
-  end
-
-  # count unread discussion_entries for a given enrollment, considering section visibility restrictions
-  def unread_count_for_enrollment(enrollment = nil, user = nil)
-    return unread_count(user) unless self.context.is_a?(Course)
-    if enrollment && enrollment.respond_to?(:limit_privileges_to_course_section) && enrollment.limit_privileges_to_course_section
-      Shackles.activate(:slave) do
-        visible_user = self.context.users_sections_visible_to(enrollment.user)
-        visible_user_ids = visible_user.map{|e|e.id}
-        valid_users_entries = discussion_entries.active.where(user_id: visible_user)
-        # get the root_entry_id from all the valid entries
-        entries_roots_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:root_entry_id)
-        # get the not valid entries ids accourding by root entry id
-        entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_roots_ids, visible_user_ids)
-        not_allowed_ids = entries_not_allowed.map{|e|e.id}
-        rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['root_entry_id'].to_i) }
-        # take out the entries not allowed
-        valid_users_entries -= rejected_entries
-        # get the parent_id from all the valid entries
-        entries_parent_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:parent_id)
-        # get the not valid entries ids accourding by parent id
-        entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)
-        not_allowed_ids = entries_not_allowed.map{|e|e.id}
-        rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['parent_id'].to_i) }
-        # take out the entries not allowed
-        valid_users_entries -= rejected_entries
-        visible_discussion_entry_ids = valid_users_entries.map{|e|e.id}
-
-        unread_entries = visible_discussion_entry_ids - DiscussionEntryParticipant.read_entry_ids(visible_discussion_entry_ids, enrollment.user)
-        unread_entries.length
-      end
-    else
-      visibilities = self.context.section_visibilities_for(user)
-      if visibilities.length == 0 || visibilities.first[:admin]
-        visible_discussion_entry_ids = discussion_entries.active.pluck(:id)
-      else
-        visible_user = self.context.users_sections_visible_to(user)
-        visible_user_ids = visible_user.map{|e|e.id}
-        valid_users_entries = discussion_entries.active.where(user_id: visible_user)
-        # get the root_entry_id from all the valid entries
-        entries_roots_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:root_entry_id)
-        # get the not valid entries ids accourding by root entry id
-        entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_roots_ids, visible_user_ids)
-        not_allowed_ids = entries_not_allowed.map{|e|e.id}
-        rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['root_entry_id'].to_i) }
-        # take out the entries not allowed
-        valid_users_entries -= rejected_entries
-        # get the parent_id from all the valid entries
-        entries_parent_ids = discussion_entries.active.where(user_id: visible_user_ids).pluck(:parent_id)
-        # get the not valid entries ids accourding by parent id
-        entries_not_allowed = discussion_entries.active.where("id in (?) AND user_id not in (?)", entries_parent_ids, visible_user_ids)
-        not_allowed_ids = entries_not_allowed.map{|e|e.id}
-        rejected_entries = valid_users_entries.select {|e| not_allowed_ids.include?(e['parent_id'].to_i) }
-        # take out the entries not allowed
-        valid_users_entries -= rejected_entries
-        visible_discussion_entry_ids = valid_users_entries.map{|e|e.id}
-      end
-      unread_entries = visible_discussion_entry_ids - DiscussionEntryParticipant.read_entry_ids(visible_discussion_entry_ids, user)
-      unread_entries.length
-    end
-  end
-
-  def sections_with_visibility(user)
-    return nil unless context.is_a?(Course)
-    return self.assignment.sections_with_visibility(user) if self.assignment
-    return context.active_course_sections if self.active_assignment_overrides.empty?
-    self.active_assignment_overrides.select {  |ao| ao.set_type == 'CourseSection' }.map(&:set)
-  end
-
-  def course_section_names(context, user)
-    return nil unless context.is_a?(Course)
-    visible_sections = self.sections_with_visibility(user) || []
-    visible_sections.length == context.active_course_sections.length ? nil : visible_sections.map(&:name).sort!
   end
 
   def due_at

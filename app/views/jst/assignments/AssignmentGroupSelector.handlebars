@@ -12,10 +12,6 @@
       <option value="{{id}}" {{selectedIf ../assignmentGroupId this.id}}>
         {{name}}
       </option>
-    {{else}}  
-      <option value="none" {{selectedIf ../assignmentGroupId "none"}}>
-        Select a group...
-      </option>
     {{/each}}
     <option value="new">
       [ {{#t "assignment_group_options.new_group"}}New Group{{/t}} ]

@@ -1,51 +1,55 @@
-var React = require('react');
-var TrayPortal = React.createFactory(require('./TrayPortal'));
+import React from 'react';
+import ReactDOM from 'react-dom';
+import TrayPortal from './TrayPortal';
+import { a11yFunction } from '../helpers/customPropTypes';
+const renderSubtreeIntoContainer = ReactDOM.unstable_renderSubtreeIntoContainer;
 
-var Tray = React.createClass({
+export default React.createClass({
   displayName: 'Tray',
 
   propTypes: {
     isOpen: React.PropTypes.bool,
     onBlur: React.PropTypes.func,
-    closeTimeoutMS: React.PropTypes.number
+    onOpen: React.PropTypes.func,
+    closeTimeoutMS: React.PropTypes.number,
+    closeOnBlur: React.PropTypes.bool,
+    maintainFocus: React.PropTypes.bool,
+    getElementToFocus: a11yFunction,
+    getAriaHideElement: a11yFunction
   },
 
-  getDefaultProps: function () {
+  getDefaultProps() {
     return {
       isOpen: false,
-      closeTimeoutMS: 0
+      closeTimeoutMS: 0,
+      closeOnBlur: true,
+      maintainFocus: true
     };
   },
 
-  componentDidMount: function () {
+  componentDidMount() {
     this.node = document.createElement('div');
     this.node.className = 'ReactTrayPortal';
     document.body.appendChild(this.node);
     this.renderPortal(this.props);
   },
 
-  componentWillReceiveProps: function (props) {
+  componentWillReceiveProps(props) {
     this.renderPortal(props);
   },
 
-  componentWillUnmount: function () {
-    React.unmountComponentAtNode(this.node);
+  componentWillUnmount() {
+    ReactDOM.unmountComponentAtNode(this.node);
     document.body.removeChild(this.node);
   },
 
-  renderPortal: function (props) {
+  renderPortal(props) {
     delete props.ref;
 
-    if (this.portal) {
-      this.portal.setProps(props);
-    } else {
-      this.portal = React.render(TrayPortal(props), this.node);
-    }
+    renderSubtreeIntoContainer(this, <TrayPortal {...props}/>, this.node);
   },
 
-  render: function () {
+  render() {
     return null;
   }
 });
-
-module.exports = Tray;

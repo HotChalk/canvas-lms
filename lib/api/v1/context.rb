@@ -28,7 +28,7 @@ module Api::V1::Context
         name = obj.context.name
       end
       if(context_type == 'Course')
-        code = (obj.respond_to?(:data) && obj.data.respond_to?(:context_short_name)) ? obj.data.context_short_name : nil
+        code = obj.context.course_code
       end
     elsif (obj.respond_to?(:context_code) || obj.is_a?(OpenObject)) && obj.context_code.present?
       context_type, id = obj.context_code.split("_", 2)

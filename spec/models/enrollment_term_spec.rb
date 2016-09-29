@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011-2016 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -19,6 +19,38 @@
 require File.expand_path(File.dirname(__FILE__) + '/../spec_helper.rb')
 
 describe EnrollmentTerm do
+  describe "validation" do
+    before(:once) do
+      @root_account = account_model
+    end
+
+    it "is valid with no grading_period_group" do
+      term = EnrollmentTerm.new
+      term.root_account = @root_account
+      expect(term).to be_valid
+    end
+
+    it "is valid with a grading period group shared with another enrollment term" do
+      term_1 = @root_account.enrollment_terms.create!
+      term_2 = @root_account.enrollment_terms.create!
+      group = @root_account.grading_period_groups.create!(title: "Example Group")
+      term_1.update_attribute(:grading_period_group_id, group)
+      term_2.grading_period_group = group
+      expect(term_1).to be_valid
+      expect(term_2).to be_valid
+    end
+
+    it "is not valid with a grading period group belonging to a different account" do
+      term_1 = @root_account.enrollment_terms.create!
+      term_2 = account_model.enrollment_terms.create!
+      group = @root_account.grading_period_groups.create!(title: "Example Group")
+      term_1.update_attribute(:grading_period_group_id, group)
+      term_2.grading_period_group = group
+      expect(term_1).to be_valid
+      expect(term_2).not_to be_valid
+    end
+  end
+
   it "should handle the translated Default Term names correctly" do
     begin
       account_model
@@ -91,17 +123,19 @@ describe EnrollmentTerm do
     term.start_at = Time.now
     term.end_at = 3.days.ago
 
-    term.valid?.should be_false
+    expect(term.valid?).to eq false
   end
 
   describe "deletion" do
+    before(:once) do
+      @account = account_model
+    end
+
     it "should not be able to delete a default term" do
-      account_model
       expect { @account.default_enrollment_term.destroy }.to raise_error
     end
 
     it "should not be able to delete an enrollment term with active courses" do
-      account_model
       @term = @account.enrollment_terms.create!
       course account: @account
       @course.enrollment_term = @term
@@ -110,7 +144,6 @@ describe EnrollmentTerm do
       expect { @term.destroy }.to raise_error
 
       @course.destroy
-
       @term.destroy
     end
   end

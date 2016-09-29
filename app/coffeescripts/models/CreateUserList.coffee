@@ -12,7 +12,6 @@ define ['Backbone', 'underscore'], ({Model}, _) ->
       updateURL: null
       step: 1
       enrolledUsers: null
-      limit_privileges_to_course_section: true
 
     present: ->
       @attributes

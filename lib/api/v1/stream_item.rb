@@ -129,11 +129,8 @@ module Api::V1::StreamItem
         scope = scope.where("submissions.submission_comments_count>0")
         scope = scope.where("submissions.user_id=?", opts[:submission_user_id]) if opts.has_key?(:submission_user_id)
       end
-      # Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 100).to_a
-      scope
+      Api.paginate(scope, self, self.send(opts[:paginate_url], @context), default_per_page: 21).to_a
     end
-    # Filter out stream items according to section visibility rules. See also StreamItemsHelper#categorize_stream_items
-    items = filter_stream_item_instances(items)
     items.select!(&:stream_item)
     stream_item_preloads(items.map(&:stream_item))
     json = items.map { |i| stream_item_json(i, i.stream_item, @current_user, session) }
@@ -146,7 +143,6 @@ module Api::V1::StreamItem
 
     @current_user.shard.activate do
       base_scope = @current_user.visible_stream_item_instances(:contexts => contexts).joins(:stream_item)
-      base_scope = StreamItemInstance.where(id: filter_stream_item_instances(base_scope).map(&:id)).joins(:stream_item)
 
       full_counts = base_scope.except(:order).group('stream_items.asset_type', 'stream_items.notification_category',
         'stream_item_instances.workflow_state').count
@@ -264,20 +260,6 @@ module Api::V1::StreamItem
       end
     end
     [total_counts, unread_counts]
-  end
-
-  def filter_stream_item_instances(stream_item_instances)
-    # Filter out stream items according to section visibility rules. See also StreamItemsHelper#categorize_stream_items
-    stream_item_instances.select { |item|
-      stream_item = item.stream_item
-      if stream_item.nil?
-        false
-      elsif ["DiscussionTopic", "Announcement"].include? stream_item.data.class.name
-        stream_item.data.try(:visible_for?, @current_user)
-      else
-        true
-      end
-    }
   end
 
   def prepare_user(user)

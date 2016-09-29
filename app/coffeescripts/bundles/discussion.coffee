@@ -9,6 +9,7 @@ require [
   'underscore'
   'Backbone'
   'react'
+  'react-dom'
   'jsx/discussion_topics/DiscussionTopicKeyboardShortcutModal'
   'compiled/models/Entry'
   'compiled/models/Topic'
@@ -20,7 +21,7 @@ require [
   'rubricEditBinding'     # sets up event listener for 'rubricEditDataReady'
   'compiled/jquery/sticky'
   'compiled/jquery/ModuleSequenceFooter'
-], (I18n, EntryView, DiscussionFilterState, DiscussionToolbarView, DiscussionFilterResultsView, MarkAsReadWatcher, $, _, Backbone, React, DiscussionTopicKeyboardShortcutModal, Entry, MaterializedDiscussionTopic, SideCommentDiscussionTopic, EntryCollection, DiscussionTopicToolbarView, TopicView, EntriesView) ->
+], (I18n, EntryView, DiscussionFilterState, DiscussionToolbarView, DiscussionFilterResultsView, MarkAsReadWatcher, $, _, Backbone, React, ReactDOM, DiscussionTopicKeyboardShortcutModal, Entry, MaterializedDiscussionTopic, SideCommentDiscussionTopic, EntryCollection, DiscussionTopicToolbarView, TopicView, EntriesView) ->
 
   descendants = 5
   children    = 10
@@ -40,7 +41,7 @@ require [
 
   discussionTopicToolbarView = new DiscussionTopicToolbarView(el: '#discussion-managebar')
 
-  React.render(
+  ReactDOM.render(
     React.createElement(DiscussionTopicKeyboardShortcutModal),
     document.getElementById('keyboard-shortcut-modal')
   )
@@ -73,25 +74,12 @@ require [
   scrollToTop = ->
     $container.scrollTo $subentries, offset: -49
 
-  checkSection = (sectionIds, entrySections) ->
-    _.isEmpty(entrySections) || !_.isEmpty(_.intersection(sectionIds, entrySections))
-
-  resetFilterEntryData = ->
-    selectedSectionId = $('#section_selected').val()
-    sectionIds = (if typeof selectedSectionId == 'undefined' or selectedSectionId == null or selectedSectionId == "0" then ENV.DISCUSSION.SECTION_IDS else [parseInt(selectedSectionId)])
-    entryData = data.get 'entries'
-    filterEntryData = _.filter(entryData, (e) -> checkSection(sectionIds, _.map(e.author.sections, (section) -> parseInt(section.id))))
-    entries.options.per_page = filterEntryData.length
-    entries.reset filterEntryData
-
   ##
   # connect them ...
-  data.on 'change', resetFilterEntryData
-
-  $('#section_selected').on 'change', ->
-    resetFilterEntryData()
-    entriesView.render()
-
+  data.on 'change', ->
+    entryData = data.get 'entries'
+    entries.options.per_page = entryData.length
+    entries.reset entryData
 
   ##
   # define function that syncs a discussion entry's

@@ -83,7 +83,7 @@ describe ActiveRecord::Base do
     end
 
     it "should raise an error when not in a transaction" do
-      expect { User.find_in_batches_with_temp_table }.to raise_error
+      expect { User.all.find_in_batches_with_temp_table }.to raise_error /find_in_batches_with_temp_table probably won't work/
     end
 
     it "should find all enrollments from course join in batches" do
@@ -545,7 +545,7 @@ describe ActiveRecord::Base do
 
   describe "nested conditions" do
     it "should not barf if the condition has a question mark" do
-      expect(User.joins(:enrollments).where(enrollments: { sis_source_id: 'a?c'}).first).to be_nil
+      expect(User.joins(:enrollments).where(enrollments: { workflow_state: 'a?c'}).first).to be_nil
     end
   end
 

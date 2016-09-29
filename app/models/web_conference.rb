@@ -31,6 +31,9 @@ class WebConference < ActiveRecord::Base
   validates_length_of :description, :maximum => maximum_text_length, :allow_nil => true, :allow_blank => true
   validates_presence_of :conference_type, :title, :context_id, :context_type, :user_id
 
+  MAX_DURATION = 99999999
+  validates_numericality_of :duration, :less_than_or_equal_to => MAX_DURATION, :allow_nil => true
+
   before_validation :infer_conference_details
 
   before_create :assign_uuid
@@ -260,10 +263,6 @@ class WebConference < ActiveRecord::Base
     self.started_at && !self.active?
   end
 
-  def restartable?
-    end_at && Time.now <= end_at && !long_running?
-  end
-
   def long_running?
     duration.nil?
   end
@@ -287,7 +286,7 @@ class WebConference < ActiveRecord::Base
 
   def restart
     self.start_at ||= Time.now
-    self.end_at ||= self.start_at + self.duration_in_seconds if self.duration
+    self.end_at = self.duration && self.start_at + self.duration_in_seconds
     self.started_at ||= self.start_at
     self.ended_at = nil
     self.save
@@ -303,12 +302,17 @@ class WebConference < ActiveRecord::Base
     nil
   end
 
-  def active?(force_check=false)
+  def active?(force_check=false, allow_check=true)
     if !force_check
       return false if self.ended_at && Time.now > self.ended_at
       return true if self.start_at && (self.end_at.nil? || self.end_at && Time.now > self.start_at && Time.now < self.end_at)
       return true if self.ended_at && Time.now < self.ended_at
-      return @conference_active if @conference_active
+      return @conference_active unless @conference_active.nil?
+    end
+    unless allow_check
+      # we don't know if the conference is active and we can't afford an api call to check.
+      # assume it's inactive
+      return false
     end
     @conference_active = (conference_status == :active)
     # If somehow the end_at didn't get set, set the end date

@@ -131,7 +131,7 @@ listen to the "click" and "keyclick" events and add `tabindex="0"` and `role="bu
 
 .btn,       // <-- deprecated- do not use
 .Button {
-  @include canvas-button(darken($ic-color-light, 3%), $textColor);
+  @include canvas-button($ic-color-medium-light, $ic-color-dark);
   border-radius: $baseBorderRadius;
   transition: background-color 0.2s ease-in-out;
   display: inline-block;
@@ -228,12 +228,6 @@ input[type="button"] {
 // Primary appears as blue
 .btn-primary, // <-- deprecated- do not use
 .Button--primary {
-  $button--primary-text: $ic-brand-button--primary-text;
-  $button--primary-bgd: $ic-brand-button--primary-bgd;
-  @if $use_high_contrast {
-    $button--primary-bgd: $ic-brand-primary;
-    $button--primary-text: $ic-color-light;
-  }
   @include canvas-button($button--primary-bgd, $button--primary-text);
 }
 // Warning appears as orange
@@ -338,8 +332,6 @@ input[type="button"] {
   &:focus { @include button-focus-dark; }
 }
 
-// Handle jQueryUI-generated button classes
-.ui-button-icon-only .ui-button-text, .ui-button-icons-only .ui-button-text { @extend .ui-helper-hidden-accessible; }
 
 .ui-button {
   position: relative;

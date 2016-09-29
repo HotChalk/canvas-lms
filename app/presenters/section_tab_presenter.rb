@@ -7,7 +7,7 @@ class SectionTabPresenter
     @context = context
   end
   attr_reader :tab, :context
-  delegate :css_class, :label, :screenreader, to: :tab
+  delegate :css_class, :label, :screenreader, :target, to: :tab
 
   def active?(active_tab)
     active_tab == tab.css_class
@@ -19,6 +19,10 @@ class SectionTabPresenter
 
   def hide?
     tab.hidden || tab.hidden_unused
+  end
+
+  def target?
+    !!(tab.respond_to?(:target) && tab.target)
   end
 
   def path

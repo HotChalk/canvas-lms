@@ -28,6 +28,7 @@ require 'syck' # so we can undo all the things before something else requires it
 if defined?(YAML::ENGINE)
   YAML::ENGINE.yamler = 'psych'
 else
+  Object.send(:remove_const, :YAML)
   YAML = Psych # :/
 end
 
@@ -170,7 +171,7 @@ module FloatScannerFix
         @string_cache[string] = true
         string
       else
-        Float(string.gsub(/[,_]|\.([Ee]|$)/, '\1')) # TODO: Remove when https://github.com/tenderlove/psych/pull/276 is merged
+        Float(string.gsub(/[,_:]|\.([Ee]|$)/, '\1')) # TODO: Remove when https://github.com/tenderlove/psych/pull/276 is merged
       end
     else
       int = parse_int string.gsub(/[,_]/, '')

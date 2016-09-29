@@ -50,10 +50,10 @@ ConditionalRelease) ->
       'click .removeAttachment' : 'removeAttachment'
       'click .save_and_publish': 'saveAndPublish'
       'click .cancel_button' : 'handleCancel'
-      'change #use_for_grading' : 'toggleAvailabilityOptions'
-      'change #use_for_grading' : 'toggleConditionalReleaseTab'
+      'change #use_for_grading' : 'toggleGradingDependentOptions'
       'change #discussion_topic_assignment_points_possible' : 'handlePointsChange'
       'change' : 'onChange'
+      'tabsbeforeactivate #discussion-edit-view' : 'onTabChange'
     )
 
     messages:
@@ -66,9 +66,8 @@ ConditionalRelease) ->
     initialize: (options) ->
       @assignment = @model.get("assignment")
       @initialPointsPossible = @assignment.pointsPossible()
-      @discussionDueDateOverrideView = options.views['js-overrides']
       @dueDateOverrideView = options.views['js-assignment-overrides']
-      @model.on 'sync', =>
+      @on 'success', =>
         @unwatchUnload()
         window.location = @model.get 'html_url'
       super
@@ -110,13 +109,17 @@ ConditionalRelease) ->
     # separated out so we can easily stub it
     scrollSidebar: $.scrollSidebar
 
+    # also separated for easy stubbing
+    loadNewEditor: ($textarea)->
+      RichContentEditor.loadNewEditor($textarea, { focus: true, manageParent: true})
+
     render: =>
       super
       $textarea = @$('textarea[name=message]').attr('id', _.uniqueId('discussion-topic-message'))
 
       RichContentEditor.initSidebar(show: @scrollSidebar)
-      _.defer ->
-        RichContentEditor.loadNewEditor($textarea, { focus: true })
+      _.defer =>
+        @loadNewEditor($textarea)
         $('.rte_switch_views_link').click (event) ->
           event.preventDefault()
           event.stopPropagation()
@@ -133,8 +136,8 @@ ConditionalRelease) ->
       _.defer(@renderPostToSisOptions) if ENV.POST_TO_SIS
       _.defer(@watchUnload)
       _.defer(@attachKeyboardShortcuts)
-      _.defer(@renderTabs) if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED
-      _.defer(@loadConditionalRelease) if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED
+      _.defer(@renderTabs) if @showConditionalRelease()
+      _.defer(@loadConditionalRelease) if @showConditionalRelease()
 
       @$(".datetime_field").datetime_field({alwaysShowTime: true, datepicker:{hour: '12', min: '00', ampm: 'am'}})
 
@@ -230,13 +233,7 @@ ConditionalRelease) ->
         # create assignments unless the user checked "Use for Grading".
         # The controller checks for set_assignment on the assignment model,
         # so we can't make it undefined here for the case of discussion topics.
-        defaultDate = @discussionDueDateOverrideView.getDefaultDueDate()
-        data.lock_at = defaultDate?.get('lock_at') or null
-        data.delayed_post_at = defaultDate?.get('unlock_at') or null        
         data.assignment = @model.createAssignment(set_assignment: '0')
-        apply_overrides = @discussionDueDateOverrideView.$el.is(":visible")
-        override_assigned = !@discussionDueDateOverrideView.overridesContainDefault()
-        data.only_visible_to_overrides = if apply_overrides then override_assigned else null
 
       # these options get passed to Backbone.sync in ValidatedFormView
       @saveOpts = multipart: !!data.attachment, proxyAttachment: true
@@ -251,7 +248,7 @@ ConditionalRelease) ->
       data.unlock_at = defaultDate?.get('unlock_at') or null
       data.due_at = defaultDate?.get('due_at') or null
       data.assignment_overrides = @dueDateOverrideView.getOverrides()
-      data.only_visible_to_overrides = !@dueDateOverrideView.overridesContainDefault()
+      data.only_visible_to_overrides = @dueDateOverrideView.containsSectionsWithoutOverrides()
 
       assignment = @model.get('assignment')
       assignment or= @model.createAssignment()
@@ -263,12 +260,23 @@ ConditionalRelease) ->
       @$('.attachmentRow').remove()
       @$('[name="attachment"]').show().focus()
 
+    saveFormData: =>
+      if @showConditionalRelease()
+        super.pipe (data, status, xhr) =>
+          assignment = data.assignment if data.set_assignment
+          @conditionalReleaseEditor.updateAssignment(assignment)
+          # Restore expected promise values
+          @conditionalReleaseEditor.save().pipe(
+            => new $.Deferred().resolve(data, status, xhr).promise()
+            (err) => new $.Deferred().reject(xhr, err).promise())
+      else
+        super
+
     submit: (event) =>
       event.preventDefault()
       event.stopPropagation()
-      overrideView = if (@model.get('set_assignment') is '1') then @dueDateOverrideView else @discussionDueDateOverrideView
-      if overrideView.containsSectionsWithoutOverrides()
-        sections = overrideView.sectionsWithoutOverrides()
+      if @dueDateOverrideView.containsSectionsWithoutOverrides()
+        sections = @dueDateOverrideView.sectionsWithoutOverrides()
         missingDateDialog = new MissingDateDialog
           validationFn: -> sections
           labelFn: (section) -> section.get 'name'
@@ -309,10 +317,6 @@ ConditionalRelease) ->
         ]
       if data.delay_posting == "0"
         data.delayed_post_at = null
-      unless data.set_assignment is '1' || !@discussionDueDateOverrideView.$el.is(":visible")
-        data2 =
-          assignment_overrides: @discussionDueDateOverrideView.getAllDates()
-        errors = @discussionDueDateOverrideView.validateBeforeSave(data2, errors)
       if @isTopic() && data.set_assignment is '1'
         if @assignmentGroupSelector?
           errors = @assignmentGroupSelector.validateBeforeSave(data, errors)
@@ -329,6 +333,10 @@ ConditionalRelease) ->
       if @isAnnouncement()
         unless data.message?.length > 0
           errors['message'] = [{type: 'message_required_error', message: I18n.t("A message is required")}]
+      if @showConditionalRelease()
+        crErrors = @conditionalReleaseEditor.validateBeforeSave()
+        errors['conditional_release'] = crErrors if crErrors
+
       errors
 
     _validatePointsPossible: (data, errors) =>
@@ -346,7 +354,18 @@ ConditionalRelease) ->
       # before calling super
       # see getFormValues in DueDateView.coffee
       delete errors.assignmentOverrides
+      if @showConditionalRelease()
+        # switch to a tab with errors
+        if errors['conditional_release']
+          @$discussionEditView.tabs("option", "active", 1)
+          @$conditionalReleaseTarget.get(0).scrollIntoView()
+        else
+          @$discussionEditView.tabs("option", "active", 0)
       super(errors)
+
+    toggleGradingDependentOptions: ->
+      @toggleAvailabilityOptions()
+      @toggleConditionalReleaseTab()
 
     toggleAvailabilityOptions: ->
       if @$useForGrading.is(':checked')
@@ -354,8 +373,11 @@ ConditionalRelease) ->
       else
         @$availabilityOptions.show()
 
+    showConditionalRelease: ->
+      ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED && !@isAnnouncement()
+
     toggleConditionalReleaseTab: ->
-      if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED
+      if @showConditionalRelease()
         if @$useForGrading.is(':checked')
           @$discussionEditView.tabs("option", "disabled", false)
         else
@@ -363,6 +385,12 @@ ConditionalRelease) ->
           @$discussionDetailsTab.show()
 
     onChange: ->
-      if ENV.CONDITIONAL_RELEASE_SERVICE_ENABLED && !@assignmentDirty
-        @assignmentDirty = true
-        @conditionalReleaseEditor.setProps({ assignmentDirty: true })
+      if @showConditionalRelease() && @assignmentUpToDate
+        @assignmentUpToDate = false
+
+    onTabChange: ->
+      if @showConditionalRelease() && !@assignmentUpToDate
+        assignmentData = @getFormData().assignment?.attributes
+        @conditionalReleaseEditor.updateAssignment(assignmentData)
+        @assignmentUpToDate = true
+      true

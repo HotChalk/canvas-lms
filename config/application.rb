@@ -87,7 +87,7 @@ module CanvasRails
     end
 
     # Activate observers that should always be running
-    config.active_record.observers = [:cacher, :stream_item_cache, :live_events_observer ]
+    config.active_record.observers = [:cacher, :stream_item_cache, :live_events_observer, :conditional_release_observer ]
 
     config.active_record.whitelist_attributes = false
 
@@ -150,6 +150,8 @@ module CanvasRails
             connection_parameters = @connection_parameters.dup
             connection_parameters[:host] = host
             @connection = PGconn.connect(connection_parameters)
+
+            raise "Canvas requires PostgreSQL 9.3 or newer" unless postgresql_version >= 90300
 
             if CANVAS_RAILS4_0
               ActiveRecord::ConnectionAdapters::PostgreSQLColumn.money_precision = (postgresql_version >= 80300) ? 19 : 10

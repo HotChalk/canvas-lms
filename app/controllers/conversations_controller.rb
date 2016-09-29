@@ -167,6 +167,9 @@ class ConversationsController < ApplicationController
   #   paged conversation data, and "conversation_ids" which will contain the
   #   ids of all conversations under this scope/filter in the same order.
   #
+  # @argument include[] [Optional, String, "participant_avatars"]
+  #   "participant_avatars":: Optionally include an "avatar_url" key for each user participanting in the conversation
+  #
   # @response_field id The unique identifier for the conversation.
   # @response_field subject The subject of the conversation.
   # @response_field workflow_state The current state of the conversation
@@ -194,7 +197,9 @@ class ConversationsController < ApplicationController
   # @response_field avatar_url URL to appropriate icon for this conversation
   #   (custom, individual or group avatar, depending on audience)
   # @response_field participants Array of users (id, name) participating in
-  #   the conversation. Includes current user.
+  #   the conversation. Includes current user. If `include[]=participant_avatars`
+  #   was passed as an argument, each user in the array will also have an
+  #   "avatar_url" field
   # @response_field visible Boolean, indicates whether the conversation is
   #   visible under the current scope and filter. This attribute is always
   #   true in the index API response, and is primarily useful in create/update
@@ -232,7 +237,7 @@ class ConversationsController < ApplicationController
       # optimize loading the most recent messages for each conversation into a single query
       ConversationParticipant.preload_latest_messages(conversations, @current_user)
       @conversations_json = conversations_json(conversations, @current_user,
-        session, include_participant_avatars: true,
+        session, include_participant_avatars: (Array(params[:include]).include? "participant_avatars"),
         include_participant_contexts: false, visible: true,
         include_context_name: true, include_beta: params[:include_beta])
 
@@ -246,7 +251,7 @@ class ConversationsController < ApplicationController
       @current_user.reload
 
       hash = {
-        :ATTACHMENTS_FOLDER_ID => @current_user.conversation_attachments_folder.id,
+        :ATTACHMENTS_FOLDER_ID => @current_user.conversation_attachments_folder.id.to_s,
         :ACCOUNT_CONTEXT_CODE => "account_#{@domain_root_account.id}",
         :CAN_MESSAGE_ACCOUNT_CONTEXT => valid_account_context?(@domain_root_account),
         :MAX_GROUP_CONVERSATION_SIZE => Conversation.max_group_conversation_size
@@ -641,6 +646,32 @@ class ConversationsController < ApplicationController
     render :json => {}
   end
 
+  # internal api
+  def deleted_index
+    return render_unauthorized_action unless @current_user.roles(Account.site_admin).include? 'admin'
+
+    query = lambda {
+      participants = ConversationMessageParticipant.query_deleted(params['user_id'], params)
+
+      Api.paginate(
+        participants,
+        self,
+        api_v1_deleted_conversations_url
+      )
+
+      participants.map { |p| deleted_conversation_json(p, @current_user, session) }
+    }
+
+    if (params['conversation_id'])
+      conversation_messages = Conversation.find(params['conversation_id']).shard.activate { query.call }
+    else
+      conversation_messages = query.call
+    end
+
+    render :json => conversation_messages
+  end
+
+
   # @API Add recipients
   # Add recipients to an existing group conversation. Response is similar to
   # the GET/show action, except that only includes the
@@ -998,32 +1029,33 @@ class ConversationsController < ApplicationController
 
   def normalize_recipients
     return unless params[:recipients]
+
     unless params[:recipients].is_a? Array
       params[:recipients] = params[:recipients].split ","
     end
 
-    recipient_ids = MessageableUser.individual_recipients(params[:recipients])
-    contexts      = MessageableUser.context_recipients(params[:recipients])
+    # unrecognized context codes are ignored
+    if AddressBook.valid_context?(params[:context_code])
+      context = Context.find_by_asset_string(params[:context_code])
+      if context.nil?
+        # recognized context code must refer to a valid course or group
+        return render json: { message: 'invalid context_code' }, status: :bad_request
+      end
+    end
 
-    if params[:context_code] =~ MessageableUser::Calculator::CONTEXT_RECIPIENT
-      is_admin = Context.
-        find_by_asset_string(params[:context_code]).
-        grants_right?(@current_user, :read_as_admin)
-      @recipients = @current_user.
-        messageable_user_calculator.
-        messageable_users_in_context(
-          params[:context_code],
-          admin_context: is_admin
-        ).select { |user| recipient_ids.include? user.id }
+    users, contexts = AddressBook.partition_recipients(params[:recipients])
+    if context
+      user_ids = users.map{ |user| Shard.global_id_for(user) }.to_set
+      is_admin = context.grants_right?(@sender, :read_as_admin)
+      known = @current_user.address_book.
+        known_in_context(context.asset_string, is_admin).
+        select{ |user| user_ids.include?(user.global_id) }
     else
-      @recipients = @current_user.load_messageable_users(recipient_ids, conversation_id: params[:from_conversation_id])
+      known = @current_user.address_book.
+        known_users(users, conversation_id: params[:from_conversation_id])
     end
-
-    contexts.map do |context|
-      @recipients.concat @current_user.messageable_users_in_context(context)
-    end
-
-    @recipients.uniq!(&:id)
+    contexts.each{ |context| known.concat(@current_user.address_book.known_in_context(context)) }
+    @recipients = known.uniq(&:id)
   end
 
   def infer_tags

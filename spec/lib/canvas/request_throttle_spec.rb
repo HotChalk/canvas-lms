@@ -168,6 +168,7 @@ describe 'RequestThrottle' do
     end
 
     it "should throttle if bucket is full" do
+      Canvas.stubs(:redis_enabled?).returns(true)  # HC: without this we get random failures
       bucket = throttled_request
       bucket.expects(:remaining).returns(-2)
       expected = rate_limit_exceeded
@@ -292,13 +293,18 @@ describe 'RequestThrottle' do
         end
 
         it "clamps a negative increment to 0" do
-          Timecop.freeze('2013-01-01 3:00:00 UTC') do
+          now = Time.zone.now
+
+          # this is a hack to make the second Time.now call
+          # return 6 seconds in the future, which makes the
+          # final cost with leak < 0 (cuz the return is 5)
+          x = 0
+          Time.stubs(:now).returns { now + x.seconds; x += 6; }
+
+          Timecop.freeze(now) do
             @bucket.reserve_capacity(20) do
-              # finishing 6 seconds later, so final cost with leak is < 0
-              Timecop.freeze(Time.now + 6.seconds)
               5
             end
-            Timecop.return
           end
           expect(@bucket.count).to eq 0
           expect(@bucket.redis.hget(@bucket.cache_key, 'count').to_f).to eq 0

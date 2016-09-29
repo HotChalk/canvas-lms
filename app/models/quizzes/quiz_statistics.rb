@@ -62,7 +62,7 @@ class Quizzes::QuizStatistics < ActiveRecord::Base
   def generate_csv(options = {})
     options[:filename] = "quiz_#{report_type}_report.csv"
     options[:content_type] = 'text/csv'
-    options[:uploaded_data] = StringIO.new(report.to_csv(options))
+    options[:uploaded_data] = StringIO.new(report.to_csv)
     options[:display_name] = t('#quizzes.quiz_statistics.statistics_filename',
         "%{quiz_title} %{quiz_type} %{report_type} Report", {
           quiz_title: quiz.title,
@@ -76,6 +76,7 @@ class Quizzes::QuizStatistics < ActiveRecord::Base
       self.csv_attachment.display_name = options[:display_name]
       self.csv_attachment.content_type = options[:content_type]
       self.csv_attachment.save
+      self.csv_attachment
     else
       self.csv_attachment ||= begin
         build_csv_attachment(options).tap do |attachment|

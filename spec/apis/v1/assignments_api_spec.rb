@@ -20,7 +20,7 @@ require File.expand_path(File.dirname(__FILE__) + '/../api_spec_helper')
 require File.expand_path(File.dirname(__FILE__) + '/../locked_spec')
 require File.expand_path(File.dirname(__FILE__) + '/../../sharding_spec_helper')
 
-describe AssignmentsApiController, type: :request do
+describe AssignmentsApiController, :include_lti_spec_helpers, type: :request do
   include Api
   include Api::V1::Assignment
   include Api::V1::Submission
@@ -153,6 +153,78 @@ describe AssignmentsApiController, type: :request do
                           :search_term => 'fir'
                       })
       expect(json.map{|h| h['id']}.sort).to eq ids.sort
+    end
+
+    it "should allow filtering based on assignment_ids[] parameter" do
+      13.times { |i| @course.assignments.create!(title: "a_#{i}") }
+      all_ids = @course.assignments.pluck(:id).map(&:to_s)
+      some_ids = all_ids.slice(1, 4)
+      query_string = some_ids.map { |id| "assignment_ids[]=#{id}" }.join('&')
+
+      json = api_call(:get,
+                      "/api/v1/courses/#{@course.id}/assignments.json?#{query_string}",
+                      {
+                          :controller => 'assignments_api',
+                          :action => 'index',
+                          :format => 'json',
+                          :course_id => @course.id.to_s,
+                          :assignment_ids => some_ids
+                      })
+
+      expect(json.length).to eq 4
+      expect(json.map{|h| h['id']}.map(&:to_s).sort).to eq some_ids.sort
+    end
+
+    it "should fail if given an assignment_id that does not exist" do
+      good_assignment = @course.assignments.create!(title: "assignment")
+      bad_assignment = @course.assignments.create!(title: "assignment")
+      bad_assignment.destroy!
+      bad_id = bad_assignment.id
+      json = api_call(:get,
+                      "/api/v1/courses/#{@course.id}/assignments.json?assignment_ids[]=#{good_assignment.id}&assignment_ids[]=#{bad_id}",
+                      {
+                        :controller => 'assignments_api',
+                        :action => 'index',
+                        :format => 'json',
+                        :course_id => @course.id.to_s,
+                        :assignment_ids => [ good_assignment.id.to_s, bad_id.to_s ]
+                      }, {}, {}, {
+                        expected_status: 400
+                      })
+    end
+
+    it "should fail when given an assignment_id without permissions" do
+      student_in_course
+      bad_assignment = @course.assignments.create!(title: "assignment") # not published
+      bad_assignment.workflow_state = :unpublished
+      bad_assignment.save!
+      json = api_call_as_user(@student, :get,
+                      "/api/v1/courses/#{@course.id}/assignments.json?assignment_ids[]=#{bad_assignment.id}",
+                      {
+                        :controller => 'assignments_api',
+                        :action => 'index',
+                        :format => 'json',
+                        :course_id => @course.id.to_s,
+                        :assignment_ids => [ bad_assignment.id.to_s ]
+                      }, {}, {}, {
+                        expected_status: 400
+                      })
+    end
+
+    it "should fail if given too many assignment_ids" do
+      all_ids = (1...(Api.max_per_page + 10)).map(&:to_s)
+      query_string = all_ids.map { |id| "assignment_ids[]=#{id}" }.join('&')
+      json = api_call(:get,
+                      "/api/v1/courses/#{@course.id}/assignments.json?#{query_string}",
+                      {
+                          :controller => 'assignments_api',
+                          :action => 'index',
+                          :format => 'json',
+                          :course_id => @course.id.to_s,
+                          :assignment_ids => all_ids
+                      }, {}, {}, {
+                        expected_status: 400
+                      })
     end
 
     it "should return the assignments list with API-formatted Rubric data" do
@@ -304,7 +376,7 @@ describe AssignmentsApiController, type: :request do
 
         expect(response).not_to be_success
         json = JSON.parse response.body
-        expect(json["errors"]["bucket"].first["message"]).to eq "bucket name must be one of the following: past, overdue, undated, ungraded, upcoming, future"
+        expect(json["errors"]["bucket"].first["message"]).to eq "bucket name must be one of the following: past, overdue, undated, ungraded, unsubmitted, upcoming, future"
       end
 
       def assignment_index_bucketed_api_call(bucket)
@@ -690,9 +762,14 @@ describe AssignmentsApiController, type: :request do
   end
 
   describe "GET /users/:user_id/courses/:course_id/assignments (#user_index)" do
-    specs_require_sharding
     before :once do
       course_with_teacher(:active_all => true)
+    end
+
+    it "returns data for user calling on self" do
+      course_with_student_submissions(:active_all => true)
+      json = api_get_assignments_user_index(@student, @course)
+      expect(json[0]['course_id']).to eq @course.id
     end
 
     it "returns assignments for authorized observer" do
@@ -702,20 +779,6 @@ describe AssignmentsApiController, type: :request do
         uo.user_id = @student.id
       end
       parent.save!
-      json = api_get_assignments_user_index(@student, @course, parent)
-      expect(json[0]['course_id']).to eq @course.id
-    end
-
-    it "returns assignments for authorized observer" do
-      course_with_student_submissions(:active_all => true)
-      parent = nil
-      @shard2.activate do
-        parent = User.create
-        parent.user_observees.create! do |uo|
-          uo.user_id = @student.id
-        parent.save!
-        end
-      end
       json = api_get_assignments_user_index(@student, @course, parent)
       expect(json[0]['course_id']).to eq @course.id
     end
@@ -739,6 +802,44 @@ describe AssignmentsApiController, type: :request do
               )
     end
 
+    it "returns data for for teacher who can read target student data" do
+      course_with_student_submissions(active_all: true)
+
+      json = api_get_assignments_user_index(@student, @course, @teacher)
+      expect(json[0]['course_id']).to eq @course.id
+    end
+
+    it "returns data for ta who can read target student data" do
+      course_with_teacher(active_all: true)
+      section = add_section('section')
+      student = student_in_section(section)
+      ta = ta_in_section(section)
+
+      json = api_get_assignments_user_index(student, @course, ta)
+      expect(response).to be_success
+    end
+
+    it "returns unauthorized for ta who cannot read target student data" do
+      course_with_teacher(active_all: true)
+      s1 = add_section('for student')
+      s2 = add_section('for ta')
+      student = student_in_section(s1)
+      ta = ta_in_section(s2)
+
+      api_call_as_user(ta, :get,
+               "/api/v1/users/#{student.id}/courses/#{@course.id}/assignments",
+               {
+                   :controller => 'assignments_api',
+                   :action => 'user_index',
+                   :format => 'json',
+                   :course_id=> @course.id,
+                   :user_id=> student.id.to_s
+               },
+               {},
+               {},
+               {:expected_status => 401}
+              )
+    end
   end
 
   describe "POST /courses/:course_id/assignments (#create)" do
@@ -773,6 +874,20 @@ describe AssignmentsApiController, type: :request do
 
     before :once do
       course_with_teacher(:active_all => true)
+    end
+
+    it 'should respect post_to_sis default' do
+      a = @course.account
+      a.settings[:sis_default_grade_export] = {locked: false, value: true}
+      a.save!
+      group = @course.assignment_groups.create!({name: "first group"})
+      group_category = @course.group_categories.create!(name: "foo")
+      json = api_create_assignment_in_course(@course, create_assignment_json(group, group_category))
+      expect(json['post_to_sis']).to eq true
+      a.settings[:sis_default_grade_export] = {locked: false, value: false}
+      a.save!
+      json = api_create_assignment_in_course(@course, create_assignment_json(group, group_category))
+      expect(json['post_to_sis']).to eq false
     end
 
     it "returns unauthorized for users who do not have permission" do
@@ -2109,7 +2224,7 @@ describe AssignmentsApiController, type: :request do
           'html_url' =>
             "http://www.example.com/courses/#{@course.id}/discussion_topics/#{@topic.id}",
           'attachments' => [],
-          'permissions' => {'delete' => true, 'attach' => true, 'update' => true},
+          'permissions' => {'delete' => true, 'attach' => true, 'update' => true, 'reply' => true},
           'discussion_type' => 'side_comment',
           'group_category_id' => nil,
           'can_group' => true,
@@ -2221,8 +2336,8 @@ describe AssignmentsApiController, type: :request do
           :title => "Locked Assignment",
           :description => "locked!"
         )
-        @assignment.any_instantiation.expects(:overridden_for).
-          returns @assignment
+        @assignment.any_instantiation.expects(:overridden_for)
+          .returns @assignment
         @assignment.any_instantiation.expects(:locked_for?).returns({
           :asset_string => '',
           :unlock_at => 1.hour.from_now
@@ -2235,6 +2350,28 @@ describe AssignmentsApiController, type: :request do
         json = api_get_assignment_in_course(@assignment,@course)
         expect(json['description']).to be_nil
         expect(mod.evaluate_for(@user)).to be_unlocked
+      end
+
+      it "still includes a description when a locked assignment is viewable" do
+        @assignment = @course.assignments.create!(
+          :title => "Locked but Viewable Assignment",
+          :description => "locked but viewable!"
+        )
+        @assignment.any_instantiation.expects(:overridden_for)
+          .returns @assignment
+        @assignment.any_instantiation.expects(:locked_for?).returns({
+          :asset_string => '',
+          :unlock_at => 1.hour.ago,
+          :can_view => true
+        }).at_least(1)
+
+        mod = @course.context_modules.create!(:name => "some module")
+        tag = mod.add_item(:id => @assignment.id, :type => 'assignment')
+        mod.completion_requirements = { tag.id => {:type => 'must_view'} }
+        mod.save!
+        json = api_get_assignment_in_course(@assignment,@course)
+        expect(json['description']).not_to be_nil
+        expect(mod.evaluate_for(@user)).to be_completed
       end
 
       it "includes submission info when requested with include flag" do
@@ -2556,6 +2693,49 @@ describe AssignmentsApiController, type: :request do
       @assignment = @course.assignments.create!(:title => "some assignment")
     end
 
+    it 'updates the external tool content_id' do
+      mh = create_message_handler(create_resource_handler(create_tool_proxy))
+      tool_tag = ContentTag.new(url: 'http://www.example.com', new_tab: false, tag_type: 'context_module')
+      tool_tag.context = @assignment
+      tool_tag.save!
+      params = {
+        "submission_types" => ["external_tool"],
+        "external_tool_tag_attributes" => {
+          "url" => "https://testvmserver.test.com/canvas/test/",
+          "content_type" => "lti/message_handler",
+          "content_id" => mh.id,
+          "new_tab" => "0"
+        }
+      }
+      assignment = update_from_params(@assignment, params, @user)
+      tag = assignment.external_tool_tag
+      expect(tag.content_id).to eq mh.id
+      expect(tag.content_type).to eq "Lti::MessageHandler"
+    end
+
+    it 'sets the context external tool type' do
+      tool = ContextExternalTool.new( name: 'test tool', consumer_key:'test',
+        shared_secret: 'shh', url: 'http://www.example.com')
+      tool.context = @course
+      tool.save!
+      tool_tag = ContentTag.new(url: 'http://www.example.com', new_tab: false, tag_type: 'context_module')
+      tool_tag.context = @assignment
+      tool_tag.save!
+      params = {
+        "submission_types" => ["external_tool"],
+        "external_tool_tag_attributes" => {
+          "url" => "https://testvmserver.test.com/canvas/test/",
+          "content_type" => "context_external_tool",
+          "content_id" => tool.id,
+          "new_tab" => "0"
+        }
+      }
+      assignment = update_from_params(@assignment, params, @user)
+      tag = assignment.external_tool_tag
+      expect(tag.content_id).to eq tool.id
+      expect(tag.content_type).to eq "ContextExternalTool"
+    end
+
     it "does not update integration_data when lacking permission" do
       json = %{{"key": "value"}}
       params = {"integration_data" => json}
@@ -2575,7 +2755,7 @@ describe AssignmentsApiController, type: :request do
 
     it "unmuting publishes hidden comments" do
       @assignment.mute!
-      @assignment.grade_student @student, comment: "blah blah blah"
+      @assignment.update_submission @student, comment: "blah blah blah", author: @teacher
       sub = @assignment.submission_for_student(@student)
       comment = sub.submission_comments.first
       expect(comment.hidden?).to eql true
