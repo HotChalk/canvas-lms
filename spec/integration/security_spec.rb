@@ -980,7 +980,7 @@ describe "security" do
         expect(html.css('.section .files')).not_to be_empty
         expect(response.body).not_to match /Copy this Course/
         expect(response.body).not_to match /Import Content into this Course/
-        expect(response.body).to match /Export Course Content/
+        expect(response.body).not_to match /Export Course Content/
         expect(response.body).not_to match /Delete this Course/
         expect(response.body).not_to match /End this Course/
         expect(html.css('input#course_account_id')).to be_empty
@@ -993,6 +993,7 @@ describe "security" do
         assert_status(401)
 
         add_permission :manage_courses
+        add_permission :export_course_content
 
         get "/courses/#{@course.id}/details"
         expect(response).to be_success
@@ -1029,6 +1030,7 @@ describe "security" do
         assert_status(401)
 
         add_permission :manage_content
+        add_permission :import_course_content
 
         get "/courses/#{@course.id}/details"
         expect(response).to be_success

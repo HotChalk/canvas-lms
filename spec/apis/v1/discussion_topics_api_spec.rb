@@ -98,10 +98,12 @@ describe DiscussionTopicsController, type: :request do
     let(:item_type) { 'discussion_topic' }
 
     let_once(:locked_item) do
+      @user = @course.teachers.first
       @course.discussion_topics.create!(:user => @user, :message => 'Locked Discussion')
     end
 
     def api_get_json
+      @user = @course.students.first
       @course.clear_permissions_cache(@user)
       api_call(
         :get,
@@ -383,6 +385,11 @@ describe DiscussionTopicsController, type: :request do
         end
         [@sub, @topic2, @topic3].each(&:lock!)
         @topic2.update_attribute(:pinned, true)
+
+        # HC: switch current user to student, because the topics are not locked for their creator
+        @teacher = @user
+        student_in_course(:course => @course, :user => user_with_pseudonym)
+        @student = @user
 
         json = api_call(:get, "/api/v1/courses/#{@course.id}/discussion_topics.json?per_page=10&scope=unlocked",
                         {:controller => 'discussion_topics', :action => 'index', :format => 'json', :course_id => @course.id.to_s,

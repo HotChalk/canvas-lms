@@ -99,6 +99,7 @@ class Login::CanvasController < ApplicationController
     end
 
     if !found && params[:pseudonym_session]
+      # TODO this can and should be reverted to upstream code, but will require testing multi-tenant SSO and logins
       search_account_ids = Account.all(:select => :id).collect(&:id)
       pseudonym = Pseudonym.authenticate(params[:pseudonym_session],
                                          search_account_ids,
