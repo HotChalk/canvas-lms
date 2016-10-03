@@ -143,4 +143,15 @@ module AccountsAuthConfigsCommon
     f("#new_twitter button[type='submit']").click
     wait_for_ajaximations
   end
+
+  def add_hmac_config
+    get "/accounts/#{Account.default.id}/authentication_providers"
+    add_auth_type('HMAC')
+    hmac_form = f("#new_hmac")
+    hmac_form.find_element(:id, 'authentication_provider_hmac_shared_secret').send_keys('1234')
+    hmac_form.find_element(:id, 'authentication_provider_hmac_timestamp_range').send_keys('60000')
+    hmac_form.find_element(:id, 'authentication_provider_hmac_log_in_url').send_keys('http://hmac.url.dev')
+    f("#new_hmac button[type='submit']").click
+    wait_for_ajaximations
+  end
 end

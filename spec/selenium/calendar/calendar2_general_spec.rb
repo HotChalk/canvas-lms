@@ -144,6 +144,7 @@ describe "calendar2" do
       it "allows moving events between calendars" do
         event = @user.calendar_events.create! :title => 'blah', :start_at => Date.today
         get "/calendar2"
+        enable_all_contexts
         open_edit_event_dialog
         f("option[value=course_#{@course.id}]").click
         submit_form("#edit_calendar_event_form")
@@ -164,6 +165,7 @@ describe "calendar2" do
         event_start = @user.time_zone.local(local_now.year, local_now.month, 15, 22, 0, 0)
         make_event(:start => event_start)
         get "/calendar2"
+        enable_all_contexts
         f('.fc-event').click
         expect(f('.event-details-timestring').text).to include event_start.strftime("%b %e")
       end

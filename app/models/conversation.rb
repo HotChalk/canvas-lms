@@ -66,8 +66,7 @@ class Conversation < ActiveRecord::Base
         :workflow_state => 'read',
         :has_attachments => has_attachments?,
         :has_media_objects => has_media_objects?,
-        :root_account_ids => self.root_account_ids,
-        :last_message_at => Time.new
+        :root_account_ids => self.root_account_ids
     }.merge(options)
     ConversationParticipant.bulk_insert(user_ids.map{ |user_id|
       options.merge({:user_id => user_id})

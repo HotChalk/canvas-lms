@@ -45,6 +45,7 @@ describe "calendar2" do
         title = edit_event_form.find('#calendar_event_title')
         expect(title).to be_displayed
         replace_content(title, event_title)
+        select_first_calendar
         expect_new_page_load { f('.more_options_link').click }
         expect(driver.current_url).to match /start_date=\d\d\d\d-\d\d-\d\d/  # passed in ISO format, not localized
         expect(f('.title')).to have_value event_title

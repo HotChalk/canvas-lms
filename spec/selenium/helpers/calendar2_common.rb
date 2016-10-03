@@ -166,6 +166,7 @@ module Calendar2Common
     replace_content(title, event_title)
     add_date(middle_number) if should_add_date
     replace_content(f('#calendar_event_location_name'), 'location title') if should_add_location
+    select_first_calendar
 
     if should_duplicate
       f('#duplicate_event').click
@@ -200,6 +201,7 @@ module Calendar2Common
     replace_content(title, event_title)
     add_date(middle_number) if should_add_date
     replace_content(f('#calendar_event_location_name'), 'location title') if should_add_location
+    select_first_calendar
     submit_form(edit_event_form)
     wait_for_ajax_requests
   end
@@ -240,6 +242,16 @@ module Calendar2Common
     get "/calendar2"
     f('#agenda').click
     wait_for_ajaximations
+  end
+
+  def enable_all_contexts
+    ff('.context_list_context.not-checked .context-list-toggle-box').each {|box| box.click}
+    wait_for_ajaximations
+  end
+
+  def select_first_calendar
+    contexts = get_options('#calendar_event_context').map(&:text).map(&:strip).reject {|option| option.blank?}
+    click_option('#calendar_event_context', contexts.first)
   end
 
   # This checks the date in the edit modal, since Week View and Month view events are placed via absolute

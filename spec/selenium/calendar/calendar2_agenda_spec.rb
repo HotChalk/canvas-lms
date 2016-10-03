@@ -30,6 +30,7 @@ describe "calendar2" do
         # Clicks plus button, saves event, and verifies a row has been added
         expect(fj('.agenda-wrapper:visible')).to be_present
         f('#create_new_event_link').click
+        select_first_calendar
         fj('.ui-dialog:visible .btn-primary').click
         wait_for_ajaximations
         expect(ffj('.ig-row').length).to eq 1
@@ -63,6 +64,7 @@ describe "calendar2" do
         yesterday = 1.day.ago
         event = make_event(start: yesterday)
         load_agenda_view
+        enable_all_contexts
         expect(f("#content")).not_to contain_css('.ig-row')
         quick_jump_to_date(yesterday.strftime("%b %-d %Y"))
         wait_for_ajaximations
@@ -73,6 +75,7 @@ describe "calendar2" do
         yesterday = 1.day.ago
         event = make_event(start: yesterday)
         load_agenda_view
+        enable_all_contexts
         expect(f("#content")).not_to contain_css('.ig-row')
         f('.fc-prev-button').click
         f('#right-side .fc-day-number').click
@@ -103,6 +106,7 @@ describe "calendar2" do
         tomorrow = 1.day.from_now
         event = make_event(start: tomorrow)
         load_agenda_view
+        enable_all_contexts
         expect(f('.navigation_title')).to include_text(format_date_for_view(Time.zone.now, :medium))
         expect(f('.navigation_title')).to include_text(format_date_for_view(tomorrow, :medium))
       end
@@ -117,6 +121,7 @@ describe "calendar2" do
         event = make_event(start: tomorrow)
 
         load_agenda_view
+        enable_all_contexts
         expect(f(".ig-title")).to include_text("User Event")
 
         f('.ig-row').click
@@ -192,6 +197,7 @@ describe "calendar2" do
         location_address = "cottonwood"
         make_event(:location_name => location_name, :location_address => location_address)
         load_agenda_view
+        enable_all_contexts
 
         #Click calendar item to bring up event summary
         f(".ig-row").click

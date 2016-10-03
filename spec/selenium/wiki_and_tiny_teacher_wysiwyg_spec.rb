@@ -161,7 +161,7 @@ describe "Wiki pages and Tiny WYSIWYG editor features" do
       fj('.mce-ico.mce-i-image').click
       wait_for_ajaximations
       widget = fj('.ui-dialog.ui-widget.ui-widget-content.ui-corner-all.ui-draggable.ui-dialog-buttons')
-      widget.find_element(:link_text, 'Canvas').click
+      widget.find_element(:link_text, 'HotChalk Ember').click
       wait_for_ajaximations
       widget.find_element(:link_text, 'Course files').click
       wait_for_ajaximations

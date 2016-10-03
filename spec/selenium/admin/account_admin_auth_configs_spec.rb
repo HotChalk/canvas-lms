@@ -28,7 +28,7 @@ describe 'account authentication' do
 
       @account = Account.default
       expect(@account.login_handle_name).to eq nil
-      expect(@account.change_password_url).to eq nil
+      expect(@account.change_password_url).to eq "https://support.hotchalkember.com/hc/en-us/articles/203207245-Click-here-for-login-support"
       expect(@account.auth_discovery_url).to eq nil
     end
   end
@@ -582,6 +582,39 @@ describe 'account authentication' do
 
       it 'should allow deletion of config', priority: "2" do
         add_microsoft_config
+        config_id = Account.default.authentication_providers.active.last.id
+        config = "#delete-aac-#{config_id}"
+        expect_new_page_load(true) do
+          f(config).click
+        end
+
+        expect(Account.default.authentication_providers.active.count).to eq 1
+        expect(Account.default.authentication_providers.count).to eq 2
+      end
+    end
+
+    context 'hmac' do
+      it 'should allow creation of config', priority: "1" do
+        add_hmac_config
+        keep_trying_until { expect(Account.default.authentication_providers.active.count).to eq 2 }
+        config = Account.default.authentication_providers.active.last
+        expect(config.hmac_shared_secret).to eq '1234'
+      end
+
+      it 'should allow update of config', priority: "1" do
+        add_hmac_config
+        config_id = Account.default.authentication_providers.active.last.id
+        hmac_form = f("#edit_hmac#{config_id}")
+        hmac_form.find('#authentication_provider_hmac_shared_secret').send_keys('5678')
+        hmac_form.find("button[type='submit']").click
+
+        keep_trying_until { expect(Account.default.authentication_providers.active.count).to eq 2 }
+        config = Account.default.authentication_providers.active.last
+        expect(config.hmac_shared_secret).to eq '5678'
+      end
+
+      it 'should allow deletion of config', priority: "1" do
+        add_hmac_config
         config_id = Account.default.authentication_providers.active.last.id
         config = "#delete-aac-#{config_id}"
         expect_new_page_load(true) do
