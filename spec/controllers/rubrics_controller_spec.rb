@@ -517,10 +517,9 @@ describe RubricsController do
       end
     end
 
-    it "returns 404 if record doesn't exist" do
-      assert_page_not_found do
-        get 'show', id: "1", course_id: @course.id
-      end
+    it "returns 302 if record doesn't exist" do
+      get 'show', id: "1", course_id: @course.id
+      assert_status(302)
     end
 
 

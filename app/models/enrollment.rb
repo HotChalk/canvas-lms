@@ -198,6 +198,7 @@ class Enrollment < ActiveRecord::Base
       !record.self_enrolled &&
       record.course &&
       record.course.available? &&
+      !record.observer? &&
       record.active?
     }
 

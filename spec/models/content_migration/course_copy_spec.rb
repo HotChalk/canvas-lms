@@ -335,8 +335,8 @@ describe ContentMigration do
       expect(@copy_to.attachments.where(migration_id: mig_id(att)).first.file_state).to eq 'available'
       expect(@copy_to.wiki.wiki_pages.where(migration_id: mig_id(wiki)).first.workflow_state).to eq 'active'
       rub2 = @copy_to.rubrics.where(migration_id: mig_id(rub1)).first
-      expect(rub2.workflow_state).to eq 'active'
-      expect(rub2.rubric_associations.first.bookmarked).to eq true
+      expect(rub2.workflow_state).to eq 'deleted' # Per LMS-1330, course copy imports should duplicate existing rubrics that have already been imported; hence the deleted rubric will remain deleted
+      #expect(rub2.rubric_associations.first.bookmarked).to eq true
       expect(@copy_to.created_learning_outcomes.where(migration_id: mig_id(lo)).first.workflow_state).to eq 'active'
       expect(@copy_to.quizzes.where(migration_id: mig_id(quiz)).first.workflow_state).to eq 'unpublished' if Qti.qti_enabled?
       expect(@copy_to.context_external_tools.where(migration_id: mig_id(tool)).first.workflow_state).to eq 'public'
