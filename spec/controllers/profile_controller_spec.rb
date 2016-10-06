@@ -134,16 +134,16 @@ describe ProfileController do
       user_session(@user, @pseudonym.reload)
     end
 
-    it "should let you change your name, short_name and profile information" do
+    it "should let you change your short_name and profile information" do
       put 'update_profile',
-          :user => {:name => 'Jenkins'},
-          :user_profile => {:bio => '...', :title => '!!!', :short_name => 'Monsturd'},
+          :user => {:short_name => 'Monsturd', :name => 'Jenkins'},
+          :user_profile => {:bio => '...', :title => '!!!'},
           :format => 'json'
       expect(response).to be_success
 
       @user.reload
       expect(@user.short_name).to eql 'Monsturd'
-      expect(@user.name).to eql 'Jenkins'
+      expect(@user.name).not_to eql 'Jenkins'
       expect(@user.profile.bio).to eql '...'
       expect(@user.profile.title).to eql '!!!'
     end
