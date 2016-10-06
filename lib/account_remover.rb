@@ -208,8 +208,6 @@ class AccountRemover
           INSERT INTO delete_assignment_overrides (
             SELECT a.id FROM assignment_overrides a INNER JOIN delete_assignments d ON a.assignment_id = d.id
             UNION
-            SELECT a.id FROM assignment_overrides a INNER JOIN delete_discussion_topics d ON a.discussion_topic_id = d.id
-            UNION
             SELECT a.id FROM assignment_overrides a INNER JOIN delete_quizzes d ON a.quiz_id = d.id
           )
       SQL
@@ -278,6 +276,17 @@ class AccountRemover
       # Create temporary table with all context module IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_context_modules AS SELECT m.id FROM context_modules m INNER JOIN delete_courses d ON m.context_type = 'Course' AND m.context_id = d.id")
       ActiveRecord::Base.connection.execute("ALTER TABLE delete_context_modules ADD PRIMARY KEY (id)")
+
+      # Create temporary table with all enrollment IDs
+      ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_enrollments (id BIGINT NOT NULL PRIMARY KEY)")
+      sql = <<-SQL
+        INSERT INTO delete_enrollments (
+          SELECT e.id FROM enrollments e INNER JOIN delete_courses d ON e.course_id = d.id
+          UNION
+          SELECT e.id FROM enrollments e INNER JOIN delete_users d ON e.user_id = d.id
+        )
+      SQL
+      ActiveRecord::Base.connection.execute(sql)
 
       # Create temporary table with all eportfolio IDs
       ActiveRecord::Base.connection.execute("CREATE TEMPORARY TABLE delete_eportfolios AS SELECT p.id FROM eportfolios p INNER JOIN delete_users d ON p.user_id = d.id")
@@ -489,6 +498,7 @@ class AccountRemover
       delete_discussion_entry_participants
       delete_discussion_topic_materialized_views
       delete_discussion_topic_participants
+      delete_enrollment_states
       delete_enrollments
       delete_enrollment_dates_overrides
       delete_eportfolio_entries
@@ -867,13 +877,16 @@ class AccountRemover
     timed_exec("DELETE FROM enrollment_dates_overrides USING enrollment_terms d WHERE d.root_account_id = #{@account.id} AND enrollment_term_id = d.id")
   end
 
+  def delete_enrollment_states
+    timed_exec("DELETE FROM enrollment_states USING delete_enrollments d WHERE enrollment_id = d.id")
+  end
+
   def delete_enrollment_terms
     timed_exec("DELETE FROM enrollment_terms WHERE root_account_id = #{@account.id}")
   end
 
   def delete_enrollments
-    timed_exec("DELETE FROM enrollments USING delete_courses d WHERE course_id = d.id")
-    timed_exec("DELETE FROM enrollments USING delete_users d WHERE user_id = d.id")
+    timed_exec("DELETE FROM enrollments USING delete_enrollments d WHERE enrollments.id = d.id")
   end
 
   def delete_eportfolio_categories
