@@ -605,6 +605,7 @@ describe 'account authentication' do
         add_hmac_config
         config_id = Account.default.authentication_providers.active.last.id
         hmac_form = f("#edit_hmac#{config_id}")
+        hmac_form.find('#authentication_provider_hmac_shared_secret').clear
         hmac_form.find('#authentication_provider_hmac_shared_secret').send_keys('5678')
         hmac_form.find("button[type='submit']").click
 
