@@ -418,6 +418,14 @@ class AccountRemover
       ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a INNER JOIN delete_quiz_statistics d ON a.context_type = 'Quizzes::QuizStatistics' AND a.context_id = d.id")
       ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a INNER JOIN delete_quiz_submissions d ON a.context_type = 'Quizzes::QuizSubmission' AND a.context_id = d.id")
       ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a INNER JOIN delete_users d ON a.context_type = 'User' AND a.context_id = d.id")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN accounts d ON a.context_id = d.id WHERE a.context_type = 'Account' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN assignments d ON a.context_id = d.id WHERE a.context_type = 'Assignment' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN content_exports d ON a.context_id = d.id WHERE a.context_type = 'ContentExport' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN content_migrations d ON a.context_id = d.id WHERE a.context_type = 'ContentMigration' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN courses d ON a.context_id = d.id WHERE a.context_type = 'Course' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN gradebook_uploads d ON a.context_id = d.id WHERE a.context_type = 'GradebookUpload' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN groups d ON a.context_id = d.id WHERE a.context_type = 'Group' AND d.id IS NULL")
+      ActiveRecord::Base.connection.execute("INSERT INTO delete_attachments SELECT a.id FROM attachments a LEFT JOIN users d ON a.context_id = d.id WHERE a.context_type = 'User' AND d.id IS NULL")
       ActiveRecord::Base.connection.execute("DELETE FROM delete_attachments WHERE id IN (SELECT m.attachment_id FROM content_migrations m LEFT OUTER JOIN delete_content_migrations d ON m.id = d.id WHERE d.id IS NULL)")
       ActiveRecord::Base.connection.execute("DELETE FROM delete_attachments WHERE id IN (SELECT root_attachment_id FROM attachments a LEFT OUTER JOIN delete_attachments d ON a.id = d.id WHERE d.id IS NULL)")
       ActiveRecord::Base.connection.execute("DELETE FROM delete_attachments WHERE id IN (SELECT replacement_attachment_id FROM attachments a LEFT OUTER JOIN delete_attachments d ON a.id = d.id WHERE d.id IS NULL)")
@@ -1185,6 +1193,7 @@ class AccountRemover
     timed_exec("DELETE FROM versions USING delete_rubric_assessments d WHERE versionable_type = 'RubricAssessment' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_submissions d WHERE versionable_type = 'Submission' AND versionable_id = d.id")
     timed_exec("DELETE FROM versions USING delete_wiki_pages d WHERE versionable_type = 'WikiPage' AND versionable_id = d.id")
+    timed_exec("DELETE FROM versions USING versions v LEFT JOIN assignment_overrides a ON v.versionable_id = a.id WHERE v.versionable_type = 'AssignmentOverride' AND a.id IS NULL AND versions.id = v.id")
   end
 
   def delete_wiki_pages
