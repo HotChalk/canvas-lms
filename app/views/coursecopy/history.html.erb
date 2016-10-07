@@ -1,0 +1,38 @@
+<% add_crumb t('titles.course_copy_history', "Course Copy History") %>
+<% @active_tab = "course_copy" %>
+<% content_for :page_title do %><%= t('titles.course_copy_history', 'Course Copy History') %><% end %>
+
+<% content_for :right_side do %>
+<%= render :partial => 'shared/accounts_right_side_shared' %>
+<% end %>
+
+<% css_bundle :coursecopy %>
+<% js_bundle :coursecopy_history %>
+
+<div class="container">
+            
+    <div class="row">
+        <div class="col-xs-7" id="">
+          <h1>Course Copy Tool History</h1>
+          
+          <%= link_to(account_coursecopy_index_path) do %>
+            <button type="button" class="btn btn-default">Back</button>
+          <% end %>
+          <br/>
+          <div class="panel panel-info">
+            <div class="panel-heading">Processing Courses Spreadsheet</div>              
+            <div class="panel-body">
+             All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.
+             <ul>
+              <li><span class="label label-important">Error 401</span> There are issues with account access.</li>
+              <li><span class="label label-important">Error 404</span> Course ID is incorrect and cannot be found.</li>
+             </ul>
+             </div>
+          </div>    
+        </div>             
+
+       <div class="col-xs-7" id="progress_result">
+         
+       </div>             
+    </div>
+</div>

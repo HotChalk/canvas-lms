@@ -1417,6 +1417,7 @@ class Account < ActiveRecord::Base
   TAB_BRAND_CONFIGS = 19
   TAB_RESOURCES = 20
   TAB_HELP_SETUP_LINKS = 21
+  TAB_COURSE_COPY = 22
 
   # site admin tabs
   TAB_PLUGINS = 14
@@ -1463,6 +1464,11 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
+      
+      if valid_plugin?('course_copy_tool_csv_importer')
+        tabs << { :id => TAB_COURSE_COPY, :label => t('#account.tab_course_copy', "Course Copy"), :css_class => 'course_copy', :href => :account_coursecopy_index_path } if manage_settings                
+      end
+      
       tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
       tabs << { :id => TAB_HELP_SETUP_LINKS, :label => t('#account.tab_help_setup', "Help Setup"), :css_class => 'help_setup', :href => :account_helpsetup_path} if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
@@ -1489,6 +1495,17 @@ class Account < ActiveRecord::Base
     admin_tool_permissions.any? do |p|
       self.grants_right?(user, p.first)
     end
+  end
+
+  def valid_plugin?(name)
+    @plugin = Canvas::Plugin.find(name)
+    if !@plugin
+      return false
+    end
+    unless @plugin.enabled?
+      return false
+    end
+    return true
   end
 
   def is_a_context?

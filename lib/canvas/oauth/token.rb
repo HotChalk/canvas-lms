@@ -72,7 +72,7 @@ module Canvas::Oauth
     end
 
     def access_token
-      create_access_token_if_needed
+      create_access_token_if_needed      
       @access_token
     end
 
