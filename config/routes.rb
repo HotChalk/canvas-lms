@@ -553,7 +553,9 @@ CanvasRails::Application.routes.draw do
     delete 'helpsetup' => 'helpsetup#delete'
   
     get 'coursecopy', to: 'coursecopy#index', as: :coursecopy_index
-    post 'coursecopy', to: 'coursecopy#load_file', as: :coursecopy_load
+    get 'coursecopy_progress', to: 'coursecopy#progress', as: :coursecopy_progress
+    get 'coursecopy_history', to: 'coursecopy#history', as: :coursecopy_history
+    post 'coursecopy', to: 'coursecopy#start_copy', as: :coursecopy_start_copy
     
     get :avatars
     get :sis_import
