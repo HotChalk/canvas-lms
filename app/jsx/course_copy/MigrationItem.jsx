@@ -1,8 +1,8 @@
 define([
   'react',  
   "./ProgressList",
-  'moment'
-], (React, ProgressList, moment) => {
+  'jquery'
+], (React, ProgressList, $) => {
   var MigrationItem = React.createClass({          
     getStatus: function(workflow_state){
         var result = "";
@@ -20,8 +20,10 @@ define([
         return result;
     },
     render(){   
-      var created_at = moment(this.props.migration.content_migration.created_at).format("MMMM Do YYYY, h:mm:ss a");         
-      var finished_at = (this.props.migration.content_migration.finished_at)? moment(this.props.migration.content_migration.finished_at).format("MMMM Do YYYY, h:mm:ss a") : '';               
+      var created_at = $.dateString(this.props.migration.content_migration.created_at, {format: 'medium'})
+      // var created_at = moment(this.props.migration.content_migration.created_at).format("MMMM Do YYYY, h:mm:ss a");               
+      var finished_at = $.dateString(this.props.migration.content_migration.finished_at, {format: 'medium'})
+      // var finished_at = (this.props.migration.content_migration.finished_at)? moment(this.props.migration.content_migration.finished_at).format("MMMM Do YYYY, h:mm:ss a") : '';               
       var items = this.props.migration.content_migration.migration_settings.results || [];    
       var icon = "icon-minimize";
       var display_style = "block";

@@ -86,7 +86,6 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
           data[:master_start_at] = course.start_at        
           data[:master_conclude_at] = course.conclude_at
             
-
           # find target course data
           course = Course.find(row[1])
           data[:target_id] = course.id
@@ -102,12 +101,13 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
           
           # run cource copy tool script with master course and target course.
           puts "Se procesa el copy tool con master: #{row[0].inspect} and target: #{row[1].inspect}, index: #{i.inspect}  "
-          execPythonFile data
+          result = execPythonFile data
           # get result
-          # data[:workflow_state] = "Completed"        
-          # data[completion] = 100
-          data_result = { :status => true, :error => nil, :state =>"Completed", completion => 100, :message => "" }
-          result[i] = data_result
+          data[:workflow_state] = "Completed"        
+          data[:completion] = 100
+          data[:script_result] = result
+          # data_result = { :status => true, :error => nil, :state =>"Completed", completion => 100, :message => "" }
+          result[i] = data
 
           i += 1
         end
@@ -172,7 +172,7 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
     result
   end
 
-  def execPythonFile(data)
+  def execPythonFile(data) 
     filename = 'CourseCopy.py'    
     file_path = Rails.root.join('vendor', 'CourseCopyTool', filename).to_s rescue nil
     unless File.exist?(file_path)

@@ -169,6 +169,9 @@ class CoursecopyController < ApplicationController
     uploaded_io = params[:file]
     @content_migration.migration_settings[:filename] = uploaded_io.original_filename        
     @content_migration.migration_settings[:due_dates] = params[:due_dates] || 0
+    if @content_migration.migration_settings[:due_dates] == '1'
+      @content_migration.migration_settings[:new_start_date] = Date.today
+    end
     
     if @content_migration.save
       preflight_json = nil

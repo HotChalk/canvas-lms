@@ -65,4 +65,6 @@ elif parameters['due_dates'] == 0:
 # else:
 # 	print 'There was a %s error copying course %s.' % (str(r2.status_code), parameters['target_id'])
 
-print("All done!")
+# print("All done!")
+
+print 'Course %s copied successfully.' % parameters['target_id']
