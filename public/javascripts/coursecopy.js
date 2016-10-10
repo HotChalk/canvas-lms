@@ -32,10 +32,14 @@ define([
   });
 
   showProgress = function(){
+    console.log("# of migrations running...", ENV.content_migrations.length)
     if (ENV.content_migrations && ENV.content_migrations.length > 0){
       var obj_container = document.getElementById('progress_result');
       var contentMigrationList = React.createFactory(ContentMigrationList);
       React.render( contentMigrationList({migrations:ENV.content_migrations, showCollapsed:false}), obj_container);
+    }
+    else{
+      $('#progress_result').html(' ');
     }
   };
 

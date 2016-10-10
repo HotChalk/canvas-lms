@@ -13,6 +13,9 @@ define([
           case "imported":
             result = "Completed"
           break;
+          case "failed":
+            result = "Failed"
+          break;
 
           default:
           break;
@@ -21,9 +24,7 @@ define([
     },
     render(){   
       var created_at = $.dateString(this.props.migration.content_migration.created_at, {format: 'medium'})
-      // var created_at = moment(this.props.migration.content_migration.created_at).format("MMMM Do YYYY, h:mm:ss a");               
       var finished_at = $.dateString(this.props.migration.content_migration.finished_at, {format: 'medium'})
-      // var finished_at = (this.props.migration.content_migration.finished_at)? moment(this.props.migration.content_migration.finished_at).format("MMMM Do YYYY, h:mm:ss a") : '';               
       var items = this.props.migration.content_migration.migration_settings.results || [];    
       var icon = "icon-minimize";
       var display_style = "block";

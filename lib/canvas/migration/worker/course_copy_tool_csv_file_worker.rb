@@ -45,6 +45,7 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
           cm.save
         else
           cm.workflow_state = :failed
+          cm.migration_settings[:results] = result
           cm.migration_settings[:last_error] = result.join(" / ")
           cm.save
           break;
@@ -101,11 +102,11 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
           
           # run cource copy tool script with master course and target course.
           puts "Se procesa el copy tool con master: #{row[0].inspect} and target: #{row[1].inspect}, index: #{i.inspect}  "
-          result = execPythonFile data
+          script_result = execPythonFile data
           # get result
           data[:workflow_state] = "Completed"        
           data[:completion] = 100
-          data[:script_result] = result
+          data[:script_result] = script_result
           # data_result = { :status => true, :error => nil, :state =>"Completed", completion => 100, :message => "" }
           result[i] = data
 

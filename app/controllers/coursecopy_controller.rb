@@ -17,8 +17,9 @@ class CoursecopyController < ApplicationController
     # execPythonFile()
 
     if @context && @context.is_a?(Account)      
-      cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: 'exporting'
+      cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['exporting','queued']
       puts "JUAN... estoy consultadon las content_migrations... "
+      puts "cm #{cm.inspect}"
       js_env(:current_account => @context, :url => context_url(@context, :context_coursecopy_index_url), :content_migrations => cm, :progress_url => account_coursecopy_progress_path )
     end
   end  
@@ -26,15 +27,16 @@ class CoursecopyController < ApplicationController
   def history
     if @context && @context.is_a?(Account)      
       # cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: 'imported'
-      cm = ContentMigration.where(context_type: 'Account', context_id: @context.id).where.not(workflow_state: 'exporting')
-      
+      cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['imported','failed']      
       js_env(:current_account => @context, :url => context_url(@context, :context_coursecopy_history_url), :content_migrations => cm)
     end
   end  
   
   def progress
     if @context && @context.is_a?(Account)      
-      cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: 'exporting'      
+      cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['exporting','queued']
+      puts "JUAN... estoy consultadon las content_migrations... "
+      puts "cm #{cm.inspect}"
       render :json => cm
     end
   end  
