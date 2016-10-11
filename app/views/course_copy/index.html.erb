@@ -25,7 +25,7 @@
               </div>
             </div>      
                            
-            <%= form_tag({action: :start_copy}, multipart: true, :html => {:'data-type' => 'json'}, :id => "frm_start") do %>
+            <%= form_tag({action: :create}, multipart: true, :html => {:'data-type' => 'json'}, :id => "frm_start") do %>
               <div class="s_table">
                 <div class="s_table_cell">
                   <label class="btn btn-default btn_small" for="coursecopytoolFileUpload">
@@ -59,7 +59,7 @@
                   </a>  
                 </div>
                 <div class="s_table_cell">
-                  <%= link_to(account_coursecopy_history_path) do %>
+                  <%= link_to(account_course_copy_history_path) do %>
                     <button type="button" class="btn btn-default">View History</button>
                   <% end %>
                 </div>

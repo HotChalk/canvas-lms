@@ -1466,7 +1466,7 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
       
       if valid_plugin?('course_copy_tool_csv_importer')
-        tabs << { :id => TAB_COURSE_COPY, :label => t('#account.tab_course_copy', "Course Copy"), :css_class => 'course_copy', :href => :account_coursecopy_index_path } if manage_settings                
+        tabs << { :id => TAB_COURSE_COPY, :label => t('#account.tab_course_copy', "Course Copy"), :css_class => 'course_copy', :href => :account_course_copy_index_path } if manage_settings
       end
       
       tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings

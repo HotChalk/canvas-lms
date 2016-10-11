@@ -16,10 +16,10 @@
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-module Api::V1::Coursecopy
+module Api::V1::CourseCopy
   include Api::V1::Json
 
-  def coursecopy_progress_json(progress, current_user, session, opts={})
+  def course_copy_progress_json(progress, current_user, session, opts={})
     api_json(progress, current_user, session, :only => %w(id context_id context_type user_id tag completion workflow_state created_at updated_at message)).tap do |hash|
       hash['url'] = polymorphic_url([:api_v1, progress])
     end
