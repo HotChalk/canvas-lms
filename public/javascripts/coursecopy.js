@@ -27,7 +27,6 @@ define([
         $('#input_file').html("No file chosen");      
       }      
     }); 
-    getProgress();      
   });
 
   showProgress = function(){
@@ -58,7 +57,7 @@ define([
   };
   
   var local_timer = setInterval(getProgress, 15000);  
-  setTimeout(getProgress, 15000);
+  setTimeout(getProgress, 1000);
 
   $(document).on('click', '.panel-heading span.clickable', function (e) {
       var $this = $(this);
