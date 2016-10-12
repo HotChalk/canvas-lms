@@ -453,45 +453,4 @@
     display: flex;
     justify-content: flex-end;
   }
-
-  #help_container{
-    padding: 0;
-  }
-
-  .help ul {
-    list-style-type: none;
-    margin: 0;
-    padding: 1px;
-    background-color: #f1f1f1;
-  }
-
-  .help li {
-    text-align: left;
-    border-bottom: 2px solid #F9FAFC;
-    margin:0;
-  }
-
-  .help li:hover {
-    border-bottom: 2px solid #6CA3F8;
-  }
-
-  .help li a {
-    display: block;
-    color: #6CA3F8;
-    padding: 8px 16px;
-    text-decoration: none;
-  }
-
-  .help li a h1{
-    font-size: 15px;
-    margin:0;
-  }
-
-  .help li a h3{
-    margin:0;
-    font-size: 12px;
-    color:#AAABAC;
-    font-style: italic;
-    line-height: 1;
-  }
 }

@@ -151,7 +151,7 @@
         <input type="email" name="communication_channel_email" id="communication_channel_email"/>
       </div>
     </div>
-
+    <% if false # HC: do not allow students to create new login IDs %>
     <% if @domain_root_account == Account.default %>
       <div class="control-group">
         <div class="controls">
@@ -162,7 +162,7 @@
         </div>
       </div>
     <% end %>
-
+    <% end %>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary"><%= t('buttons.register_email', "Register Email") %></button>
     </div>

@@ -1,6 +1,6 @@
 <%
   css_bundle :profile_show, :tinymce
-  js_bundle :profile_show, :profile
+  js_bundle :profile_show
   @body_classes << 'not-editing'
   js_env PROFILE: @user_data if @user_data[:can_edit]
   js_env(folder_id: @user.profile_pics_folder.id) if @user == @current_user
@@ -20,22 +20,10 @@
 
     <div class="profileContent__Block">
       <% if @user_data[:can_edit_name] %>
-        <h2 class="hide-if-editing"><%= @user_data[:name] %></h2>
+        <h2 class="hide-if-editing"><%= @user_data[:short_name] %></h2>
         <label class="show-if-editing ic-Label"><%= t('name', 'Name') %>:
-          <input aria-label="<%= t 'Name' %>" id="name_input" class="ic-Input" type="text" name="user[name]" value="<%= @user_data[:name] %>" required>
+          <input aria-label="<%= t 'Name' %>" id="name_input" class="ic-Input" type="text" name="user[short_name]" value="<%= @user_data[:short_name] %>" required>
         </label>
-        <p class="profileDetails">
-          <span class="hide-if-editing"><%= @user_data[:short_name] %></span>
-          <label class="show-if-editing ic-Label"><%= t('short_name', 'Short Name') %>:
-            <input aria-label="<%= t 'Short Name' %>" class="ic-Input" type="text" name="user_profile[short_name]" value="<%= @user_data[:short_name] %>">
-          </label>
-        </p>
-        <p class="profileDetails">
-          <span class="hide-if-editing"><%= @user_data[:sortable_name] %></span>
-          <label class="show-if-editing ic-Label"><%= t('sortable_name', 'Sortable Name') %>:
-            <input aria-label="<%= t 'Sortable Name' %>" class="ic-Input" type="text" name="user_profile[sortable_name]" value="<%= @user_data[:sortable_name] %>" readonly>
-          </label>
-        </p>
         <p class="profileDetails">
           <span class="hide-if-editing"><%= @user_data[:title] %></span>
           <label class="show-if-editing ic-Label"><%= t('title', 'Title') %>:
@@ -43,9 +31,7 @@
           </label>
         </p>
       <% else %>
-        <h2><%= @user_data[:name] %></h2>
-        <p><%= @user_data[:short_name] %></p>
-        <p><%= @user_data[:sortable_name] %></p>
+        <h2><%= @user_data[:short_name] %></h2>
         <p><%= @user_data[:title] %></p>
       <% end %>
 

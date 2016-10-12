@@ -812,6 +812,7 @@ class AccountsController < ApplicationController
     @program_id = params[:program_id] if params[:program_id].present?
     @course_format = params[:course_format] if params[:course_format].present?
     @states = params[:states] if params[:states].present?
+    @states.push('created') if @states.include?('claimed') # Also include newly created courses as 'Unpublished'
     @date_type = params[:date_type] if params[:date_type].present?
     @item_type = params[:item_type] if params[:item_type].present?
     @from_date = params[:from_date] if params[:from_date].present?

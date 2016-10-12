@@ -39,6 +39,24 @@ describe TextHelper do
     end
   end
 
+  context "unlocalized_datetime_string" do
+    it "formats datetimes" do
+      datetime = Time.zone.parse("#{Time.zone.now.year}-01-01 12:00:00")
+      expect(th.datetime_string(datetime)).to eq "Jan 1 at 12pm"
+    end
+
+    context "time_string" do
+      it "does not accept a timezone override" do
+        datetime1 = Time.utc(2012, 1, 1, 20, 30, 0).in_time_zone("Pacific Time (US & Canada)")
+        datetime2 = Time.utc(2012, 1, 1, 20, 30, 0).in_time_zone("Mountain Time (US & Canada)")
+        pacific = th.unlocalized_datetime_string(datetime1, nil)
+        mountain = th.unlocalized_datetime_string(datetime2, nil)
+        expect(mountain).to eq "Jan 1, 2012 at  8:30pm"
+        expect(pacific).to eq "Jan 1, 2012 at  8:30pm"
+      end
+    end
+  end
+
   context "time_string" do
     around do |example|
       Timecop.freeze(Time.utc(2010, 8, 18, 12, 21), &example)

@@ -108,6 +108,7 @@ describe "calendar2" do
         event2 = make_event(title: 'Event2', start: close_to_midnight, end: close_to_midnight + 15.minutes)
 
         load_week_view
+        enable_all_contexts
         quick_jump_to_date('Jan 1, 2015')
         expect(ff('.fc-event')).to have_size(2)
         events = ff('.fc-event')
@@ -147,6 +148,7 @@ describe "calendar2" do
     it "should create event by clicking on week calendar", priority: "1", test_id: 138862 do
       title = "from clicking week calendar"
       load_week_view
+      enable_all_contexts
 
       # Click non all-day event
       fj('.fc-agendaWeek-view .fc-time-grid .fc-slats .fc-widget-content:not(.fc-axis):first').click
@@ -157,6 +159,7 @@ describe "calendar2" do
     it "should create all day event on week calendar", priority: "1", test_id: 138865 do
       title = "all day event title"
       load_week_view
+      enable_all_contexts
 
       # click all day event
       f('.fc-agendaWeek-view .fc-week .fc-wed').click
@@ -189,6 +192,7 @@ describe "calendar2" do
       # Make it an all day event so it will be visible on the screen/on top
       make_event(:location_name => location_name, :all_day => true, :location_address => location_address)
       load_week_view
+      enable_all_contexts
 
       # Click calendar item to bring up event summary
       f(".fc-event").click
@@ -220,6 +224,7 @@ describe "calendar2" do
 
       # Drag and drop event resizer from first event onto assignment icon
       load_week_view
+      enable_all_contexts
       expect(ff('.fc-view-container .icon-calendar-month')).to have_size(1)
       drag_and_drop_element(f('.fc-end-resizer'), f('.icon-assignment'))
 
@@ -238,6 +243,7 @@ describe "calendar2" do
 
       # Drag object event onto target event using calendar icons
       load_week_view
+      enable_all_contexts
       expect(ff('.fc-view-container .icon-calendar-month')).to have_size(2)
       icon_array = ff('.fc-view-container .icon-calendar-month')
       drag_and_drop_element(icon_array[1], icon_array[0])
@@ -287,6 +293,7 @@ describe "calendar2" do
         make_event(start: @two_days_later, title: 'Event Target')
 
         load_week_view
+        enable_all_contexts
         quick_jump_to_date(@initial_time_str)
 
         # Drag and drop event to new date
@@ -307,6 +314,7 @@ describe "calendar2" do
         start_at_time = Time.zone.today.at_beginning_of_week.beginning_of_day
         event = make_event(title: 'Event1', start: start_at_time, all_day: true)
         load_week_view
+        enable_all_contexts
         drag_and_drop_element(f('.fc-resizer'),
                               f('.fc-row .fc-content-skeleton td:nth-of-type(5)'))
         event.reload

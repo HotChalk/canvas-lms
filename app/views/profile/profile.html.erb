@@ -4,9 +4,7 @@
 
 <% content_for :right_side do %>
   <% if @current_user.registered? %>
-  <% unless @domain_root_account.enable_profiles? %>
-    <%= render :partial => "ways_to_contact" %>
-  <% end %>
+  <%= render :partial => "ways_to_contact" %>
   <div class="rs-margin-lr">
     <hr />
     <a href="#" class="edit_settings_link btn button-sidebar-wide"><i class="icon-edit"></i> <%= t('links.edit_settings', "Edit Settings") %></a>
@@ -36,7 +34,7 @@
           PROFILE: @user_data,
           INTERNATIONAL_SMS_ENABLED: @user.account.feature_enabled?(:international_sms)
 %>
-<% js_bundle :profile, :profile_show %>
+<% js_bundle :profile %>
 <% css_bundle :profile_edit %>
 
 <% if service_enabled?(:avatars) %>
@@ -46,13 +44,12 @@
 <div class="clear"></div>
 <%= form_for @user, :url => profile_path, :html => {:id => "update_profile_form", :style => "margin-bottom: 20px;", :class => 'form-inline'} do |f| %>
 <table class="profile_table">
-  <% unless @domain_root_account.enable_profiles? %>
   <tr>
     <% editable_name = @user.user_can_edit_name? %>
     <td><%= f.blabel :name, :en => "Full Name" %></td>
     <td><span <% unless editable_name %>id="name"<% end %>
               class="full_name <%= editable_name ? 'display_data' : 'edit_or_show_data' %>"><%=h @user.name %></span>
-      <%= f.text_field :name, :readonly => true, :class => "edit_data", :maxlength => 255, :size => 30, "aria-describedby" => "hints_name" if editable_name %>
+      <%= f.text_field :name, :class => "edit_data", :maxlength => 255, :size => 30, "aria-describedby" => "hints_name" if editable_name %>
       <span id="hints_name" class="edit_or_show_data data_description"><br/><%= t('hints.name', "This name will be used for grading.") %></span>
   </tr>
   <tr>
@@ -71,7 +68,6 @@
       <span id="hints_sortable_name" class="edit_or_show_data data_description"><br/><%= t('hints.sortable_name', "This name appears in sorted lists.") %></span>
     </td>
   </tr>
-  <% end %>
   <% active_email_channels = @email_channels.select { |cc| cc.active? } %>
   <% if active_email_channels.length > 1 %>
     <tr>

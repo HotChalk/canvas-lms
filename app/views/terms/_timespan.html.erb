@@ -13,7 +13,7 @@
             name="enrollment_term<%= key %>[start_at]"
             value="<%= unlocalized_datetime_string(object.try(:start_at), :long) %>"
             title="<%= accessible_date_format %>"
-            class="date_field"
+            class="start_date_field date_field"
             style="width: 120px;"
             aria-labelledby="<%= key %>_start_at_label"
             data-tooltip />
@@ -39,7 +39,7 @@
             name="enrollment_term<%= key %>[end_at]"
             value="<%= unlocalized_datetime_string(object.try(:end_at), :long) %>"
             title="<%= accessible_date_format %>"
-            class="date_field"
+            class="end_date_field date_field"
             style="width: 120px;"
             aria-labelledby="<%= key %>_end_at_label"
             data-tooltip />

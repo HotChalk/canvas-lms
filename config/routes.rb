@@ -558,11 +558,6 @@ CanvasRails::Application.routes.draw do
     get 'resources' => 'resources#index', as: :resources_links_index
     put 'resources' => 'resources#update'
 
-    get 'helpsetup' => 'helpsetup#index', as: :helpsetup_index
-    put 'helpsetup' => 'helpsetup#update'
-    delete 'helpsetup' => 'helpsetup#delete'
-
-
     get :avatars
     get :sis_import
     resources :sis_imports, only: [:create, :show, :index], controller: :sis_imports_api

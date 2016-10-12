@@ -74,11 +74,7 @@ module Api::V1::StreamItem
         hash['conversation_id'] = stream_item.asset_id
         hash['private'] = data.private
         hash['participant_count'] = data.participant_count
-        hash['sender'] = prepare_user(stream_item.asset.conversation_messages[0].author)
-        hash['first_message'] = stream_item.asset.conversation_messages[0]
         hash['html_url'] = conversation_url(stream_item.asset_id)
-        participant = @current_user.conversation_participant(stream_item.asset_id)
-        hash['read_state'] = participant.read?
       when 'Message'
         hash['message_id'] = stream_item.asset_id
         # this type encompasses a huge number of different types of messages,
@@ -260,11 +256,5 @@ module Api::V1::StreamItem
       end
     end
     [total_counts, unread_counts]
-  end
-
-  def prepare_user(user)
-    res = user.attributes.slice('id', 'name', 'short_name')
-    res['short_name'] ||= res['name']
-    res
   end
 end
