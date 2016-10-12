@@ -129,6 +129,7 @@ describe "calendar2" do
         it "should drag and drop event forward", priority: "1", test_id: 495538 do
           event1 = make_event(start: @initial_time, title: 'new week view event')
           get "/calendar2"
+          enable_all_contexts
           quick_jump_to_date(@initial_time_str)
 
           # Move event from Thursday to Friday
@@ -169,6 +170,7 @@ describe "calendar2" do
         it "should drag and drop event back", priority: "1", test_id: 567750 do
           event1 = make_event(start: @initial_time, title: 'new week view event')
           get "/calendar2"
+          enable_all_contexts
           quick_jump_to_date(@initial_time_str)
 
           # Move event from Thursday to Monday
@@ -206,6 +208,7 @@ describe "calendar2" do
 
           event = make_event(start: @initial_time)
           load_month_view
+          enable_all_contexts
           quick_jump_to_date(@initial_time_str)
 
           drag_and_drop_element(f('.calendar .fc-event'), fj("#minical .fc-day-number[data-date=#{@one_day_later_str}]"))
@@ -348,6 +351,7 @@ describe "calendar2" do
         make_event(start: eventStart)
 
         get "/calendar2"
+        enable_all_contexts
         expect(f('#content')).not_to contain_css('.fc-event')
         eventStartText = eventStart.strftime("%Y %m %d")
         quick_jump_to_date(eventStartText)
@@ -402,6 +406,7 @@ describe "calendar2" do
         location_address = "cottonwood"
         make_event(:location_name => location_name, :location_address => location_address)
         load_month_view
+        enable_all_contexts
 
         #Click calendar item to bring up event summary
         find(".fc-event").click

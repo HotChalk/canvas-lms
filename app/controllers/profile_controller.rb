@@ -160,12 +160,6 @@ class ProfileController < ApplicationController
     end
 
     @user ||= @current_user
-    @channels = @user.communication_channels.unretired
-    @email_channels = @channels.select{|c| c.path_type == "email"}
-    @sms_channels = @channels.select{|c| c.path_type == 'sms'}
-    @other_channels = @channels.select{|c| c.path_type != "email"}
-    @default_email_channel = @email_channels.first
-
     @active_tab = "profile"
     @context = @user.profile if @user == @current_user
 
@@ -393,9 +387,7 @@ class ProfileController < ApplicationController
     @profile = @user.profile
     @context = @profile
 
-    name = params[:user] && params[:user][:name]
-    short_name = params[:user_profile] && params[:user_profile][:short_name]
-    @user.name = name if name && @user.user_can_edit_name?
+    short_name = params[:user] && params[:user][:short_name]
     @user.short_name = short_name if short_name && @user.user_can_edit_name?
     if params[:user_profile]
       params[:user_profile].delete(:title) unless @user.user_can_edit_name?

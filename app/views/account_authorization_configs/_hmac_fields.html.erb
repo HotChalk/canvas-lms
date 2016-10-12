@@ -7,6 +7,6 @@
   <%= f.text_field :hmac_timestamp_range, class: 'ic-Input' %>
 </div>
 <div class="ic-Form-control">
-  <%= f.label :log_in_url, t('Login URL'), class: 'ic-Label' %>
-  <%= f.text_field :log_in_url, class: 'ic-Input' %>
+  <%= f.label :hmac_log_in_url, t('Login URL'), class: 'ic-Label' %>
+  <%= f.text_field :log_in_url, class: 'ic-Input', id: :authentication_provider_hmac_log_in_url %>
 </div>

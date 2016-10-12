@@ -227,8 +227,6 @@ class Account < ActiveRecord::Base
   add_setting :author_email_in_notifications, boolean: true, root_only: true, default: false
   add_setting :include_students_in_global_survey, boolean: true, root_only: true, default: false
   add_setting :trusted_referers, root_only: true
-  add_setting :help_link, :default => true
-  add_setting :help_setup_links, :default => true
   add_setting :app_center_access_token
 
   add_setting :strict_sis_check, :boolean => true, :root_only => true, :default => false
@@ -297,17 +295,6 @@ class Account < ActiveRecord::Base
   def mfa_settings
     settings[:mfa_settings].try(:to_sym) || :disabled
   end
-
-  def help_link(link=HELP_LINK_DEFAULT)
-    settings[:help_link] = link
-    self.save!
-  end
-
-  def help_setup_links(obj)
-    settings[:help_setup_links] = obj
-    self.save!
-  end
-
 
   def non_canvas_auth_configured?
     authentication_providers.active.where("auth_type<>'canvas'").exists?
@@ -1416,7 +1403,6 @@ class Account < ActiveRecord::Base
   TAB_SEARCH = 18
   TAB_BRAND_CONFIGS = 19
   TAB_RESOURCES = 20
-  TAB_HELP_SETUP_LINKS = 21
 
   # site admin tabs
   TAB_PLUGINS = 14
@@ -1464,7 +1450,6 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
       tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
-      tabs << { :id => TAB_HELP_SETUP_LINKS, :label => t('#account.tab_help_setup', "Help Setup"), :css_class => 'help_setup', :href => :account_helpsetup_path} if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
       tabs << { :id => TAB_TERMS, :label => t('#account.tab_terms', "Terms"), :css_class => 'terms', :href => :account_terms_path } if self.root_account? && manage_settings
       tabs << { :id => TAB_AUTHENTICATION, :label => t('#account.tab_authentication', "Authentication"), :css_class => 'authentication', :href => :account_authentication_providers_path } if self.root_account? && manage_settings

@@ -22,6 +22,7 @@ describe "calendar2" do
         it "should add the event class to days with events" do
           c = make_event
           get "/calendar2"
+          enable_all_contexts
 
           events = ff("#minical .event")
           expect(events.size).to eq 1
@@ -122,6 +123,7 @@ describe "calendar2" do
         it "should show undated events after clicking link", priority: "1", test_id: 138847 do
           e = make_event :start => nil, :title => "pizza party"
           get "/calendar2"
+          enable_all_contexts
 
           f("#undated-events-button").click
           wait_for_ajaximations
@@ -133,6 +135,7 @@ describe "calendar2" do
         it "should truncate very long undated event titles" do
           make_event :start => nil, :title => "asdfjkasldfjklasdjfklasdjfklasjfkljasdklfjasklfjkalsdjsadkfljasdfkljfsdalkjsfdlksadjklsadjsadklasdf"
           get "/calendar2"
+          enable_all_contexts
 
           f("#undated-events-button").click
           wait_for_ajaximations

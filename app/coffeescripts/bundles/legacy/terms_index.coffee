@@ -67,7 +67,7 @@ require [
           # and designer roles without an overridden start date allow access from the dawn of time. The logic
           # implementing this is in EnrollmentTerm#enrollment_dates_for.
           if override.start_at
-            start_string = $.dateTimeString(override.start_at)
+            start_string = $.datetimeString(override.start_at)
           else if type_string == "student_enrollment"
             start_string = I18n.t("term start")
           else

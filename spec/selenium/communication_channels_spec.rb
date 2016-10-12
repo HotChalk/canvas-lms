@@ -61,7 +61,7 @@ describe "communication channel selenium tests" do
       f('.email_channels .path').click
       Notification.create!(name: 'Confirm Email Communication Channel', category: 'Registration')
       f('#confirm_email_channel .re_send_confirmation_link').click
-      expect(Message.last.subject).to eq('Confirm Email: Canvas')
+      expect(Message.last.subject).to eq('Confirm Email: HotChalk Ember')
       url = Message.last.url
 
       # get the registration id from the url

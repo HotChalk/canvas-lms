@@ -12,6 +12,7 @@ define [
   'compiled/views/content_migrations/ConverterViewControl'
   'compiled/views/content_migrations/ZipFilesView'
   'compiled/views/content_migrations/CopyCourseView'
+  'compiled/views/content_migrations/HotchalkPackageView'
   'compiled/views/content_migrations/MoodleZipView'
   'compiled/views/content_migrations/CanvasExportView'
   'compiled/views/content_migrations/QTIZipView'
@@ -20,6 +21,7 @@ define [
   'compiled/views/content_migrations/subviews/SelectContentCheckboxView'
   'compiled/views/content_migrations/subviews/QuestionBankView'
   'compiled/views/content_migrations/subviews/CourseFindSelectView'
+  'compiled/views/content_migrations/subviews/HotchalkCourseSelectView'
   'compiled/views/content_migrations/subviews/DateShiftView'
   'compiled/views/content_migrations/subviews/DaySubstitutionView'
   'jst/content_migrations/ProgressingContentMigrationCollection'
@@ -42,6 +44,7 @@ define [
     ConverterViewControl,
     ZipFilesView,
     CopyCourseView,
+    HotchalkPackageView,
     MoodleZipView,
     CanvasExportView,
     QTIZipView,
@@ -50,6 +53,7 @@ define [
     SelectContentCheckboxView,
     QuestionBankView,
     CourseFindSelectView,
+    HotchalkCourseSelectView,
     DateShiftView,
     DaySubView,
     progressingMigrationCollectionTemplate,
@@ -136,6 +140,12 @@ define [
                                 oldStartDate: ENV.OLD_START_DATE
                                 oldEndDate: ENV.OLD_END_DATE
 
+  ConverterViewControl.register
+    key: 'hotchalk'
+    view: new HotchalkPackageView
+            hotchalkCourseSelect: new HotchalkCourseSelectView
+                                    model: ConverterViewControl.getModel()
+                                    rootAccountId: ENV.ROOT_ACCOUNT_ID
 
   ConverterViewControl.register
     key: 'moodle_converter'

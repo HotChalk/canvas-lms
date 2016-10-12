@@ -5,7 +5,7 @@ module Api::V1
                          grading_standard_id root_account_id).freeze
 
     INCLUDE_CHECKERS = {grading: 'needs_grading_count', syllabus: 'syllabus_body',
-                        url: 'html_url', description: 'public_description', permissions: 'permissions', state_by_date: 'state_by_date'}.freeze
+                        url: 'html_url', description: 'public_description', permissions: 'permissions'}.freeze
 
     OPTIONAL_FIELDS = %w(needs_grading_count public_description enrollments).freeze
 
@@ -111,23 +111,6 @@ module Api::V1
         enrollment_hash.merge!(total_scores(enrollment))
         enrollment_hash.merge!(grading_period_scores[enrollment.id]) if include_current_grading_period_scores?
       end
-
-      if include_state_by_date && enrollment.student?
-        state_by_date = 'hidden'
-        state = enrollment.state_based_on_date
-        if [:completed, :rejected].include?(state)
-          state_by_date = 'past' unless enrollment.workflow_state == "invited" || enrollment.restrict_past_view?
-        else
-          start_at, end_at = enrollment.enrollment_dates.first
-          if start_at && start_at > Time.now.utc
-            state_by_date = 'future' unless enrollment.restrict_future_view?
-          elsif state != :inactive
-            state_by_date = 'current'
-          end
-        end
-        enrollment_hash.merge!({:state_by_date => state_by_date})
-      end
-
       enrollment_hash
     end
 
