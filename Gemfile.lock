@@ -513,6 +513,7 @@ GEM
       json
     daemons (1.2.4)
     diff-lcs (1.2.5)
+    diffy (3.1.0)
     diplomat (0.15.0)
       faraday (~> 0.9)
       json (~> 1.8)
@@ -965,6 +966,7 @@ DEPENDENCIES
   crack (= 0.4.3)
   crocodoc-ruby (= 0.0.1)
   csv_diff!
+  diffy (= 3.1.0)
   diigo!
   diplomat (= 0.15.0)
   docile (= 1.1.3)

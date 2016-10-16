@@ -1,14 +1,24 @@
+require 'optparse'
+
 namespace :canvas do
   namespace :domain do
-    desc 'List all references to a domain name in the database.'
-    task :query, [ :domain ] => :environment do |t, args|
-      domain_regex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/
-      domain = args[:domain]
-      unless domain_regex.match domain
-        puts "Invalid domain name!"
-        return
+    desc 'List or replace all references to a domain name in the database.'
+    task :query => :environment do
+      option_parser = OptionParser.new
+      option_parser.banner = "Usage: rake canvas:domains:query [options]"
+      option_parser.on("-s", "--search-domain {domain name}", "Search domain name") do |search_domain|
+        @search_domain = search_domain
       end
-      DomainValidator.queue(domain)
+      option_parser.on("-r", "--replace-domain {domain name}", "Replace domain name") do |replace_domain|
+        @replace_domain = replace_domain
+      end
+      option_parser.on("-d", "--[no]-debug", "Show debug info in output log") do |debug|
+        @debug = debug
+      end
+      args = option_parser.order!(ARGV) {}
+      option_parser.parse!(args)
+      validator = DomainValidator.new(@search_domain, @replace_domain, @debug)
+      validator.check_all
     end
   end
 end
