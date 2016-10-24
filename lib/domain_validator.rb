@@ -57,7 +57,6 @@ class DomainValidator
     begin
       Account.site_admin.transaction do
         SEARCH_FIELDS.each_key {|model_class| check_class(model_class, SEARCH_FIELDS[model_class])}
-        raise "Rollback"
       end
     rescue Exception => e
       Rails.logger.error "[DOMAIN-VALIDATOR] Domain validation failed: #{e.inspect}"

@@ -12,7 +12,7 @@ namespace :canvas do
       option_parser.on("-r", "--replace-domain {domain name}", "Replace domain name") do |replace_domain|
         @replace_domain = replace_domain
       end
-      option_parser.on("-d", "--[no]-debug", "Show debug info in output log") do |debug|
+      option_parser.on("-d", "--[no-]debug", "Show debug info in output log") do |debug|
         @debug = debug
       end
       args = option_parser.order!(ARGV) {}
