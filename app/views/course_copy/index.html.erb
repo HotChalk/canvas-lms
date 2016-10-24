@@ -14,14 +14,15 @@
     <div class="row">
         
         <div class="col-xs-7">
-            <h1>Course Copy Tool</h1>
+            <h1><%= t("Course Copy Tool") %></h1>
             
             <hr>
 
             <div class="panel panel-info">
-              <div class="panel-heading">Upload Course Import Sheet</div>              
+              <div class="panel-heading"><%= t("Upload Course Import Sheet") %></div>              
               <div class="panel-body">
-               Upload a course copy sheet using the format Column 1 Master course, Column 2 target course. A copy of the template can be found <a href="#">here</a> By checking "Adjust Due dates based on start and end date of target courses" the process will attempt to adjust the sequencing of assignment dates based on the start and end dates of the target courses. 
+               <%= t('Upload a course copy sheet using the format Column 1 Master course, Column 2 target course. A copy of the template can be found') %>
+               <a href="#"> <%= t('here')%></a> <%= t('By checking "Adjust Due dates based on start and end date of target courses" the process will attempt to adjust the sequencing of assignment dates based on the start and end dates of the target courses.') %>
               </div>
             </div>      
                            
@@ -29,7 +30,7 @@
               <div class="s_table">
                 <div class="s_table_cell">
                   <label class="btn btn-default btn_small" for="coursecopytoolFileUpload">
-                    <%= t :sourse_text, 'Browse' %>
+                    <%= t :browse, 'Browse' %>
                   </label>    
                 </div>
                 <div class="s_table_cell">
@@ -54,7 +55,7 @@
                 </div>
                 <div class="s_table_cell">
                   <%= link_to(account_course_copy_history_path) do %>
-                    <button type="button" class="btn btn-default">View History</button>
+                    <button type="button" class="btn btn-default"><%= t("View History") %></button>
                   <% end %>
                 </div>
               </div>              
@@ -64,12 +65,12 @@
 
         <div class="col-xs-7" id="">
           <div class="panel panel-info">
-            <div class="panel-heading">Processing Courses Spreadsheet</div>              
+            <div class="panel-heading"><%= t("Processing Courses Spreadsheet") %></div>              
             <div class="panel-body">
-             All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.
+              <%= t("All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.") %>             
              <ul>
-              <li><span class="label label-important">Error 401</span> There are issues with account access.</li>
-              <li><span class="label label-important">Error 404</span> Course ID is incorrect and cannot be found.</li>
+              <li><span class="label label-important">Error 401</span> <%= t("There are issues with account access.") %></li>
+              <li><span class="label label-important">Error 404</span> <%= t("Course ID is incorrect and cannot be found.") %></li>
              </ul>
              </div>
           </div>    

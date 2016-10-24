@@ -1,13 +1,13 @@
 define([
   'react',  
   "./ProgressItem",
-  "./ProgressItemError"
+  "./ProgressItemError"  
 ], (React, ProgressItem,ProgressItemError) => {
 
   var ProgressList = React.createClass({    
     render(){
       var renderItems = function(progress, index){
-        if (!progress.status){
+        if (progress.workflow_state === "failed"){
           return <ProgressItemError key={index} progress={progress} />  
         }
         else{

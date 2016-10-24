@@ -13,19 +13,19 @@
             
     <div class="row">
         <div class="col-xs-7" id="">
-          <h1>Course Copy Tool History</h1>
+          <h1><%= t("Course Copy Tool History") %></h1>
           
           <%= link_to(account_course_copy_index_path) do %>
-            <button type="button" class="btn btn-default">Back</button>
+            <button type="button" class="btn btn-default"><%= t("Back") %></button>
           <% end %>
           <br/>
           <div class="panel panel-info">
-            <div class="panel-heading">Processing Courses Spreadsheet</div>              
+            <div class="panel-heading"><%= t("Processing Courses Spreadsheet") %></div>              
             <div class="panel-body">
-             All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.
+              <%= t("All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.") %>             
              <ul>
-              <li><span class="label label-important">Error 401</span> There are issues with account access.</li>
-              <li><span class="label label-important">Error 404</span> Course ID is incorrect and cannot be found.</li>
+              <li><span class="label label-important">Error 401</span> <%= t("There are issues with account access.") %></li>
+              <li><span class="label label-important">Error 404</span> <%= t("Course ID is incorrect and cannot be found.")%> </li>
              </ul>
              </div>
           </div>    

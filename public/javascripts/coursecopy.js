@@ -29,8 +29,7 @@ define([
     }); 
   });
 
-  showProgress = function(){
-    console.log("# of migrations running...", ENV.content_migrations.length)
+  showProgress = function(){    
     if (ENV.content_migrations && ENV.content_migrations.length > 0){
       var obj_container = document.getElementById('progress_result');
       var contentMigrationList = React.createFactory(ContentMigrationList);
@@ -45,14 +44,13 @@ define([
     $.ajax({
       url: ENV.progress_url,
       type: "GET",
+      dataType: "json",
       data: {},
-      success: function(data) {
+      success: function(data) {        
         ENV.content_migrations = data;
         showProgress();
       },
-      error: function() {
-        console.log('error on ajax call...');
-      }
+      error: function() {}
     });    
   };
   
