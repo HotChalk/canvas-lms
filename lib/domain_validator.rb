@@ -55,9 +55,7 @@ class DomainValidator
   # Checks all relevant data points for references to the domain name supplied as an argument to this validator.
   def check_all
     begin
-      Account.site_admin.transaction do
-        SEARCH_FIELDS.each_key {|model_class| check_class(model_class, SEARCH_FIELDS[model_class])}
-      end
+      SEARCH_FIELDS.each_key {|model_class| check_class(model_class, SEARCH_FIELDS[model_class])}
     rescue Exception => e
       Rails.logger.error "[DOMAIN-VALIDATOR] Domain validation failed: #{e.inspect}"
     end
@@ -81,7 +79,13 @@ class DomainValidator
         new_value = old_value.gsub(/(?<prefix>(\/\/|%2F%2F))#{Regexp.quote(@search_domain)}/, ('\k<prefix>' + @replace_domain))
         next unless new_value != old_value
         Rails.logger.info "[DOMAIN-VALIDATOR] Replacing #{model_class.name}(#{id}).#{attr.to_s}:\n#{Diffy::Diff.new(old_value + "\n", new_value + "\n", :diff => '-U 0')}" if @debug
-        model_class.where(model_class.primary_key => id).update_all(attr => new_value)
+        begin
+          model_class.transaction do
+            model_class.where(model_class.primary_key => id).update_all(attr => new_value)
+          end
+        rescue Exception => e
+          Rails.logger.error "[DOMAIN-VALIDATOR] Domain replacement failed: #{e.inspect}"
+        end
       elsif old_value.match(@domain_regex)
         Rails.logger.info "[DOMAIN-VALIDATOR] Detected #{model_class.name}(#{id}).#{attr.to_s}: #{ActionView::Base.new.excerpt(old_value, @search_domain, :radius => 10)}" if @debug
       end
