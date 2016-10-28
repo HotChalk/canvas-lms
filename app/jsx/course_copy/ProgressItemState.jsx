@@ -15,6 +15,8 @@ define([
                 class_name =  "label-success";
               break;
               case "Processing":  
+              case "importing":  
+              case "exporting":  
                 class_name =  "label-warning";
               break;
               default:      

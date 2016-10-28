@@ -42,7 +42,7 @@ define([
           <div className="panel panel-info">
               <div className={class_style}>
                   <p className="panel-title">                  
-                    {I18n.t("Migration Details")} ...</p>
+                    {I18n.t("Migration started at")}: {created_at}</p>
                   <span className="pull-right clickable"><i className={icon}></i></span>
               </div>
               <div className="panel-body" style={{display:display_style}}>

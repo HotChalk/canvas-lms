@@ -9,7 +9,7 @@ class CourseCopyController < ApplicationController
 
   def index
     return unless authorized_action(@context, @current_user, :manage_content)
-    migrations = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['created', 'exporting','queued']    
+    migrations = ContentMigration.where(context_type: 'Account', context_id: @context.id, workflow_state: ['created', 'exporting','queued']).order('id desc')    
     js_env({
                :current_account => @context,
                :url => context_url(@context, :context_course_copy_index_url),
@@ -20,13 +20,18 @@ class CourseCopyController < ApplicationController
 
   def history
     return unless authorized_action(@context, @current_user, :manage_content)
-    cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['imported','failed']  
+    cm = ContentMigration.where("context_type = :context AND context_id = :context_id AND workflow_state in (:state) AND created_at >= :created ",
+                          :context => 'Account',
+                          :context_id => @context.id,
+                          :state => ['imported','failed'],
+                          :created => 1.month.ago.to_date).order('id desc')
+
     sync_migration_progresses(cm)
     js_env(:current_account => @context, :url => context_url(@context, :context_course_copy_history_url), :content_migrations => cm)
   end
 
   def progress
-    cm = ContentMigration.where context_type: 'Account', context_id: @context.id, workflow_state: ['created','exporting','queued'], migration_type: 'course_copy_tool_csv_importer'
+    cm = ContentMigration.where(context_type: 'Account', context_id: @context.id, workflow_state: ['created','exporting','queued'], migration_type: 'course_copy_tool_csv_importer').order('id desc')
     sync_migration_progresses(cm)
     render :json => cm
   end
@@ -87,8 +92,8 @@ class CourseCopyController < ApplicationController
         @content_migration.queue_migration(@plugin)
       end
     rescue Exception => e
-      flash[:error] = "Course copy tool failed. Please contact your system administrator."
-      logger.error "Unable to launch course copy: #{e.message}"
+      flash[:error] = "Course copy tool failed. Please contact your system administrator. #{e.message}"
+      logger.error "ERROR: Unable to launch course copy: #{e.message}"
     end
     return redirect_to context_url(@context, :context_course_copy_index_url)
   end
