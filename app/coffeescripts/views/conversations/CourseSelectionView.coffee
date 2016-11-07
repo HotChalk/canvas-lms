@@ -130,11 +130,14 @@ define [
     truncate_course: (course) =>
       name = course['name']
       truncated = @middle_truncate(name)
-      start_date = if _.isEmpty(course['start_at']) then null else $.dateString(course['start_at'], {format: 'medium'})
-      end_date = if _.isEmpty(course['end_at']) then null else $.dateString(course['end_at'], {format: 'medium'})
-      date_label = _.without([start_date, end_date], null).join(' - ')
-      date_label = ' (' + date_label + ')' unless _.isEmpty(date_label)
-      course['truncated_name'] = truncated + ' - ' + course['course_code'] + date_label
+      if course['start_at'] && course['end_at'] && course['course_code']
+        start_date = if _.isEmpty(course['start_at']) then null else $.dateString(course['start_at'], {format: 'medium'})
+        end_date = if _.isEmpty(course['end_at']) then null else $.dateString(course['end_at'], {format: 'medium'})
+        date_label = _.without([start_date, end_date], null).join(' - ')
+        date_label = ' (' + date_label + ')' unless _.isEmpty(date_label)
+        course['truncated_name'] = truncated + ' - ' + course['course_code'] + date_label
+      else
+        course['truncated_name'] = truncated
 
     middle_truncate: (name) ->
       if name.length > 25
