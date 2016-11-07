@@ -21,6 +21,16 @@ require File.expand_path(File.dirname(__FILE__) + '/../sharding_spec_helper')
 require 'csv'
 
 describe CourseCopyController do
+  def account_with_admin_logged_in(opts = {})
+    account_with_admin(opts)
+    user_session(@admin)
+  end
+
+  def account_with_admin(opts = {})
+    @account = opts[:account] || Account.default
+    account_admin_user(account: @account)
+  end
+
   def generate_file
     file = Tempfile.new("csv.csv")
     CSV.open(file, "wb") do |csv|
@@ -42,81 +52,48 @@ describe CourseCopyController do
     expect(response).to be_success
   end
 
-  describe "GET 'index'" do
-    it "should throw 404 error without a valid context id" do
-      get 'index'
-      assert_status(404)
-    end
+  context "get index" do
+    before(:once) { account_with_admin }
+    before(:each) { user_session(@admin) }
 
-    it "should return unauthorized without a valid session" do      
-      get 'index', account_id: @account
-      assert_unauthorized
-    end
-
-    it "should load index template" do
-      account_with_admin_logged_in
-      
-      get 'index', account_id: @account
-      expect(response).to be_success      
+    describe "GET 'index'" do
+      it "should load index template" do
+        account_with_admin_logged_in
+        
+        get 'index', account_id: @account
+        expect(response).to be_success      
+      end
     end
   end
 
-  describe "GET 'history'" do
-    it "should throw 404 error without a valid context id" do
-      get 'history'
-      assert_status(404)
-    end
+  context "get history" do
+    before(:once) { account_with_admin }
+    before(:each) { user_session(@admin) }
 
-    it "should return unauthorized without a valid session" do      
-      get 'history', account_id: @account
-      assert_unauthorized
-    end
-
-    it "should load index template" do
-      account_with_admin_logged_in
-      
-      get 'history', account_id: @account
-      expect(response).to be_success      
+    describe "GET 'history'" do
+      it "should load history template" do
+        account_with_admin_logged_in
+        
+        get 'history', account_id: @account
+        expect(response).to be_success      
+      end
     end
   end
 
-  describe "GET 'progress'" do
-    it "should throw 404 error without a valid context id" do
-      get 'progress', format: :json
-      assert_status(404)
+  context "get progress" do
+    before(:once) { account_with_admin }
+    before(:each) { user_session(@admin) }
+
+    describe "GET 'progress'" do
+      it "should get progress data" do
+        account_with_admin_logged_in
+        
+        get 'progress', account_id: @account, format: :json
+        json = json_parse(response.body)
+        expect(response).to be_success
+        # expect(json).to have_key 'cm'   
+      end
     end
-
-    it "should return unauthorized without a valid session" do      
-      get 'progress', account_id: @account, format: :json
-      assert_unauthorized
-    end
-
-    it "should load index template" do
-      account_with_admin_logged_in
-      
-      get 'progress', account_id: @account, format: :json
-      json = json_parse(response.body)
-      expect(response).to be_success
-      expect(json).to have_key 'cm'      
-    end
-  end
-
-  describe "POST 'create'" do
-    it "should require authorization" do      
-      post 'create', account_id: @account
-      assert_unauthorized
-    end
-
-    it 'must have a file selected' do
-      post 'create', account_id: @account
-      expect(assigns[:file]).not_to be_nil      
-      expect(flash[:error]).not_to be_nil
-    end
-
-    it "should accept a valid csv upload" do
-      check_create_response
-    end
-
-  end
-
+  end  
+  
 end
