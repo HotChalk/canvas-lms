@@ -558,6 +558,11 @@ CanvasRails::Application.routes.draw do
     get 'resources' => 'resources#index', as: :resources_links_index
     put 'resources' => 'resources#update'
 
+    get 'course_copy' => 'course_copy#index', as: :course_copy_index
+    get 'course_copy/progress' => 'course_copy#progress', as: :course_copy_progress
+    get 'course_copy/history' => 'course_copy#history', as: :course_copy_history
+    post 'course_copy' => 'course_copy#create'
+    
     get :avatars
     get :sis_import
     resources :sis_imports, only: [:create, :show, :index], controller: :sis_imports_api

@@ -1,0 +1,132 @@
+@import "base/environment";
+
+.ckb_copy {
+  margin-top: 10px;
+  margin-bottom: 10px;
+ }
+
+.explain{
+	border: solid 1px #D5E8F5;
+	border-radius: 5px;
+	width: 100%;	
+}
+.e_title{
+	background-color: #D5E8F5;
+	height: 30px;
+	line-height: 30px;
+	padding-top:10px;
+	padding-bottom: 10px; 
+	width: 100%;
+	white-space: nowrap;
+	color: #6E91BB;
+}
+.txt{
+	margin-left: 10px;
+	width: 95%;
+    text-align: justify;
+}
+.e_description{	
+	padding-top: 10px;
+	padding-bottom: 10px;
+	line-height: 140%;
+}
+.e_description a{
+	text-decoration: blink;
+	color: #6E91BB;
+}
+
+.panel {
+    margin-bottom: 20px;
+    background-color: #fff;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    -webkit-box-shadow: 0 1px 1px rgba(0,0,0,.05);
+    box-shadow: 0 1px 1px rgba(0,0,0,.05);
+}
+
+.panel-info {
+    border-color: #bce8f1;    
+}
+
+.panel-info>.panel-heading {
+    color: #31708f;
+    background-color: #d9edf7;
+    border-color: #bce8f1;
+}
+
+.panel-heading {
+    padding: 1px 15px;
+    border-bottom: 1px solid transparent;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+}
+
+.panel-body {
+    padding: 15px;
+}
+
+.btn_small{
+	width:75px;
+}
+
+.btn-default {
+    color: #333;
+    background-color: #fff;
+    border-color: #ccc;
+}
+.s_table{
+	display:table;
+}
+.s_table_cell{
+	display:table-cell;
+}
+.csvinputfile {
+	width: 0.1px;
+	height: 0.1px;
+	opacity: 0;
+	overflow: hidden;
+	position: absolute;
+	z-index: -1;
+}
+.choose_file{
+	margin: 10px;
+    width: 200px;
+}
+._row{
+	width:100%;
+	display:table;
+
+	.subtitle{
+		font-weight: bold;
+	}
+}
+._col{
+	display:table-cell;
+}
+
+
+.clickable
+{
+    cursor: pointer;
+}
+
+.clickable .glyphicon
+{
+    background: rgba(0, 0, 0, 0.15);
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 4px
+}
+
+.panel-heading span
+{
+    margin-top: -32px;
+    font-size: 15px;
+    margin-right: 0px;
+}
+a.clickable { color: inherit; }
+a.clickable:hover { text-decoration:none; }
+
+.well{
+	 padding: 10px 0px 10px 0px;
+}
