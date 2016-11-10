@@ -158,3 +158,5 @@ gem 'newrelic_rpm', '3.12.0.288'
 gem "lograge", '0.4.1'
 # Rack CORS middleware
 gem 'rack-cors', '0.4.0', require: 'rack/cors'
+# String diff utility used by domain search tool
+gem 'diffy', '3.1.0'

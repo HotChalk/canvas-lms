@@ -1,0 +1,83 @@
+<% add_crumb t('titles.course_copy', "Course Copy") %>
+<% @active_tab = "course_copy" %>
+<% content_for :page_title do %><%= t('titles.course_copy', 'Course Copy') %><% end %>
+
+<% content_for :right_side do %>
+<%= render :partial => 'shared/accounts_right_side_shared' %>
+<% end %>
+
+<% css_bundle :coursecopy %>
+<% js_bundle :coursecopy %>
+
+<div class="container">
+            
+    <div class="row">
+        
+        <div class="col-xs-7">
+            <h1><%= t("Course Copy Tool") %></h1>
+            
+            <hr>
+
+            <div class="panel panel-info">
+              <div class="panel-heading"><%= t("Upload Course Import Sheet") %></div>              
+              <div class="panel-body">
+               <%= t('Upload a course copy sheet using the format Column 1 Master course, Column 2 target course. A copy of the template can be found') %>
+               <a href="https://s3.amazonaws.com/hotchalklearn-assets/csv/course_copy_default.csv"> <%= t('here')%></a> <%= t('By checking "Adjust Due dates based on start and end date of target courses" the process will attempt to adjust the sequencing of assignment dates based on the start and end dates of the target courses.') %>
+              </div>
+            </div>      
+                           
+            <%= form_tag({action: :create}, multipart: true, :html => {:'data-type' => 'json'}, :id => "frm_start") do %>
+              <div class="s_table">
+                <div class="s_table_cell">
+                  <label class="btn btn-default btn_small" for="coursecopytoolFileUpload">
+                    <%= t :browse, 'Browse' %>
+                  </label>    
+                </div>
+                <div class="s_table_cell">
+                  <%= file_field_tag 'file', accept: 'text/csv', class: 'csvinputfile', id: 'coursecopytoolFileUpload'%>
+                </div>
+                <div class="s_table_cell">
+                  <span id="input_file" class="choose_file"></span>
+                </div>
+              </div>              
+              <div class="checkbox ckb_copy">
+                <label>
+                  <%=  check_box_tag 'due_dates'  %>
+                  <%= t('copy_tool_adjust_dates', 'Adjust Due dates based on start and end date of target courses') %>
+                </label>
+              </div>
+              <br/>  
+              <div class="s_table">
+                <div class="s_table_cell">
+                  <a href="importing.html">
+                    <%= submit_tag t(:start_copy, "Start Course Copy"), class: 'btn btn-primary' %>
+                  </a>  
+                </div>
+                <div class="s_table_cell">
+                  <%= link_to(account_course_copy_history_path) do %>
+                    <button type="button" class="btn btn-default"><%= t("View History") %></button>
+                  <% end %>
+                </div>
+              </div>              
+            <% end %>
+
+        </div>
+
+        <div class="col-xs-7" id="">
+          <div class="panel panel-info">
+            <div class="panel-heading"><%= t("Processing Courses Spreadsheet") %></div>              
+            <div class="panel-body">
+              <%= t("All courses below are queued to copy. The courses display the name, code, and section. Under the course name is the master number from which the cotent will be copied. The new start and end date appear in the second column and the master dates appear under to confirm the correct translation. The copy state can be seen in the third column. Courses may also display errors in the third column.") %>             
+             <ul>
+              <li><span class="label label-important">Error 401</span> <%= t("There are issues with account access.") %></li>
+              <li><span class="label label-important">Error 404</span> <%= t("Course ID is incorrect and cannot be found.") %></li>
+             </ul>
+             </div>
+          </div>    
+        </div>             
+
+       <div class="col-xs-7" id="progress_result">
+         
+       </div>             
+    </div>
+</div>
