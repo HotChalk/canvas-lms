@@ -688,7 +688,7 @@ class AccountsController < ApplicationController
       @external_integration_keys = ExternalIntegrationKey.indexed_keys_for(@account)
 
       js_env({
-        CUSTOM_HELP_LINKS: @domain_root_account && @domain_root_account.help_links || [],
+        CUSTOM_HELP_LINKS: @account && @account.help_links || [],
         DEFAULT_HELP_LINKS: Canvas::Help.default_links,
         APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
         LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
