@@ -42,14 +42,14 @@ describe CourseCopyController do
   end  
 
   def upload_csv_file_import(file)
-    data = Rack::Test::UploadedFile.new(file.path, 'text/csv', true)
-    post 'create', account_id: @account, file: data
+    data = Rack::Test::UploadedFile.new(file.path, 'text/csv', true)    
+    post 'create', account_id: @account, :file => data
   end
 
-  def check_create_response
+  def check_create_migration_response
     file = generate_file
     upload_csv_file_import(file)
-    expect(response).to be_success
+    expect(response).to redirect_to :action => :index, :account_id => @account
   end
 
   context "get index" do
@@ -62,8 +62,8 @@ describe CourseCopyController do
         
         get 'index', account_id: @account
         expect(response).to be_success      
-      end
-    end
+      end      
+    end    
   end
 
   context "get history" do
@@ -90,10 +90,29 @@ describe CourseCopyController do
         
         get 'progress', account_id: @account, format: :json
         json = json_parse(response.body)
-        expect(response).to be_success
-        # expect(json).to have_key 'cm'   
+        expect(response).to be_success        
       end
     end
   end  
-  
+
+  context "create a new migration" do
+    before(:once) { account_with_admin }
+    before(:each) { user_session(@admin) }
+
+    describe "POST 'create'" do
+      
+      it 'must have a file selected' do
+        post 'create', account_id: @account, :file => nil
+        expect(assigns[:file]).to be_nil      
+        expect(flash[:error]).not_to be_nil
+      end
+
+      it "should accept a valid csv upload and create a new migration" do
+        account_with_admin_logged_in
+        check_create_migration_response
+      end
+
+    end
+  end
+
 end
