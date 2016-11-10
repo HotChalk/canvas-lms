@@ -1034,18 +1034,20 @@ module ApplicationHelper
 
   def include_google_analytics
     snippet = ""
+    @analytics_id = 'UA-52928316-1'
     @external_web_tools_config ||= ConfigFile.load('external_web_tools')
     if @external_web_tools_config['enable_google_analytics']
-      snippet = %[<script>
+      @analytics_id = @external_web_tools_config[:analytics_id] if @external_web_tools_config[:analytics_id]
+      snippet = (%[<script>
           (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
           (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
           m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
           })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-          ga('create', 'UA-52928316-1', 'auto');
+          ga('create', 'analytics_id', 'auto');
           ga('send', 'pageview');
         </script>
-        ]
-    end
+        ]).sub('analytics_id', @analytics_id)  
+    end    
     snippet.html_safe
   end
 
@@ -1070,17 +1072,19 @@ module ApplicationHelper
 
   def include_google_tag_manager
     snippet = ""
+    @tag_manager_id = 'GTM-K3GZPD'
     @external_web_tools_config ||= ConfigFile.load('external_web_tools')
     if @external_web_tools_config['enable_google_tag_manager']
-      snippet = %[
-        <noscript><iframe src="//www.googletagmanager.com/ns.html?id=GTM-K3GZPD"
+      @tag_manager_id = @external_web_tools_config[:tag_manager_id] if @external_web_tools_config[:tag_manager_id]
+      snippet = (%[
+        <noscript><iframe src="//www.googletagmanager.com/ns.html?id=tag_manager_id"
         height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
         new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
         j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
         '//www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','GTM-K3GZPD');</script>
-    ]
+        })(window,document,'script','dataLayer','tag_manager_id');</script>
+    ]).gsub('tag_manager_id', @tag_manager_id)  
     end
     snippet.html_safe
   end
