@@ -9,11 +9,11 @@ define([
         <div className="_row well">
           <div className="_col col-xs-7">          
               <div className="_row">
-                <span className="subtitle">{I18n.t('Master')}: </span> <a href="#" target="_blank">{this.props.progress.master_id}</a>
+                <span className="subtitle">{I18n.t('Target')}: </span> <span>{this.props.progress.target_id}</span>
               </div>
               <div className="_row">
-                <span className="subtitle">{I18n.t('Target')}: </span> <a href="#" target="_blank">{this.props.progress.target_id}</a>
-              </div>
+                <span className="subtitle">{I18n.t('Master')}: </span> <span>{this.props.progress.master_id}</span>
+              </div>              
               <div className="_row">
                 <div className="_col"><span className="subtitle">{I18n.t('Message')}: </span>{this.props.progress.error_msg} </div>                
               </div>
