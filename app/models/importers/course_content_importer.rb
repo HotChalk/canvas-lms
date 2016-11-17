@@ -241,6 +241,9 @@ module Importers
 
     def self.import_settings_from_migration(course, data, migration)
       return unless data[:course]
+      # get the external urls
+      # course_aux = Course.find_by course_code: data[:course][:course_code]
+      # data[:course][:dynamic_tab_configuration] = course_aux[:dynamic_tab_configuration]      
       settings = data[:course]
       if settings[:tab_configuration] && settings[:tab_configuration].is_a?(Array)
         tab_config = []
@@ -291,6 +294,8 @@ module Importers
       if settings[:lock_all_announcements]
         Announcement.lock_from_course(course)
       end
+      # set the external urls
+      # course.dynamic_tab_configuration = settings[:dynamic_tab_configuration] if settings[:dynamic_tab_configuration]
     end
 
     def self.shift_date_options(course, options={})
