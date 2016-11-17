@@ -36,16 +36,20 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
     end
   end
 
+  def getCourseUrl(id)    
+    "/courses/#{id}"
+  end
+
   def process_csv_row(row, cm)
     result = {}
     begin
       result.merge!({:master_id => row[0], :target_id => row[1]})
       validate_csv_row(row)      
       master = Course.find(row[0])      
-      result.merge!({:master_name => master.name, :master_code_id => master.course_code, :master_section_name => master.default_section.section_code})
+      result.merge!({:master_name => master.name, :master_code_id => master.course_code, :master_section_name => master.default_section.section_code, :master_url => getCourseUrl(row[0])})
       
       target = Course.find(row[1])
-      result.merge!({:target_name => target.name, :target_code_id => target.course_code, :target_section_name => target.default_section.section_code})
+      result.merge!({:target_name => target.name, :target_code_id => target.course_code, :target_section_name => target.default_section.section_code, :target_url => getCourseUrl(row[1])})
 
       date_shift_options = {:shift_dates => (cm.migration_settings[:due_dates] == '1')}
       
