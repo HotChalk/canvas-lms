@@ -414,7 +414,7 @@ Canvas::Plugin.register('live_events', nil, {
 })
 require_dependency 'canvas/plugins/address_book'
 require_dependency 'canvas/migration/worker/course_copy_tool_csv_file_worker'
-Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
+Canvas::Plugin.register 'course_copy_tool_csv_importer', {
     :name => lambda { I18n.t :copy_tool_csv_file_name, 'Course Copy Tool' },
     :display_name => lambda { I18n.t :copy_tool_csv_file_display, 'Copy Tool Import' },
     :author => 'Hotchalk',
@@ -422,7 +422,6 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
     :description => lambda { I18n.t :csv_file_description, 'Migration plugin for copy multiple course to course, using csv file loaded with master ids and target ids.' },
     :version => '1.0.0',
     :select_text => lambda { I18n.t :csv_file_file_description, "Hotchalk Course Copy Tool" },
-    # :sort_order => 2,
     :settings => {
         :worker => 'CourseCopyToolCsvFileWorker',
         :requires_file_upload => true,
@@ -432,4 +431,23 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
         :valid_contexts => %w(Account)
     },
     :settings_partial => 'plugins/course_copy_tool_csv_file'    
+}
+# require_dependency 'canvas/migration/worker/course_copy_tool_csv_file_worker'
+Canvas::Plugin.register 'course_group_copy_importer', :export_system, {
+    :name => lambda { I18n.t :group_copy_name, 'Course Group Copy' },
+    :display_name => lambda { I18n.t :group_copy_display, 'Course Groups Copy Importer' },
+    :author => 'Hotchalk',
+    :author_website => 'http://www.hotchalk.com',
+    :description => lambda { I18n.t :group_copy_description, 'Import Groups from a source course to a target course.' },
+    :version => '1.0.0',
+    :select_text => lambda { I18n.t :group_copy_select_text, "Hotchalk Import Master Groups" },
+    # :sort_order => 1,
+    :settings => {
+        :worker => 'CourseGroupsCopyWorker',
+        :requires_file_upload => false,
+        :no_selective_import => true,
+        # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,
+        :valid_contexts => %w(Course)
+    },
+    # :settings_partial => 'plugins/course_group_copy'
 }

@@ -141,6 +141,14 @@ define [
                                 oldEndDate: ENV.OLD_END_DATE
 
   ConverterViewControl.register
+    key: 'course_group_copy'
+    view: new CopyCourseView
+            courseFindSelect: new MasterCourseFindSelectView
+                                current_user_id: ENV.current_user_id
+                                model: MasterConverterViewControl.getModel()
+                                show_select: ENV.SHOW_SELECT
+                              
+  ConverterViewControl.register
     key: 'hotchalk'
     view: new HotchalkPackageView
             hotchalkCourseSelect: new HotchalkCourseSelectView
