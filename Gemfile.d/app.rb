@@ -160,3 +160,5 @@ gem "lograge", '0.4.1'
 gem 'rack-cors', '0.4.0', require: 'rack/cors'
 # String diff utility used by domain search tool
 gem 'diffy', '3.1.0'
+# Email parser used for incoming mail
+gem 'extended_email_reply_parser', '0.5.0'

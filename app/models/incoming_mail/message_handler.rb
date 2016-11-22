@@ -15,6 +15,7 @@
 # You should have received a copy of the GNU Affero General Public License along
 # with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+require 'lib/ember_html_mails'
 
 module IncomingMail
   class MessageHandler
@@ -27,6 +28,10 @@ module IncomingMail
       # that was sent out because of a notification.
       raise IncomingMail::Errors::SilentIgnore unless original_message && original_message.notification_id
       raise IncomingMail::Errors::SilentIgnore unless valid_secure_id?(original_message_id, secure_id)
+
+      # Parse reply text from the body
+      body = ExtendedEmailReplyParser.parse(body)
+      html_body = ExtendedEmailReplyParser.parse(html_body)
 
       from_channel = nil
       original_message.shard.activate do
