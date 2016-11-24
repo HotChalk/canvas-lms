@@ -7,9 +7,10 @@ const STUFF_TO_REV = [
   'public/fonts/**/*',
   'public/images/**/*',
 
-  // We javascript_include_tag('require.js') directly from rails
+  // These are things we javascript_include_tag(...) directly from rails
   'public/javascripts/vendor/require.js',
   'public/optimized/vendor/require.js',
+  'public/javascripts/vendor/ie11-polyfill.js',
 
   // But for all other javascript, we only load stuff using js_bundle.
   // Meaning that we only include stuff in the "bundles" dir from rails.
@@ -38,7 +39,7 @@ const STUFF_TO_REV = [
 ]
 
 
-gulp.task('rev', () => {
+gulp.task('rev', function(){
   var stuffToRev = STUFF_TO_REV;
   if(process.env.SKIP_JS_REV){
     // just get fonts and images
@@ -54,7 +55,7 @@ gulp.task('rev', () => {
   .pipe(gulp.dest(DIST))
 })
 
-gulp.task('watch', () => {
+gulp.task('watch', function(){
   gulp.watch(STUFF_TO_REV, ['rev'])
 })
 

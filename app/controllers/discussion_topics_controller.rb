@@ -264,6 +264,10 @@ class DiscussionTopicsController < ApplicationController
   # @argument search_term [String]
   #   The partial title of the discussion topics to match and return.
   #
+  # @argument exclude_context_module_locked_topics [Boolean]
+  #   For students, exclude topics that are locked by module progression.
+  #   Defaults to false.
+  #
   # @example_request
   #     curl https://<canvas>/api/v1/courses/<course_id>/discussion_topics \
   #          -H 'Authorization: Bearer <token>'
@@ -317,6 +321,10 @@ class DiscussionTopicsController < ApplicationController
 
     @topics = Api.paginate(scope, self, topic_pagination_url)
 
+    if params[:exclude_context_module_locked_topics]
+      @topics = DiscussionTopic.reject_context_module_locked_topics(@topics, @current_user)
+    end
+
     if states.present?
       @topics.reject! { |t| t.locked_for?(@current_user) } if states.include?('unlocked')
       @topics.select! { |t| t.locked_for?(@current_user) } if states.include?('locked')
@@ -349,6 +357,7 @@ class DiscussionTopicsController < ApplicationController
                 },
                 :discussion_topic_menu_tools => external_tools_display_hashes(:discussion_topic_menu)
         }
+        conditional_release_js_env(includes: :active_rules)
         append_sis_data(hash)
         js_env(hash)
 
@@ -443,7 +452,7 @@ class DiscussionTopicsController < ApplicationController
         }
         js_hash['VALID_DATE_RANGE'] = CourseDateRange.new(@context)
       end
-      js_hash[:CANCEL_REDIRECT_URL] = cancel_redirect_url
+      js_hash[:CANCEL_TO] = cancel_redirect_url
       append_sis_data(js_hash)
       js_env(js_hash)
 
@@ -472,6 +481,7 @@ class DiscussionTopicsController < ApplicationController
     end
 
     unless @topic.grants_right?(@current_user, session, :read)
+      return render_unauthorized_action unless @current_user
       respond_to do |format|
         flash[:error] = t 'You do not have access to the requested discussion.'
         format.html { redirect_to named_context_url(@context, :context_discussion_topics_url) }
@@ -587,7 +597,7 @@ class DiscussionTopicsController < ApplicationController
             js_hash[:CONTEXT_ACTION_SOURCE] = :discussion_topic
             append_sis_data(js_hash)
             js_env(js_hash)
-
+            conditional_release_js_env(@topic.assignment, includes: [:rule])
           end
         end
       end
@@ -920,7 +930,7 @@ class DiscussionTopicsController < ApplicationController
         apply_positioning_parameters
         apply_attachment_parameters
         unless @topic.root_topic_id?
-          apply_assignment_parameters(params[:assignment], @topic)
+          apply_assignment_parameters(strong_params[:assignment], @topic)
         end
 
         if publish_later

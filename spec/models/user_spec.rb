@@ -203,7 +203,10 @@ describe User do
       discussion_topic_model(:context => @course)
 
       @dashboard_key = StreamItemCache.recent_stream_items_key(@teacher)
-      @context_keys = @contexts.map { |context|
+    end
+
+    let(:context_keys) do
+      @contexts.map { |context|
         StreamItemCache.recent_stream_items_key(@teacher, context.class.base_class.name, context.id)
       }
     end
@@ -212,7 +215,7 @@ describe User do
       enable_cache do
         @teacher.cached_recent_stream_items(:contexts => @contexts)
         expect(Rails.cache.read(@dashboard_key)).to be_blank
-        @context_keys.each do |context_key|
+        context_keys.each do |context_key|
           expect(Rails.cache.read(context_key)).not_to be_blank
         end
       end
@@ -222,7 +225,7 @@ describe User do
       enable_cache do
         @teacher.cached_recent_stream_items # cache the dashboard items
         expect(Rails.cache.read(@dashboard_key)).not_to be_blank
-        @context_keys.each do |context_key|
+        context_keys.each do |context_key|
           expect(Rails.cache.read(context_key)).to be_blank
         end
       end
@@ -599,6 +602,22 @@ describe User do
         expect(alice.courses_with_primary_enrollment.size).to eq 0
       end
 
+      it 'filters out completed-by-date enrollments for the correct user' do
+        @shard1.activate do
+          @user = User.create!(:name => 'user')
+          account = Account.create!
+          courseX = account.courses.build
+          courseX.workflow_state = 'available'
+          courseX.start_at = 7.days.ago
+          courseX.conclude_at = 2.days.ago
+          courseX.restrict_enrollments_to_course_dates = true
+          courseX.save!
+          StudentEnrollment.create!(:course => courseX, :user => @user, :workflow_state => 'active')
+        end
+        expect(@user.courses_with_primary_enrollment.count).to eq 0
+        expect(@user.courses_with_primary_enrollment(:current_and_invited_courses, nil, :include_completed_courses => true).count).to eq 1
+      end
+
       it 'works with favorite_courses' do
         @user = User.create!(:name => 'user')
         @shard1.activate do
@@ -770,10 +789,6 @@ describe User do
       role = custom_account_role('CustomStudent', :account => Account.default)
       tie_user_to_account(@student, :role => role)
       set_up_course_with_users
-    end
-
-    before(:each) do
-      RequestStore.clear!
     end
 
     def set_up_course_with_users
@@ -1469,22 +1484,22 @@ describe User do
 
     it "should create a copy of an existing pseudonym" do
       # from unrelated account
-      user_with_pseudonym(:active_all => 1, :account => @account2, :username => 'unrelated@example.com', :password => 'abcdef')
+      user_with_pseudonym(:active_all => 1, :account => @account2, :username => 'unrelated@example.com', :password => 'abcdefgh')
       new_pseudonym = @user.find_or_initialize_pseudonym_for_account(@account1)
       expect(new_pseudonym).not_to be_nil
       expect(new_pseudonym).to be_new_record
       expect(new_pseudonym.unique_id).to eq 'unrelated@example.com'
 
       # from default account
-      @user.pseudonyms.create!(:unique_id => 'default@example.com', :password => 'abcdef', :password_confirmation => 'abcdef')
-      @user.pseudonyms.create!(:account => @account3, :unique_id => 'preferred@example.com', :password => 'abcdef', :password_confirmation => 'abcdef')
+      @user.pseudonyms.create!(:unique_id => 'default@example.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
+      @user.pseudonyms.create!(:account => @account3, :unique_id => 'preferred@example.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
       new_pseudonym = @user.find_or_initialize_pseudonym_for_account(@account1)
       expect(new_pseudonym).not_to be_nil
       expect(new_pseudonym).to be_new_record
       expect(new_pseudonym.unique_id).to eq 'default@example.com'
 
       # from site admin account
-      @user.pseudonyms.create!(:account => Account.site_admin, :unique_id => 'siteadmin@example.com', :password => 'abcdef', :password_confirmation => 'abcdef')
+      @user.pseudonyms.create!(:account => Account.site_admin, :unique_id => 'siteadmin@example.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
       new_pseudonym = @user.find_or_initialize_pseudonym_for_account(@account1)
       expect(new_pseudonym).not_to be_nil
       expect(new_pseudonym).to be_new_record
@@ -1498,7 +1513,7 @@ describe User do
 
       # from unrelated account, if other options are not viable
       user2 = User.create!
-      @account1.pseudonyms.create!(:user => user2, :unique_id => 'preferred@example.com', :password => 'abcdef', :password_confirmation => 'abcdef')
+      @account1.pseudonyms.create!(:user => user2, :unique_id => 'preferred@example.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
       @user.pseudonyms.detect { |p| p.account == Account.site_admin }.update_attribute(:password_auto_generated, true)
       Account.default.authentication_providers.create!(:auth_type => 'cas')
       Account.default.authentication_providers.first.move_to_bottom
@@ -1507,7 +1522,7 @@ describe User do
       expect(new_pseudonym).to be_new_record
       expect(new_pseudonym.unique_id).to eq 'unrelated@example.com'
       new_pseudonym.save!
-      expect(new_pseudonym.valid_password?('abcdef')).to be_truthy
+      expect(new_pseudonym.valid_password?('abcdefgh')).to be_truthy
     end
 
     it "should not create a new one when there are no viable candidates" do
@@ -1523,13 +1538,13 @@ describe User do
       @account3.authentication_providers.create!(:auth_type => 'cas')
       @account3.authentication_providers.first.move_to_bottom
       expect(@account3).to be_delegated_authentication
-      @user.pseudonyms.create!(:account => @account3, :unique_id => 'jacob@instructure.com', :password => 'abcdef', :password_confirmation => 'abcdef')
+      @user.pseudonyms.create!(:account => @account3, :unique_id => 'jacob@instructure.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
       expect(@user.find_or_initialize_pseudonym_for_account(@account1)).to be_nil
 
       # conflict
       @user2 = User.create! { |u| u.workflow_state = 'registered' }
-      @user2.pseudonyms.create!(:account => @account1, :unique_id => 'jt@instructure.com', :password => 'abcdef', :password_confirmation => 'abcdef')
-      @user.pseudonyms.create!(:unique_id => 'jt@instructure.com', :password => 'ghijkl', :password_confirmation => 'ghijkl')
+      @user2.pseudonyms.create!(:account => @account1, :unique_id => 'jt@instructure.com', :password => 'abcdefgh', :password_confirmation => 'abcdefgh')
+      @user.pseudonyms.create!(:unique_id => 'jt@instructure.com', :password => 'ghijklmn', :password_confirmation => 'ghijklmn')
       expect(@user.find_or_initialize_pseudonym_for_account(@account1)).to be_nil
     end
 
@@ -1539,7 +1554,7 @@ describe User do
       before :once do
         @shard1.activate do
           account = Account.create!
-          user_with_pseudonym(:active_all => 1, :account => account, :password => 'qwerty')
+          user_with_pseudonym(:active_all => 1, :account => account, :password => 'qwertyuiop')
         end
       end
 
@@ -1553,7 +1568,7 @@ describe User do
         p = @user.find_or_initialize_pseudonym_for_account(Account.site_admin)
         expect(p).to be_new_record
         p.save!
-        expect(p.valid_password?('qwerty')).to be_truthy
+        expect(p.valid_password?('qwertyuiop')).to be_truthy
       end
     end
   end
@@ -1695,6 +1710,7 @@ describe User do
         event = @course.calendar_events.create!(title: 'published', start_at: 4.days.from_now)
         expect(@user.upcoming_events).to include(event)
         Timecop.freeze(3.days.from_now) do
+          EnrollmentState.recalculate_expired_states # runs periodically in background
           expect(User.find(@user).upcoming_events).not_to include(event) # re-find user to clear cached_contexts
         end
       end
@@ -1925,6 +1941,7 @@ describe User do
       @quiz.due_at = 3.days.from_now
       @quiz.save!
       Timecop.travel(2.days) do
+        EnrollmentState.recalculate_expired_states # runs periodically in background
         expect(@student.assignments_needing_submitting(:contexts => [@course]).count).to eq 0
       end
     end
@@ -1982,6 +1999,75 @@ describe User do
         student = @shard1.activate { user }
         assignment = create_course_with_assignment_needing_submitting(student: student, override: true)
         expect(student.assignments_needing_submitting).to eq [assignment]
+      end
+    end
+
+    context "ungraded assignments" do
+      before :once do
+        course_with_student :active_all => true
+        @assignment = @course.assignments.create! title: 'blah!', due_at: 1.day.from_now, submission_types: 'not_graded'
+      end
+
+      it "excludes ungraded assignments by default" do
+        expect(@student.assignments_needing_submitting).not_to include @assignment
+      end
+
+      it "includes ungraded assignments if requested" do
+        expect(@student.assignments_needing_submitting(include_ungraded: true)).to include @assignment
+      end
+    end
+  end
+
+  describe "ungraded_quizzes_needing_submitting" do
+    before(:once) do
+      course_with_student :active_all => true
+      @quiz = @course.quizzes.create!(:title => "some quiz", :quiz_type => "survey", :due_at => 1.day.ago)
+      @quiz.publish!
+    end
+
+    it "includes ungraded quizzes" do
+      expect(@student.ungraded_quizzes_needing_submitting).to include @quiz
+    end
+
+    it "excludes graded quizzes" do
+      other_quiz = @course.quizzes.create!(:title => "some quiz", :quiz_type => "assignment", :due_at => 1.day.ago)
+      other_quiz.publish!
+      expect(@student.ungraded_quizzes_needing_submitting).not_to include other_quiz
+    end
+
+    it "excludes unpublished quizzes" do
+      other_quiz = @course.quizzes.create!(:title => "some quiz", :quiz_type => "survey", :due_at => 1.day.ago)
+      expect(@student.ungraded_quizzes_needing_submitting).not_to include other_quiz
+    end
+
+    it "excludes locked quizzes" do
+      @quiz.unlock_at = 1.day.from_now
+      @quiz.save!
+      expect(@student.ungraded_quizzes_needing_submitting).not_to include @quiz
+    end
+
+    it "filters by due date" do
+      expect(@student.ungraded_quizzes_needing_submitting(:due_after => 1.day.from_now)).not_to include @quiz
+    end
+
+    it "excludes submitted quizzes" do
+      qs = @quiz.quiz_submissions.build :user => @student
+      qs.workflow_state = 'complete'
+      qs.save!
+      expect(@student.ungraded_quizzes_needing_submitting).not_to include @quiz
+    end
+
+    it "filters by enrollment state" do
+      @student.enrollments.where(course: @course).first.complete!
+      expect(@student.ungraded_quizzes_needing_submitting).not_to include @quiz
+    end
+
+    context "sharding" do
+      specs_require_sharding
+      it "includes quizzes from other shards" do
+        other_user = @shard1.activate { user }
+        student_in_course :course => @course, :user => other_user, :active_all => true
+        expect(other_user.ungraded_quizzes_needing_submitting).to include @quiz
       end
     end
   end
@@ -2301,6 +2387,7 @@ describe User do
     it "should not count assignments in soft concluded courses" do
       @course.enrollment_term.update_attribute(:end_at, 1.day.from_now)
       Timecop.travel(1.week) do
+        EnrollmentState.recalculate_expired_states # runs periodically in background
         expect(@teacher.reload.assignments_needing_grading.size).to eql(0)
       end
     end
@@ -2976,9 +3063,15 @@ describe User do
       expect(@user.roles(@account)).to eq %w[user observer]
     end
 
-    it "includes 'admin' if the user has an admin user record" do
-      @account.account_users.create!(:user => @user, :role => admin_role)
+    it "includes 'admin' if the user has a sub-account admin user record" do
+      sub_account = @account.sub_accounts.create!
+      sub_account.account_users.create!(:user => @user, :role => admin_role)
       expect(@user.roles(@account)).to eq %w[user admin]
+    end
+
+    it "includes 'root_admin' if the user has a root account admin user record" do
+      @account.account_users.create!(:user => @user, :role => admin_role)
+      expect(@user.roles(@account)).to eq %w[user admin root_admin]
     end
   end
 
@@ -3030,12 +3123,5 @@ describe User do
       f.save!
       expect(@user.submissions_folder(@course)).to eq f
     end
-  end
-
-  it { is_expected.to have_many(:submission_comment_participants) }
-  it do
-    is_expected.to have_many(:submission_comments).
-      conditions(-> { published }).
-        through(:submission_comment_participants)
   end
 end

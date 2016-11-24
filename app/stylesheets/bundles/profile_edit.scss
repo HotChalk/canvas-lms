@@ -1,5 +1,5 @@
 @import 'base/environment';
-@import 'themes/feature_flags';
+@import 'pages/shared/feature_flags';
 @import 'vendor/jquery.jcrop';
 
 .profile_table {
@@ -23,7 +23,7 @@
   }
   .data_description {
     font-size: 0.8em;
-    color: $ic-color-dark;
+    color: $ic-font-color-dark;
   }
 }
 

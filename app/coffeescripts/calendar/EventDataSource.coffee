@@ -111,7 +111,12 @@ define [
         delete @cache.contexts[event.old_context_code].events[event.id]
         delete event.old_context_code
 
-      contextCode = event.contextCode()
+      # Split by comma, for the odd case where #contextCode() returns a comma seprated list
+      possibleContexts = event.contextCode().split(',')
+      okayContexts = possibleContexts.filter((cCode) =>
+        !!@cache.contexts[cCode]
+      )
+      contextCode = okayContexts[0]
       contextInfo = @cache.contexts[contextCode]
 
       contextInfo.events[event.id] = event
@@ -149,6 +154,7 @@ define [
     getEventsFromCache: (start, end, contexts) =>
       events = []
       for context in contexts
+        continue if context.match /^appointment_group_/
         events = events.concat(@getEventsFromCacheForContext start, end, context)
       events
 
@@ -330,6 +336,7 @@ define [
 
         for context in contexts
           contextInfo = @cache.contexts[context]
+          contextInfo = (@cache.contexts[context] = {fetchedRanges: []}) unless contextInfo
           if contextInfo
             if start
               contextInfo.fetchedRanges.push([start, end])
@@ -346,8 +353,13 @@ define [
 
       @startFetch [
         [ '/api/v1/calendar_events', params ]
-        [ '/api/v1/calendar_events', $.extend({type: 'assignment'}, params) ]
+        [ '/api/v1/calendar_events', @assignmentParams(params) ]
       ], dataCB, doneCB, options
+
+    assignmentParams: (params) ->
+      p = $.extend({type: 'assignment'}, params)
+      p.context_codes = p.context_codes.filter (context) -> not context.match /^appointment_group_/
+      p
 
     getParticipants: (appointmentGroup, registrationStatus, cb) =>
       if @inFlightRequest['default']

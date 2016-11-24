@@ -31,12 +31,17 @@ define([
     displayName: 'AddExternalToolButton',
     throttleCreation: false,
 
+    propTypes: {
+      canAddEdit: React.PropTypes.bool.isRequired
+    },
+
     getInitialState() {
       return {
         modalIsOpen: false,
         tool: {},
         isLti2: false,
-        lti2RegistrationUrl: null
+        lti2RegistrationUrl: null,
+        configurationType: '',
       }
     },
 
@@ -66,11 +71,24 @@ define([
       });
     },
 
-    _errorHandler() {
+    _errorHandler(xhr) {
+      const errors = JSON.parse(xhr.responseText).errors;
+      let errorMessage = I18n.t('We were unable to add the app.');
+
+      if (this.state.configurationType !== 'manual') {
+        const errorName = `config_${this.state.configurationType}`;
+        if (errors[errorName]) {
+          errorMessage = errors[errorName][0].message;
+        } else if (errors[Object.keys(errors)[0]][0])  {
+          errorMessage = errors[Object.keys(errors)[0]][0].message;
+        }
+      }
+
       this.throttleCreation = false;
       store.fetch({ force: true });
       this.setState({ tool: {}, isLti2: false, lti2RegistrationUrl: null });
-      $.flashError(I18n.t('We were unable to add the app.'));
+      $.flashError(errorMessage);
+      return errorMessage
     },
 
     handleActivateLti2() {
@@ -91,21 +109,39 @@ define([
           tool: {}
         });
       } else if (!this.throttleCreation) {
+          this.setState({'configurationType': configurationType});
           store.save(configurationType, data, this._successHandler.bind(this), this._errorHandler.bind(this));
           this.throttleCreation = true;
       }
     },
 
     renderForm() {
-      if (this.state.isLti2 && this.state.tool.app_id) {
-        return <Lti2Permissions ref="lti2Permissions" tool={this.state.tool} handleCancelLti2={this.handleCancelLti2} handleActivateLti2={this.handleActivateLti2} />;
-      } else if (this.state.isLti2) {
-        return <Lti2Iframe ref="lti2Iframe" handleInstall={this.handleLti2ToolInstalled} registrationUrl={this.state.lti2RegistrationUrl} />;
+      if (this.props.canAddEdit) {
+        if (this.state.isLti2 && this.state.tool.app_id) {
+          return <Lti2Permissions ref="lti2Permissions" tool={this.state.tool} handleCancelLti2={this.handleCancelLti2} handleActivateLti2={this.handleActivateLti2} />;
+        } else if (this.state.isLti2) {
+          return <Lti2Iframe ref="lti2Iframe" handleInstall={this.handleLti2ToolInstalled} registrationUrl={this.state.lti2RegistrationUrl} />;
+        } else {
+          return (
+            <ConfigurationForm ref="configurationForm" tool={this.state.tool} configurationType="manual" handleSubmit={this.createTool}>
+              <button type="button" className="Button" onClick={this.closeModal}>{I18n.t('Cancel')}</button>
+            </ConfigurationForm>
+          );
+        }
       } else {
-        return (
-          <ConfigurationForm ref="configurationForm" tool={this.state.tool} configurationType="manual" handleSubmit={this.createTool}>
-            <button type="button" className="Button" onClick={this.closeModal}>{I18n.t('Cancel')}</button>
-          </ConfigurationForm>
+        return(
+          <div ref="accessDeniedForm">
+            <div className="ReactModal__Body">
+              <div className="formFields">
+                <p>{I18n.t('This action has been disabled by your admin.')}</p>
+              </div>
+            </div>
+            <div className="ReactModal__Footer">
+              <div className="ReactModal__Footer-Actions">
+                <button type="button" className="btn btn-default" onClick={this.closeModal}>{I18n.t('Cancel')}</button>
+              </div>
+            </div>
+          </div>
         );
       }
     },

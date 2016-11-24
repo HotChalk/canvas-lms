@@ -7,22 +7,6 @@ require 'open3'
 # stuff take FOREVER in the webpack build.  That means for the time being,
 # changes here if they happen may need to be mirrored in that file.
 
-# this is to get urls that always have the asset host on them,
-# it was fixed in rails 4.1 so is unneeded once we are using 4.1+
-# at that point we can just use ActionController::Base.helpers.image_url below
-# see: https://github.com/rails/rails/issues/10051#issuecomment-26967074
-if CANVAS_RAILS4_0
-  class DummyControllerWithCorrectAssetUrls < ActionController::Base
-    def self.helpers
-      @helper_proxy ||= begin
-        proxy = ActionView::Base.new
-        proxy.config = config.inheritable_copy
-        proxy.extend(_helpers)
-      end
-    end
-  end
-end
-
 module BrandableCSS
   APP_ROOT = defined?(Rails) && Rails.root || Pathname.pwd
   CONFIG = YAML.load_file(APP_ROOT.join('config/brandable_css.yml')).freeze
@@ -32,12 +16,13 @@ module BrandableCSS
   SASS_STYLE = ENV['SASS_STYLE'] || ((use_compressed ? 'compressed' : 'nested')).freeze
 
   VARIABLE_HUMAN_NAMES = {
-    "ic-brand-primary" => lambda { I18n.t("Primary Color") },
+    "ic-brand-primary" => lambda { I18n.t("Primary Brand Color") },
+    "ic-brand-font-color-dark" => lambda { I18n.t("Main Text Color") },
+    "ic-link-color" => lambda { I18n.t("Link Color") },
     "ic-brand-button--primary-bgd" => lambda { I18n.t("Primary Button") },
     "ic-brand-button--primary-text" => lambda { I18n.t("Primary Button Text") },
     "ic-brand-button--secondary-bgd" => lambda { I18n.t("Secondary Button") },
     "ic-brand-button--secondary-text" => lambda { I18n.t("Secondary Button Text") },
-    "ic-link-color" => lambda { I18n.t("Link") },
     "ic-brand-global-nav-bgd" => lambda { I18n.t("Nav Background") },
     "ic-brand-global-nav-ic-icon-svg-fill" => lambda { I18n.t("Nav Icon") },
     "ic-brand-global-nav-ic-icon-svg-fill--active" => lambda { I18n.t("Nav Icon Active") },
@@ -104,11 +89,7 @@ module BrandableCSS
     def variables_map_with_image_urls
       @variables_map_with_image_urls ||= variables_map.each_with_object({}) do |(key, config), memo|
         if config['type'] == 'image'
-          if CANVAS_RAILS4_0
-            memo[key] = config.merge('default' => DummyControllerWithCorrectAssetUrls.helpers.image_url(config['default']))
-          else
-            memo[key] = config.merge('default' => ActionController::Base.helpers.image_url(config['default']))
-          end
+          memo[key] = config.merge('default' => ActionController::Base.helpers.image_url(config['default']))
         else
           memo[key] = config
         end

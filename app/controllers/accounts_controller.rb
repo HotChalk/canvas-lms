@@ -205,7 +205,7 @@ class AccountsController < ApplicationController
     end
 
     @permissions = {
-      theme_editor: use_new_styles? && can_manage_account && @account.branding_allowed?,
+      theme_editor: can_manage_account && @account.branding_allowed?,
       can_read_course_list: can_read_course_list,
       can_read_roster: can_read_roster,
       can_create_courses: @account.grants_right?(@current_user, session, :manage_courses),
@@ -412,7 +412,7 @@ class AccountsController < ApplicationController
   # Delegated to by the update action (when the request is an api_request?)
   def update_api
     if authorized_action(@account, @current_user, [:manage_account_settings, :manage_storage_quotas])
-      account_params = params[:account] || {}
+      account_params = params[:account].present? ? strong_account_params : {}
       unauthorized = false
 
       # account settings (:manage_account_settings)
@@ -525,7 +525,7 @@ class AccountsController < ApplicationController
 
         custom_help_links = params[:account].delete :custom_help_links
         if custom_help_links
-          sorted_help_links = custom_help_links.select{|_k, h| h['state'] != 'deleted' && h['state'] != 'new'}.sort
+          sorted_help_links = custom_help_links.select{|_k, h| h['state'] != 'deleted' && h['state'] != 'new'}.sort_by{|_k, h| _k.to_i}
           @account.settings[:custom_help_links] = sorted_help_links.map do |index_with_hash|
             hash = index_with_hash[1]
             hash.delete('state')
@@ -641,7 +641,7 @@ class AccountsController < ApplicationController
         remove_ip_filters = params[:account].delete(:remove_ip_filters)
         params[:account][:ip_filters] = [] if remove_ip_filters
 
-        if @account.update_attributes(params[:account])
+        if @account.update_attributes(strong_account_params)
           flash[:error] = t(:program_delete_problem, "Some programs couldn't be deleted because of course associations") if program_delete_problem
           format.html { redirect_to account_settings_url(@account) }
           format.json { render :json => @account }
@@ -658,18 +658,16 @@ class AccountsController < ApplicationController
     if authorized_action(@account, @current_user, :read)
       @available_reports = AccountReport.available_reports if @account.grants_right?(@current_user, @session, :read_reports)
       if @available_reports
-        @last_complete_reports = {}
-        @last_reports = {}
-        if AccountReport.connection.adapter_name == 'PostgreSQL'
-          scope = @account.account_reports.select("DISTINCT ON (report_type) account_reports.*").order(:report_type)
-          @last_complete_reports = scope.last_complete_of_type(@available_reports.keys, nil).preload(:attachment).index_by(&:report_type)
-          @last_reports = scope.last_of_type(@available_reports.keys, nil).index_by(&:report_type)
-        else
-          @available_reports.keys.each do |report|
-            @last_complete_reports[report] = @account.account_reports.last_complete_of_type(report).first
-            @last_reports[report] = @account.account_reports.last_of_type(report).first
-          end
-        end
+        scope = @account.account_reports.where("report_type=name").most_recent
+        @last_complete_reports = AccountReport.from("unnest('{#{@available_reports.keys.join(',')}}'::text[]) report_types (name),
+              LATERAL (#{scope.complete.to_sql}) account_reports ").
+            order("report_types.name").
+            preload(:attachment).
+            index_by(&:report_type)
+        @last_reports = AccountReport.from("unnest('{#{@available_reports.keys.join(',')}}'::text[]) report_types (name),
+              LATERAL (#{scope.to_sql}) account_reports ").
+            order("report_types.name").
+            index_by(&:report_type)
       end
       load_course_right_side
       @account_users = @account.account_users
@@ -689,11 +687,14 @@ class AccountsController < ApplicationController
 
       js_env({
         CUSTOM_HELP_LINKS: @account && @account.help_links || [],
-        DEFAULT_HELP_LINKS: Canvas::Help.default_links,
+        DEFAULT_HELP_LINKS: Account::HelpLinks.default_links,
         APP_CENTER: { enabled: Canvas::Plugin.find(:app_center).enabled? },
         LTI_LAUNCH_URL: account_tool_proxy_registration_path(@account),
         CONTEXT_BASE_URL: "/accounts/#{@context.id}",
-        MASKED_APP_CENTER_ACCESS_TOKEN: @account.settings[:app_center_access_token].try(:[], 0...5)
+        MASKED_APP_CENTER_ACCESS_TOKEN: @account.settings[:app_center_access_token].try(:[], 0...5),
+        PERMISSIONS: {
+          :create_tool_manually => @account.grants_right?(@current_user, session, :create_tool_manually),
+        }
       })
     end
   end
@@ -1076,4 +1077,22 @@ class AccountsController < ApplicationController
     end
   end
   private :localized_timezones
+
+  private
+  def permitted_account_attributes
+    [:name, :turnitin_account_id, :turnitin_shared_secret,
+      :turnitin_host, :turnitin_comments, :turnitin_pledge, :turnitin_originality,
+      :default_time_zone, :parent_account, :default_storage_quota,
+      :default_storage_quota_mb, :storage_quota, :default_locale,
+      :default_user_storage_quota_mb, :default_group_storage_quota_mb, :integration_id, :brand_config_md5,
+      :account_programs,
+      :settings => strong_anything, :ip_filters => strong_anything
+    ]
+  end
+
+  def strong_account_params
+    # i'm doing this instead of normal strong_params because we do too much hackery to the weak params, especially in plugins
+    # and it breaks when we enforce inherited weak parameters (because we're not actually editing request.parameters anymore)
+    ActionController::Parameters.new(params).require(:account).permit(*permitted_account_attributes)
+  end
 end

@@ -93,7 +93,7 @@ module Importers
       end
 
       if id = hash['assessment_question_id']
-        AssessmentQuestion.where(id: id).update_all(name: hash[:question_name], question_data: hash.to_yaml,
+        AssessmentQuestion.where(id: id).update_all(name: hash[:question_name], question_data: hash,
             workflow_state: 'active', created_at: Time.now.utc, updated_at: Time.now.utc,
             assessment_question_bank_id: bank.id)
       else

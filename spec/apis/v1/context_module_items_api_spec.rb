@@ -172,7 +172,8 @@ describe "Module Items API", type: :request do
         expect(item).to include('url')
         uri = URI(item['url'])
         expect(uri.path).to eq "/api/v1/courses/#{@course.id}/external_tools/sessionless_launch"
-        expect(uri.query).to include('url=')
+        expect(uri.query).to include("module_item_id=#{@module1.content_tags.last.id}")
+        expect(uri.query).to include('launch_type=module_item')
       end
     end
 
@@ -907,6 +908,91 @@ describe "Module Items API", type: :request do
         end
       end
     end
+
+    describe 'POST select_mastery_path' do
+      before do
+        ConditionalRelease::Service.stubs(:enabled_in_context?).returns(true)
+        ConditionalRelease::Service.stubs(:select_mastery_path).returns({ code: '200', body: {} })
+        student_in_course(course: @course)
+      end
+
+      def call_select_mastery_path(item, assignment_set_id, student_id, opts = {})
+        api_call(:post, "/api/v1/courses/#{@course.id}/modules/#{@module1.id}/items/#{item.id}/select_mastery_path",
+                        { controller: "context_module_items_api", action: 'select_mastery_path', format: 'json',
+                          course_id: "#{@course.id}", module_id: "#{@module1.id}", id: "#{item.id}" },
+                        { assignment_set_id: assignment_set_id, student_id: student_id },
+                        {},
+                        opts)
+      end
+
+      it 'should require mastery paths to be enabled' do
+        ConditionalRelease::Service.stubs(:enabled_in_context?).returns(false)
+        call_select_mastery_path @assignment_tag, 100, @student.id, expected_status: 400
+      end
+
+      it 'should require a student_id specified' do
+        call_select_mastery_path @assignment_tag, 100, nil, expected_status: 401
+      end
+
+      it 'should require an assignment_set_id specified' do
+        json = call_select_mastery_path @assignment_tag, nil, @student.id, expected_status: 400
+        expect(json['message']).to match(/assignment_set_id/)
+      end
+
+      it 'should require the module item be attached to an assignment' do
+        json = call_select_mastery_path @external_url_tag, 100, @student.id, expected_status: 400
+        expect(json['message']).to match(/assignment/)
+      end
+
+      it 'should return the CYOE error if the action is unsuccessful' do
+        ConditionalRelease::Service.stubs(:select_mastery_path).returns({ code: '909', body: { 'foo' => 'bar' } })
+        json = call_select_mastery_path @assignment_tag, 100, @student.id, expected_status: 909
+        expect(json).to eq({ 'foo' => 'bar' })
+      end
+
+      it 'should not allow unpublished items' do
+        @assignment.unpublish!
+        call_select_mastery_path @assignment_tag, 100, @student.id, expected_status: 404
+      end
+
+      context 'successful' do
+        def cyoe_returns(assignment_ids)
+          cyoe_ids = assignment_ids.map {|id| { 'assignment_id' => "#{id}" }} # cyoe ids in strings
+          cyoe_response = { 'assignments' => cyoe_ids }
+          ConditionalRelease::Service.stubs(:select_mastery_path).returns({ code: '200', body: cyoe_response })
+        end
+
+        it 'should return a list of assignments if the action is successful' do
+          assignment_ids = create_assignments([@course.id], 3)
+          cyoe_returns assignment_ids
+          json = call_select_mastery_path @assignment_tag, 100, @student.id
+          expect(json['assignments'].length).to eq 3
+          expect(json['assignments'].map {|a| a['id']}).to eq assignment_ids
+          expect(json['items']).to eq []
+        end
+
+        it 'should return a list of associated module items' do
+          @graded_topic = group_discussion_assignment
+          @graded_topic.publish!
+          @graded_topic_tag = @module1.add_item(:id => @graded_topic.id, :type => 'discussion_topic')
+
+          assignment_ids = [@quiz.assignment_id] + create_assignments([@course.id], 3) + [@graded_topic.assignment_id]
+          cyoe_returns assignment_ids
+          json = call_select_mastery_path @assignment_tag, 100, @student.id
+          items = json['items']
+          expect(items.length).to eq 2
+          expect(items.map {|item| item['id']}).to match_array [@quiz_tag.id, @graded_topic_tag.id]
+        end
+
+        it 'should return assignments in the same order as cyoe' do
+          assignment_ids = create_assignments([@course.id], 5)
+          cyoe_returns assignment_ids.reverse
+          json = call_select_mastery_path @assignment_tag, 100, @student.id
+          expect(json['assignments'].map {|a| a['id']}).to eq assignment_ids.reverse
+          expect(json['items']).to eq []
+        end
+      end
+    end
   end
 
   context "as a student" do
@@ -1045,12 +1131,15 @@ describe "Module Items API", type: :request do
           mod.add_item(:id => @quiz.id, :type => 'quiz')
           mod.add_item(:id => @topic.id, :type => 'discussion_topic')
           mod.add_item(:id => @wiki_page.id, :type => 'wiki_page')
+          mod.add_item(:type => 'external_url', :url =>
+                       'http://example.com/cyoe', :title => 'cyoe link',
+                       :indent => 1, :updated_at => nil).publish!
+          mod.publish
         end
       end
 
       before :each do
-        Rails.cache.clear
-        resp = [{
+        @resp = [{
                   locked: false,
                   trigger_assignment: @quiz.assignment_id,
                   assignment_sets: [{
@@ -1071,7 +1160,7 @@ describe "Module Items API", type: :request do
                 }]
         ConditionalRelease::Service.stubs(headers_for: {}, submissions_for: [],
           domain_for: "canvas.xyz", "enabled_in_context?" => true,
-          rules_summary_url: "cyoe.abc/rules", request_rules: resp)
+          rules_summary_url: "cyoe.abc/rules", request_rules: @resp)
       end
 
       describe "CYOE interaction" do
@@ -1105,8 +1194,8 @@ describe "Module Items API", type: :request do
 
       describe "caching CYOE data" do
         it "uses the cache when requested again" do
-          ConditionalRelease::Service.expects(:request_rules).once
-
+          ConditionalRelease::Service.expects(:request_rules).never
+          ConditionalRelease::Service.stubs(rules_cache: {rules: @resp, updated_at: 1.day.from_now})
           3.times do
             api_call(:get, "/api/v1/courses/#{@course.id}/modules/#{@cyoe_module3.id}/items?include[]=mastery_paths",
               :controller => "context_module_items_api", :action => "index", :format => "json",
@@ -1378,6 +1467,43 @@ describe "Module Items API", type: :request do
         end
       end
     end
+
+    describe 'POST select_mastery_path' do
+      before do
+        ConditionalRelease::Service.stubs(:enabled_in_context?).returns(true)
+        ConditionalRelease::Service.stubs(:select_mastery_path).returns({ code: '200', body: { 'assignments' => [] } })
+      end
+
+      it 'should allow a mastery path' do
+        json = api_call(:post, "/api/v1/courses/#{@course.id}/modules/#{@module1.id}/items/#{@assignment_tag.id}/select_mastery_path",
+                        { controller: "context_module_items_api", action: 'select_mastery_path', format: 'json',
+                          course_id: "#{@course.id}", module_id: "#{@module1.id}", id: "#{@assignment_tag.id}" },
+                        { assignment_set_id: 100 },
+                        {},
+                        {:expected_status => 200})
+
+      end
+
+      it 'should allow specifying own student id' do
+        json = api_call(:post, "/api/v1/courses/#{@course.id}/modules/#{@module1.id}/items/#{@assignment_tag.id}/select_mastery_path",
+                        { controller: "context_module_items_api", action: 'select_mastery_path', format: 'json',
+                          course_id: "#{@course.id}", module_id: "#{@module1.id}", id: "#{@assignment_tag.id}" },
+                        { student_id: @student.id, assignment_set_id: 100 },
+                        {},
+                        {:expected_status => 200})
+      end
+
+      it 'should not allow selecting another student' do
+        other_student = @student
+        student_in_course(course: @course) # reassigns @student, @user
+        json = api_call(:post, "/api/v1/courses/#{@course.id}/modules/#{@module1.id}/items/#{@assignment_tag.id}/select_mastery_path",
+                        { controller: "context_module_items_api", action: 'select_mastery_path', format: 'json',
+                          course_id: "#{@course.id}", module_id: "#{@module1.id}", id: "#{@assignment_tag.id}" },
+                        { student_id: other_student.id, assignment_set_id: 100 },
+                        {},
+                        {:expected_status => 401})
+      end
+    end
   end
 
   context "unauthorized user" do
@@ -1414,6 +1540,14 @@ describe "Module Items API", type: :request do
                {:controller => "context_module_items_api", :action => "destroy", :format => "json",
                 :course_id => "#{@course.id}", :module_id => "#{@module1.id}", :id => "#{@assignment_tag.id}"},
                {}, {},
+               {:expected_status => 401}
+      )
+      ConditionalRelease::Service.stubs(:enabled_in_context?).returns(true)
+      api_call(:post, "/api/v1/courses/#{@course.id}/modules/#{@module1.id}/items/#{@assignment_tag.id}/select_mastery_path",
+               {:controller => "context_module_items_api", :action => "select_mastery_path", :format => "json",
+                :course_id => "#{@course.id}", :module_id => "#{@module1.id}", :id => "#{@assignment_tag.id}"},
+               { assignment_set_id: 100 },
+               {},
                {:expected_status => 401}
       )
     end

@@ -42,7 +42,7 @@
   </div>
   <a href="<%= user_profile_path(@current_user) %>" class="profile_url" style="display: none;">&nbsp;</a>
   <h2><%= t 'headings.user_services', "Registered Web Services" %></h2>
-  <div class="rs-margin-lr">
+  <div>
     <% if can_do(@membership, @current_user, :read_services) && !@membership.user.user_services.empty? %>
       <p>
       <% @membership.user.user_services.each do |service| %>
@@ -176,12 +176,14 @@
   </div>
 <% end %>
 
+<% if @messages %>
 <h2><%= t('headings.recent_messages', %{Recent Messages}) %></h2>
 <%= t('no_messages', "No Messages") if @messages.empty? %>
 <% @messages[0,10].each do |message| %>
   <% if message.is_a?(DiscussionEntry) %>
     <%= render :partial => 'discussion_topics/entry', :object => message, :locals => {:out_of_context => true, :show_context => true, :assignment_visible_to_user => message.discussion_topic.visible_for?(@current_user)} %>
   <% end %>
+<% end %>
 <% end %>
 
 <% js_bundle 'legacy/context_roster_user' %>

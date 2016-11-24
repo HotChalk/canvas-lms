@@ -425,6 +425,27 @@ describe Course do
       expect(@course.grants_right?(@admin2, :reset_content)).to be_falsey
     end
 
+    it "should grant create_tool_manually to the proper individuals" do
+      course_with_teacher(:active_all => true)
+      @teacher = user(:active_all => true)
+      @course.enroll_teacher(@teacher).accept!
+
+      @ta = user(:active_all => true)
+      @course.enroll_ta(@ta).accept!
+
+      @designer = user(:active_all => true)
+      @course.enroll_designer(@designer).accept!
+
+      @student = user(:active_all => true)
+      @course.enroll_student(@student).accept!
+
+      clear_permissions_cache
+      expect(@course.grants_right?(@teacher, :create_tool_manually)).to be_truthy
+      expect(@course.grants_right?(@ta, :create_tool_manually)).to be_truthy
+      expect(@course.grants_right?(@designer, :create_tool_manually)).to be_truthy
+      expect(@course.grants_right?(@student, :create_tool_manually)).to be_falsey
+    end
+
     def make_date_completed
       @enrollment.reload
       @enrollment.start_at = 4.days.ago
@@ -638,6 +659,7 @@ describe Course do
       expect(@course.lti_context_id).not_to be_nil
 
       @new_course.reload
+      expect(@new_course).to be_created
       expect(@new_course.course_sections).not_to be_empty
       expect(@new_course.students).to eq [@student]
       expect(@new_course.discussion_topics).to be_empty
@@ -715,7 +737,6 @@ describe Course do
       expect(@course.uuid).not_to eq @new_course.uuid
       expect(@course.replacement_course_id).to eq @new_course.id
     end
-
   end
 
   context "group_categories" do
@@ -860,6 +881,32 @@ describe Course, "participants" do
     it "should return participating_admins and participating_students" do
       [@student, @ta, @teach].each { |usr| expect(@course.participants).to be_include(usr) }
     end
+
+    it "should use date-based logic if requested" do
+      expect(@course.participating_students_by_date).to include(@student)
+      expect(@course.participants(:by_date => true)).to include(@student)
+
+      @course.reload
+      @course.start_at = 2.days.from_now
+      @course.conclude_at = 4.days.from_now
+      @course.restrict_enrollments_to_course_dates = true
+      @course.save!
+
+      participants = @course.participants
+      expect(participants).to include(@student)
+
+      expect(@course.participating_students_by_date).to_not include(@student)
+      expect(@course.participating_admins_by_date).to include(@ta)
+
+      by_date = @course.participants(:by_date => true)
+      expect(by_date).to_not include(@student)
+      expect(by_date).to include(@ta)
+
+      @course.enrollment_term.set_overrides(@course.root_account, 'TaEnrollment' => { start_at: 3.days.ago, end_at: 2.days.ago })
+      @course.reload
+      expect(@course.participants(:by_date => true)).to_not include(@ta)
+      expect(@course.participating_admins_by_date).to_not include(@ta)
+    end
   end
 
   context "including obervers" do
@@ -874,7 +921,7 @@ describe Course, "participants" do
     end
 
     it "should return participating_admins, participating_students, and observers" do
-      participants = @course.participants(true)
+      participants = @course.participants(include_observers: true)
       [@student, @ta, @teach, @course_level_observer, @student_following_observer].each do |usr|
         expect(participants).to be_include(usr)
       end
@@ -882,18 +929,18 @@ describe Course, "participants" do
 
     context "excluding specific students" do
       it "should reject observers only following one of the excluded students" do
-        partic = @course.participants(true, excluded_user_ids: [@student.id, @student_following_observer.id])
+        partic = @course.participants(include_observers: true, excluded_user_ids: [@student.id, @student_following_observer.id])
         [@student, @student_following_observer].each { |usr| expect(partic).to_not be_include(usr) }
       end
       it "should include admins and course level observers" do
-        partic = @course.participants(true, excluded_user_ids: [@student.id, @student_following_observer.id])
+        partic = @course.participants(include_observers: true, excluded_user_ids: [@student.id, @student_following_observer.id])
         [@ta, @teach, @course_level_observer].each { |usr| expect(partic).to be_include(usr) }
       end
     end
   end
 
   it "should exclude some student when passed their id" do
-    partic = @course.participants(false, excluded_user_ids: [@student.id])
+    partic = @course.participants(include_observers: false, excluded_user_ids: [@student.id])
     [@ta, @teach].each { |usr| expect(partic).to be_include(usr) }
     expect(partic).to_not be_include(@student)
   end
@@ -4468,8 +4515,6 @@ describe Course, 'touch_root_folder_if_necessary' do
       expect { course.broadcast_notifications }.to_not raise_error
     end
   end
-
-  it { is_expected.to have_many(:submission_comments).conditions(-> { published }) }
 end
 
 describe Course, 'invited_count_visible_to' do

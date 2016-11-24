@@ -39,33 +39,17 @@ class ContextExternalTool < ActiveRecord::Base
   set_policy do
     given { |user, session| self.context.grants_right?(user, session, :update) }
     can :read and can :update and can :delete
-  end
 
-  EXTENSION_TYPES = [:account_navigation,
-                     :assignment_menu,
-                     :assignment_selection,
-                     :collaboration,
-                     :course_home_sub_navigation,
-                     :course_navigation,
-                     :course_settings_sub_navigation,
-                     :discussion_topic_menu,
-                     :editor_button,
-                     :file_menu,
-                     :global_navigation,
-                     :homework_submission,
-                     :link_selection,
-                     :migration_selection,
-                     :module_menu,
-                     :post_grades,
-                     :quiz_menu,
-                     :resource_selection,
-                     :tool_configuration,
-                     :user_navigation,
-                     :wiki_page_menu].freeze
+    given do |user, session|
+      self.grants_right?(user, session, :update) &&
+      self.context.grants_right?(user, session, :lti_add_edit)
+    end
+    can :update_manually
+  end
 
   CUSTOM_EXTENSION_KEYS = {:file_menu => [:accept_media_types].freeze}.freeze
 
-  EXTENSION_TYPES.each do |type|
+  Lti::ResourcePlacement::PLACEMENTS.each do |type|
     class_eval <<-RUBY, __FILE__, __LINE__ + 1
       def #{type}(setting=nil)
         extension_setting(:#{type}, setting)
@@ -143,7 +127,7 @@ class ContextExternalTool < ActiveRecord::Base
 
   def sync_placements!(placements)
     old_placements = self.context_external_tool_placements.pluck(:placement_type)
-    placements_to_delete = EXTENSION_TYPES.map(&:to_s) - placements
+    placements_to_delete = Lti::ResourcePlacement::PLACEMENTS.map(&:to_s) - placements
     if placements_to_delete.any?
       self.context_external_tool_placements.where(placement_type: placements_to_delete).delete_all if self.persisted?
       self.context_external_tool_placements.reload if self.context_external_tool_placements.loaded?
@@ -155,9 +139,9 @@ class ContextExternalTool < ActiveRecord::Base
   private :sync_placements!
 
   def url_or_domain_is_set
-    setting_types = EXTENSION_TYPES
+    placements = Lti::ResourcePlacement::PLACEMENTS
     # url or domain (or url on canvas lti extension) is required
-    if url.blank? && domain.blank? && setting_types.all?{|k| !settings[k] || settings[k]['url'].blank? }
+    if url.blank? && domain.blank? && placements.all?{|k| !settings[k] || settings[k]['url'].blank? }
       errors.add(:url, t('url_or_domain_required', "Either the url or domain should be set."))
       errors.add(:domain, t('url_or_domain_required', "Either the url or domain should be set."))
     end
@@ -370,7 +354,7 @@ class ContextExternalTool < ActiveRecord::Base
     settings[:selection_width] = settings[:selection_width].to_i if settings[:selection_width]
     settings[:selection_height] = settings[:selection_height].to_i if settings[:selection_height]
 
-    EXTENSION_TYPES.each do |type|
+    Lti::ResourcePlacement::PLACEMENTS.each do |type|
       if settings[type]
         settings[type][:selection_width] = settings[type][:selection_width].to_i if settings[type][:selection_width]
         settings[type][:selection_height] = settings[type][:selection_height].to_i if settings[type][:selection_height]
@@ -384,7 +368,7 @@ class ContextExternalTool < ActiveRecord::Base
 
     ContextExternalTool.normalize_sizes!(self.settings)
 
-    EXTENSION_TYPES.each do |type|
+    Lti::ResourcePlacement::PLACEMENTS.each do |type|
       if settings[type]
         if !(extension_setting(type, :url)) || (settings[type].has_key?(:enabled) && !settings[type][:enabled])
           settings.delete(type)
@@ -394,7 +378,7 @@ class ContextExternalTool < ActiveRecord::Base
 
     settings.delete(:editor_button) unless editor_button(:icon_url) || editor_button(:canvas_icon_class)
 
-    sync_placements!(EXTENSION_TYPES.select{|type| !!settings[type]}.map(&:to_s))
+    sync_placements!(Lti::ResourcePlacement::PLACEMENTS.select{|type| !!settings[type]}.map(&:to_s))
     true
   end
 

@@ -69,6 +69,7 @@ entries['instructure-common'] = [
   'compiled/models/Pseudonym',
   'compiled/models/Section',
   'compiled/models/TurnitinSettings',
+  'compiled/models/VeriCiteSettings',
   'compiled/models/User',
   'compiled/PandaPub',
   'compiled/registration/incompleteRegistrationWarning',
@@ -108,7 +109,8 @@ entries['instructure-common'] = [
   'LtiThumbnailLauncher',
   'media_comments',
   'page_views',
-  'reminders'
+  'reminders',
+  'jsx/fakeRequireJSFallback'
 ];
 
 entries['vendor'] = [

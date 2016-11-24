@@ -50,7 +50,11 @@ class CanvadocSessionsController < ApplicationController
 
       # For the purposes of reporting student viewership, we only
       # care if the original attachment owner is looking
-      attachment.touch(:viewed_at) if attachment.context == @current_user
+      # Depending on how the attachment came to exist that might be
+      # either the context of the attachment or the attachments' user
+      if (attachment.context == @current_user) || (attachment.user == @current_user)
+        attachment.touch(:viewed_at)
+      end
 
       if url.nil?
         render :text => "Document is currently unavailable. Please try again later."

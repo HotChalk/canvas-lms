@@ -3,12 +3,13 @@ define [
   'jquery'
   'underscore'
   'Backbone'
+  'jsx/shared/conditional_release/CyoeHelper'
   'compiled/views/PublishIconView'
   'compiled/views/assignments/DateDueColumnView'
   'compiled/views/assignments/DateAvailableColumnView'
   'compiled/views/SisButtonView'
   'jst/quizzes/QuizItemView'
-], (I18n, $, _, Backbone, PublishIconView, DateDueColumnView, DateAvailableColumnView, SisButtonView, template) ->
+], (I18n, $, _, Backbone, CyoeHelper, PublishIconView, DateDueColumnView, DateAvailableColumnView, SisButtonView, template) ->
 
   class ItemView extends Backbone.View
 
@@ -64,9 +65,13 @@ define [
     redirectTo: (path) ->
       location.href = path
 
+    canDelete: ->
+      @model.get('permissions').delete
+
     onDelete: (e) =>
       e.preventDefault()
-      @delete() if confirm(@messages.confirm)
+      if @canDelete()
+        @delete() if confirm(@messages.confirm)
 
     # delete quiz item
     delete: ->
@@ -94,6 +99,9 @@ define [
       base.quiz_menu_tools = ENV.quiz_menu_tools
       _.each base.quiz_menu_tools, (tool) =>
         tool.url = tool.base_url + "&quizzes[]=#{@model.get("id")}"
+
+      base.cyoe = CyoeHelper.getItemData(base.assignment_id, base.quiz_type == 'assignment')
+      base.return_to = encodeURIComponent window.location.pathname
 
       if @model.get("multiple_due_dates")
         base.selector  = @model.get("id")

@@ -213,6 +213,7 @@ module Importers
         lockdown_browser_monitor_data
         one_time_results
         show_correct_answers_last_attempt
+        only_visible_to_overrides
       ].each do |attr|
         attr = attr.to_sym
         item.send("#{attr}=", hash[attr]) if hash.key?(attr)
@@ -220,6 +221,7 @@ module Importers
 
       item.saved_by = :migration
       item.save!
+      build_assignment = false
 
       if question_data
         question_data[:qq_ids] ||= {}
@@ -227,9 +229,9 @@ module Importers
 
         unless question_data[:qq_ids][item.migration_id]
           question_data[:qq_ids][item.migration_id] = {}
-          existing_questions = item.quiz_questions.active.where("migration_id IS NOT NULL").select([:id, :migration_id])
-          existing_questions.each do |eq|
-            question_data[:qq_ids][item.migration_id][eq.migration_id] = eq.id
+          existing_questions = item.quiz_questions.active.where("migration_id IS NOT NULL").pluck(:id, :migration_id)
+          existing_questions.each do |id, mig_id|
+            question_data[:qq_ids][item.migration_id][mig_id] = id
           end
         end
 
@@ -264,9 +266,24 @@ module Importers
           item.assignment.workflow_state = 'unpublished'
         end
       elsif !item.assignment && grading = hash[:grading]
-        # The actual assignment will be created when the quiz is published
         item.quiz_type = 'assignment'
         hash[:assignment_group_migration_id] ||= grading[:assignment_group_migration_id]
+      end
+
+      if hash[:assignment_overrides]
+        hash[:assignment_overrides].each do |o|
+          override = item.assignment_overrides.build
+          override.set_type = o[:set_type]
+          override.title = o[:title]
+          override.set_id = o[:set_id]
+          override.save!
+        end
+      end
+
+      if item.graded? && !item.assignment
+        unless migration.canvas_import? || hash['assignment_migration_id']
+          build_assignment = true
+        end
       end
 
       if hash[:available]
@@ -285,11 +302,17 @@ module Importers
         item.workflow_state = 'unpublished'
       end
 
+      if build_assignment
+        item.build_assignment(force: true)
+        item.assignment.points_possible = item.points_possible
+      end
+
       item.save
       item.assignment.save if item.assignment && item.assignment.changed?
 
       migration.add_imported_item(item)
       item.saved_by = nil
+
       item
     end
 

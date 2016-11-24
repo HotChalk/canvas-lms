@@ -18,7 +18,7 @@
 
 class AccountReport < ActiveRecord::Base
   include Workflow
-  attr_accessible :user, :account, :report_type, :parameters
+  strong_params
   belongs_to :account
   belongs_to :user
   belongs_to :attachment
@@ -35,8 +35,8 @@ class AccountReport < ActiveRecord::Base
     state :deleted
   end
 
-  scope :last_complete_of_type, lambda { |type, limit = 1| last_of_type(type, limit).where(:progress => '100') }
-  scope :last_of_type, lambda { |type, limit = 1| where(:report_type => type).order("updated_at DESC").limit(limit) }
+  scope :complete, -> { where(progress: 100) }
+  scope :most_recent, -> { order(updated_at: :desc).limit(1) }
 
   def context
     self.account

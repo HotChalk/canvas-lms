@@ -31,6 +31,20 @@ describe ContentMigration do
       expect(to_assign.learning_outcome_alignments.map(&:learning_outcome_id)).to eq [lo.id].sort
     end
 
+    it "should not overwrite assignment points possible on import" do
+      @course = @copy_from
+      outcome_with_rubric
+      from_assign = @copy_from.assignments.create! title: 'some assignment'
+      @rubric.associate_with(from_assign, @copy_from, purpose: 'grading', use_for_grading: true)
+      from_assign.update_attribute(:points_possible, 1)
+
+      run_course_copy
+
+      to_assign = @copy_to.assignments.where(migration_id: mig_id(from_assign)).first!
+      expect(to_assign.points_possible).to eq 1
+      expect(to_assign.rubric.rubric_associations.for_grading.first.use_for_grading).to be_truthy
+    end
+
     it "should copy rubric outcomes in selective copy" do
       @course = @copy_from
       outcome_with_rubric
@@ -57,6 +71,22 @@ describe ContentMigration do
       to_assign = @copy_to.assignments.where(migration_id: mig_id(from_assign)).first!
       to_outcomes = to_assign.rubric.learning_outcome_alignments.map(&:learning_outcome).map(&:migration_id)
       expect(to_outcomes).to eql [mig_id(@outcome)]
+    end
+
+    it "should link account rubric outcomes (even if in a group) in selective copy" do
+      @course = @copy_from
+      outcome_group_model(:context => @copy_from)
+      outcome_with_rubric(:outcome_context => @copy_from.account)
+      from_assign = @copy_from.assignments.create! title: 'some assignment'
+      @rubric.associate_with(from_assign, @copy_from, purpose: 'grading')
+
+      @cm.copy_options = {:assignments => {mig_id(from_assign) => true}}
+
+      run_course_copy
+
+      to_assign = @copy_to.assignments.where(migration_id: mig_id(from_assign)).first!
+      to_outcomes = to_assign.rubric.learning_outcome_alignments.map(&:learning_outcome)
+      expect(to_outcomes).to eql [@outcome]
     end
 
     it "should link assignments to assignment groups when copying all assignments" do
@@ -119,6 +149,7 @@ describe ContentMigration do
     it "should copy assignment attributes" do
       assignment_model(:course => @copy_from, :points_possible => 40, :submission_types => 'file_upload', :grading_type => 'points')
       @assignment.turnitin_enabled = true
+      @assignment.vericite_enabled = true
       @assignment.peer_reviews = true
       @assignment.peer_review_count = 2
       @assignment.automatic_peer_reviews = true
@@ -126,13 +157,16 @@ describe ContentMigration do
       @assignment.allowed_extensions = ["doc", "xls"]
       @assignment.position = 2
       @assignment.muted = true
+      @assignment.omit_from_final_grade = true
+      @assignment.only_visible_to_overrides = true
 
       @assignment.save!
 
-      attrs = [:turnitin_enabled, :peer_reviews,
+      attrs = [:turnitin_enabled, :vericite_enabled, :peer_reviews,
           :automatic_peer_reviews, :anonymous_peer_reviews,
           :grade_group_students_individually, :allowed_extensions,
-          :position, :peer_review_count, :muted]
+          :position, :peer_review_count, :muted, :omit_from_final_grade,
+          :only_visible_to_overrides]
 
       run_course_copy
 
@@ -480,6 +514,23 @@ describe ContentMigration do
         expect(@copy_to.assignments.count).to eql 1
         expect(@copy_to.assignments.first.grading_standard).to be_nil
         expect(unrelated_grading_standard.reload.title).not_to eql gs.title
+      end
+    end
+
+    describe "assignment overrides" do
+      before :once do
+        @assignment = @copy_from.assignments.create!(title: 'ovrdn')
+      end
+
+      it "should copy only noop overrides" do
+        assignment_override_model(assignment: @assignment, set_type: 'ADHOC')
+        assignment_override_model(assignment: @assignment, set_type: 'Noop', set_id: 1, title: 'Tag 1')
+        assignment_override_model(assignment: @assignment, set_type: 'Noop', set_id: nil, title: 'Tag 2')
+        run_course_copy
+        to_assignment = @copy_to.assignments.first
+        expect(to_assignment.assignment_overrides.length).to eq 2
+        expect(to_assignment.assignment_overrides.detect{ |o| o.set_id == 1 }.title).to eq 'Tag 1'
+        expect(to_assignment.assignment_overrides.detect{ |o| o.set_id == nil }.title).to eq 'Tag 2'
       end
     end
   end

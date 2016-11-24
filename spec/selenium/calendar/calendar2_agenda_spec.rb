@@ -33,7 +33,7 @@ describe "calendar2" do
         select_first_calendar
         fj('.ui-dialog:visible .btn-primary').click
         wait_for_ajaximations
-        expect(ffj('.ig-row').length).to eq 1
+        expect(ffj('.agenda-event__item-container').length).to eq 1
       end
 
       it "should display agenda events" do
@@ -54,10 +54,10 @@ describe "calendar2" do
         event = @course.calendar_events.create!(title: "ohai",
                                                 start_at: start_date, end_at: start_date + 1.hour)
         load_agenda_view
-        expect(ff('.ig-row').length).to eq 1
+        expect(ff('.agenda-event__item-container').length).to eq 1
         fj('.context-list-toggle-box:last').click
         wait_for_ajaximations
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
       end
 
       it "should be navigable via the jump-to-date control" do
@@ -65,10 +65,10 @@ describe "calendar2" do
         event = make_event(start: yesterday)
         load_agenda_view
         enable_all_contexts
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
         quick_jump_to_date(yesterday.strftime("%b %-d %Y"))
         wait_for_ajaximations
-        expect(ff('.ig-row').length).to eq 1
+        expect(ff('.agenda-event__item-container').length).to eq 1
       end
 
       it "should be navigable via the minical" do
@@ -76,10 +76,10 @@ describe "calendar2" do
         event = make_event(start: yesterday)
         load_agenda_view
         enable_all_contexts
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
         f('.fc-prev-button').click
         f('#right-side .fc-day-number').click
-        expect(ff('.ig-row').length).to eq 1
+        expect(ff('.agenda-event__item-container').length).to eq 1
       end
 
       it "should persist the start date across reloads" do
@@ -122,13 +122,13 @@ describe "calendar2" do
 
         load_agenda_view
         enable_all_contexts
-        expect(f(".ig-title")).to include_text("User Event")
+        expect(f(".agenda-event__title")).to include_text("User Event")
 
-        f('.ig-row').click
+        f('.agenda-event__item-container').click
         f('.event-details .delete_event_link').click
         fj('.ui-dialog:visible .btn-primary').click
 
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
       end
 
       it "should allow deleting assignments", priority: "1", test_id: 138858 do
@@ -136,26 +136,26 @@ describe "calendar2" do
         @assignment = @course.assignments.create!(:name => title,:due_at => 3.day.from_now)
 
         load_agenda_view
-        expect(f(".ig-title")).to include_text(title)
+        expect(f(".agenda-event__title")).to include_text(title)
 
-        f('.ig-row').click
+        f('.agenda-event__item-container').click
         f('.event-details .delete_event_link').click
         fj('.ui-dialog:visible .btn-primary').click
 
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
       end
 
       it "should allow deleting a quiz", priority: "1" do
         create_quiz
 
         load_agenda_view
-        expect(f(".ig-title")).to include_text("Test Quiz")
+        expect(f(".agenda-event__title")).to include_text("Test Quiz")
 
-        f('.ig-row').click
+        f('.agenda-event__item-container').click
         f('.event-details .delete_event_link').click
         fj('.ui-dialog:visible .btn-primary').click
 
-        expect(f("#content")).not_to contain_css('.ig-row')
+        expect(f("#content")).not_to contain_css('.agenda-event__item-container')
       end
 
       it "should display midnight assignments at 11:59" do
@@ -169,8 +169,8 @@ describe "calendar2" do
 
         load_agenda_view
 
-        expect(f('.ig-details')).to include_text('11:59')
-        f('.ig-row').click
+        expect(f('.agenda-event__time')).to include_text('11:59')
+        f('.agenda-event__item-container').click
         expect(fj('.event-details:visible time')).to include_text('11:59')
       end
 
@@ -200,7 +200,7 @@ describe "calendar2" do
         enable_all_contexts
 
         #Click calendar item to bring up event summary
-        f(".ig-row").click
+        f(".agenda-event__item-container").click
 
         #expect to find the location name and address
         expect(f('.event-details-content')).to include_text(location_name)
@@ -223,7 +223,7 @@ describe "calendar2" do
         create_quiz
 
         load_agenda_view
-        expect(f(".agenda-event")).to include_text('Test Quiz')
+        expect(f(".agenda-event__item")).to include_text('Test Quiz')
       end
 
       it "should show assignment due dates for different sections", priority: "1", test_id: 138848 do
@@ -238,12 +238,12 @@ describe "calendar2" do
         @override = create_section_override_for_assignment(assignment, course_section: s2, due_at: s2_date)
 
         load_agenda_view
-        expect(ff('.ig-row')).to have_size(3)
+        expect(ff('.agenda-event__item-container')).to have_size(3)
 
         # Verify Titles include section name
-        agenda_array = ff('.ig-row')
-        expect(f('.ig-title', agenda_array[1])).to include_text('Section1')
-        expect(f('.ig-title', agenda_array[2])).to include_text('Section2')
+        agenda_array = ff('.agenda-event__item-container')
+        expect(f('.agenda-event__title', agenda_array[1])).to include_text('Section1')
+        expect(f('.agenda-event__title', agenda_array[2])).to include_text('Section2')
 
         # Verify Dates
         date_array = ff('.agenda-day')
@@ -258,13 +258,13 @@ describe "calendar2" do
 
         it "should allow deleting a graded discussion", priority: "1", test_id: 138859 do
           load_agenda_view
-          expect(f('.ig-title')).to include_text('Graded Discussion')
+          expect(f('.agenda-event__title')).to include_text('Graded Discussion')
 
-          f('.ig-row').click
+          f('.agenda-event__item-container').click
           f('.event-details .delete_event_link').click
           fj('.ui-dialog:visible .btn-primary').click
 
-          expect(f("#content")).not_to contain_css('.ig-row')
+          expect(f("#content")).not_to contain_css('.agenda-event__item-container')
         end
 
         it "should allow editing via modal", priority: "1", test_id: 138855 do
@@ -273,7 +273,7 @@ describe "calendar2" do
           load_agenda_view
 
           # Open Edit modal
-          f('.ig-row').click
+          f('.agenda-event__item-container').click
           wait_for_ajaximations
           f('.event-details .edit_event_link').click
           wait_for_ajaximations
@@ -285,7 +285,7 @@ describe "calendar2" do
           wait_for_ajaximations
 
           # Verify edits
-          expect(f('.ig-title')).to include_text(test_name)
+          expect(f('.agenda-event__title')).to include_text(test_name)
           expect(f('.agenda-date')).to include_text(date_string(test_date, :short_with_weekday))
         end
 
@@ -297,7 +297,7 @@ describe "calendar2" do
           load_agenda_view
 
           # Open More Options window
-          f('.ig-row').click
+          f('.agenda-event__item-container').click
           wait_for_ajaximations
           f('.edit_event_link').click
           wait_for_ajaximations
@@ -313,8 +313,8 @@ describe "calendar2" do
 
           # Verify edited title, description, and date
           load_agenda_view
-          expect(ff('.ig-row')).to have_size(1)
-          f('.ig-row').click
+          expect(ff('.agenda-event__item-container')).to have_size(1)
+          f('.agenda-event__item-container').click
           wait_for_ajaximations
           expect(f('.view_event_link')).to include_text(test_title)
           expect(f('.event-detail-overflow')).to include_text(test_description)
@@ -338,8 +338,62 @@ describe "calendar2" do
       load_agenda_view
 
       # click on the event and rxpect there not to be a delete button
-      f('.ig-row').click
+      f('.agenda-event__item-container').click
       expect(f("#content")).not_to contain_css('.event-details .delete_event_link')
     end
   end
+
+  context "agenda view with BETTER_SCHEDULER enabled" do
+    before(:each) do
+      account = Account.default
+      account.settings[:agenda_view] = true
+      account.save!
+      account.enable_feature! :better_scheduler
+    end
+
+    context "as a student" do
+      before(:each) do
+        course_with_student_logged_in
+        create_appointment_group(:contexts => [@course])
+        create_appointment_group(:contexts => [@course])
+      end
+
+      it "shows all options when in find appointment mode" do
+        get "/calendar2#view_name=agenda&view_start=#{(Date.today + 1.day).strftime}"
+        wait_for_ajaximations
+        expect(f('#content')).not_to contain_css('.agenda-event__item')
+        f('#FindAppointmentButton').click
+        f('.ReactModalPortal button[type="submit"]').click
+        expect(ff('.agenda-event__item').count).to equal(2)
+      end
+
+      it "shows only the reserved option when not in find appointment mode" do
+        get "/calendar2#view_name=agenda&view_start=#{(Date.today + 1.day).strftime}"
+        wait_for_ajaximations
+        f('#FindAppointmentButton').click
+        f('.ReactModalPortal button[type="submit"]').click
+        f('.agenda-event__item').click
+        f('.reserve_event_link').click
+        wait_for_ajaximations
+        f('#FindAppointmentButton').click
+        expect(ff('.agenda-event__item').count).to equal(1)
+        expect(f('.agenda-event__item')).to include_text 'Reserved'
+      end
+    end
+
+    context "as a teacher" do
+      before(:each) do
+        course_with_teacher_logged_in
+        create_appointment_group(:contexts => [@course])
+        create_appointment_group(:contexts => [@course])
+      end
+
+      it "shows all appointment groups" do
+        get "/calendar2#view_name=agenda&view_start=#{(Date.today + 1.day).strftime}"
+        wait_for_ajaximations
+        expect(ff('.agenda-event__item').count).to equal(2)
+      end
+    end
+  end
+
 end

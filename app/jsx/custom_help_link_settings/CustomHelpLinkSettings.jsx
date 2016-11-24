@@ -42,15 +42,11 @@ define([
       const links = this.props.links.map((link) => {
         counter++;
 
-        // if the type is blank we can assume it's added by a plugin (see account#help_links)
-        const type = link.type === 'default' || link.type === 'custom' ? link.type : 'plugin';
-
         return {
           ...link,
           id: 'link' + counter,
-          type,
           available_to: link.available_to || [],
-          state: type === 'plugin' ? 'deleted' : link.state || 'active' // don't store plugin links in settings
+          state: link.state || 'active'
         }
       });
 
@@ -193,8 +189,8 @@ define([
       if (!link.text) {
         $.flashError(I18n.t('Please enter a name for this link.'));
         return false;
-      } else if (!link.url || !/(http|ftp)s?:\/\/.+/.test(link.url) ) {
-        $.flashError(I18n.t('Please enter a valid URL. Protocol is required (e.g. http://, https://, ftp://).'));
+      } else if (!link.url || !/((http|ftp)s?:\/\/)|(tel\:).+/.test(link.url) ) {
+        $.flashError(I18n.t('Please enter a valid URL. Protocol is required (e.g. http://, https://, ftp://, tel:).'));
         return false;
       } else if (!link.available_to || link.available_to.length < 1) {
         $.flashError(I18n.t('Please select a user role for this link.'))
@@ -219,16 +215,15 @@ define([
       const { links } = this.state;
       const { index, type, text, id } = link;
       const nextLink = links[index+1];
-      const disableMoveDown = (index === links.length - 1 || link.type === 'plugin' || nextLink.type === 'plugin' )
       return (
         <CustomHelpLink
           ref={(c) => this.links[link.id] = c}
           key={id}
           link={link}
-          onMoveUp={(index === 0 || type === 'plugin') ? null : this.handleMoveUp}
-          onMoveDown={disableMoveDown ? null : this.handleMoveDown}
-          onRemove={type === 'plugin' ? null : this.handleRemove}
-          onEdit={(type === 'default' || type === 'plugin') ? null : this.handleEdit}
+          onMoveUp={index === 0 ? null : this.handleMoveUp}
+          onMoveDown={index === links.length - 1 ? null : this.handleMoveDown}
+          onRemove={this.handleRemove}
+          onEdit={type === 'default' ? null : this.handleEdit}
         />
       );
     },

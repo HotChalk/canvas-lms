@@ -4,6 +4,7 @@
   item_data ||= { published_status: 'unpublished' }
   completion_criteria ||= nil
   editable ||= false
+  criterion = completion_criteria && completion_criteria.find{|c| c[:id] == module_item.id}
 
   @module_item_image_tags ||= {
     'indent' => "<i class='icon-arrow-right'></i>".html_safe,
@@ -19,8 +20,6 @@
     :quiz_menu => Quizzes::Quiz,
     :wiki_page_menu => WikiPage
   }
-
-  criterion = completion_criteria && completion_criteria.find{|c| c[:id] == module_item.id}
 %>
 
 <li
@@ -28,6 +27,7 @@
   style="<%= hidden unless module_item %>"
   class="
     context_module_item
+    <%= 'student-view' if @is_student %>
     <%= module_item.content_type_class if module_item %>
     <%= 'also_assignment' if module_item && module_item.graded? %>
     indent_<%= module_item.try_rescue(:indent) || '0' %>
@@ -36,7 +36,7 @@
     <%= module_item.item_class if module_item %>
   "
 >
-  <div class="ig-row <%= 'with-completion-requirements' if criterion %> <%= 'ig-published' if module_item && module_item.published? %>">
+  <div class="ig-row <%= 'with-completion-requirements' if criterion %> <%= 'ig-published' if module_item && module_item.published? %> <%= 'student-view' if @is_student %>">
     <a
       aria-label='<%= module_item && module_item.title %>'
       tabindex="-1"
@@ -69,13 +69,28 @@
 
     <div class="ig-info">
       <div class="module-item-title">
-        <span class="item_name" aria-hidden="true">
+        <span class="item_name">
           <% if module_item && module_item.content_type == 'ExternalUrl' && module_item.new_tab %>
-            <a aria-label='<%= module_item.title %>' class="title external_url_link" target="_blank" href="<%= module_item.url %>"
-               data-item-href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item.id %>"><%= module_item.title %></a>
+            <a
+              title="<%= module_item && module_item.title %>"
+              class="title external_url_link"
+              target="_blank"
+              href="<%= module_item.url %>"
+              data-item-href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item.id %>"
+            >
+               <%= module_item.title %>
+            </a>
           <% else %>
-            <a title="<%= module_item && module_item.title %>" class="ig-title title"
-               href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>"><%= module_item && module_item.title %></a>
+            <a
+              title="<%= module_item && module_item.title %>"
+              class="ig-title title"
+              href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>"
+              <% if item_data[:mastery_paths] && item_data[:mastery_paths][:locked] %>
+              aria-describedby="module-item-locked-<%= module_item && module_item.id %>"
+              <% end %>
+            >
+              <%= module_item && module_item.title %>
+            </a>
           <% end %>
           <span title="<%= module_item && module_item.title %>" class="title locked_title"><%= module_item && module_item.title %></span>
           <span class="points_possible" style="display: none;"><%= round_if_whole(module_item.try_rescue(:assignment).try_rescue(:points_possible)) || nbsp %></span>
@@ -172,6 +187,8 @@
           data-course-id="<%= module_item && module_item.context_id %>"
           data-module-id="<%= module_item && module_item.context_module_id %>"
           data-module-item-id="<%= module_item && module_item.id %>"
+          data-assignment-id="<%= module_item && module_item.assignment.try(:id) %>"
+          data-is-cyoeable="<%= module_item && cyoe_able?(module_item) %>"
           data-published="<%= module_item && item_data[:published_status] == 'published' %>"
           data-publishable="<%= module_item_publishable?(module_item) %>"
           data-unpublishable="<%= module_item_unpublishable?(module_item) %>"
@@ -191,17 +208,17 @@
           </a>
 
           <ul class="al-options">
-            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="outdent_item_link" title="<%= t('links.outdent_item', %{Decrease indent}) %>"><%= @module_item_image_tags['outdent'] %> <%= t('links.outdent', %{Decrease indent}) %></a></li>
-            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="indent_item_link" title="<%= t('links.indent_item', %{Increase indent}) %>"><%= @module_item_image_tags['indent'] %> <%= t('links.indent', %{Increase indent}) %></a></li>
-            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="edit_item_link edit_link" title="<%= t('links.edit_item_details', %{Edit item details}) %>"><%= @module_item_image_tags['edit'] %> <%= t('links.edit_item', %{Edit}) %></a></li>
+            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="outdent_item_link" title="<%= t('Decrease indent') %>"><%= @module_item_image_tags['outdent'] %> <%= t('Decrease indent') %></a></li>
+            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="indent_item_link" title="<%= t('Increase indent') %>"><%= @module_item_image_tags['indent'] %> <%= t('Increase indent') %></a></li>
+            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="edit_item_link edit_link" title="<%= t('Edit item details') %>"><%= @module_item_image_tags['edit'] %> <%= t('Edit') %></a></li>
             <li role="presentation">
               <a href="#<%= module_item ? module_item.id : "{{ id }}" %>"
-                 aria-label="<%= t('links.move_item_label', %{Move this item}) %>"
+                 aria-label="<%= t('Move this item') %>"
                  class="move_module_item_link icon-updown"
-                 title="<%= t('links.move_item', %{Move this item}) %>"
-              ><%= t('modules_item_move_to', "Move to...") %></a>
+                 title="<%= t('Move this item') %>"
+              ><%= t("Move to...") %></a>
             </li>
-            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="delete_item_link delete_link" title="<%= t('links.remove_item_from_module', %{Remove this item from the module}) %>"><%= @module_item_image_tags['delete'] %> <%= t('links.remove_item', %{Remove}) %></a></li>
+            <li role="presentation"><a href="<%= context_url(@context, :context_url) %>/modules/items/<%= module_item ? module_item.id : "{{ id }}" %>" class="delete_item_link delete_link" title="<%= t('Remove this item from the module') %>"><i class="icon-trash"></i> <%= t('Remove') %></a></li>
             <% menu_type_to_class.each do |menu_type, content_class| %>
               <% if !module_item || module_item.content.is_a?(content_class) %>
                 <%

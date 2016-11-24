@@ -6,9 +6,8 @@ define([
   'jquery',
   'compiled/react_files/modules/customPropTypes',
   'compiled/models/Folder',
-  'compiled/react/shared/utils/withReactElement',
   'jquery.instructure_date_and_time'
-], function (_, React, ReactDOM, I18n, $, customPropTypes, Folder, withReactElement) {
+], function (_, React, ReactDOM, I18n, $, customPropTypes, Folder) {
 
   var RestrictedRadioButtons = React.createClass({
 
@@ -77,14 +76,12 @@ define([
         if (initialState.locked) {
           initialState.selectedOption = 'unpublished'
         } else {
-          if (initialState.hidden) {
+          if (initialState.lock_at || initialState.unlock_at) {
+            initialState.selectedOption = 'date_range'
+          } else if (initialState.hidden) {
             initialState.selectedOption = 'link_only'
           } else {
-            if (initialState.lock_at || initialState.unlock_at) {
-              initialState.selectedOption = 'date_range'
-            } else {
-              initialState.selectedOption = 'published'
-            }
+            initialState.selectedOption = 'published'
           }
         };
       }

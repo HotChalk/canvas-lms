@@ -1,8 +1,10 @@
 module DatesOverridable
   attr_accessor :applied_overrides, :overridden_for_user, :overridden,
-    :has_no_overrides, :preloaded_override_students
+    :has_no_overrides, :has_too_many_overrides, :preloaded_override_students
   attr_writer :without_overrides
   include DifferentiableAssignment
+
+  class NotOverriddenError < RuntimeError; end
 
   def self.included(base)
     base.has_many :assignment_overrides, :dependent => :destroy
@@ -22,8 +24,8 @@ module DatesOverridable
     @without_overrides || self
   end
 
-  def overridden_for(user)
-    AssignmentOverrideApplicator.assignment_overridden_for(self, user)
+  def overridden_for(user, skip_clone: false)
+    AssignmentOverrideApplicator.assignment_overridden_for(self, user, skip_clone: skip_clone)
   end
 
   # All overrides, not just dates
@@ -45,14 +47,14 @@ module DatesOverridable
   end
 
   def has_active_overrides?
-    assignment_overrides.active.exists?
+    active_assignment_overrides.any?
   end
 
   def multiple_due_dates?
     if overridden
       !!multiple_due_dates_apply_to?(overridden_for_user)
     else
-      raise "#{self.class.name} has not been overridden"
+      raise NotOverriddenError, "#{self.class.name} has not been overridden"
     end
   end
 
@@ -216,11 +218,14 @@ module DatesOverridable
     without_overrides.due_date_hash.merge(:base => true)
   end
 
-  def context_module_tag_info(user, context)
+  def context_module_tag_info(user, context, user_is_admin: false)
     self.association(:context).target ||= context
     tag_info = Rails.cache.fetch([self, user, "context_module_tag_info"].cache_key) do
       hash = {:points_possible => self.points_possible}
-      if self.multiple_due_dates_apply_to?(user)
+
+      if user_is_admin && self.has_too_many_overrides
+        hash[:has_many_overrides] = true
+      elsif self.multiple_due_dates_apply_to?(user)
         hash[:vdd_tooltip] = OverrideTooltipPresenter.new(self, user).as_json
       else
         if due_date = self.overridden_for(user).due_at
@@ -230,7 +235,7 @@ module DatesOverridable
       hash
     end
 
-    if tag_info[:due_date]
+    if user && tag_info[:due_date]
       if tag_info[:due_date] < Time.now
         if self.is_a?(Quizzes::Quiz) || (self.is_a?(Assignment) && expects_submission?)
           has_submission =
