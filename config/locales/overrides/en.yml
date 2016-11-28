@@ -1,0 +1,602 @@
+--- 
+en: 
+  a_full_size_logo_that_appears_in_the_right_sidebar_18873685: "A full-size logo that appears in the right sidebar on the HotChalk Ember dashboard. Ideal size is 360 x 140 pixels. Accepted formats: svg, png, jpeg, gif"
+  account: 
+    feedback_coach_sub: "Get help from a HotChalk Ember expert"
+    feedback_feature_request_sub: "Have an idea to improve HotChalk Ember?"
+  account_authorization_configs: 
+    index: 
+      ip_address_list_description: "If you are using an authentication service that requires the HotChalk Ember servers to contact your servers directly, such as LDAP, you'll need to make sure that your servers can accept connections from these IP addresses:"
+    ldap_fields: 
+      identifer_format_description: "The LDAP attribute to use to look up the HotChalk Ember login. Leave blank to use the username supplied by the user."
+      ldap_timeout_failure_help2: "If HotChalk Ember times out too many times communicating with the LDAP server, it will block further login attempts from using that LDAP server for %{time}. Your LDAP server last timed out at %{timestamp}."
+    ldap_settings_test: 
+      test_ldap_bind_help_header: "HotChalk Ember can't bind (login) to your LDAP server"
+      test_ldap_connection_help_fixes_1: "HotChalk Ember is connecting to %{ips}"
+      test_ldap_connection_help_fixes_3: "Check your firewall settings. Are all HotChalk Ember IP address allowed to access your server?"
+      test_ldap_connection_help_header: "HotChalk Ember can't connect to your LDAP server"
+      test_ldap_search_help_header: "HotChalk Ember can't search your LDAP instance"
+    saml_testing: 
+      labels: 
+        canvas_login_fail_message: "HotChalk Ember Login failure message"
+        is_valid_login_response: "HotChalk Ember thinks response is valid"
+        login_to_canvas_success: "User successfully logged into HotChalk Ember"
+    sso_settings_form: 
+      change_password_url_help: "Leave blank for default HotChalk Ember behavior"
+      discovery_url_description: "If a discovery URL is set, HotChalk Ember will forward all users to that URL when they need to be authenticated. That page will need to then help the user figure out where they need to go to log in. If no discovery URL is configured, the first configuration will be used to attempt to authenticate the user."
+      unknown_user_url_description: "The url to redirect to when an authenticated user is not found in HotChalk Ember."
+  accounts: 
+    admin_tools: 
+      comm_messages_content_pane: 
+        search_info2: "To view all notifications sent to a HotChalk Ember user, select the user and date range for your search."
+    provisioning_csv_description: 
+      account_reports: 
+        sis_export: 
+          description: 
+            text: "This report will export all the needed information that relates to provisioning HotChalk Ember in its respective categories."
+    settings: 
+      about_google_docs: |-
+          Google Docs Previews allow users to view documents from
+          within HotChalk Ember, rather than having to download them and
+          open the corresponding program (e.g. Word or Excel).
+          
+          Google Docs Previews can also render file types
+          not supported by the HotChalk Ember document previewer.
+          
+          By using this service you
+          acknowledge that you have read and agreed to the
+          [Google Docs Viewer Terms of Service](%{terms_url}).
+      email_notification_from_description: "This setting allows the Admin to brand or label the 'From' text on all notifications sent from HotChalk Ember for this Account."
+      interpolate_user_id: "Enter \"{{CANVAS_USER_ID}}\" to substitute the user's unique HotChalk Ember ID"
+      labels: 
+        outgoing_email_default_name_option_default: "Default HotChalk Ember Setting"
+      notifications: 
+        custom_name_description: "If selected, this will replace all other branding sent in HotChalk Ember notifications."
+        external_services_warning: "Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive HotChalk Ember course and group information outside of the institutional system."
+  allows_users_with_international_phone_numbers_to_r_f90f8522: "Allows users with international phone numbers to receive text messages from HotChalk Ember."
+  application: 
+    warnings: 
+      details: 
+        suspended: "This institution's HotChalk Ember account has been suspended. Only Account Administrators may log in to correct any problems."
+  apps_are_an_easy_way_to_add_new_features_to_canvas_2cbc2531: "Apps are an easy way to add new features to HotChalk Ember. They can be added to individual courses, or to all courses in an account. Once configured, you can link to them through course modules and create assignments for assessment tools."
+  assignments: 
+    grading_type_selector: 
+      gpa_scale_recommendation: "Unless your school uses a 4.0 scale (or 5.0/6.0) for grading, HotChalk Ember recommends displaying grades as Letter Grade."
+    submit_assignment: 
+      messages: 
+        google_drives_auth_required: "Before you can submit assignments directly from Google Drive you need to authorize HotChalk Ember to access your Google Drive account:"
+        media_recordings_disabled: "Media recordings are not enabled for this HotChalk Ember site, and you will not be able to submit these types of assignments. Please contact your instructor about changing the settings for this assignment, or your system administrator about enabling media recordings."
+      titles: 
+        media_recordings_disabled: "Media recordings are not enabled for this HotChalk Ember site"
+  authentication_with_provider_was_successful_but_no_6a194137: "Authentication with %{provider} was successful, but no unique ID for logging in to HotChalk Ember was provided."
+  bulk_course_migration: 
+    export_failed_with_id: "There was an error importing the course with bb_lcid %{id} into HotChalk Ember"
+    no_course_id_given: "No HotChalk Ember course was identified for bb_lcid %{id}"
+  bulk_course_migrations: 
+    bulk_course_migration: 
+      importing: "Importing into HotChalk Ember"
+      waiting_to_import: "Waiting to import into HotChalk Ember"
+    index: 
+      credential_description: "This tool will help you migrate multiple courses at the same time from a Blackboard Vista/CE system. Add a set of credentials for your Blackboard system then add HotChalk Ember course identifiers to the provided CSV template to migrate your courses."
+  calendar_events_api: 
+    ics_title: "%{course_or_group_name} Calendar (HotChalk Ember)"
+  canvas_alert_change_assignment_name_course_name_2fc63d9c: "HotChalk Ember Alert - Change: %{assignment_name}, %{course_name}"
+  canvas_alert_invited_course_as_role_type_9ed79ce3: "HotChalk Ember Alert - Invited: %{course} as %{role_type}"
+  canvas_alert_invited_course_as_role_type_ea825937: "HotChalk Ember Alert - Invited: course as %{role_type}"
+  canvas_dashboard_links_will_navigate_to_the_catalo_4143635e: "HotChalk Ember dashboard links will navigate to the Catalog dashboard"
+  canvas_did_not_recognize_your_identity_provider_cb0e50fc: "HotChalk Ember did not recognize your identity provider"
+  canvas_doesn_t_have_an_account_for_user_user_5bcae0dd: "HotChalk Ember doesn't have an account for user: %{user}"
+  canvas_error_report_ff678539: "HotChalk Ember Error Report"
+  canvas_introduction_video_2d81f3ad: "HotChalk Ember Introduction Video"
+  canvas_parent_improved_description: "This setting controls whether parents who create their own HotChalk Ember Parent accounts can connect to students at your institution using the HotChalk Ember Parent mobile app. Note: Parents registered as HotChalk Ember Observers can use the HotChalk Ember Parent mobile app even when this feature flag is disabled."
+  close_and_return_to_canvas_80544344: "Close and return to HotChalk Ember"
+  collaborations: 
+    auth_google_drive: 
+      google: 
+        drive: 
+          upgrade: 
+            description: "To access this collaboration you must authorize HotChalk Ember to access your Google Drive account"
+    errors: 
+      not_enabled: "Collaborations have not been enabled for this HotChalk Ember site"
+    forms: 
+      buttons: 
+        delete_from_canvas: |-
+            Just Delete  
+            from HotChalk Ember
+      messages: 
+        delete_google_doc_as_well: "This collaboration is being stored as a Google Doc. Did you want to delete it just from HotChalk Ember, or remove it from Google Docs as well?"
+  communication_channel: 
+    body: "Your HotChalk Ember verification code is %{verification_code}"
+  communication_channels: 
+    confirm: 
+      buttons: 
+        have_account: "I Have a HotChalk Ember Account"
+      details: 
+        account_needed: "You've been invited to join **%{course}**. To accept this request you need a HotChalk Ember account. Click the link below to create a HotChalk Ember account."
+  conferences: 
+    disabled_error: "Web conferencing has not been enabled for this HotChalk Ember site"
+    type_disabled_error: "This type of conference is no longer enabled for this HotChalk Ember site"
+  context: 
+    roster_user: 
+      help: 
+        services: "You haven't linked your user profile to any external services. You can link your HotChalk Ember account to services like Twitter. This will make it easier for fellow course and group members to link up with you outside of class."
+    roster_user_services: 
+      help: 
+        no_services: "You haven't linked your user profile to any external services. You can link your HotChalk Ember account to services like Twitter."
+        services_private: "You haven't enabled your list of registered services. Enabling this list will let fellow course and group members see which services you have linked to your HotChalk Ember account."
+        user_services: "If other members choose, they can let you see which outside services they've linked to their HotChalk Ember account. This can make it easier to coordinate group projects and also link up outside of class."
+  couldn_t_find_canvas_csv_import_headers_487f1b6c: "Couldn't find HotChalk Ember CSV import headers"
+  course_copy_file_description: "Copy a HotChalk Ember Course"
+  course_copy_name: "Copy HotChalk Ember Course"
+  courses: 
+    roster: 
+      create_users: 
+        user_might_not_exist: "If your format is correct, contact your HotChalk Ember Admin to ensure the user has a HotChalk Ember account."
+      roster_users: 
+        canvas_user_id: "HotChalk Ember User ID"
+  custom_css_and_javascript_may_cause_accessibility__93d2a823: "Custom CSS and Javascript may cause accessibility issues or conflicts with future HotChalk Ember updates!"
+  demo_sites_require_recaptcha_settings_to_be_config_8bf9c7e3: "Demo sites require Recaptcha settings to be configured. Please see your site admin for this instance of HotChalk Ember."
+  demos: 
+    register: 
+      sign_up_to_canvas: "Sign up to try HotChalk Ember"
+  display_all_text_links_in_canvas_as_underlined_tex_e698e714: "Display all text links in HotChalk Ember as *underlined text*."
+  email: 
+    default_from_name: "HotChalk Ember"
+  enter_canvas_user_id_to_substitute_the_user_s_uniq_b2a75735: "Enter \"{{CANVAS_USER_ID}}\" to substitute the user's unique HotChalk Ember ID"
+  eportfolios: 
+    static_page: 
+      created_with_canvas: "Created with HotChalk Ember"
+  features: 
+    canvas_parent_display_name: "HotChalk Ember Parent"
+  federated_attributes_are_information_sent_from_you_2116fb61: "Federated attributes are information sent from your authentication provider that can be used to automatically update corresponding information for users in HotChalk Ember each time they log in."
+  file_s_will_be_included_on_all_pages_in_the_canvas_80569935: "File(s) will be included on all pages in the HotChalk Ember desktop application."
+  file_s_will_be_included_when_user_content_is_displ_5e1fa73d: "File(s) will be included when user content is displayed within the HotChalk Ember iOS or Android apps, and in third-party apps built on our API."
+  help_dialog: 
+    report_problem_sub: "If HotChalk Ember misbehaves, tell us about it"
+  if_you_ve_been_using_another_course_management_sys_67edfab1: "If you've been using another course management system, you probably have stuff in there that you're going to want moved over to HotChalk Ember. We can walk you through the process of easily migrating your content into HotChalk Ember."
+  instructions: 
+    authorize_google_drive: "Before you can collaborate on documents, you need to authorize HotChalk Ember to access your Google Drive account:"
+  instructure: 
+    alerts: 
+      file_previews_disabled: "File previews have been disabled for this HotChalk Ember site"
+    errors: 
+      cannot_view_document_in_canvas: "This document cannot be displayed within HotChalk Ember."
+  layouts: 
+    head: 
+      default_page_title: "HotChalk Ember LMS"
+    mobile_auth: 
+      log_in_to_canvas: "Log In To HotChalk Ember"
+  lib: 
+    angel: 
+      failed_import_link_body: "This link referenced an Angel feature that couldn't be linked to by HotChalk Ember or that was left out of the export."
+    incoming_message_processor: 
+      failure_message: 
+        body: |-
+            The message titled "%{subject}" could not be delivered.  The message was sent to an unknown mailbox address.  If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
+            
+                      Thank you,
+                      HotChalk Ember Support
+      locked_topic: 
+        body: |-
+            The message titled "%{subject}" could not be delivered because the discussion topic is locked. If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
+            
+                      Thank you,
+                      HotChalk Ember Support
+  login: 
+    canvas: 
+      new: 
+        page_title: "Log In to HotChalk Ember"
+    logout_confirm: 
+      details: 
+        log_out: "Are you sure you want to log out of HotChalk Ember?"
+    otp: 
+      new: 
+        details: 
+          mfa_enrollment: |-
+              Multi-factor authentication increases security by requiring that you have something in your physical possession,
+              in addition to knowing your password, in order to log in to HotChalk Ember. This can be a device that can generate
+              verification codes, or a phone that can receive text messages. The Google Authenticator app for [iPhone](%{iphone_url}) or
+              [Android](%{android_url}) can be configured by scanning the QR Code below. Other tokens can be configured by entering the
+              secret key **%{secret_key}**.
+  media_comments: 
+    alerts: 
+      kaltura_disabled: "Kaltura has been disabled for this HotChalk Ember site"
+  message: 
+    default_subject: "HotChalk Ember Alert"
+  messages: 
+    account_user_registration: 
+      email: 
+        html: 
+          subject: "HotChalk Ember Account Admin Invitation"
+          url_info_label: "You'll need to register with HotChalk Ember before you can participate as an account admin."
+        subject: "HotChalk Ember Account Admin Invitation"
+        url_info: |-
+            You'll need to register with HotChalk Ember before you can participate as an account admin.  You can finish the registration process here:
+            %{url}
+    added_to_conversation: 
+      email: 
+        html: 
+          body: "%{user_name} just added you to a conversation in HotChalk Ember."
+          subject: "%{user_name} just added you to a conversation in HotChalk Ember."
+        subject: "%{user_name} just added you to a conversation in HotChalk Ember."
+      sms: 
+        body: "%{user_name} just added you to a conversation in HotChalk Ember."
+      summary: 
+        body: "%{user_name} just added you to a conversation in HotChalk Ember."
+        subject: "%{user_name} just added you to a conversation in HotChalk Ember."
+      twitter: 
+        tweet: "HotChalk Ember Alert - Added to conversation by %{user_name}."
+    announcement_created_by_you: 
+      twitter: 
+        body: "HotChalk Ember Alert - You created this Announcement: %{title}, %{course}."
+    announcement_reply: 
+      twitter: 
+        body: "HotChalk Ember Alert - Announcement Comment: %{discussion_topic}, %{course}."
+    appointment_canceled_by_user: 
+      twitter: 
+        message: "HotChalk Ember Alert - %{user} canceled his/her reservation for \"%{appointment_name}\"."
+    appointment_deleted_for_user: 
+      twitter: 
+        message: "HotChalk Ember Alert - Your time slot for \"%{appointment_name} was canceled\"."
+    appointment_group_deleted: 
+      twitter: 
+        message: "HotChalk Ember Alert - All appointments for \"%{appointment_name} have been canceled\"."
+    appointment_group_published: 
+      twitter: 
+        message: "HotChalk Ember Alert - Signups are open for \"%{appointment_name}\"."
+    appointment_group_updated: 
+      twitter: 
+        message: "HotChalk Ember Alert - New time slots are available for \"%{appointment_name}\"."
+    appointment_reserved_by_user: 
+      twitter: 
+        message: "HotChalk Ember Alert - %{user} has signed up for \"%{appointment_name}\"."
+    appointment_reserved_for_user: 
+      twitter: 
+        message: "HotChalk Ember Alert - You have been signed up for \"%{appointment_name}\"."
+    assignment_changed: 
+      twitter: 
+        assignment_change: "HotChalk Ember Alert - Change: %{assignment_name}, %{course_name}"
+    assignment_due_date_changed: 
+      twitter: 
+        assignment_change: "HotChalk Ember Alert - Date Change: %{assignment_name}, %{course_name}"
+    assignment_due_date_override_changed: 
+      twitter: 
+        assignment_change: "HotChalk Ember Alert - Date Change: %{assignment_name}, %{course_name} (%{override})"
+    assignment_graded: 
+      twitter: 
+        assignment_graded: "HotChalk Ember Alert - Graded: %{assignment_name}, %{course_name}"
+    assignment_resubmitted: 
+      twitter: 
+        user_resubmitted: "HotChalk Ember Alert - Resubmission: %{user_name}, %{assignment_name}"
+    assignment_submitted: 
+      twitter: 
+        user_submitted: "HotChalk Ember Alert - Submission: %{user_name}, %{assignment_name}"
+    assignment_submitted_late: 
+      twitter: 
+        user_submitted: "HotChalk Ember Alert - Late Submission: %{user_name}, %{assignment_name}"
+    collaboration_invitation: 
+      twitter: 
+        body: "HotChalk Ember Alert - Collaboration Invite: %{document}, %{course_or_group}"
+    confirm_email_communication_channel: 
+      email: 
+        html: 
+          subject: "Confirm Email: HotChalk Ember"
+        subject: "Confirm Email: HotChalk Ember"
+    confirm_sms_communication_channel: 
+      sms: 
+        body: |-
+            Confirm HotChalk Ember registration w/ code %{confirmation_code} for %{user} by visiting
+            %{website}
+    conversation_created: 
+      email: 
+        html: 
+          reply_to_conversation_message: "You can reply to this message in HotChalk Ember by replying directly to this email."
+          subject: "%{user_name}, you just sent a message in HotChalk Ember."
+        subject: "%{user_name}, you just sent a message in HotChalk Ember."
+      summary: 
+        body: "%{user_name}, you just sent a message in HotChalk Ember:"
+        subject: "%{user_name}, you just sent a message in HotChalk Ember."
+      twitter: 
+        tweet: "HotChalk Ember Alert - Message from %{user_name}."
+    conversation_message: 
+      email: 
+        html: 
+          reply_to_conversation_message: "You can reply to this message in HotChalk Ember by replying directly to this email."
+          subject: "%{user_name} just sent you a message in HotChalk Ember."
+        subject: "%{user_name} just sent you a message in HotChalk Ember."
+      summary: 
+        body: "%{user_name} just sent you a message in HotChalk Ember:"
+        subject: "%{user_name} just sent you a message in HotChalk Ember."
+      twitter: 
+        tweet: "HotChalk Ember Alert - Message from %{user_name}."
+    email:
+      footer: |-
+          You received this email because you are participating in one or more classes using HotChalk Ember.  To change or turn off email notifications, visit:
+          %{url}
+    enrollment_notification: 
+      twitter: 
+        body: "HotChalk Ember Alert - Enrolled: course as %{role_type}"
+    enrollment_registration: 
+      email: 
+        details: "You'll need to register with HotChalk Ember before you can participate in the class.  To get started, visit the course page here:"
+        html: 
+          details: "You'll need to register with HotChalk Ember before you can participate in the class."
+    forgot_password: 
+      email: 
+        html: 
+          requested_password_reset: "You requested a confirmation of your password for logging into HotChalk Ember."
+          subject: "Forgot Password: HotChalk Ember"
+        requested_password_reset: "You requested a confirmation of your password for logging into HotChalk Ember."
+        subject: "Forgot Password: HotChalk Ember"
+    grade_weight_changed: 
+      twitter: 
+        grade_changed: "HotChalk Ember Alert - Grading Policy Changed: %{course_name}"
+    group_assignment_submitted_late: 
+      twitter: 
+        subject: "HotChalk Ember Alert - Late Group Submission: %{group_name}, %{assignment_name}"
+    group_membership_accepted: 
+      twitter: 
+        account_group: "HotChalk Ember Alert - Group Membership Accepted: %{group_name} for the account %{account_name}."
+        course_group: "HotChalk Ember Alert - Group Membership Accepted: %{group_name} for the course %{course_name}."
+    group_membership_rejected: 
+      twitter: 
+        account_group: "HotChalk Ember Alert - Group Membership Rejected: %{group_name} for the account %{account_name}."
+        course_group: "HotChalk Ember Alert - Group Membership Rejected: %{group_name} for the course %{course_name}."
+    merge_email_communication_channel: 
+      email: 
+        body: "An account has been created for you at %{host}, but you already have a HotChalk Ember account.  If you would like to merge them together, please visit the following url:"
+        html: 
+          account_created: "An account has been created for you at %{host}, but you already have a HotChalk Ember account."
+          subject: "New HotChalk Ember Account"
+        subject: "New HotChalk Ember Account"
+    new_account_user: 
+      twitter: 
+        body: "HotChalk Ember Alert - New Admin: %{user}, %{account}"
+    new_announcement: 
+      twitter: 
+        body: "HotChalk Ember Alert - Announcement: %{title}, %{course}."
+    new_context_group_membership: 
+      twitter: 
+        body_account: "HotChalk Ember Alert - New Group: %{group} for the account %{account}"
+        body_course: "HotChalk Ember Alert - New Group: %{group} for the course %{course}"
+    new_context_group_membership_invitation: 
+      twitter: 
+        body_account: "HotChalk Ember Alert - Invitation: %{group} for the account %{account}"
+        body_course: "HotChalk Ember Alert - Invitation: %{group} for the course %{course}."
+    new_course: 
+      twitter: 
+        body: "HotChalk Ember Alert - New Course: %{course}, %{account}"
+    new_discussion_entry: 
+      twitter: 
+        body: "HotChalk Ember Alert - Comment: %{discussion_topic}, %{course}."
+    new_discussion_topic: 
+      twitter: 
+        subject: "HotChalk Ember Alert - Topic: %{discussion_topic}, %{course}"
+    new_event_created: 
+      twitter: 
+        subject: "HotChalk Ember Alert - Event: %{event_title}, %{course_name}"
+    new_file_added: 
+      twitter: 
+        body: "HotChalk Ember Alert - New File: %{title} (%{size}) for %{name}:"
+    new_files_added: 
+      twitter: 
+        body: "HotChalk Ember Alert - %{count} new files for %{name}"
+    new_student_organized_group: 
+      twitter: 
+        body_account: "HotChalk Ember Alert - New Group: %{group_name} for the account %{account}"
+        body_course: "HotChalk Ember Alert - New Group: %{group_name} for the course %{course}"
+    new_user: 
+      twitter: 
+        body: "HotChalk Ember Alert - New User: %{user}, %{account}"
+    pseudonym_registration: 
+      email: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  Before you can log in and start using HotChalk Ember, you'll need to finish the configuration process."
+        html: 
+          body: "You have been registered for a HotChalk Ember account at %{account}! Before you can log in and start using HotChalk Ember, you'll need to finish the configuration process."
+          subject: "Finish Registration: HotChalk Ember"
+        subject: "Finish Registration: HotChalk Ember"
+      sms: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  Before you can log in and start using HotChalk Ember, you'll need to finish the configuration process."
+      summary: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  Before you can log in and start using HotChalk Ember, you'll need to finish the configuration process."
+        subject: "Finish Registration: HotChalk Ember"
+      twitter: 
+        body: "HotChalk Ember Alert - You have been registered for a HotChalk Ember account at %{account}!"
+    pseudonym_registration_done: 
+      email: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  "
+        html: 
+          body: "You have been registered for a HotChalk Ember account at %{account}!"
+          subject: "HotChalk Ember Registration Complete"
+        subject: "HotChalk Ember Registration Complete"
+      sms: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  "
+      summary: 
+        body: "You have been registered for a HotChalk Ember account at %{account}!  "
+        subject: "HotChalk Ember Registration Complete"
+      twitter: 
+        body: "HotChalk Ember Alert - You have been registered for a HotChalk Ember account at %{account}!  "
+    quiz_regrade_finished: 
+      twitter: 
+        body: "HotChalk Ember Alert - Quiz Regraded : %{quiz}"
+    rubric_assessment_submission_reminder: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Reminder: assess %{rubric}, %{context}"
+    rubric_association_created: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - New Assessment: %{title}, %{context}."
+    submission_comment: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Comment: %{author} for %{assignment}, %{user}, %{context}."
+    submission_comment_for_teacher: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Comment: %{author} for %{assignment}, %{user}, %{context}."
+    submission_grade_changed: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Grade Change: %{date}"
+    submission_graded: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Graded: %{assignment}, %{context}"
+    submission_needs_grading: 
+      twitter: 
+        body: "HotChalk Ember Alert - Quiz Submitted: %{quiz}, %{user_name}"
+    summaries: 
+      email: 
+        daily_body: "You're signed up to receive a daily report of some notifications from your HotChalk Ember account.  Below is the report for %{date}:"
+        html: 
+          daily_body: "You're signed up to receive a daily report of some notifications from your HotChalk Ember account. Below is the report for %{date}:"
+          subject: "Recent HotChalk Ember Notifications"
+          weekly_body: "You're signed up to receive a weekly report of some notifications from your HotChalk Ember account. Below is the report for the week ending %{date}:"
+        subject: "Recent HotChalk Ember Notifications"
+        weekly_body: "You're signed up to receive a weekly report of some notifications from your HotChalk Ember account.  Below is the report for the week ending %{date}:"
+      twitter: 
+        tweet: "HotChalk Ember Alert - %{notification_count} new notifications"
+    updated_wiki_page: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Page Updated: %{title}, %{user}."
+    web_conference_invitation: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Invite: attend %{title}, %{name}"
+    web_conference_recording_ready: 
+      twitter: 
+        tweet: "HotChalk Ember Alert - Recording ready: %{title}, %{name}"
+  multiple_canvas_accounts_are_associated_with_cleve_c1739660: "Multiple HotChalk Ember accounts are associated with Clever District %{district_id}"
+  need_a_canvas_account_221d18ed: "Need a HotChalk Ember Account?"
+  note_this_login_s_account_uses_delegated_authentic_89227914: "Note: This login's account uses delegated authentication, but allows fallback HotChalk Ember password authentication. The password fields in this form update the fallback HotChalk Ember password, *not* the delegated authentication."
+  outcomes: 
+    main_instructions: 
+      instructions: 
+        main: 
+          manage: 
+            description: "*Outcomes are created here to track mastery in a course. To get started, checkout the menu bar along the top. Click on the New button to create a new outcome, or the New Group button to create a new group to organize your outcomes into. The Find button will allow you to use outcomes that have been created by your state or institution. As you create and use outcomes you will be able to use the panel to the left to navigate through your outcomes. You can drag and drop outcomes between the different levels to create structure.* *More importantly, HotChalk Ember allows you to add outcomes to your grading rubrics so that you can evaluate mastery as you grade assignments. Once you've set up outcomes, click Manage Rubrics to start using your outcomes for grading.*"
+  parent_of_a_canvas_user_afba1624: "Parent of a HotChalk Ember User?"
+  plugins: 
+    academic_benchmark_importer: 
+      description: "This enables importing Academic Benchmark standards into HotChalk Ember."
+    app_center: 
+      description: "App Center for tracking/installing external tools in HotChalk Ember"
+    banner_grade_exchange_settings: 
+      labels: 
+        canvas_source_identifier: "Name of your HotChalk Ember instance"
+    canvas_webhooks: 
+      description: "Webhooks plugin for HotChalk Ember"
+      name: "HotChalk Ember Webhooks"
+    catalog_provisioner: 
+      description: "Catalog Account Provisioner for HotChalk Ember"
+    ims_es_importer_settings: 
+      labels: 
+        map_sections_to_courses: "Map IMS sections to HotChalk Ember Courses"
+    index: 
+      no_plugins: "There are no HotChalk Ember plugins installed"
+      page_title: "HotChalk Ember Plugins"
+    kaltura_settings: 
+      description: |-
+          You will need an account either at [Kaltura.com](%{kaltura_url})
+          or with a self-hosted instance of Kaltura.
+          
+          **Note:** once you have Kaltura configured within HotChalk Ember,
+          you need to go to the Kaltura Management Console and under "Settings ->
+          Integration Settings" enable server notifications with a
+          Notification URL of:
+          
+          %{notification_url}
+          
+          Then check the boxes for "Add Entry" and "Delete Entry" in the "Sent by Server" column.
+      headers: 
+        canvas_settings: "HotChalk Ember Settings"
+    panda_pub_settings: 
+      description: "PandaPub is a pub/sub service which, when configured, allows some parts of HotChalk Ember to receive notifications of events within the browser, rather than polling for changes."
+    webct_scraper_settings: 
+      description: |-
+          If the institution does not use WebCT's "Learning Modules" (including schools who adopted WebCT
+            prior to version 4.0, when modules were made available), course migrations can be improved by importing the "Course Content"
+            as HotChalk Ember Modules instead of the "Learning Modules". This page allows one to set the default behavior of the WebCT migrator
+            with respect to content modules. It is important to remember that, while individual course migrations retain the ability
+            to choose, the bulk migrator always utilizes the value configured here and cannot be changed per migration.
+  product_name: "HotChalk Ember"
+  profile: 
+    profile: 
+      approved_integrations: "These are the third-party applications you have authorized to access the HotChalk Ember site on your behalf:"
+      delicious_description: "Delicious is a tool that lets you store and share your bookmarks with others. HotChalk Ember's rich content editor will let you search your Delicious tags to easily link from within HotChalk Ember to other resources you find useful."
+      diigo_description: "Diigo is a social bookmarking tool tailored specifically to research and education. HotChalk Ember's rich content editor will let you search your Diigo tags to easily link from within HotChalk Ember to other resources you find useful."
+      generate_access_token_description: |-
+          Access tokens are what allow third-party applications to access HotChalk Ember
+          resources on your behalf. These tokens are normally created automatically for
+          applications as needed, but if [you're developing a new or limited
+          project](%{documentation_url}) you can just generate the token from here.
+      no_approved_integrations: "Third-party applications can request permission to access the HotChalk Ember site on your behalf. As you begin authorizing applications you will see them listed here."
+      web_services: "HotChalk Ember can make your life a lot easier by tying itself in with the web tools you already use. Click any of the services in \"Other Services\" to see what we mean."
+    ways_to_contact: 
+      bouncing_channel: "HotChalk Ember was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from HotChalk Ember."
+      bouncing_email: "HotChalk Ember was unable to send email to this address. Please ensure the address is correct to continue receiving email from HotChalk Ember."
+      labels: 
+        enable_login_for_email: "I want to log in to HotChalk Ember using this email address"
+  profiles: 
+    notifications: 
+      privacy_notice: 
+        privacy_notice: "Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive HotChalk Ember course and group information outside of the institutional system."
+  quiz: 
+    regrade: 
+      regrade_options: "Choose a regrade option for students who have already taken the quiz. HotChalk Ember will regrade all your submissions after you save the quiz (students' scores MAY be affected)."
+  quiz_log_auditing: 
+    event_stream: 
+      page_blurred: "Stopped viewing the HotChalk Ember quiz-taking page..."
+  registration: 
+    welcome_to_canvas: "Welcome to HotChalk Ember!"
+  reply_from_name: "%{name} via HotChalk Ember Notifications"
+  see_some_lti_tools_that_work_great_with_canvas_16ef75a0: "*See some LTI tools* that work great with HotChalk Ember."
+  shared: 
+    profile: 
+      message_me: "message me in HotChalk Ember"
+      message_user_canvas: "Message %{user} in HotChalk Ember"
+  site_admin: 
+    domain_not_found: 
+      body_description: "Please check your HotChalk Ember URL and try again. If you do not know your HotChalk Ember URL, please contact your institution or course instructor."
+      body_reference: "If you're interested in a free HotChalk Ember account not tied to a specific institution you can sign up at"
+      page_title: "Oops, HotChalk Ember can’t find your login page."
+    institution_suspended: 
+      body: "Your school's HotChalk Ember account is temporarily suspended. Please contact your HotChalk Ember administrator."
+  tell_us_how_and_when_you_would_like_to_be_notified_de3ed2bc: "Tell us how and when you would like to be notified of events in HotChalk Ember."
+  the_canvas_saml_entity_id_is_metadata_url_and_the__af7349ab: |-
+      The HotChalk Ember SAML Entity ID is %{metadata_url}, and the Service Provider metadata
+      is available at that URL.
+  the_files_tab_is_the_place_to_share_lecture_slides_95a93bce: "The Files tab is the place to share lecture slides, example documents, study helps -- anything your students will want to download.  Uploading and organizing your files is easy with HotChalk Ember.  We'll show you how."
+  the_message_titled_subject_could_not_be_delivered__f063857e: |-
+      The message titled "%{subject}" could not be delivered because the discussion topic has been deleted. If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
+      
+                Thank you,
+                HotChalk Ember Support
+  the_message_you_sent_with_the_subject_line_subject_c73f92e4: |-
+      The message you sent with the subject line "%{subject}" was not delivered. To reply to HotChalk Ember messages from this email, it must first be a confirmed communication channel in your HotChalk Ember profile. Please visit your profile and resend the confirmation email for this email address [See https://community.canvaslms.com/docs/DOC-2281]. You may also contact this person via the HotChalk Ember Inbox [See https://community.canvaslms.com/docs/DOC-2670].
+      
+                Thank you,
+                HotChalk Ember Support
+  this_course_is_claimed_and_ready_but_you_ll_need_t_25b95a0a: "This course is claimed and ready, but you'll need to finish the registration process before you can publish the course.  You should have received an email from HotChalk Ember with a link to finish the process.  Be sure to check your spam box."
+  this_is_a_comma_separated_list_of_url_s_to_trust_t_a6611f4: "This is a comma separated list of URL's to trust. Trusting any URL's in this list will bypass the CSRF token when logging in to HotChalk Ember."
+  this_sample_page_includes_common_ui_elements_in_ca_331f4ac4: "This sample page includes common UI elements in HotChalk Ember to help you build your custom branding. Once you start making changes to the color values and images in the left sidebar, you will see a *Preview Your Changes* button. Click it to refresh this page and see how your changes look."
+  this_will_allow_you_to_authenticate_canvas_for_pos_fdfca40: "This will allow you to authenticate HotChalk Ember for posting grades to SIS"
+  tinymce: 
+    insert_update_image_view: 
+      canvas: "HotChalk Ember"
+  user_date_range_search: 
+    cant_be_blank: "HotChalk Ember User ID can't be blank"
+  user_name_just_added_you_to_a_conversation_in_canv_7b278b51: "%{user_name} just added you to a conversation in HotChalk Ember. To view the conversation, click this link: %{link}."
+  user_name_just_sent_you_a_message_in_canvas_9e911af7: "%{user_name} just sent you a message in HotChalk Ember"
+  users: 
+    new: 
+      create_a_canvas_account: "Create a HotChalk Ember Account"
+    welcome: 
+      welcome_to_happiness: "Welcome to HotChalk Ember!"
+  warnings: 
+    test_install: 
+      periodic_message: "This HotChalk Ember installation is only for testing, and will reset periodically."
+      title: "HotChalk Ember Test Installation"
+      weekly_message: 
+        one: "This HotChalk Ember installation is only for testing, and will reset every week."
+        other: "This HotChalk Ember installation is only for testing, and will reset every %{count} weeks."
+  welcome_to_the_canvas_theme_editor_73091d1: "Welcome to the HotChalk Ember Theme Editor"
+  you_can_reply_to_this_message_in_canvas_by_replyin_fa33638d: "You can reply to this message in HotChalk Ember by replying directly to this email, or by clicking this link: %{link}."
+  you_just_sent_a_message_in_canvas_86b4945c: "You just sent a message in HotChalk Ember"
+  you_re_editing_your_canvas_theme_apply_or_cancel_c_1633384e: "You're editing your HotChalk Ember Theme! Apply or cancel changes from within the *Theme Editor*."
+  you_re_editing_your_canvas_theme_the_changes_have__c0ae1bd1: "You're editing your HotChalk Ember Theme! The changes have not been applied yet."
+  your_browser_does_not_meet_the_minimum_requirement_2fa7c11f: "Your browser does not meet the minimum requirements for HotChalk Ember. Please visit the *Canvas Community* for a complete list of supported browsers."

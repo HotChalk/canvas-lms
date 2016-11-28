@@ -62,7 +62,7 @@ class Login::SamlController < ApplicationController
         @aac = @domain_root_account.authentication_providers.active.where(auth_type: 'saml').first
       else
         if @domain_root_account.auth_discovery_url
-          flash[:delegated_message] = t("HotChalk Ember did not recognize your identity provider")
+          flash[:delegated_message] = t("Canvas did not recognize your identity provider")
         else
           flash[:delegated_message] = t("The institution you logged in from is not configured on this account.")
         end
@@ -149,7 +149,7 @@ class Login::SamlController < ApplicationController
           message = "Received SAML login request for unknown user: #{unique_id} redirecting to: #{unknown_user_url}."
           logger.warn message
           aac.debug_set(:canvas_login_fail_message, message) if debugging
-          flash[:delegated_message] = t("HotChalk Ember doesn't have an account for user: %{user}",
+          flash[:delegated_message] = t("Canvas doesn't have an account for user: %{user}",
                                         user: unique_id)
           redirect_to unknown_user_url
         end

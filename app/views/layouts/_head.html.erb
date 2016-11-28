@@ -8,7 +8,7 @@
 <html class="scripts-not-loaded" lang=<%= @locale %>>
 <head>
   <meta charset="utf-8">
-  <title><%= (yield :page_title).presence || @page_title || t('default_page_title', "HotChalk Ember LMS") %></title>
+  <title><%= (yield :page_title).presence || @page_title || t('default_page_title', "Canvas LMS") %></title>
   <!--[if lte IE 9]> <meta http-equiv=refresh content="0; URL=/ie-9-is-not-supported.html" /> <![endif]-->
   <%= favicon_link_tag(favicon) %>
   <%= favicon_link_tag(brand_variable('ic-brand-apple-touch-icon'), rel: 'apple-touch-icon', type: nil) %>

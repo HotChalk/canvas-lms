@@ -10,6 +10,7 @@ require [
   # modules that do their own thing on every page that simply need to
   # be required
   'translations/_core_en'
+  'translations/_overrides'
   'jquery.ajaxJSON'
   'jquery.google-analytics'
   'vendor/swfobject/swfobject'

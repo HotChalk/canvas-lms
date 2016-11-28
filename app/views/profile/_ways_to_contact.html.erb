@@ -54,7 +54,7 @@
           <span class="user_id" style="display: none;"><%= c.user_id %></span>
         </span>
         <% if c.bouncing? %>
-          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_email', 'HotChalk Ember was unable to send email to this address. Please ensure the address is correct to continue receiving email from HotChalk Ember.') %>" aria-label="<%= t('bouncing_email', 'HotChalk Ember was unable to send email to this address. Please ensure the address is correct to continue receiving email from HotChalk Ember.') %>">
+          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_email', 'Canvas was unable to send email to this address. Please ensure the address is correct to continue receiving email from Canvas.') %>" aria-label="<%= t('bouncing_email', 'Canvas was unable to send email to this address. Please ensure the address is correct to continue receiving email from Canvas.') %>">
             <i class="text text-warning icon-warning"></i>
           </span>
         <% end %>
@@ -99,7 +99,7 @@
       <td><%= c.path_type %></td>
       <td style="padding: 0; text-align: center;">
         <% if c.bouncing? %>
-          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_channel', 'HotChalk Ember was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from HotChalk Ember.') %>" aria-label="<%= t('bouncing_channel', 'HotChalk Ember was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from HotChalk Ember.') %>">
+          <span class="bouncing-channel" data-tooltip="left" title="<%= t('bouncing_channel', 'Canvas was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from Canvas.') %>" aria-label="<%= t('bouncing_channel', 'Canvas was unable to send messages to you using this contact method. Please ensure the contact information is correct to continue receiving messages from Canvas.') %>">
             <i class="text text-warning icon-warning"></i>
           </span>
           <% if c.bounce_count > 0 && (c.grants_right?(@current_user, :reset_bounce_count) || (@real_current_user && c.grants_right?(@real_current_user, :reset_bounce_count))) %>
@@ -157,7 +157,7 @@
         <div class="controls">
           <label class='checkbox' for="build_pseudonym_for_email">
             <input type="checkbox" id="build_pseudonym_for_email" name="build_pseudonym" value="1"/>
-            <%= t('labels.enable_login_for_email', "I want to log in to HotChalk Ember using this email address") %>
+            <%= t('labels.enable_login_for_email', "I want to log in to Canvas using this email address") %>
           </label>
         </div>
       </div>

@@ -109,10 +109,10 @@ module IncomingMail
         when IncomingMail::Errors::ReplyToLockedTopic
           ndr_subject = I18n.t("Undelivered message")
           ndr_body = I18n.t('lib.incoming_message_processor.locked_topic.body', <<-BODY, :subject => subject).gsub(/^ +/, '')
-          The message titled "%{subject}" could not be delivered because the discussion topic is locked. If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
+          The message titled "%{subject}" could not be delivered because the discussion topic is locked. If you are trying to contact someone through Canvas you can try logging in to your account and sending them a message using the Inbox tool.
 
           Thank you,
-          HotChalk Ember Support
+          Canvas Support
           BODY
         when IncomingMail::Errors::UnknownSender
           ndr_subject = I18n.t("Undelivered message")
@@ -125,10 +125,10 @@ module IncomingMail
         else # including IncomingMessageProcessor::UnknownAddressError
           ndr_subject = I18n.t("Undelivered message")
           ndr_body = I18n.t('lib.incoming_message_processor.failure_message.body', <<-BODY, :subject => subject).gsub(/^ +/, '')
-          The message titled "%{subject}" could not be delivered.  The message was sent to an unknown mailbox address.  If you are trying to contact someone through HotChalk Ember you can try logging in to your account and sending them a message using the Inbox tool.
+          The message titled "%{subject}" could not be delivered.  The message was sent to an unknown mailbox address.  If you are trying to contact someone through Canvas you can try logging in to your account and sending them a message using the Inbox tool.
 
           Thank you,
-          HotChalk Ember Support
+          Canvas Support
           BODY
       end
 

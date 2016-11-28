@@ -65,7 +65,7 @@ namespace :canvas do
     # TODO: Once webpack is the only way, remove js:build
     if build_js
       tasks["compile coffee, js 18n, run r.js optimizer, and webpack"] = -> {
-        prereqs = ['js:generate', 'i18n:generate_js']
+        prereqs = ['js:generate', 'i18n:generate_js', 'ember:generate_i18n_overrides_js']
         prereqs.each do |name|
           log_time(name) { Rake::Task[name].invoke }
         end

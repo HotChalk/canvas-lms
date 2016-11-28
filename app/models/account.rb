@@ -259,7 +259,7 @@ class Account < ActiveRecord::Base
   end
 
   def product_name
-    settings[:product_name] || t("#product_name", "HotChalk Ember")
+    settings[:product_name] || t("#product_name", "Canvas")
   end
 
   def allow_global_includes?

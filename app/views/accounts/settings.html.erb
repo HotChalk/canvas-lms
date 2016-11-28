@@ -149,7 +149,7 @@
                                               :value => @account.settings[:trusted_referers],
                                               :class => 'same-width-as-select',
                                               :placeholder => "https://example.edu" %>
-                      <p style="font-size: 0.9em;"><%= t("This is a comma separated list of URL's to trust.  Trusting any URL's in this list will bypass the CSRF token when logging in to HotChalk Ember.") %></p>
+                      <p style="font-size: 0.9em;"><%= t("This is a comma separated list of URL's to trust.  Trusting any URL's in this list will bypass the CSRF token when logging in to Canvas.") %></p>
                     </td>
                   </tr>
 
@@ -469,7 +469,7 @@
                 @account.grants_right?(@current_user, :manage_site_settings) %>
             <fieldset id="add_sis_app_token">
               <legend><%= t("SIS Agent Token Authentication") %></legend>
-              <p style="font-size: 0.9em;"><%= t("This will allow you to authenticate HotChalk Ember for posting grades to SIS") %></p>
+              <p style="font-size: 0.9em;"><%= t("This will allow you to authenticate Canvas for posting grades to SIS") %></p>
               <%= f.fields_for :settings do |settings| %>
                   <table class="formtable">
                     <tr>
@@ -608,11 +608,11 @@
               <div class="service_help_dialog" title="<%= t(:about_google_docs_tooltip, "About Google Docs Previews") %>" id="google_docs_previews_help_dialog">
                 <%= mt(:about_google_docs, <<-TEXT, :terms_url => "https://docs.google.com/viewer/TOS")
 Google Docs Previews allow users to view documents from
-within HotChalk Ember, rather than having to download them and
+within Canvas, rather than having to download them and
 open the corresponding program (e.g. Word or Excel).
 
 Google Docs Previews can also render file types
-not supported by the HotChalk Ember document previewer.
+not supported by the Canvas document previewer.
 
 By using this service you
 acknowledge that you have read and agreed to the
@@ -664,13 +664,13 @@ acknowledge that you have read and agreed to the
     <div id="tab-notifications">
       <%= form_for :account, :url => account_url(@account), :html => {:method => :put, :id => "account_settings_notifications"} do |f| %>
         <h2><%= t(:email_notification_from_settings, 'E-mail Notification "From" Settings') %></h2>
-        <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from HotChalk Ember for this Account.") %></p>
+        <p><%= t(:email_notification_from_description, "This setting allows the Admin to brand or label the 'From' text on all notifications sent from Canvas for this Account.") %></p>
         <%= f.fields_for :settings do |settings| %>
           <div>
             <%= settings.radio_button :outgoing_email_default_name_option, 'default',
                                       :checked => @account.settings[:outgoing_email_default_name].blank?,
                                       :class => 'notification_from_name_option' %>
-            <%= settings.label :outgoing_email_default_name_option_default, :en => "Default HotChalk Ember Setting" %>
+            <%= settings.label :outgoing_email_default_name_option_default, :en => "Default Canvas Setting" %>
           </div>
           <div style='padding-left: 2em;'>
             <strong><%= t 'notifications.example', 'Example:' %></strong>
@@ -707,7 +707,7 @@ acknowledge that you have read and agreed to the
           </div>
           <div style='padding-left: 2em;'>
             <p>
-              <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in HotChalk Ember notifications.') %>
+              <%= t('notifications.custom_name_description', 'If selected, this will replace all other branding sent in Canvas notifications.') %>
               <br/>
               <%= text_field_tag 'account[settings][outgoing_email_default_name]', @account.settings[:outgoing_email_default_name] %>
             </p>
@@ -755,7 +755,7 @@ acknowledge that you have read and agreed to the
             <tr>
               <td>
                 <b><%= t('notifications.external_services_warning_label', 'Pop-up Message Content:') %></b>
-                <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive HotChalk Ember course and group information outside of the institutional system.')%></blockquote>
+                <blockquote><%= t('notifications.external_services_warning', 'Notice: Some notifications may contain confidential information. Selecting to receive notifications at an email other than your institution provided address may result in sending sensitive Canvas course and group information outside of the institutional system.')%></blockquote>
               </td>
             </tr>
           </table>
