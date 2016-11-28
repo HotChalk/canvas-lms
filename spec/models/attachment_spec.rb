@@ -304,7 +304,7 @@ describe Attachment do
 
       it "should delay upload until the #save transaction is committed" do
         @attachment.uploaded_data = default_uploaded_data
-        Attachment.connection.expects(:after_transaction_commit).once
+        Attachment.connection.expects(:after_transaction_commit).twice
         @attachment.expects(:touch_context_if_appropriate).never
         @attachment.expects(:ensure_media_object).never
         @attachment.save
@@ -313,7 +313,7 @@ describe Attachment do
       it "should upload immediately when in a non-joinable transaction" do
         Attachment.connection.transaction(:joinable => false) do
           @attachment.uploaded_data = default_uploaded_data
-          Attachment.connection.expects(:after_transaction_commit).never
+          Attachment.connection.expects(:after_transaction_commit).once
           @attachment.expects(:touch_context_if_appropriate)
           @attachment.expects(:ensure_media_object)
           @attachment.save
@@ -807,6 +807,18 @@ describe Attachment do
       @a.handle_duplicates(:overwrite)
       expect(@a.reload.usage_rights).to eq usage_rights
     end
+
+    it "forces rename semantics in submissions folders" do
+      user_model
+      a1 = attachment_model context: @user, folder: @user.submissions_folder, filename: 'a1.txt'
+      a2 = attachment_model context: @user, folder: @user.submissions_folder, filename: 'a2.txt'
+      a2.display_name = 'a1.txt'
+      deleted = a2.handle_duplicates(:overwrite)
+      expect(deleted).to be_empty
+      a2.reload
+      expect(a2.display_name).not_to eq 'a1.txt'
+      expect(a2.display_name).not_to eq 'a2.txt'
+    end
   end
 
   describe "make_unique_filename" do
@@ -973,7 +985,7 @@ describe Attachment do
     end
   end
 
-  context "#change_namespace" do
+  context "#change_namespace and #make_childless" do
     before :once do
       @old_account = account_model
       @new_account = account_model
@@ -1013,6 +1025,17 @@ describe Attachment do
       @root.change_namespace(@new_account.file_namespace)
       expect(@root.namespace).to eq @new_account.file_namespace
       expect(@child.reload.namespace).to eq @root.namespace
+    end
+
+    it 'should allow making a root_attachment childess' do
+      @child.update_attribute(:filename, 'invalid')
+      @root.s3object.stubs(:exists?).returns(true)
+      @child.stubs(:s3object).returns(@old_object)
+      @child.s3object.stubs(:exists?).returns(true)
+      @root.make_childless(@child)
+      expect(@root.reload.children).to eq []
+      expect(@child.reload.root_attachment_id).to eq nil
+      expect(@child.read_attribute(:filename)).to eq @root.filename
     end
   end
 
@@ -1326,6 +1349,13 @@ describe Attachment do
       expect(quota[:quota_used]).to eq 0
     end
 
+    it "should not count attachments in group submissions folders toward the quota" do
+      group_model
+      attachment_model(:context => @group, :uploaded_data => stub_png_data, :filename => 'whatever.png', :folder => @group.submissions_folder)
+      @attachment.update_attribute(:size, 1.megabyte)
+      quota = Attachment.get_quota(@group)
+      expect(quota[:quota_used]).to eq 0
+    end
   end
 
   context "#open" do

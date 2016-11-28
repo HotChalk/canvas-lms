@@ -392,8 +392,7 @@ class WikiPagesApiController < ApplicationController
   def destroy
     if authorized_action(@page, @current_user, :delete)
       if !@was_front_page
-        @page.workflow_state = 'deleted'
-        @page.save!
+        @page.destroy
         process_front_page
         render :json => wiki_page_json(@page, @current_user, session)
       else
@@ -623,7 +622,7 @@ class WikiPagesApiController < ApplicationController
   end
 
   def assignment_params
-    params[:wiki_page] && params[:wiki_page][:assignment]
+    params[:wiki_page] && strong_params[:wiki_page][:assignment]
   end
 
   def process_front_page

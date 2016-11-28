@@ -94,7 +94,7 @@ input {
   border-radius: $ic-border-radius;
 }
 input::-webkit-input-placeholder {
-  color: $gray-light;
+  color: $ic-color-medium;
 }
 .error {
   background: $ic-color-danger;

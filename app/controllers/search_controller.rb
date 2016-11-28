@@ -203,7 +203,8 @@ class SearchController < ApplicationController
     end
     pagination_args = {}
     pagination_args[:per_page] = 12 unless request.format == :json
-    ret = Api.paginate(@courses, self, '/search/all_courses/', pagination_args, {enhanced_return: true})
+    base_url = api_request? ? api_v1_search_all_courses_url : '/search/all_courses/'
+    ret = Api.paginate(@courses, self, base_url, pagination_args, {enhanced_return: true})
     @courses = ret[:collection]
 
     if request.format == :json
@@ -369,6 +370,7 @@ class SearchController < ApplicationController
     enrollment_counts = {:all => users.size}
     users.each do |user|
       common_courses = @current_user.address_book.common_courses(user)
+      next unless common_courses.key?(course[:id])
       roles = common_courses[course[:id]].uniq
       roles.each do |role|
         enrollment_counts[role] ||= 0

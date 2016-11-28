@@ -1,15 +1,15 @@
 define [
   'react'
+  'react-dom'
   'jquery'
   'underscore'
   'jsx/grading/gradingPeriodCollection'
   'helpers/fakeENV'
   'jquery.instructure_misc_plugins'
   'compiled/jquery.rails_flash_notifications'
-], (React, $, _, GradingPeriodCollection, fakeENV) ->
+], (React, ReactDOM, $, _, GradingPeriodCollection, fakeENV) ->
 
   TestUtils = React.addons.TestUtils
-  Simulate = TestUtils.Simulate
 
   module 'GradingPeriodCollection',
     setup: ->
@@ -23,12 +23,22 @@ define [
       @indexData =
         "grading_periods":[
           {
-            "id":"1", "start_date":"2015-03-01T06:00:00Z", "end_date":"2015-05-31T05:00:00Z",
-            "weight":null, "title":"Spring", "permissions": { "update":true, "delete":true }
+            "id":"1",
+            "title":"Spring",
+            "start_date":"2015-03-01T06:00:00Z",
+            "end_date":"2015-05-31T05:00:00Z",
+            "close_date":"2015-06-07T05:00:00Z",
+            "weight":null,
+            "permissions": { "update":true, "delete":true }
           },
           {
-            "id":"2", "start_date":"2015-06-01T05:00:00Z", "end_date":"2015-08-31T05:00:00Z",
-            "weight":null, "title":"Summer", "permissions": { "update":true, "delete":true }
+            "id":"2",
+            "title":"Summer",
+            "start_date":"2015-06-01T05:00:00Z",
+            "end_date":"2015-08-31T05:00:00Z",
+            "close_date":"2015-09-07T05:00:00Z",
+            "weight":null,
+            "permissions": { "update":true, "delete":true }
           }
         ]
         "grading_periods_read_only": false,
@@ -38,12 +48,22 @@ define [
       @formattedIndexData =
         "grading_periods":[
           {
-            "id":"1", "startDate": new Date("2015-03-01T06:00:00Z"), "endDate": new Date("2015-05-31T05:00:00Z"),
-            "weight":null, "title":"Spring", "permissions": { "update":true, "delete":true }
+            "id":"1",
+            "title":"Spring",
+            "startDate": new Date("2015-03-01T06:00:00Z"),
+            "endDate": new Date("2015-05-31T05:00:00Z"),
+            "closeDate": new Date("2015-06-07T05:00:00Z"),
+            "weight":null,
+            "permissions": { "update":true, "delete":true }
           },
           {
-            "id":"2", "startDate": new Date("2015-06-01T05:00:00Z"), "endDate": new Date("2015-08-31T05:00:00Z"),
-            "weight":null, "title":"Summer", "permissions": { "update":true, "delete":true }
+            "id":"2",
+            "title":"Summer",
+            "startDate": new Date("2015-06-01T05:00:00Z"),
+            "endDate": new Date("2015-08-31T05:00:00Z"),
+            "closeDate": new Date("2015-09-07T05:00:00Z"),
+            "weight":null,
+            "permissions": { "update":true, "delete":true }
           }
         ]
         "grading_periods_read_only": false,
@@ -52,8 +72,13 @@ define [
 
       @createdPeriodData = "grading_periods":[
         {
-          "id":"3", "start_date":"2015-04-20T05:00:00Z", "end_date":"2015-04-21T05:00:00Z",
-          "weight":null, "title":"New Period!", "permissions": { "update":true, "delete":true }
+          "id":"3",
+          "title":"New Period!",
+          "start_date":"2015-04-20T05:00:00Z",
+          "end_date":"2015-04-21T05:00:00Z",
+          "close_date":"2015-04-28T05:00:00Z",
+          "weight":null,
+          "permissions": { "update":true, "delete":true }
         }
       ]
       @server.respondWith "GET", ENV.GRADING_PERIODS_URL, [200, {"Content-Type":"application/json"}, JSON.stringify @indexData]
@@ -64,7 +89,7 @@ define [
       @gradingPeriodCollection = TestUtils.renderIntoDocument(GradingPeriodCollectionElement)
       @server.respond()
     teardown: ->
-      React.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
+      ReactDOM.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
       fakeENV.teardown()
       @server.restore()
 
@@ -80,30 +105,9 @@ define [
     equal @gradingPeriodCollection.refs.grading_period_1.props.readOnly, false
     equal @gradingPeriodCollection.refs.grading_period_2.props.readOnly, false
 
-  test 'createNewGradingPeriod adds a new period', ->
-    deepEqual @gradingPeriodCollection.state.periods.length, 2
-    @gradingPeriodCollection.createNewGradingPeriod()
-    deepEqual @gradingPeriodCollection.state.periods.length, 3
-
-  test 'createNewGradingPeriod adds the new period with a blank title, start date, and end date', ->
-    @gradingPeriodCollection.createNewGradingPeriod()
-    newPeriod = _.find(@gradingPeriodCollection.state.periods, (p) => p.id.indexOf('new') > -1)
-    deepEqual newPeriod.title, ''
-    deepEqual newPeriod.startDate.getTime(), new Date('').getTime()
-    deepEqual newPeriod.endDate.getTime(), new Date('').getTime()
-
-  test 'deleteGradingPeriod does not call confirmDelete if the grading period is not saved', ->
-    unsavedPeriod = [
-      {
-        "id":"new1", "startDate": new Date("2029-03-01T06:00:00Z"), "endDate": new Date("2030-05-31T05:00:00Z"),
-        "weight":null, "title":"New Period. I'm not saved yet!",
-        "permissions": { "update":true, "delete":true }
-      }
-    ]
-    @gradingPeriodCollection.setState({periods: unsavedPeriod})
-    confirmDelete = @stub($.fn, 'confirmDelete')
-    @gradingPeriodCollection.deleteGradingPeriod('new1')
-    ok confirmDelete.notCalled
+  test "renders grading periods with their individual 'closeDate'", ->
+    deepEqual @gradingPeriodCollection.refs.grading_period_1.props.closeDate, new Date("2015-06-07T05:00:00Z")
+    deepEqual @gradingPeriodCollection.refs.grading_period_2.props.closeDate, new Date("2015-09-07T05:00:00Z")
 
   test 'deleteGradingPeriod calls confirmDelete if the period being deleted is not new (it is saved server side)', ->
     confirmDelete = @stub($.fn, 'confirmDelete')
@@ -238,13 +242,6 @@ define [
     ok @gradingPeriodCollection.areDatesOverlapping(periodOne)
     ok @gradingPeriodCollection.areDatesOverlapping(periodTwo)
 
-  test 'renderAddPeriodButton does not render a button if canAddNewPeriods is false (based on permissions)', ->
-    @gradingPeriodCollection.setState({ canAddNewPeriods: false })
-    notOk @gradingPeriodCollection.renderAddPeriodButton()
-
-  test 'renderAddPeriodButton renders a button if canAddNewPeriods is true (based on permissions)', ->
-    ok @gradingPeriodCollection.renderAddPeriodButton()
-
   test 'renderSaveButton does not render a button if the user cannot update any of the periods on the page', ->
     uneditable = [{
       "id":"12", "startDate": new Date("2015-03-01T06:00:00Z"), "endDate": new Date("2015-05-31T05:00:00Z"),
@@ -298,7 +295,7 @@ define [
       @server.respond()
 
     teardown: ->
-      React.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
+      ReactDOM.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
       fakeENV.teardown()
       @server.restore()
 
@@ -343,7 +340,7 @@ define [
       @server.respond()
 
     teardown: ->
-      React.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
+      ReactDOM.unmountComponentAtNode(@gradingPeriodCollection.getDOMNode().parentNode)
       fakeENV.teardown()
       @server.restore()
 

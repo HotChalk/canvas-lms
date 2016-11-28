@@ -3,6 +3,7 @@ define [
   'Backbone'
   'jquery'
   'underscore'
+  'jsx/shared/conditional_release/CyoeHelper'
   'compiled/views/PublishIconView'
   'compiled/views/assignments/DateDueColumnView'
   'compiled/views/assignments/DateAvailableColumnView'
@@ -17,12 +18,15 @@ define [
   'jqueryui/tooltip'
   'compiled/behaviors/tooltip'
   'compiled/jquery.rails_flash_notifications'
-], (I18n, Backbone, $, _, PublishIconView, DateDueColumnView, DateAvailableColumnView, CreateAssignmentView, SisButtonView, MoveDialogView, preventDefault, template, scoreTemplate, round, AssignmentKeyBindingsMixin) ->
+], (I18n, Backbone, $, _, CyoeHelper, PublishIconView, DateDueColumnView, DateAvailableColumnView, CreateAssignmentView, SisButtonView, MoveDialogView, preventDefault, template, scoreTemplate, round, AssignmentKeyBindingsMixin) ->
 
   class AssignmentListItemView extends Backbone.View
     @mixin AssignmentKeyBindingsMixin
+    @optionProperty 'userIsAdmin'
+
     tagName: "li"
-    className: "assignment"
+    className: ->
+      "assignment#{if @canMove() then '' else ' sort-disabled'}"
     template: template
 
     @child 'publishIconView',         '[data-view=publish-icon]'
@@ -40,10 +44,11 @@ define [
       'click .delete_assignment': 'onDelete'
       'click .tooltip_link': preventDefault ->
       'keydown': 'handleKeys'
+      'mousedown': 'stopMoveIfProtected'
 
     messages:
-      confirm: I18n.t('confirms.delete_assignment', 'Are you sure you want to delete this assignment?')
-      ag_move_label: I18n.beforeLabel I18n.t('labels.assignment_group_move_label', 'Assignment Group')
+      confirm: I18n.t('Are you sure you want to delete this assignment?')
+      ag_move_label: I18n.beforeLabel I18n.t('Assignment Group')
 
     initialize: ->
       super
@@ -119,13 +124,17 @@ define [
 
       if @moveAssignmentView
         @moveAssignmentView.hide()
-        @moveAssignmentView.setTrigger @$moveAssignmentButton
+        if @canMove()
+          @moveAssignmentView.setTrigger @$moveAssignmentButton
 
       @updateScore() if @canReadGrades()
 
     toggleHidden: (model, hidden) =>
       @$el.toggleClass('hidden', hidden)
       @$el.toggleClass('search_show', !hidden)
+
+    stopMoveIfProtected: (e) ->
+      e.stopPropagation() unless @canMove()
 
     createModuleToolTip: =>
       link = @$el.find('.tooltip_link')
@@ -144,11 +153,13 @@ define [
       data.canManage = @canManage()
       data = @_setJSONForGrade(data) unless data.canManage
 
-      # can move items if there's more than one parent
-      # collection OR more than one in the model's collection
-      data.canMove = @model.collection.view?.parentCollection?.length > 1 or @model.collection.length > 1
+      data.canMove = @canMove()
+      data.canDelete = @canDelete()
       data.showAvailability = @model.multipleDueDates() or not @model.defaultDates().available()
       data.showDueDate = @model.multipleDueDates() or @model.singleSectionDueDate()
+
+      data.cyoe = CyoeHelper.getItemData(data.id, @isGraded() && (!@model.isQuiz() || data.is_quiz_assignment))
+      data.return_to = encodeURIComponent window.location.pathname
 
       if data.canManage
         data.spanWidth      = 'span3'
@@ -186,6 +197,7 @@ define [
 
     onDelete: (e) =>
       e.preventDefault()
+      return unless @canDelete()
       return @$el.find('a[id*=manage_link]').focus() unless confirm(@messages.confirm)
       if @previousAssignmentInGroup()?
         @focusOnAssignment(@previousAssignmentInGroup())
@@ -200,11 +212,18 @@ define [
         $.screenReaderFlashMessage(I18n.t('Assignment was deleted'))
       @$el.remove()
 
+    canDelete: ->
+      @userIsAdmin or @model.canDelete()
+
+    canMove: ->
+      @userIsAdmin or (@canManage() and @model.canDelete())
+
     canManage: ->
       ENV.PERMISSIONS.manage
 
     isGraded: ->
-      !_.contains(@model.get('submission_types'), "not_graded")
+      submission_types = @model.get('submission_types')
+      submission_types && !submission_types.includes('not_graded') && !submission_types.includes('wiki_page')
 
     gradeStrings: (grade) ->
       pass_fail_map =

@@ -303,8 +303,10 @@ describe DiscussionTopicsController, type: :request do
                           'hidden_for_user' => false,
                           'created_at' => @attachment.created_at.as_json,
                           'updated_at' => @attachment.updated_at.as_json,
-                          'modified_at' => @attachment.updated_at.as_json,
+                          'modified_at' => @attachment.modified_at.as_json,
                           'thumbnail_url' => @attachment.thumbnail_url,
+                          'mime_class' => @attachment.mime_class,
+                          'media_entry_id' => @attachment.media_entry_id
                          }],
        "topic_children" => [@sub.id],
        "discussion_type" => 'side_comment',
@@ -1115,7 +1117,9 @@ describe DiscussionTopicsController, type: :request do
           'created_at' => attachment.created_at.as_json,
           'updated_at' => attachment.updated_at.as_json,
           'thumbnail_url' => attachment.thumbnail_url,
-          'modified_at' => attachment.updated_at.as_json
+          'modified_at' => attachment.modified_at.as_json,
+          'mime_class' => attachment.mime_class,
+          'media_entry_id' => attachment.media_entry_id
          }],
       "posted_at" => gtopic.posted_at.as_json,
       "root_topic_id" => nil,
@@ -2184,7 +2188,9 @@ describe DiscussionTopicsController, type: :request do
         'created_at' => @attachment.created_at.as_json,
         'updated_at' => @attachment.updated_at.as_json,
         'thumbnail_url' => @attachment.thumbnail_url,
-        'modified_at' => @attachment.updated_at.as_json
+        'modified_at' => @attachment.modified_at.as_json,
+        'mime_class' => @attachment.mime_class,
+        'media_entry_id' => @attachment.media_entry_id
       }
 
       v0 = json['view'][0]
@@ -2282,7 +2288,6 @@ describe DiscussionTopicsController, type: :request do
         end
 
         account = @course.root_account
-        account.enable_feature!(:use_new_styles)
         bc = BrandConfig.create(mobile_css_overrides: 'somewhere.css')
         account.brand_config_md5 = bc.md5
         account.save!

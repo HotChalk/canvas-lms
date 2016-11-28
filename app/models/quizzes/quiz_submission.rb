@@ -261,7 +261,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
 
     self.class.where(id: self).
         where("workflow_state NOT IN ('complete', 'pending_review')").
-        update_all(user_id: user_id, submission_data: CANVAS_RAILS4_0 ? new_params.to_yaml : new_params)
+        update_all(user_id: user_id, submission_data: new_params)
 
     record_answer(new_params)
 
@@ -290,9 +290,14 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     end
 
     if quiz.cant_go_back?
-      params.reject! { |p, _|
-        p =~ /\Aquestion_(\d)+/ && submission_data[:"_question_#{$1}_read"]
-      }
+      params.reject! do |param, _|
+        question_being_answered = /\Aquestion_(?<question_id>\d+)/.match(param)
+        next unless question_being_answered
+
+        previously_read_marker = :"_question_#{question_being_answered[:question_id]}_read"
+
+        submission_data[previously_read_marker]
+      end
     end
     params
   end
@@ -842,7 +847,7 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
   def due_at
     return quiz.due_at if submission.blank?
 
-    quiz.overridden_for(submission.user).due_at
+    quiz.overridden_for(submission.user, skip_clone: true).due_at
   end
 
   # TODO: Extract? conceptually similar to Submission::Tardiness#late?
@@ -851,6 +856,21 @@ class Quizzes::QuizSubmission < ActiveRecord::Base
     return false if due_at.blank?
 
     check_time = finished_at - 60.seconds
+    check_time > due_at
+  end
+
+  # same as the instance method, but with a hash of attributes, instead
+  # of an instance, so that you can avoid instantiating
+  def self.late_from_attributes?(attributes, quiz, submission)
+    return false if attributes['finished_at'].blank?
+    due_at = if submission.blank?
+               quiz.due_at
+             else
+               quiz.overridden_for(submission.user, skip_clone: true).due_at
+             end
+    return false if due_at.blank?
+
+    check_time = attributes['finished_at'] - 60.seconds
     check_time > due_at
   end
 end

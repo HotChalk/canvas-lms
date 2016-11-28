@@ -90,6 +90,9 @@
       <% if @assignment.turnitin_enabled? %>
         <%= render :partial => "turnitin" %>
       <% end %>
+      <% if @assignment.vericite_enabled? %>
+        <%= render :partial => "vericite" %>
+      <% end %>
       <tr>
         <td colspan="2" class='button-container'>
           <button type="button" class='cancel_button btn'><%= t '#buttons.cancel', "Cancel" %></button>
@@ -130,6 +133,9 @@
       <% if @assignment.turnitin_enabled? %>
         <%= render :partial => "turnitin" %>
       <% end %>
+      <% if @assignment.vericite_enabled? %>
+        <%= render :partial => "vericite" %>
+      <% end %>
       <tr>
         <td class='button-container'>
           <button type="button" class='cancel_button btn'><%= t '#buttons.cancel', "Cancel" %></button>
@@ -165,6 +171,9 @@
       <%= render :partial => "group_comment" %>
       <% if @assignment.turnitin_enabled? %>
         <%= render :partial => "turnitin" %>
+      <% end %>
+      <% if @assignment.vericite_enabled? %>
+        <%= render :partial => "vericite" %>
       <% end %>
       <tr>
         <td colspan="2" class='button-container'>
@@ -253,6 +262,9 @@
               <% if @assignment.turnitin_enabled? %>
                 <%= render :partial => "turnitin" %>
               <% end %>
+              <% if @assignment.vericite_enabled? %>
+                <%= render :partial => "vericite" %>
+              <% end %>
               <tr>
                 <td colspan="2" class='button-container'>
                   <button type="button" class='cancel_button btn'><%= t '#buttons.cancel', "Cancel" %></button>
@@ -270,7 +282,7 @@
         <% end %>
       <% else %>
         <div id="submit_google_doc_form">
-          <%= t 'messages.google_drives_auth_required', "Before you can submit assignments directly from Google Drive you need to authorize HotChalk Ember to access your Google Drive account:" %>
+          <%= t 'messages.google_drives_auth_required', "Before you can submit assignments directly from Google Drive you need to authorize Canvas to access your Google Drive account:" %>
           <div style="font-size: 1.1em; text-align: center; margin: 10px;">
             <a class="btn" href="<%= oauth_url(:service => :google_drive, :return_to => (request.url + "#submit_google_doc_form")) %>"><%= t 'links.authorize_google_drive', "Authorize Google Drive Access" %></a>
           </div>
@@ -281,8 +293,8 @@
     <% if @assignment.submission_types && @assignment.submission_types.match(/media_recording/) %>
       <% if !feature_enabled?(:kaltura) %>
         <div id="submit_media_recording_form">
-          <h3><%= t 'titles.media_recordings_disabled', "Media recordings are not enabled for this HotChalk Ember site" %></h3>
-          <p><%= t 'messages.media_recordings_disabled', "Media recordings are not enabled for this HotChalk Ember site, and you will not be able to submit these types of assignments.  Please contact your instructor about changing the settings for this assignment, or your system administrator about enabling media recordings." %></p>
+          <h3><%= t 'titles.media_recordings_disabled', "Media recordings are not enabled for this Canvas site" %></h3>
+          <p><%= t 'messages.media_recordings_disabled', "Media recordings are not enabled for this Canvas site, and you will not be able to submit these types of assignments.  Please contact your instructor about changing the settings for this assignment, or your system administrator about enabling media recordings." %></p>
         </div>
       <% else %>
         <%= form_tag(context_url(@context, :controller => :submissions, :assignment_id => @assignment.id, :action => :create), {:id => "submit_media_recording_form", :class => "submit_assignment_form", :multipart => true }) do %>
@@ -383,6 +395,9 @@
           <%= render :partial => "group_comment" %>
           <% if @assignment.turnitin_enabled? %>
             <%= render :partial => "turnitin" %>
+          <% end %>
+          <% if @assignment.vericite_enabled? %>
+            <%= render :partial => "vericite" %>
           <% end %>
           <tr>
             <td colspan="2" class='button-container'>

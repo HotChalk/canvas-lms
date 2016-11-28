@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title><%= yield :page_title || t("log_in_to_canvas", "Log In To HotChalk Ember") %></title>
+  <title><%= yield :page_title || t("log_in_to_canvas", "Log In To Canvas") %></title>
   <meta name="HandheldFriendly" content="True">
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
@@ -16,9 +16,7 @@
   <%= include_css_bundles %>
   <%= include_account_css %>
 
-  <% if use_new_styles? %>
-    <meta name="theme-color" content="<%= brand_variable('ic-brand-primary') %>">
-  <% end %>
+  <meta name="theme-color" content="<%= brand_variable('ic-brand-primary') %>">
 </head>
 
 <body>

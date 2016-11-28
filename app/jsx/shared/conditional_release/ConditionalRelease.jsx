@@ -2,31 +2,13 @@ define([
   'jquery',
   'react',
   'react-dom',
-  'react-modal'
-], function($, React, ReactDOM, Modal) {
+  'react-modal',
+  'classnames',
+  'i18n!conditional_release',
+  'jquery.instructure_forms',
+], ($, React, ReactDOM, Modal, classNames, I18n) => {
 
   const SAVE_TIMEOUT = 15000
-
-  // Conditional Release adds its form at the tail of the page
-  // because it is sometimes nested within a larger form (eg., discussion topics)
-  const HiddenForm = React.createClass({
-    propTypes: {
-      env: React.PropTypes.object.isRequired,
-      target: React.PropTypes.string.isRequired
-    },
-
-    render() {
-      return (
-        <form id='conditional-release-editor-form'
-            target={this.props.target}
-            method='POST'
-
-            action={this.props.env.edit_rule_url}>
-          <input type='hidden' name='env' value={JSON.stringify(this.props.env)} />
-        </form>
-      );
-    }
-  });
 
   const Editor = React.createClass({
     displayName: 'ConditionalReleaseEditor',
@@ -38,27 +20,40 @@ define([
 
     getInitialState() {
       return {
-        messagePort: null,
-        validationError: null,
-        saveInProgress: null
+        editor: null,
       };
     },
 
-    setValidationError(err) {
-      this.setState({ validationError: err });
+    validateBeforeSave() {
+      const errors = []
+      const rawErrors = this.state.editor ? this.state.editor.getErrors() : null
+      if (rawErrors) {
+        rawErrors.forEach((errorRecord) => {
+          $.screenReaderFlashError(I18n.t('%{error} in mastery paths range %{index}', {
+            error: errorRecord.error,
+            index: errorRecord.index + 1 }))
+          errors.push({ message: errorRecord.error })
+        })
+      }
+      return errors.length == 0 ? null : errors;
     },
 
-    validateBeforeSave() {
-      return this.state.validationError;
+    focusOnError() {
+      if (this.state.editor) {
+        this.state.editor.focusOnError()
+      }
     },
 
     updateAssignment(newAttributes = {}) {
+      if (!this.state.editor) {
+        return
+      }
       // a not_graded assignment counts as a non-assignment
       // to cyoe
       if (newAttributes.grading_type === 'not_graded') {
         newAttributes.id = null;
       }
-      this.postMessage('updateAssignment', {
+      this.state.editor.updateAssignment({
         grading_standard_id: newAttributes.grading_standard_id,
         grading_type: newAttributes.grading_type,
         id: newAttributes.id,
@@ -68,106 +63,47 @@ define([
     },
 
     save(timeoutMs = SAVE_TIMEOUT) {
-      if (this.state.saveInProgress) {
-        return this.state.saveInProgress;
-      } else {
-        const saveObject = $.Deferred()
-        setTimeout(this.saveError.bind(this, saveObject, 'timeout'), timeoutMs)
-
-        this.postMessage('save')
-        this.setState({ saveInProgress: saveObject })
-        return saveObject.promise();
+      if (!this.state.editor) {
+        return $.Deferred().reject('mastery paths editor uninitialized')
       }
-    },
+      const saveObject = $.Deferred()
+      setTimeout(() => { saveObject.reject('timeout') }, timeoutMs)
 
-    saveComplete(saveInProgress) {
-      if (saveInProgress) {
-        saveInProgress.resolve()
-        if (this.state.saveInProgress == saveInProgress) {
-          this.setState({ saveInProgress: null })
-        }
-      }
-    },
+      this.state.editor.saveRule()
+      .then(() => {
+        saveObject.resolve()
+      })
+      .catch((err) => {
+        saveObject.reject(err)
+      })
 
-    saveError(saveInProgress, reason) {
-      if (saveInProgress) {
-        saveInProgress.reject(reason)
-        if (this.state.saveInProgress == saveInProgress) {
-          this.setState({ saveInProgress: null })
-        }
-      }
-    },
-
-    popupId() {
-      if (this.props.env.assignment) {
-        return 'conditional_release_' + this.props.env.assignment.id;
-      } else {
-        return 'conditional_release_no_assignment';
-      }
+      return saveObject.promise();
     },
 
     loadEditor() {
-      const $hiddenContainer = $('<div id="conditional-release-hidden-form-container"></div>');
-      $('body').append($hiddenContainer);
-      ReactDOM.render(
-        <HiddenForm target={this.popupId()} env={this.props.env}></HiddenForm>,
-        $hiddenContainer.get(0));
-
-      $('#conditional-release-editor-form').submit();
-
-      ReactDOM.unmountComponentAtNode($hiddenContainer.get(0));
-      $hiddenContainer.remove();
-
-      $(this.refs.iframe).on('load', () => {
-        this.connect(this.refs.iframe.contentWindow)
-      });
+      var url = this.props.env['editor_url']
+      $.ajax({
+        url,
+        dataType: 'script',
+        cache: true,
+        success: this.createEditor
+      })
     },
 
-    connect(target) {
-      const channel = new MessageChannel();
-      const localPort = channel.port1;
-      localPort.onmessage = this.handleMessage;
-      this.setState({ messagePort: localPort })
-
-      const remotePort = channel.port2;
-      target.postMessage({
-        context: 'conditional-release',
-        messageType: 'connect'
-      }, '*', [ remotePort ])
-    },
-
-    disconnect() {
-      if (this.state.messagePort) {
-        this.state.messagePort.close();
-      }
-      this.setState({ messagePort: null })
-    },
-
-    postMessage(type, body = null) {
-      if (this.state.messagePort) {
-        const message = {
-          context: 'conditional-release',
-          messageType: type,
-          messageBody: body
-        }
-        this.state.messagePort.postMessage(message)
-      }
-    },
-
-    handleMessage(messageEvent) {
-      if (messageEvent.data && messageEvent.data.context === 'conditional-release') {
-        switch (messageEvent.data.messageType) {
-        case 'saveComplete':
-          this.saveComplete(this.state.saveInProgress);
-          break;
-        case 'saveError':
-          this.saveError(this.state.saveInProgress, messageEvent.data.messageBody);
-          break;
-        case 'validationError':
-          this.setValidationError(messageEvent.data.messageBody);
-          break;
-        }
-      }
+    createEditor() {
+      var env = this.props.env
+      const editor = new conditional_release_module.ConditionalReleaseEditor({
+        jwt: env['jwt'],
+        assignment: env['assignment'],
+        courseId: env['context_id'],
+        locale: env['locale'],
+        gradingType: env['grading_type'],
+        baseUrl: env['base_url']
+      })
+      editor.attach(
+        document.getElementById('canvas-conditional-release-editor'),
+        document.getElementById('application'))
+      this.setState({ editor })
     },
 
     componentDidMount() {
@@ -175,11 +111,8 @@ define([
     },
 
     render () {
-      const iframeId = this.popupId();
       return (
-        <div className='conditional-release-editor'>
-          <iframe className='conditional-release-editor-frame' ref='iframe' id={iframeId} name={iframeId} />
-        </div>
+        <div id='canvas-conditional-release-editor'/>
       )
     }
   });

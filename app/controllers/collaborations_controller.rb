@@ -287,7 +287,7 @@ class CollaborationsController < ApplicationController
 
   def require_collaborations_configured
     unless Collaboration.any_collaborations_configured?(@context) || @domain_root_account.feature_enabled?(:new_collaborations)
-      flash[:error] = t 'errors.not_enabled', "Collaborations have not been enabled for this HotChalk Ember site"
+      flash[:error] = t 'errors.not_enabled', "Collaborations have not been enabled for this Canvas site"
       redirect_to named_context_url(@context, :context_url)
       return false
     end

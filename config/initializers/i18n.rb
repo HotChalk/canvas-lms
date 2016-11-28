@@ -8,6 +8,7 @@ if skip_locale_loading
 else
   load_path << (Rails.root + "config/locales/locales.yml").to_s # add it at the end, to trump any weird/invalid stuff in locale-specific files
 end
+Rails.application.config.i18n.railties_load_path += Dir.glob(File.join(Rails.root, 'config/locales/overrides/*.yml')) unless Rails.env.test?
 
 Rails.application.config.i18n.backend = I18nema::Backend.new
 Rails.application.config.i18n.enforce_available_locales = true

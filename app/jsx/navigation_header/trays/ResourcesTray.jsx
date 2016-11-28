@@ -27,7 +27,7 @@ define([
       }
       var resources = this.props.resources.map((resource) => {
         return (
-          <li className='ic-NavMenu-list-item'>
+          <li key={resource.url} className='ic-NavMenu-list-item'>
             <a target="_blank" href={resource.url} className='ic-NavMenu-list-item__link'>{resource.name}</a>
           </li>
         );

@@ -312,6 +312,11 @@
 #           "example": true,
 #           "type": "boolean"
 #         },
+#         "vericite_enabled": {
+#           "description": "Boolean flag indicating whether or not VeriCite has been enabled for the assignment. NOTE: This flag will not appear unless your account has the VeriCite plugin available",
+#           "example": true,
+#           "type": "boolean"
+#         },
 #         "turnitin_settings": {
 #           "description": "Settings to pass along to turnitin to control what kinds of matches should be considered. originality_report_visibility can be 'immediate', 'after_grading', 'after_due_date', or 'never' exclude_small_matches_type can be null, 'percent', 'words' exclude_small_matches_value: - if type is null, this will be null also - if type is 'percent', this will be a number between 0 and 100 representing match size to exclude as a percentage of the document size. - if type is 'words', this will be number > 0 representing how many words a match must contain for it to be considered NOTE: This flag will not appear unless your account has the Turnitin plugin available",
 #           "$ref": "TurnitinSettings"
@@ -344,6 +349,11 @@
 #           "description": "String representing a date the reviews are due by. Must be a date that occurs after the default due date. If blank, or date is not after the assignment's due date, the assignment's due date will be used. NOTE: This key is NOT present unless you have automatic_peer_reviews set to true.",
 #           "example": "2012-07-01T23:59:00-06:00",
 #           "type": "datetime"
+#         },
+#         "intra_group_peer_reviews": {
+#           "description": "Boolean representing whether or not members from within the same group on a group assignment can be assigned to peer review their own group's work",
+#           "example": "false",
+#           "type": "boolean"
 #         },
 #         "group_category_id": {
 #           "description": "The ID of the assignment’s group set, if this is a group assignment. For group discussions, set group_category_id on the discussion topic, not the linked assignment.",
@@ -638,7 +648,6 @@ class AssignmentsApiController < ApplicationController
 
         visibility_array = assignment_visibilities[assignment.id] if assignment_visibilities
         submission = submissions[assignment.id]
-        active_overrides = include_override_objects ? assignment.assignment_overrides.active : nil
         needs_grading_course_proxy = @context.grants_right?(user, session, :manage_grades) ?
           Assignments::NeedsGradingCountQuery::CourseProxy.new(@context, user) : nil
 
@@ -650,7 +659,7 @@ class AssignmentsApiController < ApplicationController
                         needs_grading_course_proxy: needs_grading_course_proxy,
                         include_all_dates: include_all_dates,
                         bucket: params[:bucket],
-                        overrides: active_overrides,
+                        include_overrides: include_override_objects,
                         preloaded_user_content_attachments: preloaded_attachments
                         )
       end
@@ -672,7 +681,8 @@ class AssignmentsApiController < ApplicationController
   #   All dates associated with the assignment, if applicable
   # @returns Assignment
   def show
-    @assignment = @context.active_assignments.preload(:assignment_group, :rubric_association, :rubric).find(params[:id])
+    @assignment = @context.active_assignments.preload(:assignment_group, :rubric_association, :rubric)
+                    .api_id(params[:id])
     if authorized_action(@assignment, @current_user, :read)
       return render_unauthorized_action unless @assignment.visible_to_user?(@current_user)
 
@@ -686,7 +696,6 @@ class AssignmentsApiController < ApplicationController
       include_all_dates = value_to_boolean(params[:all_dates] || false)
 
       include_override_objects = included_params.include?('overrides') && @context.grants_any_right?(@current_user, :manage_assignments)
-      active_overrides = include_override_objects ? @assignment.assignment_overrides.active : nil
 
       override_param = params[:override_assignment_dates] || true
       override_dates = value_to_boolean(override_param)
@@ -703,8 +712,7 @@ class AssignmentsApiController < ApplicationController
                   include_visibility: include_visibility,
                   needs_grading_count_by_section: needs_grading_count_by_section,
                   include_all_dates: include_all_dates,
-                  submission_include: Array(params[:submission_include]),
-                  overrides: active_overrides)
+                  include_overrides: include_override_objects)
     end
   end
 
@@ -751,6 +759,12 @@ class AssignmentsApiController < ApplicationController
   #   Toggles Turnitin submissions for the assignment.
   #   Will be ignored if Turnitin is not available for the course.
   #
+  # @argument assignment[vericite_enabled] [Boolean]
+  #   Only applies when the VeriCite plugin is enabled for a course and
+  #   the submission_types array includes "online_upload".
+  #   Toggles VeriCite submissions for the assignment.
+  #   Will be ignored if VeriCite is not available for the course.
+  #
   # @argument assignment[turnitin_settings]
   #   Settings to send along to turnitin. See Assignment object definition for
   #   format.
@@ -794,7 +808,7 @@ class AssignmentsApiController < ApplicationController
   #
   # @argument assignment[grading_type] ["pass_fail"|"percent"|"letter_grade"|"gpa_scale"|"points"]
   #  The strategy used for grading the assignment.
-  #  The assignment is ungraded if this field is omitted.
+  #  The assignment defaults to "points" if this field is omitted.
   #
   # @argument assignment[due_at] [DateTime]
   #   The day/time the assignment is due.
@@ -892,6 +906,12 @@ class AssignmentsApiController < ApplicationController
   #   Toggles Turnitin submissions for the assignment.
   #   Will be ignored if Turnitin is not available for the course.
   #
+  # @argument assignment[vericite_enabled] [Boolean]
+  #   Only applies when the VeriCite plugin is enabled for a course and
+  #   the submission_types array includes "online_upload".
+  #   Toggles VeriCite submissions for the assignment.
+  #   Will be ignored if VeriCite is not available for the course.
+  #
   # @argument assignment[turnitin_settings]
   #   Settings to send along to turnitin. See Assignment object definition for
   #   format.
@@ -935,7 +955,7 @@ class AssignmentsApiController < ApplicationController
   #
   # @argument assignment[grading_type] ["pass_fail"|"percent"|"letter_grade"|"gpa_scale"|"points"]
   #  The strategy used for grading the assignment.
-  #  The assignment is ungraded if this field is omitted.
+  #  The assignment defaults to "points" if this field is omitted.
   #
   # @argument assignment[due_at] [DateTime]
   #   The day/time the assignment is due.
@@ -991,7 +1011,7 @@ class AssignmentsApiController < ApplicationController
   #
   # @returns Assignment
   def update
-    @assignment = @context.active_assignments.find(params[:id])
+    @assignment = @context.active_assignments.api_id(params[:id])
     if authorized_action(@assignment, @current_user, :update)
       save_and_render_response
     end
@@ -1001,7 +1021,7 @@ class AssignmentsApiController < ApplicationController
 
   def save_and_render_response
     @assignment.content_being_saved_by(@current_user)
-    if update_api_assignment(@assignment, params[:assignment], @current_user, @context)
+    if update_api_assignment(@assignment, strong_params.require(:assignment), @current_user, @context)
       render :json => assignment_json(@assignment, @current_user, session), :status => 201
     else
       errors = @assignment.errors.as_json[:errors]

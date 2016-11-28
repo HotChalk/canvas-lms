@@ -298,8 +298,9 @@ class CoursesController < ApplicationController
   include SearchHelper
   include ContextExternalToolsHelper
   include CustomSidebarLinksHelper
+  include SyllabusHelper
 
-  before_filter :require_user, :only => [:index]
+  before_filter :require_user, :only => [:index, :activity_stream, :activity_stream_summary]
   before_filter :require_user_or_observer, :only=>[:user_index]
   before_filter :require_context, :only => [:roster, :locks, :create_file, :ping]
   skip_after_filter :update_enrollment_last_activity_at, only: [:enrollment_invitation, :activity_stream_summary]
@@ -328,6 +329,10 @@ class CoursesController < ApplicationController
   #   {api:RoleOverridesController#add_role Add Role API} or a built_in role type of
   #   'StudentEnrollment', 'TeacherEnrollment', 'TaEnrollment', 'ObserverEnrollment',
   #   or 'DesignerEnrollment'.
+  #
+  # @argument enrollment_state [String, "active"|"invited_or_pending"|"completed"]
+  #   When set, only return courses where the user has an enrollment with the given state.
+  #   This will respect section/course/term date overrides.
   #
   # @argument include[] [String, "needs_grading_count"|"syllabus_body"|"public_description"|"total_scores"|"current_grading_period_scores"|"term"|"course_progress"|"sections"|"storage_quota_used_mb"|"total_students"|"passback_status"|"favorites"|"teachers"|"observed_users"]
   #   - "needs_grading_count": Optional information to include with each Course.
@@ -511,6 +516,10 @@ class CoursesController < ApplicationController
   #   If set, only return courses that are in the given state(s).
   #   By default, "available" is returned for students and observers, and
   #   anything except "deleted", for all other enrollment types
+  #
+  # @argument enrollment_state [String, "active"|"invited_or_pending"|"completed"]
+  #   When set, only return courses where the user has an enrollment with the given state.
+  #   This will respect section/course/term date overrides.
   #
   # @returns [Course]
   def user_index
@@ -871,9 +880,9 @@ class CoursesController < ApplicationController
   #   - "custom_links": Optionally include plugin-supplied custom links for each student,
   #   such as analytics information
   # @argument user_id [String]
-  #   If included, the user will be queried and if the user is part of the
-  #   users set, the page parameter will be modified so that the page
-  #   containing user_id will be returned.
+  #   If this parameter is given and it corresponds to a user in the course,
+  #   the +page+ parameter will be ignored and the page containing the specified user
+  #   will be returned instead.
   #
   # @argument user_ids[] [Integer]
   #   If included, the course users set will only include users with IDs
@@ -1049,7 +1058,11 @@ class CoursesController < ApplicationController
     get_context
     if authorized_action(@context, @current_user, :read)
       grading = @current_user.assignments_needing_grading(:contexts => [@context]).map { |a| todo_item_json(a, @current_user, session, 'grading') }
-      submitting = @current_user.assignments_needing_submitting(:contexts => [@context]).map { |a| todo_item_json(a, @current_user, session, 'submitting') }
+      submitting = @current_user.assignments_needing_submitting(:include_ungraded => true, :contexts => [@context]).map { |a| todo_item_json(a, @current_user, session, 'submitting') }
+      if Array(params[:include]).include? 'ungraded_quizzes'
+        submitting += @current_user.ungraded_quizzes_needing_submitting(:contexts => [@context]).map { |q| todo_item_json(q, @current_user, session, 'submitting') }
+        submitting.sort_by! { |j| (j[:assignment] || j[:quiz])[:due_at] }
+      end
       render :json => (grading + submitting)
     end
   end
@@ -1167,6 +1180,7 @@ class CoursesController < ApplicationController
 
       @alerts = @context.alerts
       add_crumb(t('#crumbs.settings', "Settings"), named_context_url(@context, :context_details_url))
+
       js_env({
         COURSE_ID: @context.id,
         USERS_URL: "/api/v1/courses/#{@context.id}/users",
@@ -1179,6 +1193,7 @@ class CoursesController < ApplicationController
           :manage_students => @context.grants_right?(@current_user, session, :manage_students),
           :manage_admin_users => @context.grants_right?(@current_user, session, :manage_admin_users),
           :manage_account_settings => @context.account.grants_right?(@current_user, session, :manage_account_settings),
+          :create_tool_manually => @context.grants_right?(@current_user, session, :create_tool_manually),
         },
         APP_CENTER: {
           enabled: Canvas::Plugin.find(:app_center).enabled?
@@ -1271,15 +1286,6 @@ class CoursesController < ApplicationController
         format.html { redirect_to named_context_url(@context, :context_details_url) }
         format.json { render :json => {:update_nav => true} }
       end
-    end
-  end
-
-  def roster
-    if authorized_action(@context, @current_user, :read_roster)
-      log_asset_access([ "roster", @context ], "roster", "other")
-      @students = @context.participating_students.order_by_sortable_name
-      @teachers = @context.instructors.order_by_sortable_name
-      @groups = @context.groups.active
     end
   end
 
@@ -1425,7 +1431,7 @@ class CoursesController < ApplicationController
       success = false
       if enrollment.invited?
         success = enrollment.accept!
-        flash[:notice] = message || t('notices.invitation_accepted', "Invitation accepted!  Welcome to %{course}!", :course => @context.name)
+        flash[:notice] = t('notices.invitation_accepted', "Invitation accepted!  Welcome to %{course}!", :course => @context.name)
       end
 
       if session[:enrollment_uuid] == session[:accepted_enrollment_uuid]
@@ -1673,19 +1679,18 @@ class CoursesController < ApplicationController
         add_crumb(t('#crumbs.assignments', "Assignments"))
         set_js_assignment_data
         js_env(:COURSE_HOME => true)
-        get_sorted_assignments
+        @upcoming_assignments = get_upcoming_assignments(@context)
       when 'modules'
         add_crumb(t('#crumbs.modules', "Modules"))
         load_modules
       when 'syllabus'
         rce_js_env(:sidebar)
         add_crumb(context_syllabus_name(@context) || t('#crumbs.syllabus', "Syllabus"))
-        @syllabus_body = api_user_content(@context.syllabus_body, @context)
-        @groups = @context.assignment_groups.active.order(:position, AssignmentGroup.best_unicode_collation_key('name')).to_a
-        @events = @context.calendar_events.active.to_a
-        @events.concat @context.assignments.active.to_a
-        @undated_events = @events.select {|e| e.start_at == nil}
-        @dates = (@events.select {|e| e.start_at != nil}).map {|e| e.start_at.to_date}.uniq.sort.sort
+        @groups = @context.assignment_groups.active.order(
+          :position,
+          AssignmentGroup.best_unicode_collation_key('name')
+        ).to_a
+        @syllabus_body = syllabus_user_content
       else
         @active_tab = "home"
         if @context.grants_right?(@current_user, session, :manage_groups)
@@ -2189,6 +2194,18 @@ class CoursesController < ApplicationController
         @course.account = @course.root_account if @course.account.root_account != @course.root_account
       end
 
+      if params[:course].key?(:apply_assignment_group_weights)
+        @course.apply_assignment_group_weights =
+          value_to_boolean params[:course].delete(:apply_assignment_group_weights)
+      end
+      if params[:course].key?(:group_weighting_scheme)
+        @course.group_weighting_scheme = params[:course].delete(:group_weighting_scheme)
+      end
+
+      if @course.group_weighting_scheme_changed? && !can_change_group_weighting_scheme?
+        return render_unauthorized_action
+      end
+
       term_id = params[:course].delete(:term_id)
       enrollment_term_id = params[:course].delete(:enrollment_term_id) || term_id
       if enrollment_term_id && @course.root_account.grants_right?(@current_user, session, :manage_courses)
@@ -2240,9 +2257,6 @@ class CoursesController < ApplicationController
             @course.sis_source_id = sis_id
           end
         end
-      end
-      if params[:course].has_key?(:apply_assignment_group_weights)
-        @course.apply_assignment_group_weights = value_to_boolean params[:course].delete(:apply_assignment_group_weights)
       end
 
       lock_announcements = params[:course].delete(:lock_all_announcements)
@@ -2302,6 +2316,7 @@ class CoursesController < ApplicationController
       end
 
       changes = changed_settings(@course.changes, @course.settings, old_settings)
+
       @course.send_later_if_production_enqueue_args(:touch_content_if_public_visibility_changed,
         { :priority => Delayed::LOW_PRIORITY }, changes)
 
@@ -2590,9 +2605,9 @@ class CoursesController < ApplicationController
     # render view
   end
 
-  def retrieve_observed_enrollments(user, enrollments)
-    courses = enrollments.select(&:assigned_observer?).map(&:course).uniq
-    ObserverEnrollment.observed_enrollments_for_courses(courses, user)
+  def retrieve_observed_enrollments(enrollments, active_by_date: false)
+    observer_enrolls = enrollments.select(&:assigned_observer?)
+    ObserverEnrollment.observed_enrollments_for_enrollments(observer_enrolls, active_by_date: active_by_date)
   end
 
   def courses_for_user(user, paginate_url: api_v1_courses_url)
@@ -2604,7 +2619,7 @@ class CoursesController < ApplicationController
       conditions = states.map do |state|
         Enrollment::QueryBuilder.new(nil, course_workflow_state: state, enforce_course_workflow_state: true).conditions
       end.compact.join(" OR ")
-      enrollments = user.enrollments.eager_load(:course).where(conditions).shard(user)
+      enrollments = user.enrollments.eager_load(:course).where(conditions).shard(user.in_region_associated_shards)
 
       if params[:enrollment_role]
         enrollments = enrollments.joins(:role).where(roles: { name: params[:enrollment_role] })
@@ -2615,6 +2630,15 @@ class CoursesController < ApplicationController
         enrollments = enrollments.where(type: e_type)
       end
 
+      case params[:enrollment_state]
+      when "active"
+        enrollments = enrollments.active_by_date
+      when "invited_or_pending"
+        enrollments = enrollments.invited_or_pending_by_date
+      when "completed"
+        enrollments = enrollments.completed_by_date
+      end
+
       if value_to_boolean(params[:current_domain_only])
         enrollments = enrollments.where(root_account_id: @domain_root_account)
       elsif params[:root_account_id]
@@ -2623,11 +2647,18 @@ class CoursesController < ApplicationController
       end
 
       enrollments = enrollments.to_a
+    elsif params[:enrollment_state] == "active"
+      enrollments = user.participating_enrollments
+      ActiveRecord::Associations::Preloader.new.preload(enrollments, :course)
     else
       enrollments = user.cached_current_enrollments(preload_courses: true)
     end
 
-    enrollments.concat(retrieve_observed_enrollments(user, enrollments)) if include_observed
+    if include_observed
+      enrollments.concat(
+        retrieve_observed_enrollments(enrollments, active_by_date: (params[:enrollment_state] == "active"))
+      )
+    end
 
     # these are all duplicated in the params[:state] block above in SQL. but if
     # used the cached ones, or we added include_observed, we have to re-run them
@@ -2641,6 +2672,16 @@ class CoursesController < ApplicationController
       elsif params[:enrollment_type]
         e_type = "#{params[:enrollment_type].capitalize}Enrollment"
         enrollments.reject! { |e| e.class.name != e_type }
+      end
+
+      if params[:enrollment_state] && params[:enrollment_state] != "active"
+        Canvas::Builders::EnrollmentDateBuilder.preload_state(enrollments)
+        case params[:enrollment_state]
+        when "invited_or_pending"
+          enrollments.select!{|e| e.invited? || e.accepted?}
+        when "completed"
+          enrollments.select!(&:completed?)
+        end
       end
 
       if value_to_boolean(params[:current_domain_only])
@@ -2701,6 +2742,15 @@ class CoursesController < ApplicationController
         @course.public_syllabus = false
         @course.public_syllabus_to_auth = false
       end
+    end
+  end
+
+  def can_change_group_weighting_scheme?
+    return true unless @course.feature_enabled?(:multiple_grading_periods)
+    return true if @course.account_membership_allows(@current_user)
+    periods = GradingPeriod.for(@course)
+    @course.active_assignments.preload(:active_assignment_overrides).none? do |assignment|
+      assignment.due_for_any_student_in_closed_grading_period?(periods)
     end
   end
 end

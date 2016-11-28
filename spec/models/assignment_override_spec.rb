@@ -59,6 +59,13 @@ describe AssignmentOverride do
     expect(@override.set).to eq [@student]
   end
 
+  it "should allow reading set_id when set_type is noop" do
+    @override = AssignmentOverride.new
+    @override.set_type = 'Noop'
+    expect(@override.set_id).to be_nil
+    expect(@override.set).to eq nil
+  end
+
   it "should remove adhoc associations when an adhoc override is deleted" do
     @override = assignment_override_model(:course => @course)
     @override_student = @override.assignment_override_students.build
@@ -183,6 +190,13 @@ describe AssignmentOverride do
       expect(@override).to be_valid
     end
 
+    it "should accept noop with arbitrary set_id" do
+      @override.set_type = 'Noop'
+      @override.set_id = 9000
+      expect(@override).to be_valid
+      expect(@override.set_id).to eq 9000
+    end
+
     it "should reject an empty set_id with a non-adhoc set_type" do
       @override.set = nil
       @override.set_type = 'CourseSection'
@@ -296,6 +310,13 @@ describe AssignmentOverride do
       @override.title = 'Other Value'
       @override.valid? # trigger bookkeeping
       expect(@override.title).to eq 'Other Value'
+    end
+
+    it "should not be changed for noop" do
+      @override.set_type = 'Noop'
+      @override.title = 'Literally Anything'
+      @override.valid? # trigger bookkeeping
+      expect(@override.title).to eq 'Literally Anything'
     end
 
     it "should set ADHOC's title to reflect students (with few)" do
@@ -720,6 +741,13 @@ describe AssignmentOverride do
       student_in_course
     end
 
+    it "returns empty set for noop" do
+      @override = assignment_override_model(:course => @course)
+      @override.set_type = 'Noop'
+
+      expect(@override.applies_to_students).to eq []
+    end
+
     it "returns the right students for ADHOC" do
       @override = assignment_override_model(:course => @course)
       @override.set_type = 'ADHOC'
@@ -798,40 +826,35 @@ describe AssignmentOverride do
     end
   end
 
-  describe '.visible_users_for' do
+  describe '.visible_enrollments_for' do
     before do
       @override = assignment_override_model
       @overrides = [@override]
     end
-    subject(:visible_users) do
-      AssignmentOverride.visible_users_for(@overrides, @student)
+    subject(:visible_enrollments) do
+      AssignmentOverride.visible_enrollments_for(@overrides, @student)
     end
 
     it 'returns empty if provided an empty collection' do
       @overrides = []
-      expect(visible_users).to be_empty
+      expect(visible_enrollments).to be_empty
     end
 
     it 'returns empty if not provided a user' do
       @student = nil
-      expect(visible_users).to be_empty
-    end
-
-    it 'delegates to #visible_users_for when collection & user are present' do
-      @override.expects(:visible_users_for).once
-      visible_users
+      expect(visible_enrollments).to be_empty
     end
   end
 
-  describe '#visible_users_for' do
+  describe '.visible_enrollments_for' do
     before do
       @options = {}
     end
     let(:override) do
       assignment_override_model(@options)
     end
-    subject(:visible_users) do
-      override.visible_users_for(@student)
+    subject(:visible_enrollments) do
+      AssignmentOverride.visible_enrollments_for([override], @student)
     end
 
     context 'when associated with an assignment' do
@@ -842,10 +865,8 @@ describe AssignmentOverride do
         }
       end
 
-      it 'delegates to UserSearch' do
-        UserSearch.expects(:scope_for).with(@assignment.context, @student,
-          force_users_visible_to: true
-        )
+      it 'delegates to the course' do
+        @assignment.context.any_instantiation.expects(:enrollments_visible_to).with(@student)
         subject
       end
     end
@@ -859,9 +880,7 @@ describe AssignmentOverride do
       end
 
       it 'delegates to UserSearch' do
-        UserSearch.expects(:scope_for).with(@quiz.context, @student,
-          force_users_visible_to: true
-        )
+        @quiz.context.any_instantiation.expects(:enrollments_visible_to).with(@student)
         subject
       end
     end

@@ -37,6 +37,16 @@ module Api
           expect(Content.new(string).might_need_modification?).to be(true)
         end
 
+        it 'is true for a link that includes the host' do
+          string = "<body><a href='https://example.com/123'>link</a></body>"
+          expect(Content.new(string, host: "example.com").might_need_modification?).to be(true)
+        end
+
+        it 'is false for a link to files in a context' do
+          string = "<body><a href='/courses/1/files'>link</a></body>"
+          expect(Content.new(string).might_need_modification?).to be(false)
+        end
+
         it 'is false for garden-variety content' do
           string = "<body><a href='http://example.com/123'>link</a></body>"
           expect(Content.new(string).might_need_modification?).to be(false)
@@ -46,10 +56,12 @@ module Api
       describe "#modified_html" do
         it "scrubs links" do
           string = "<body><a href='http://somelink.com'>link</a></body>"
-          Html::Link.expects(:new).with("http://somelink.com").returns(
+          host = 'somelink.com'
+          port = 80
+          Html::Link.expects(:new).with("http://somelink.com", host: host, port: port).returns(
             stub(to_corrected_s: "http://otherlink.com")
           )
-          html = Content.new(string).modified_html
+          html = Content.new(string, host: host, port: port).modified_html
           expect(html).to match(/otherlink.com/)
         end
 
@@ -106,7 +118,6 @@ module Api
           })
 
           child_account = Account.default.sub_accounts.create!(name: 'child account')
-          child_account.root_account.enable_feature! :use_new_styles
           child_account.root_account.settings[:sub_account_includes] = true
 
           bc = child_account.build_brand_config({
@@ -135,7 +146,6 @@ module Api
 
           child_account = Account.default.sub_accounts.create!(name: 'child account')
           child_account.save!
-          child_account.root_account.enable_feature! :use_new_styles
 
           html = Content.new(string, child_account, include_mobile: true).add_css_and_js_overrides
           expect(html.to_s).to eq '<link rel="stylesheet" href="https://example.com/site_admin/account.css">' \

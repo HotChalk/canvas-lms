@@ -43,11 +43,12 @@ define([
   'quiz_labels',
   'jsx/shared/rce/RichContentEditor',
   'jsx/shared/conditional_release/ConditionalRelease',
+  'compiled/util/deparam',
   'jquery.ajaxJSON' /* ajaxJSON */,
   'jquery.instructure_date_and_time' /* time_field, datetime_field */,
   'jquery.instructure_forms' /* formSubmit, fillFormData, getFormData, formErrors, errorBox */,
   'jqueryui/dialog',
-  'jquery.instructure_misc_helpers' /* replaceTags, scrollSidebar, /\$\.underscore/ */,
+  'jquery.instructure_misc_helpers' /* replaceTags, /\$\.underscore/ */,
   'jquery.instructure_misc_plugins' /* .dim, confirmDelete, showIf */,
   'jquery.keycodes' /* keycodes */,
   'jquery.loadingImg' /* loadingImage */,
@@ -63,7 +64,7 @@ define([
             DueDateList, QuizRegradeView, SectionList,
             MissingDateDialog,MultipleChoiceToggle,EditorToggle,TextHelper,
             RCEKeyboardShortcuts, INST, QuizFormulaSolution, addAriaDescription,
-            RichContentEditor, ConditionalRelease){
+            RichContentEditor, ConditionalRelease, deparam){
 
   var dueDateList, overrideView, quizModel, sectionList, correctAnswerVisibility,
       scoreValidation;
@@ -1495,6 +1496,7 @@ define([
         $('#quiz_tabs').tabs("option", "disabled", false);
       } else {
         $('#quiz_tabs').tabs("option", "disabled", [2]);
+        $('#quiz_tabs').tabs("option", "active", 0)
       }
     }
   }
@@ -1511,7 +1513,6 @@ define([
 
     var $quiz_options_form = $("#quiz_options_form");
     var $quiz_edit_wrapper = $("#quiz_edit_wrapper");
-    $.scrollSidebar();
     $(".datetime_field").datetime_field();
     $("#questions").delegate('.group_top,.question,.answer_select,.comment', 'mouseover', function(event) {
       $(this).addClass('hover');
@@ -1780,7 +1781,7 @@ define([
           var crError = conditionalRelease.editor.validateBeforeSave();
           if (crError) {
             $('#quiz_tabs').tabs("option", "active", 2);
-            $('#conditional_release_target').get(0).scrollIntoView();
+            conditionalRelease.editor.focusOnError();
             return false;
           }
         }
@@ -1840,7 +1841,11 @@ define([
           }
           $(".show_rubric_link").showIf(data.quiz.assignment);
           $("#quiz_assignment_id").val(data.quiz.quiz_type || "practice_quiz").change();
-          location.href = $(this).attr('action');
+          if (deparam()['return_to']) {
+            location.href = deparam()['return_to']
+          } else {
+            location.href = $(this).attr('action');
+          }
           quiz.updateDisplayComments();
         }
 
@@ -2452,7 +2457,6 @@ define([
           $dialog.addClass('loaded');
           for(idx in banks) {
             var bank = banks[idx].assessment_question_bank;
-            bank.title = TextHelper.truncateText(bank.title)
             var $bank = $dialog.find(".bank.blank:first").clone(true).removeClass('blank');
             $bank.fillTemplateData({data: bank, dataValues: ['id', 'context_type', 'context_id']});
             $dialog.find(".bank_list").append($bank);

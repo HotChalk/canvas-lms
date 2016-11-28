@@ -224,6 +224,14 @@ define [
     deepEqual assignment.pointsPossible(), 12
     deepEqual assignment.get('points_possible'), 12
 
+  module "Assignment#secureParams as a getter"
+
+  test "returns secure params if set", ->
+    secure_params = 'eyJ0eXAiOiJKV1QiLCJhb.asdf232.asdf2334'
+    assignment = new Assignment name: 'foo'
+    assignment.set 'secure_params', secure_params
+    deepEqual assignment.secureParams(), secure_params
+
   module "Assignment#assignmentGroupId as a setter"
 
   test "sets the record's assignment group id", ->
@@ -232,6 +240,33 @@ define [
     assignment.assignmentGroupId(12)
     deepEqual assignment.assignmentGroupId(), 12
     deepEqual assignment.get('assignment_group_id'), 12
+
+  module "Assignment#canDelete"
+
+  test "returns false if 'frozen' is true", ->
+    assignment = new Assignment name: 'foo'
+    assignment.set 'frozen', true
+    deepEqual assignment.canDelete(), false
+
+  test "returns false if 'has_due_date_in_closed_grading_period' is true", ->
+    assignment = new Assignment name: 'foo'
+    assignment.set 'has_due_date_in_closed_grading_period', true
+    deepEqual assignment.canDelete(), false
+
+  test "returns true if 'frozen' and 'has_due_date_in_closed_grading_period' are false", ->
+    assignment = new Assignment name: 'foo'
+    assignment.set 'frozen', false
+    assignment.set 'has_due_date_in_closed_grading_period', false
+    deepEqual assignment.canDelete(), true
+
+  module "Assignment#hasDueDateInClosedGradingPeriod"
+
+  test "returns the value of 'has_due_date_in_closed_grading_period'", ->
+    assignment = new Assignment name: 'foo'
+    assignment.set 'has_due_date_in_closed_grading_period', true
+    deepEqual assignment.hasDueDateInClosedGradingPeriod(), true
+    assignment.set 'has_due_date_in_closed_grading_period', false
+    deepEqual assignment.hasDueDateInClosedGradingPeriod(), false
 
   module "Assignment#gradingType as a setter"
 

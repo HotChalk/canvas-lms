@@ -101,7 +101,7 @@ class HostUrl
     end
 
     def outgoing_email_default_name
-      @outgoing_email_default_name.presence || I18n.t("#email.default_from_name", "HotChalk Ember")
+      @outgoing_email_default_name.presence || I18n.t("#email.default_from_name", "Instructure Canvas")
     end
 
     def file_host=(val)

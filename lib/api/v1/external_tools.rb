@@ -19,13 +19,13 @@
 module Api::V1::ExternalTools
   include Api::V1::Json
 
-  def external_tools_json(tools, context, user, session, extension_types = ContextExternalTool::EXTENSION_TYPES)
+  def external_tools_json(tools, context, user, session, extension_types = Lti::ResourcePlacement::PLACEMENTS)
     tools.map do |topic|
       external_tool_json(topic, context, user, session, extension_types)
     end
   end
 
-  def external_tool_json(tool, context, user, session, extension_types = ContextExternalTool::EXTENSION_TYPES)
+  def external_tool_json(tool, context, user, session, extension_types = Lti::ResourcePlacement::PLACEMENTS)
     methods = %w[privacy_level custom_fields workflow_state vendor_help_link]
     methods += extension_types
     json = api_json(tool, user, session,
@@ -73,6 +73,7 @@ module Api::V1::ExternalTools
       query_params[:url] = opts[:url] if opts.include?(:url)
       query_params[:launch_type] = opts[:launch_type] if opts.include?(:launch_type)
       query_params[:assignment_id] = opts[:assignment_id] if opts.include?(:assignment_id)
+      query_params[:module_item_id] = opts[:module_item_id] if opts.include?(:module_item_id)
       uri.query = query_params.to_query
 
       uri.to_s

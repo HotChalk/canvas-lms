@@ -62,7 +62,7 @@ module CustomSeleniumActions
   #   expect(f('#content')).not_to contain_jqcss('.gone:visible')
   def fj(selector, scope = nil)
     stale_element_protection do
-      wait_for(method: :fj) do
+      wait_for(method: :fj, timeout: driver.manage.timeouts.implicit_wait) do
         find_with_jquery selector, scope
       end or raise Selenium::WebDriver::Error::NoSuchElementError
     end
@@ -87,7 +87,7 @@ module CustomSeleniumActions
   def ffj(selector, scope = nil)
     reloadable_collection do
       result = nil
-      wait_for(method: :ffj) do
+      wait_for(method: :ffj, timeout: driver.manage.timeouts.implicit_wait) do
         result = find_all_with_jquery(selector, scope)
         result.present?
       end or raise Selenium::WebDriver::Error::NoSuchElementError
@@ -259,8 +259,9 @@ module CustomSeleniumActions
   end
 
   def hover_and_click(element_jquery_finder)
-    expect(fj(element_jquery_finder.to_s)).to be_present
-    driver.execute_script(%{$(#{element_jquery_finder.to_s.to_json}).trigger('mouseenter').click()})
+    if fj(element_jquery_finder).present?
+      driver.execute_script(%{$(#{element_jquery_finder.to_s.to_json}).trigger('mouseenter').click()})
+    end
   end
 
   def hover(element)
@@ -317,19 +318,16 @@ module CustomSeleniumActions
 
   MODIFIER_KEY = RUBY_PLATFORM =~ /darwin/ ? :command : :control
   def replace_content(el, value, options = {})
-    keys = [MODIFIER_KEY, "a"], :backspace, value
+    keys = [[MODIFIER_KEY, "a"], :backspace, value]
     keys << :tab if options[:tab_out]
-    el.send_keys *keys
-  end
 
-  def clear_content(selector)
-    el = driver.find_element :css, selector
-    driver.action.move_to(el).click.perform
-    driver.action.key_down(:command)
-        .send_keys('a')
-        .key_up(:command)
-        .perform
-    driver.action.send_keys(:backspace).perform
+    # We are treating the chrome browser different because currently Selenium cannot send :command key to the chrome.
+    # This is a known issue and hasn't been solved yet. https://bugs.chromium.org/p/chromedriver/issues/detail?id=30
+    if driver.browser == :chrome
+      driver.execute_script("arguments[0].select()", el)
+      keys.delete_at(0)
+    end
+    el.send_keys(*keys)
   end
 
   # can pass in either an element or a forms css

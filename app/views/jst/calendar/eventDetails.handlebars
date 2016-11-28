@@ -20,6 +20,12 @@
               <br><span class="event-details-actual-context">{{actualContextInfo.name}}</span>
             {{/if}}
           </td>
+          {{#if isGreaterThanOne}}
+            <td title="{{list contextsName}}">
+              {{#t}} + {{contextsCount}} more{{/t}}
+              <span class="screenreader-only">{{list contextsName}}</span>
+            </td>
+          {{/if}}
         </tr>
       {{/if}}
       {{#if location_name}}
@@ -102,6 +108,9 @@
   </div>
   <div class="popover-links-holder event-details-footer">
     <div class="pull-right">
+      {{#ifAll can_edit is_appointment_group use_new_scheduler}}
+        <a href={{editGroupURL}} class="group_details Button Button--small">{{#t}}Group Details{{/t}}</a>
+      {{/ifAll}}
       {{#if can_delete }}
         <button class="event_button Button Button--small delete_event_link">{{#t "links.delete"}}Delete{{/t}}</button>
       {{/if}}

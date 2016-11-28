@@ -440,7 +440,7 @@ describe Message do
         reply_to_message = message_model(asset_context: with_reply_to_name,
                                          context: with_reply_to_name,
                                          notification_name: "Conversation Message")
-        expect(reply_to_message.reply_to_name).to eq "#{user1.short_name} via HotChalk Ember Notifications"
+        expect(reply_to_message.reply_to_name).to eq "#{user1.short_name} via Canvas Notifications"
       end
 
       describe ":from_name" do

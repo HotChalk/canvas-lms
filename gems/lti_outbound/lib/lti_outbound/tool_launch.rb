@@ -36,6 +36,7 @@ module LtiOutbound
       @resource_type = options[:resource_type]
       @outgoing_email_address = options[:outgoing_email_address]
       @selected_html = options[:selected_html]
+      @link_params = options[:link_params] || {}
       @consumer_instance = context.consumer_instance || raise('Consumer instance required for generating LTI content')
 
       @variable_expander = options[:variable_expander] || raise('VariableExpander is required for generating LTI content')
@@ -99,6 +100,7 @@ module LtiOutbound
           hash['custom_canvas_account_sis_id'] = '$Canvas.account.sisSourceId'
         end
         hash['custom_canvas_api_domain'] = '$Canvas.api.domain'
+        hash['role_scope_mentor'] = user.current_observee_ids.join(',') if user.observer?
       end
 
       # need to set the locale here (instead of waiting for the first call to
@@ -122,6 +124,8 @@ module LtiOutbound
       hash['tool_consumer_info_product_family_code'] = 'canvas'
       hash['tool_consumer_info_version'] = 'cloud'
       tool.set_custom_fields(hash, resource_type)
+      hash.merge!(tool.format_lti_params('custom', @link_params[:custom] || {}))
+      hash.merge!(tool.format_lti_params('ext', @link_params[:ext] || {}))
       set_resource_type_keys()
       hash['oauth_callback'] = 'about:blank'
 

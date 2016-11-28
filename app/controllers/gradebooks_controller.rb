@@ -433,7 +433,8 @@ class GradebooksController < ApplicationController
         submission.delete(:provisional) unless @assignment.moderated_grading?
         if params[:attachments]
           attachments = []
-          params[:attachments].each do |idx, attachment|
+          params[:attachments].keys.each do |idx|
+            attachment = strong_params[:attachments][idx].permit(Attachment.permitted_attributes)
             attachment[:user] = @current_user
             attachments << @assignment.attachments.create(attachment)
           end
@@ -566,6 +567,8 @@ class GradebooksController < ApplicationController
           :force_anonymous_grading => force_anonymous_grading?(@assignment),
           :grading_role => grading_role,
           :lti_retrieve_url => retrieve_course_external_tools_url(@context.id, assignment_id: @assignment.id, display: 'borderless'),
+          :course_id => @context.id,
+          :assignment_id => @assignment.id,
         }
         if [:moderator, :provisional_grader].include?(grading_role)
           env[:provisional_status_url] = api_v1_course_assignment_provisional_status_path(@context.id, @assignment.id)

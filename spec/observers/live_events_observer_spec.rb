@@ -60,10 +60,16 @@ describe LiveEventsObserver do
       @page.touch
     end
 
-    it "posts delete events" do
+    it "posts soft delete events" do
       wiki_page_model
       Canvas::LiveEvents.expects(:wiki_page_deleted).once
       @page.destroy
+    end
+
+    it "posts delete events" do
+      wiki_page_model
+      Canvas::LiveEvents.expects(:wiki_page_deleted).once
+      @page.destroy_permanently!
     end
   end
 
@@ -162,6 +168,13 @@ describe LiveEventsObserver do
     it "posts create events" do
       Canvas::LiveEvents.expects(:user_account_association_created).once
       user_with_pseudonym(account: Account.default, username: 'bobbo', active_all: true)
+    end
+  end
+
+  describe "account_notification" do
+    it "posts create events" do
+      Canvas::LiveEvents.expects(:account_notification_created).once
+      account_notification
     end
   end
 end

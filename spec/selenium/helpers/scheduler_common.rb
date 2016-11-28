@@ -86,7 +86,7 @@ module SchedulerCommon
     expect(f('#edit_appointment_form')).to be_displayed
     replace_content(fj('input[name="title"]'), appointment_name)
     replace_content(fj('input[name="location"]'), location_name)
-    driver.execute_script("$('.ui-dialog-buttonset .btn-primary').trigger('click')")
+    driver.execute_script("$('.ui-dialog-buttonset .Button--primary').trigger('click')")
     wait_for_ajaximations
     expect(f('.view_calendar_link').text).to eq appointment_name
     expect(f('.ag-location')).to include_text(location_name)
@@ -99,7 +99,7 @@ module SchedulerCommon
   end
 
   def open_edit_appointment_group_event_dialog
-    f('.agenda-event .ig-row').click
+    f('.agenda-event__item .agenda-event__item-container').click
     expect(f('.edit_event_link')).to be_displayed
     f('.edit_event_link').click
     wait_for_ajaximations

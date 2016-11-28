@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2011 Instructure, Inc.
+# Copyright (C) 2011 - 2016 Instructure, Inc.
 #
 # This file is part of Canvas.
 #
@@ -151,14 +151,18 @@ class AssignmentGroupsController < ApplicationController
     if authorized_action(@group, @current_user, :update)
       order = params[:order].split(',').map{|id| id.to_i }
       group_ids = ([@group.id] + (order.empty? ? [] : @context.assignments.where(id: order).uniq.except(:order).pluck(:assignment_group_id)))
-      Assignment.where(:id => order, :context_id => @context, :context_type => @context.class.to_s).update_all(:assignment_group_id => @group)
+      assignments = @context.active_assignments.where(id: order).preload(:active_assignment_overrides)
+
+      return render_unauthorized_action unless can_reorder_assignments?(assignments, @group)
+
+      assignments.update_all(assignment_group_id: @group)
       @group.assignments.first.update_order(order) unless @group.assignments.empty?
-      groups = AssignmentGroup.where(:id => group_ids)
+      groups = AssignmentGroup.where(id: group_ids)
       groups.touch_all
       groups.each{|assignment_group| AssignmentGroup.notify_observers(:assignments_changed, assignment_group)}
       ids = @group.active_assignments.map(&:id)
       @context.recompute_student_scores rescue nil
-      render :json => {:reorder => true, :order => ids}, :status => :ok
+      render json: { reorder: true, order: ids}, status: :ok
     end
   end
 
@@ -180,7 +184,7 @@ class AssignmentGroupsController < ApplicationController
   end
 
   def create
-    @assignment_group = @context.assignment_groups.temp_record(params[:assignment_group])
+    @assignment_group = @context.assignment_groups.temp_record(assignment_group_params)
     if authorized_action(@assignment_group, @current_user, :create)
       respond_to do |format|
         if @assignment_group.save
@@ -199,7 +203,7 @@ class AssignmentGroupsController < ApplicationController
     @assignment_group = @context.assignment_groups.find(params[:id])
     if authorized_action(@assignment_group, @current_user, :update)
       respond_to do |format|
-        if @assignment_group.update_attributes(params[:assignment_group])
+        if @assignment_group.update_attributes(assignment_group_params)
           flash[:notice] = t 'notices.updated', 'Assignment Group was successfully updated.'
           format.html { redirect_to named_context_url(@context, :context_assignments_url) }
           format.json { render :json => @assignment_group.as_json(:permissions => {:user => @current_user, :session => session}), :status => :ok }
@@ -238,6 +242,11 @@ class AssignmentGroupsController < ApplicationController
   end
 
   private
+
+  def assignment_group_params
+    strong_params.require(:assignment_group).
+      permit(:assignment_weighting_scheme, :default_assignment_name, :group_weight, :name, :position, :sis_source_id, :rules)
+  end
 
   def include_params
     params[:include] || []
@@ -290,11 +299,6 @@ class AssignmentGroupsController < ApplicationController
       group.context = context
       group_assignments = assignments_by_group[group.id] || []
 
-      group_overrides = []
-      if include_overrides
-        group_overrides = group_assignments.map{|assignment| assignment.assignment_overrides.select(&:active?)}.flatten
-      end
-
       options = {
         stringify_json_ids: stringify_json_ids?,
         override_assignment_dates: override_dates?,
@@ -302,7 +306,7 @@ class AssignmentGroupsController < ApplicationController
         assignments: group_assignments,
         assignment_visibilities: assignment_visibilities(context, assignments),
         exclude_response_fields: assignment_excludes,
-        overrides: group_overrides,
+        include_overrides: include_overrides,
         submissions: submissions
       }
 
@@ -378,6 +382,16 @@ class AssignmentGroupsController < ApplicationController
       grading_period.assignments_for_student(assignments, @current_user)
     else
       grading_period.assignments(assignments)
+    end
+  end
+
+  def can_reorder_assignments?(assignments, group)
+    return true if @context.account_membership_allows(@current_user)
+    return true unless @context.feature_enabled?(:multiple_grading_periods)
+    periods = GradingPeriod.for(@context)
+    assignments.none? do |assignment|
+      assignment.assignment_group_id != group.id &&
+        assignment.due_for_any_student_in_closed_grading_period?(periods)
     end
   end
 end

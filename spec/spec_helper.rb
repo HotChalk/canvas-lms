@@ -49,10 +49,23 @@ end
 require File.expand_path('../../config/environment', __FILE__) unless defined?(Rails)
 require 'rspec/rails'
 
+require 'webmock'
+require 'webmock/rspec/matchers'
+WebMock.allow_net_connect!
+# unlike webmock/rspec, only reset in groups that actually do stubbing
+module WebMock::API
+  include WebMock::Matchers
+  def self.included(other)
+    other.after { WebMock.reset! }
+  end
+end
+
 # ensure people aren't creating records outside the rspec lifecycle, e.g.
 # inside a describe/context block rather than a let/before/example
 require_relative 'support/blank_slate_protection'
 BlankSlateProtection.enable!
+
+require_relative 'support/discourage_slow_specs'
 
 RSpec::Core::ExampleGroup.singleton_class.prepend(Module.new {
   def run_examples(*)
@@ -206,7 +219,16 @@ Mocha::ObjectMethods.instance_methods.each do |m|
 end
 
 factories = "#{File.dirname(__FILE__).gsub(/\\/, "/")}/factories/*.rb"
+legit_global_methods = Object.private_methods
 Dir.glob(factories).each { |file| require file }
+crap_factories = (Object.private_methods - legit_global_methods)
+if crap_factories.present?
+  $stderr.puts "\e[31mError: Don't create global factories/helpers"
+  $stderr.puts "Put #{crap_factories.map { |m| "`#{m}`" }.to_sentence} in the `Factories` module"
+  $stderr.puts "(or somewhere else appropriate)\e[0m"
+  $stderr.puts
+  exit! 1
+end
 
 examples = "#{File.dirname(__FILE__).gsub(/\\/, "/")}/shared_examples/*.rb"
 Dir.glob(examples).each { |file| require file }
@@ -304,6 +326,7 @@ RSpec.configure do |config|
   config.order = :random
 
   config.include Helpers
+  config.include Factories
 
   config.include Onceler::BasicHelpers
 
@@ -328,6 +351,8 @@ RSpec.configure do |config|
     Attachment.domain_namespace = nil
     Canvas::DynamicSettings.reset_cache!
     ActiveRecord::Migration.verbose = false
+    RequestStore.clear!
+    Course.enroll_user_call_count = 0
     $spec_api_tokens = {}
   end
 
@@ -382,6 +407,7 @@ RSpec.configure do |config|
   # specs on the patchset builds
   if ENV["SELINIMUM_CAPTURE"]
     require "selinimum"
+    require "selinimum/capture"
 
     config.before :suite do
       Selinimum::Capture.install!
@@ -863,6 +889,7 @@ RSpec.configure do |config|
     return [] if records.empty?
     klass.transaction do
       klass.connection.bulk_insert klass.table_name, records
+      return if return_type == :nil
       scope = klass.order("id DESC").limit(records.size)
       return_type == :record ?
         scope.to_a.reverse :

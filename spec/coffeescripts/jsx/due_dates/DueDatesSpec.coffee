@@ -1,14 +1,13 @@
 define [
   'react'
+  'react-dom'
   'underscore'
   'jsx/due_dates/DueDates'
   'jsx/due_dates/OverrideStudentStore'
+  'jsx/due_dates/StudentGroupStore'
   'compiled/models/AssignmentOverride',
   'helpers/fakeENV'
-], (React, _, DueDates, OverrideStudentStore, AssignmentOverride, fakeENV) ->
-
-  Simulate = React.addons.TestUtils.Simulate
-  SimulateNative = React.addons.TestUtils.SimulateNative
+], (React, ReactDOM, _, DueDates, OverrideStudentStore, StudentGroupStore, AssignmentOverride, fakeENV) ->
 
   module 'DueDates',
     setup: ->
@@ -31,10 +30,10 @@ define [
 
       @syncWithBackboneStub = @stub(props, 'syncWithBackbone')
       DueDatesElement = React.createElement(DueDates, props)
-      @dueDates = React.render(DueDatesElement, $('<div>').appendTo('body')[0])
+      @dueDates = ReactDOM.render(DueDatesElement, $('<div>').appendTo('body')[0])
 
     teardown: ->
-      React.unmountComponentAtNode(@dueDates.getDOMNode().parentNode)
+      ReactDOM.unmountComponentAtNode(@dueDates.getDOMNode().parentNode)
       fakeENV.teardown()
 
   test 'renders', ->
@@ -106,6 +105,22 @@ define [
     @dueDates.addRow()
     equal @dueDates.focusRow.callCount, 1
 
+  test 'filters available groups based on selected group category', ->
+    groups = [
+      {id: "3", group_category_id: "1"},
+      {id: "4", group_category_id: "2"}
+    ]
+    StudentGroupStore.setSelectedGroupSet(null)
+    StudentGroupStore.addGroups(groups)
+    ok !_.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "3")
+    ok !_.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "4")
+    StudentGroupStore.setSelectedGroupSet("1")
+    ok  _.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "3")
+    ok !_.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "4")
+    StudentGroupStore.setSelectedGroupSet("2")
+    ok !_.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "3")
+    ok  _.contains(@dueDates.validDropdownOptions().map( (opt) -> opt.group_id), "4")
+
   module 'DueDates render callbacks',
     setup: ->
       fakeENV.setup()
@@ -139,9 +154,9 @@ define [
     )
 
     # render with the props (which should provide info for fetchStudentsByID call)
-    @dueDates = React.render(DueDatesElement, $('<div>').appendTo('body')[0])
+    @dueDates = ReactDOM.render(DueDatesElement, $('<div>').appendTo('body')[0])
 
     ok !fetchAdhocStudentsStub.calledWith(["18", "22"])
     ok fetchAdhocStudentsStub.calledWith(["1","3"])
 
-    React.unmountComponentAtNode(@dueDates.getDOMNode().parentNode)
+    ReactDOM.unmountComponentAtNode(@dueDates.getDOMNode().parentNode)

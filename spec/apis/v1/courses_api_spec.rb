@@ -932,6 +932,64 @@ describe CoursesController, type: :request do
         @course.reload
         expect(@course.grading_standard).to eq @standard
       end
+
+      context "when an assignment is due in a closed grading period" do
+        before(:once) do
+          @course.root_account.enable_feature!(:multiple_grading_periods)
+          @course.update_attributes(group_weighting_scheme: "equal")
+          @grading_period_group = Factories::GradingPeriodGroupHelper.new.create_for_account(@course.root_account)
+          term = @course.enrollment_term
+          term.grading_period_group = @grading_period_group
+          term.save!
+          Factories::GradingPeriodHelper.new.create_for_group(@grading_period_group, {
+            start_date: 2.weeks.ago, end_date: 2.days.ago, close_date: 1.day.ago
+          })
+          @group = @course.assignment_groups.create!(name: 'group')
+          @assignment = @course.assignments.create!({
+            title: 'assignment', assignment_group: @group, due_at: 1.week.ago
+          })
+        end
+
+        it "can change apply_assignment_group_weights with a term change" do
+          @term.grading_period_group = @grading_period_group
+          @term.save!
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+
+        it "can change apply_assignment_group_weights without a term change" do
+          @new_values["course"].delete("enrollment_term_id")
+          @new_values["course"].delete("term_id")
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+
+        it "can change group_weighting_scheme with a term change" do
+          @term.grading_period_group = @grading_period_group
+          @term.save!
+          @new_values["course"].delete("apply_assignment_group_weights")
+          @new_values["course"]["group_weighting_scheme"] = "percent"
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+
+        it "can change group_weighting_scheme without a term change" do
+          @new_values["course"].delete("enrollment_term_id")
+          @new_values["course"].delete("term_id")
+          @new_values["course"].delete("apply_assignment_group_weights")
+          @new_values["course"]["group_weighting_scheme"] = "percent"
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+      end
     end
 
     context "a designer" do
@@ -1007,14 +1065,108 @@ describe CoursesController, type: :request do
         @course.reload
         expect(@course.sis_source_id).to eql original_sis
       end
+
+      context "when an assignment is due in a closed grading period" do
+        before :once do
+          @course.update_attributes(group_weighting_scheme: "equal")
+          @grading_period_group = Factories::GradingPeriodGroupHelper.new.create_for_account(@course.root_account)
+          term = @course.enrollment_term
+          term.grading_period_group = @grading_period_group
+          term.save!
+          Factories::GradingPeriodHelper.new.create_for_group(@grading_period_group, {
+            start_date: 2.weeks.ago, end_date: 2.days.ago, close_date: 1.day.ago
+          })
+          @group = @course.assignment_groups.create!(name: 'group')
+          @assignment = @course.assignments.create!({
+            title: 'assignment', assignment_group: @group, due_at: 1.week.ago
+          })
+        end
+
+        before :each do
+          @course.root_account.enable_feature!(:multiple_grading_periods)
+        end
+
+        it "cannot change apply_assignment_group_weights with a term change" do
+          @term.grading_period_group = @grading_period_group
+          @term.save!
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '401'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "cannot change apply_assignment_group_weights without a term change" do
+          @new_values["course"].delete("enrollment_term_id")
+          @new_values["course"].delete("term_id")
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '401'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "cannot change group_weighting_scheme with a term change" do
+          @term.grading_period_group = @grading_period_group
+          @term.save!
+          @new_values["course"].delete("apply_assignment_group_weights")
+          @new_values["course"]["group_weighting_scheme"] = "percent"
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '401'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "cannot change group_weighting_scheme without a term change" do
+          @new_values["course"].delete("enrollment_term_id")
+          @new_values["course"].delete("term_id")
+          @new_values["course"].delete("apply_assignment_group_weights")
+          @new_values["course"]["group_weighting_scheme"] = "percent"
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '401'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "succeeds when multiple grading periods is disabled" do
+          @course.root_account.disable_feature!(:multiple_grading_periods)
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+
+        it "succeeds when apply_assignment_group_weights is not changed" do
+          @new_values['course']['apply_assignment_group_weights'] = false
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "succeeds when group_weighting_scheme is not changed" do
+          @new_values["course"].delete("apply_assignment_group_weights")
+          @new_values["course"]["group_weighting_scheme"] = "equal"
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("equal")
+        end
+
+        it "ignores deleted assignments" do
+          @assignment.destroy
+          raw_api_call(:put, @path, @params, @new_values)
+          expect(response.code).to eql '200'
+          @course.reload
+          expect(@course.group_weighting_scheme).to eql("percent")
+        end
+      end
     end
 
     context "an unauthorized user" do
       before { user }
 
       it "should return 401 unauthorized" do
-         raw_api_call(:put, @path, @params, @new_values)
-         expect(response.code).to eql '401'
+        raw_api_call(:put, @path, @params, @new_values)
+        expect(response.code).to eql '401'
       end
     end
   end
@@ -1093,7 +1245,7 @@ describe CoursesController, type: :request do
         @course.reload
         expect(@course.workflow_state).to eql 'deleted'
         new_course = Course.find(json['id'])
-        expect(new_course.workflow_state).to eql 'created'
+        expect(new_course.workflow_state).to eql 'claimed'
         expect(json['workflow_state']).to eql 'unpublished'
       end
     end
@@ -1662,6 +1814,71 @@ describe CoursesController, type: :request do
     end
   end
 
+  describe "enrollment_state" do
+    before :once do
+      @course2.start_at = 1.day.from_now
+      @course2.conclude_at = 2.days.from_now
+      @course2.restrict_enrollments_to_course_dates = true
+      @course2.save! # pending_active
+
+      @course3 = course(:active_all => true)
+      @course3.enroll_user(@me, 'StudentEnrollment') #invited
+
+      @course4 = course(:active_all => true)
+      @course4.enroll_user(@me, 'StudentEnrollment')
+      @course4.start_at = 2.days.ago
+      @course4.conclude_at = 1.day.ago
+      @course4.restrict_enrollments_to_course_dates = true
+      @course4.save! # completed
+    end
+
+    it "should return courses with active enrollments" do
+      json = api_call(:get, "/api/v1/courses.json?enrollment_state=active",
+        { :controller => 'courses', :action => 'index', :format => 'json', :enrollment_state => 'active' })
+      expect(json.collect{ |c| c['id'].to_i }).to eq [@course1.id]
+    end
+
+    it "should return courses with invited or pending enrollments" do
+      json = api_call(:get, "/api/v1/courses.json?enrollment_state=invited_or_pending",
+        { :controller => 'courses', :action => 'index', :format => 'json', :enrollment_state => 'invited_or_pending' })
+      expect(json.collect{ |c| c['id'].to_i }.sort).to eq [@course2.id, @course3.id].sort
+    end
+
+    it "should return courses with completed enrollments" do
+      json = api_call(:get, "/api/v1/courses.json?enrollment_state=completed",
+        { :controller => 'courses', :action => 'index', :format => 'json', :enrollment_state => 'completed' })
+      expect(json.collect{ |c| c['id'].to_i }).to eq [@course4.id]
+    end
+
+    it "should return active observed student enrollments if requested" do
+      @student = user(:active_all => true)
+      @student_enroll = @course1.enroll_user(@student, "StudentEnrollment")
+      @student_enroll.accept!
+      @observer = user(:active_all => true)
+      @course1.enroll_user(@observer, "ObserverEnrollment", :associated_user_id => @student.id)
+
+      json = api_call_as_user(@observer, :get,
+        "/api/v1/courses.json?include[]=observed_users&enrollment_state=active",
+        { :controller => 'courses', :action => 'index',
+          :id => @observer_course.to_param, :format => 'json', :include => [ "observed_users" ], :enrollment_state => 'active' })
+
+      expect(json.first['enrollments'].count).to eq 2
+      student_enroll_json = json.first['enrollments'].detect{|e| e["type"] == "student"}
+      expect(student_enroll_json["user_id"]).to eq @student.id
+
+      @student_enroll.start_at = 3.days.ago
+      @student_enroll.end_at = 2.days.ago
+      @student_enroll.save! # soft-conclude
+
+      json = api_call_as_user(@observer, :get,
+        "/api/v1/courses.json?include[]=observed_users&enrollment_state=active",
+        { :controller => 'courses', :action => 'index',
+          :id => @observer_course.to_param, :format => 'json', :include => [ "observed_users" ], :enrollment_state => 'active' })
+
+      expect(json.first['enrollments'].count).to eq 1
+    end
+  end
+
   describe "course state" do
     before :once do
       @role = Account.default.roles.build :name => 'SuperTeacher'
@@ -1916,10 +2133,8 @@ describe CoursesController, type: :request do
       controller = mock()
       controller.stubs(:params).returns({})
       course_with_teacher(:active_all => true)
-      students = []
       num = Api.per_page_for(controller) + 1 # get the default api per page value
-      num.times { students << student_in_course(:course => @course).user }
-      first_user = @user
+      create_users_in_course(@course, num)
       json = api_call(:get, "/api/v1/courses/#{@course.id}/students.json",
                       { :controller => 'courses', :action => 'students', :course_id => @course.id.to_s, :format => 'json' })
       expect(json.count).to eq num

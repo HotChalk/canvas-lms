@@ -33,9 +33,9 @@ class LtiApiController < ApplicationController
       raise BasicLTI::BasicOutcomes::InvalidRequest, "Content-Type must be 'application/xml'"
     end
 
-    xml = Nokogiri::XML.parse(request.body)
+    @xml = Nokogiri::XML.parse(request.body)
 
-    lti_response = check_outcome BasicLTI::BasicOutcomes.process_request(@tool, xml)
+    lti_response = check_outcome BasicLTI::BasicOutcomes.process_request(@tool, @xml)
     render :text => lti_response.to_xml, :content_type => 'application/xml'
   end
 
@@ -151,7 +151,7 @@ class LtiApiController < ApplicationController
     # verify the request oauth signature, timestamp and nonce
     begin
       @signature = OAuth::Signature.build(request, :consumer_secret => @tool.shared_secret)
-      @signature.verify() or raise OAuth::Unauthorized
+      @signature.verify() or raise OAuth::Unauthorized.new(request)
 
     rescue OAuth::Signature::UnknownSignatureMethod, OAuth::Unauthorized => e
       Canvas::Errors::Reporter.raise_canvas_error(BasicLTI::BasicOutcomes::Unauthorized, "Invalid authorization header", oauth_error_info.merge({error_class: e.class.name}))
@@ -164,8 +164,8 @@ class LtiApiController < ApplicationController
       Canvas::Errors::Reporter.raise_canvas_error(BasicLTI::BasicOutcomes::Unauthorized, "Timestamp too old or too far in the future, request has expired", oauth_error_info)
     end
 
-    nonce = @signature.request.nonce
-    unless Canvas::Redis.lock("nonce:#{@tool.asset_string}:#{nonce}", allowed_delta)
+    cache_key = "nonce:#{@tool.asset_string}:#{@signature.request.nonce}"
+    unless Lti::Security::check_and_store_nonce(cache_key, timestamp, allowed_delta.seconds)
       Canvas::Errors::Reporter.raise_canvas_error(BasicLTI::BasicOutcomes::Unauthorized, "Duplicate nonce detected", oauth_error_info)
     end
   end
@@ -181,6 +181,7 @@ class LtiApiController < ApplicationController
     if ['unsupported', 'failure'].include? outcome.code_major
       opts = {type: :grade_passback}
       error_info = Canvas::Errors::Info.new(request, @domain_root_account, @current_user, opts).to_h
+      error_info[:extra][:xml] = @xml.to_s if @xml
       capture_outputs = Canvas::Errors.capture("Grade pass back #{outcome.code_major}", error_info)
       outcome.description += "\n[EID_#{capture_outputs[:error_report]}]"
     end

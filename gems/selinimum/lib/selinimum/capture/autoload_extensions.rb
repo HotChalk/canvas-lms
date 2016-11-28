@@ -41,34 +41,42 @@ module Selinimum
         # dependencies). otherwise load it frd (and its dependencies), and
         # put it in the cache so we can restore it later after a reset
         def cache_constants(file_path, const_names)
-          ret = nil
-          if (cached_autoload = cached_autoloads[file_path])
-            restore_constants_for cached_autoload, file_path
-            ret = cached_autoload.ret
-          else
-            dependencies = track_dependencies(const_names) do
-              ret = yield
-            end
-
-            # we got a const; record it so we can replay it later
-            if (const_name = const_names.find { |c| Object.const_defined?(c) })
-              const = Object.const_get(const_name)
-              cached_autoloads[file_path] = CachedAutoload.new(const, ret, dependencies)
-              current_autoloads[file_path] = const
+          autoload_monitor.synchronize do
+            ret = nil
+            if (cached_autoload = cached_autoloads[file_path])
+              restore_constants_for cached_autoload, file_path
+              ret = cached_autoload.ret
             else
-              # this didn't define a const (e.g. we did require_dependency),
-              # but its dependencies may have
-              if current_dependencies
-                current_dependencies.concat dependencies
+              dependencies = track_dependencies(const_names) do
+                ret = yield
+              end
+
+              # we got a const; record it so we can replay it later
+              if (const_name = const_names.find { |c| Object.const_defined?(c) })
+                const = Object.const_get(const_name)
+                cached_autoloads[file_path] = CachedAutoload.new(const, ret, dependencies)
+                current_autoloads[file_path] = const
+              else
+                # this didn't define a const (e.g. we did require_dependency),
+                # but its dependencies may have
+                if current_dependencies
+                  current_dependencies.concat dependencies
+                end
               end
             end
+
+            # we're being autoloaded within another file being autoloaded,
+            # so we want to let it know it depends on us
+            current_dependencies << file_path if current_dependencies
+
+            ret
           end
+        end
 
-          # we're being autoloaded within another file being autoloaded,
-          # so we want to let it know it depends on us
-          current_dependencies << file_path if current_dependencies
-
-          ret
+        # in selenium land, we have a second thread for the rails server,
+        # so synchronize autoloading to avoid stomping
+        def autoload_monitor
+          @autoload_monitor ||= Monitor.new
         end
 
         def app_path_for(path)
@@ -196,7 +204,7 @@ module Selinimum
           classes_to_remove = Set.new(classes_to_remove)
           classes.each do |klass|
             klass.reflections.each do |_, reflection|
-              next unless reflection.instance_variable_defined? :@klass
+              next unless reflection.instance_variable_get(:@klass)
               next unless classes_to_remove.include?(reflection.klass)
               reflection.remove_instance_variable :@klass
             end

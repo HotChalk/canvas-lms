@@ -168,6 +168,22 @@ describe ContentMigration do
       expect(quiz_to.description).to eq body % [@copy_to.id, mod1_to.id]
     end
 
+    it "should not interweave module order" do
+      mod1 = @copy_from.context_modules.create!(:name => "some module")
+      mod2 = @copy_from.context_modules.create!(:name => "some module 2")
+
+      run_course_copy
+
+      [mod1, mod2].each(&:destroy)
+      mod3 = @copy_from.context_modules.create!(:name => "some module 3")
+      expect(mod3.position).to eq 1
+
+      run_course_copy
+
+      mod3_to = @copy_to.context_modules.where(migration_id: mig_id(mod3)).first
+      expect(mod3_to.position).to eq 3 # put at end
+    end
+
     it "should be able to copy links to files in folders with html entities and unicode in path" do
       root_folder = Folder.root_folders(@copy_from).first
       folder1 = root_folder.sub_folders.create!(:context => @copy_from, :name => "mol&eacute; ? i'm silly")
@@ -560,6 +576,20 @@ describe ContentMigration do
       new_topic = @copy_to.discussion_topics.where(migration_id: CC::CCHelper.create_key(topic)).first
       expect(new_topic).not_to be_nil
       expect(new_topic.message).to match(Regexp.new("/courses/#{@copy_to.id}/files/#{new_att.id}/preview"))
+    end
+
+    it "should be able to copy links to folders" do
+      folder = Folder.root_folders(@copy_from).first.sub_folders.create!(:context => @copy_from, :name => 'folder_1')
+      att = Attachment.create!(:filename => 'test.txt', :display_name => "testing.txt",
+        :uploaded_data => StringIO.new('file'), :folder => folder, :context => @copy_from)
+
+      topic = @copy_from.discussion_topics.create!(:title => "some topic",
+        :message => "<a href='/courses/#{@copy_from.id}/files/folder/#{folder.name}'>an ill-advised link</a>")
+
+      run_course_copy
+
+      new_topic = @copy_to.discussion_topics.where(:migration_id => mig_id(topic)).first
+      expect(new_topic.message).to match(Regexp.new("/courses/#{@copy_to.id}/files/folder/#{folder.name}"))
     end
   end
 end
