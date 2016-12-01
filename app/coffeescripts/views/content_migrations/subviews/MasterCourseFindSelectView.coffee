@@ -120,11 +120,6 @@ define [
     # @api private
 
     setSourceCourseId: (id) ->
-      if id == ENV.COURSE_ID?.toString()
-        @$selectWarning.show()
-      else
-        @$selectWarning.hide()
-
       @model.set('settings', {source_course_id: id})
       if course = _.find(@courses, (c) -> c.id == id)
         @trigger 'course_changed', course

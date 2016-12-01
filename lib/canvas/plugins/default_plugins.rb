@@ -432,18 +432,18 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', {
     },
     :settings_partial => 'plugins/course_copy_tool_csv_file'    
 }
-# require_dependency 'canvas/migration/worker/course_copy_tool_csv_file_worker'
-Canvas::Plugin.register 'course_group_copy_importer', :export_system, {
+require_dependency 'canvas/migration/worker/course_copy_groups_worker'
+Canvas::Plugin.register 'course_group_copy', :export_system, {
     :name => lambda { I18n.t :group_copy_name, 'Course Group Copy' },
     :display_name => lambda { I18n.t :group_copy_display, 'Course Groups Copy Importer' },
     :author => 'Hotchalk',
     :author_website => 'http://www.hotchalk.com',
     :description => lambda { I18n.t :group_copy_description, 'Import Groups from a source course to a target course.' },
     :version => '1.0.0',
-    :select_text => lambda { I18n.t :group_copy_select_text, "Hotchalk Import Master Groups" },
+    :select_text => lambda { I18n.t :group_copy_select_text, "Hotchalk Import Course Groups" },
     # :sort_order => 1,
     :settings => {
-        :worker => 'CourseGroupsCopyWorker',
+        :worker => 'CourseCopyGroupsWorker',
         :requires_file_upload => false,
         :no_selective_import => true,
         # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,

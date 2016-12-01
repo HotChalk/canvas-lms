@@ -124,6 +124,18 @@ module Importers
       Importers::WikiPageImporter.process_migration_course_outline(data, migration)
       Importers::CalendarEventImporter.process_migration(data, migration)
 
+      # import groups extra process
+      source_aux = migration.source_course || Course.find(migration.migration_settings[:source_course_id])
+      if source_aux
+        groups_aux = source_aux.groups.active
+        group_categories_aux = source_aux.group_categories.active
+        data_aux = {
+            :groups => groups_aux || [],
+            :group_categories => group_categories_aux || []
+        }
+        Importers::GroupImporter.import_groups_extra(data_aux, migration)
+      end
+
       everything_selected = !migration.copy_options || migration.is_set?(migration.copy_options[:everything])
       if everything_selected || migration.is_set?(migration.copy_options[:all_course_settings])
         self.import_settings_from_migration(course, data, migration)
