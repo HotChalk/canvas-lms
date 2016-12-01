@@ -243,8 +243,8 @@ module Importers
     def self.import_settings_from_migration(course, data, migration)
       return unless data[:course]
       # get the external urls
-      course_aux = Course.find(migration[:migration_settings][:source_course_id])
-      data[:course][:dynamic_tab_configuration] = course_aux[:dynamic_tab_configuration]      
+      course_aux = migration[:migration_settings][:source_course_id].present? && Course.find(migration[:migration_settings][:source_course_id])
+      data[:course][:dynamic_tab_configuration] = course_aux[:dynamic_tab_configuration] if course_aux.present?
       settings = data[:course]
       if settings[:tab_configuration] && settings[:tab_configuration].is_a?(Array)
         tab_config = []
