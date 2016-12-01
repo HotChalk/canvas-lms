@@ -79,4 +79,23 @@ describe "Importing Groups" do
     Importers::GroupImporter.import_from_migration({}, @course, migration, group)
     expect(group.group_category).to eq GroupCategory.imported_for(@course)
   end
+
+  it "should copy groups using Hotchalk extra copy step" do
+    source = course_model
+    group_category = source.group_categories.create(:name => "worldCup")
+    group1 = Group.create!(:name=>"group1", :group_category => group_category, :context => source)
+    target = course_model
+    migration = target.content_migrations.create!
+    groups = source.groups.active
+    group_categories = source.group_categories.active
+    data = {
+        :groups => groups || [],
+        :group_categories => group_categories || []
+    }
+    Importers::GroupImporter.import_groups_extra(data, migration)
+    new_group = Group.where(migration_id: data[:migration_id]).first
+    expect(new_group).not_to be_nil
+  end
+
+
 end

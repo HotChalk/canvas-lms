@@ -2,6 +2,13 @@ require_dependency 'importers'
 
 module Importers
   class GroupImporter < Importer
+    SETTABLE_GROUP_CATEGORY_ATTRIBUTES = %w(name context_type self_signup group_limit auto_leader).freeze
+
+    SETTABLE_GROUP_ATTRIBUTES = %w(
+      name workflow_state context_type category max_membership account_id default_view description join_level
+      is_public group_category avatar_attachment storage_quota_mb root_account_id tab_configuration
+      dynamic_tab_configuration
+    ).freeze
 
     self.item_class = Group
 
@@ -34,6 +41,49 @@ module Importers
       item.save!
       migration.add_imported_item(item)
       item
+    end
+
+    def self.import_groups_extra(data, migration)
+      # import group categories
+      group_categories = data[:group_categories] || []
+      group_categories.each do |category|
+        begin
+          next if migration.context.group_categories.active.exists?(name: category[:name])
+          @new_cat = migration.context.group_categories.temp_record(category.slice(*SETTABLE_GROUP_CATEGORY_ATTRIBUTES))
+          @new_cat[:created_at] = Time.now
+          @new_cat[:updated_at] = Time.now
+          @new_cat.save
+        rescue
+          migration.add_import_warning(t('#migration.group_category', "Group Category"), category[:name], $!)
+        end
+      end
+
+      # import groups
+      groups = data[:groups] || []
+      groups.each do |group|
+        begin
+          next if migration.context.groups.active.exists?(name: group[:name])
+          @new = migration.context.groups.temp_record(group.slice(*SETTABLE_GROUP_ATTRIBUTES))
+          @new[:workflow_state] = group[:workflow_state]
+          @new[:category] = group[:category]
+          @new[:account_id] = group[:account_id]
+          @new[:root_account_id] = group[:root_account_id]
+          @new[:migration_id] = migration.id
+          @new[:created_at] = Time.now
+          @new[:updated_at] = Time.now
+          @new.group_category = group[:category].present? ?
+              migration.context.group_categories.active.where(name: group[:category]).first_or_initialize :
+              GroupCategory.imported_for(migration.context)
+          @new.save
+          @new.reload
+          unless @new.sis_source_id.present?
+            @new.sis_source_id = @new.id
+            @new.save
+          end
+        rescue
+          migration.add_import_warning(t('#migration.group_type', "Group"), group[:title], $!)
+        end
+      end
     end
   end
 end
