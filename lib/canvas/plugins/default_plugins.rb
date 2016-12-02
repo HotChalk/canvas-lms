@@ -451,5 +451,6 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
         :required_settings => [:source_folder_id],
         :valid_contexts => %w(Account)
     },
-    :settings_partial => 'plugins/course_copy_tool_csv_file'    
+    :settings_partial => 'plugins/course_copy_tool_csv_file',
+    :hide_from_users => true
 }
