@@ -73,7 +73,8 @@ describe "discussions" do
         wait_for_ajaximations
         expect(f('#locked-discussions .discussion-title').text).to include('teacher topic title')
         expect_new_page_load{fln('teacher topic title').click}
-        expect(f('.discussion-fyi').text).to include('This topic is closed for comments')
+        # HC: author of a topic is never locked out of it
+        #expect(f('.discussion-fyi').text).to include('This topic is closed for comments')
 
         # Assert that the teacher can still reply to a closed discussion
         expect(f('.discussion-reply-action')).to be_present

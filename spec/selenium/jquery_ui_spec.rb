@@ -195,7 +195,8 @@ describe "jquery ui" do
     it "should open every time when pressing return" do
       container = f('.al-selenium')
       options = '.al-options:visible'
-      scroll_to(f('.footer-logo'))
+      # HC: footer removed
+      #scroll_to(f('.footer-logo'))
       expect(container).not_to contain_jqcss(options)
       active.send_keys(:return)
       expect(container).to contain_jqcss(options)

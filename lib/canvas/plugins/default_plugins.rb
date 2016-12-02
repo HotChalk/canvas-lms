@@ -445,12 +445,12 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', {
     :settings => {
         :worker => 'CourseCopyToolCsvFileWorker',
         :requires_file_upload => true,
-        :no_selective_import => true,
-        # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,
+        :no_selective_import => true,        
         :required_settings => [:source_folder_id],
         :valid_contexts => %w(Account)
     },
-    :settings_partial => 'plugins/course_copy_tool_csv_file'    
+    :settings_partial => 'plugins/course_copy_tool_csv_file'
+    # :hide_from_users => true   
 }
 require_dependency 'canvas/migration/worker/course_copy_groups_worker'
 Canvas::Plugin.register 'course_group_copy', :export_system, {
@@ -465,9 +465,7 @@ Canvas::Plugin.register 'course_group_copy', :export_system, {
     :settings => {
         :worker => 'CourseCopyGroupsWorker',
         :requires_file_upload => false,
-        :no_selective_import => true,
-        # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,
+        :no_selective_import => true,        
         :valid_contexts => %w(Course)
-    },
-    # :settings_partial => 'plugins/course_group_copy'
+    }    
 }
