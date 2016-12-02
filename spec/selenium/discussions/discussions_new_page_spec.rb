@@ -79,6 +79,10 @@ describe "discussions" do
           wait_for_ajaximations
           fj(".datePickerDateField[data-date-type='due_at']:last").send_keys(format_date_for_view(due_at2))
 
+          # HC: title and message are required
+          replace_content(f('input[name=title]'), "This is my test title")
+          type_in_tiny('textarea[name=message]', 'This is the discussion description.')
+
           expect_new_page_load { f('.form-actions button[type=submit]').click }
           topic = DiscussionTopic.last
 
@@ -93,6 +97,10 @@ describe "discussions" do
         it "should validate that a group category is selected", priority: "1", test_id: 150469 do
           assignment_group
           get url
+
+          # HC: title and message are required
+          replace_content(f('input[name=title]'), "This is my test title")
+          type_in_tiny('textarea[name=message]', 'This is the discussion description.')
 
           f('input[type=checkbox][name="assignment[set_assignment]"]').click
           f('#has_group_category').click
@@ -149,7 +157,8 @@ describe "discussions" do
         unlock_text_index_page = format_date_for_view(target_time, :short)
         f('#delayed_post_at').send_keys(unlock_text)
         expect_new_page_load {submit_form('.form-actions')}
-        expect(f('.entry-content').text).to include("This topic is locked until #{unlock_text}")
+        # HC: author of a topic is never locked out of it
+        # expect(f('.entry-content').text).to include("This topic is locked until #{unlock_text}")
         expect_new_page_load{f('#section-tabs .discussions').click}
         expect(f(' .discussion').text).to include("Not available until #{unlock_text_index_page}")
       end
