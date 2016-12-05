@@ -22,18 +22,29 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
 
     cm.shard.activate do
       begin
+        cm.workflow_state = :exporting
+        cm.save
         csv_data = cm.migration_settings[:csv_data]
+        cm.migration_settings[:total_copy] = csv_data.length
+        cm.migration_settings[:number_processed] = 0
+        cm.save
         csv_data.each do |row|
           result = process_csv_row(row, cm)
           cm.migration_settings[:results] << result
-        end
-        cm.workflow_state = :exporting
-        cm.save
+          if result[:workflow_state] == :failed
+            cm.migration_settings[:number_processed] += 1
+          end
+          cm.save
+        end                
       rescue => e
         cm.fail_with_error!(e)
         raise e
       end
     end
+  end
+
+  def getCourseUrl(id)    
+    "/courses/#{id}"
   end
 
   def process_csv_row(row, cm)
@@ -42,10 +53,10 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
       result.merge!({:master_id => row[0], :target_id => row[1]})
       validate_csv_row(row)      
       master = Course.find(row[0])      
-      result.merge!({:master_name => master.name, :master_code_id => master.course_code, :master_section_name => master.default_section.section_code})
+      result.merge!({:master_name => master.name, :master_code_id => master.course_code, :master_section_name => master.default_section.section_code, :master_url => getCourseUrl(row[0])})
       
       target = Course.find(row[1])
-      result.merge!({:target_name => target.name, :target_code_id => target.course_code, :target_section_name => target.default_section.section_code})
+      result.merge!({:target_name => target.name, :target_code_id => target.course_code, :target_section_name => target.default_section.section_code, :target_url => getCourseUrl(row[1])})
 
       date_shift_options = {:shift_dates => (cm.migration_settings[:due_dates] == '1')}
       
@@ -55,7 +66,7 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
         date_shift_options[:new_start_date] = target.start_at.to_s
       end
 
-      settings = {:source_course_id => master.id}
+      settings = {:source_course_id => master.id, :migration_source_id => cm.id}
       params = {:migration_type => 'course_copy_importer', :date_shift_options => date_shift_options, :settings => settings}      
       migration = create_migration(master, target, params, cm.user)
       result.merge!({:workflow_state => :queued, :content_migration_id => migration.id, :completion => 0, :created_at => migration.created_at, :updated_at => migration.updated_at})
