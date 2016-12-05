@@ -7,15 +7,20 @@ define([
   var MigrationItem = React.createClass({          
     getStatus: function(workflow_state){
         var result = "";
-        switch(workflow_state){
-          case "exporting":
-            result = I18n.t('queued_processing', "Queued for processing")
+        switch(workflow_state){          
+          case "created":
+          case "pre_processing":
+            result = I18n.t('state_queued_processing', "Queued for processing")
           break;
+          case "exporting":
+            result = I18n.t('state_exporting', "Exporting")
+          break;
+          case "exported":
           case "imported":
-            result = I18n.t('completed', 'Completed')
+            result = I18n.t('state_completed', 'Completed')
           break;
           case "failed":
-            result = I18n.t('failed', 'Failed')
+            result = I18n.t('state_failed', 'Failed')
           break;
 
           default:
@@ -26,7 +31,9 @@ define([
     render(){   
       var created_at = $.dateString(this.props.migration.content_migration.created_at, {format: 'medium'}) + " " + $.timeString(this.props.migration.content_migration.created_at);
       var finished_at = $.dateString(this.props.migration.content_migration.finished_at, {format: 'medium'}) + " " + $.timeString(this.props.migration.content_migration.finished_at);
-      var items = this.props.migration.content_migration.migration_settings.results || [];    
+      var number_processed = this.props.migration.content_migration.migration_settings.number_processed || 0;
+      var total_copy = this.props.migration.content_migration.migration_settings.total_copy || 0;
+      // var items = this.props.migration.content_migration.migration_settings.results || [];    
       var icon = "icon-minimize";
       var display_style = "block";
       var class_style = "panel-heading clickable";
@@ -36,6 +43,8 @@ define([
         display_style = "none";
         class_style = class_style + " panel-collapsed";
       }      
+
+      // <ProgressList progresses={items} />
 
       return(        
         <div className="" >
@@ -56,10 +65,13 @@ define([
                     <div className="_row">
                         <span className="subtitle">Status: </span>{this.getStatus(this.props.migration.content_migration.workflow_state)}                         
                     </div>
+                    <div className="_row">
+                        <span className="subtitle">Courses processed: {number_processed} of {total_copy} </span>                         
+                    </div>
                     <br/>
                   </div>  
 
-                  <ProgressList progresses={items} />
+                  
               </div>
           </div>   
        </div>   

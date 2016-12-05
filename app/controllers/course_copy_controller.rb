@@ -20,47 +20,19 @@ class CourseCopyController < ApplicationController
 
   def history
     return unless authorized_action(@context, @current_user, :manage_content)
-    cm = ContentMigration.where("context_type = :context AND context_id = :context_id AND workflow_state in (:state) AND created_at >= :created ",
+    cm = ContentMigration.where("context_type = :context AND context_id = :context_id AND migration_type = :migration_type AND workflow_state in (:state) AND created_at >= :created ",
                           :context => 'Account',
                           :context_id => @context.id,
-                          :state => ['imported','failed'],
+                          :migration_type => 'course_copy_tool_csv_importer',
+                          :state => ['exported','imported','failed'],
                           :created => 1.month.ago.to_date).order('id desc')
 
-    sync_migration_progresses(cm)
     js_env(:current_account => @context, :url => context_url(@context, :context_course_copy_history_url), :content_migrations => cm)
   end
 
   def progress
-    cm = ContentMigration.where(context_type: 'Account', context_id: @context.id, workflow_state: ['created','exporting','queued'], migration_type: 'course_copy_tool_csv_importer').order('id desc')
-    sync_migration_progresses(cm)
+    cm = ContentMigration.where(context_type: 'Account', context_id: @context.id, workflow_state: ['created','exporting','queued', 'pre_processing'], migration_type: 'course_copy_tool_csv_importer').order('id desc')    
     render :json => cm
-  end
-
-  def sync_migration_progresses(migrations)
-    migrations.each do |migration|
-      results = migration.migration_settings[:results]      
-      failed = false
-      running = false
-      if results.length > 0
-        results.each do |result|
-          next unless result[:content_migration_id] && (cm = ContentMigration.find(result[:content_migration_id]))
-          result[:workflow_state] = cm.workflow_state
-          result[:completion] = cm.progress
-          result[:finished_at] = cm.finished_at
-          migration.migration_settings[:results] = results
-          migration.save!
-        end
-        # if all the migrations are completed, the course copy migration have to be updated marked like completed
-        pending_migrations = results.count {|migration| ['created', 'queued', 'exporting'].include?(migration[:workflow_state]) }
-        if pending_migrations == 0
-          migration.workflow_state = :imported
-          migration.finished_at = results.map {|m| m[:finished_at]}.compact.max
-          migration.updated_at = migration[:finished_at]
-          migration.save!
-          migration.update_import_progress(100)
-        end     
-      end      
-    end
   end
 
   def get_plugin

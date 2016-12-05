@@ -68,6 +68,25 @@ class Canvas::Migration::Worker::CourseCopyWorker < Canvas::Migration::Worker::B
             cm.workflow_state = :imported
             cm.save
             cm.update_import_progress(100)
+
+            cm.reload
+            if cm.migration_settings[:migration_source_id].present?
+              cms = ContentMigration.find(cm.migration_settings[:migration_source_id])
+              index = cms.migration_settings[:results].index{|m| m[:content_migration_id] == cm.id}
+              result_migration = cms.migration_settings[:results].fetch(index)
+              result_migration[:workflow_state] = cm.workflow_state
+              result_migration[:completion] = cm.progress
+              result_migration[:finished_at] = cm.finished_at
+
+              cms.migration_settings[:results].fill(result_migration, index,1)
+              cms.migration_settings[:number_processed] += 1
+              
+              if cms.migration_settings[:total_copy] == cms.migration_settings[:number_processed]
+                cms.workflow_state = :exported 
+                cms.update_import_progress(100)
+              end
+              cms.save!
+            end
           end
         else
           cm.workflow_state = :failed
