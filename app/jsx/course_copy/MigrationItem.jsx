@@ -66,7 +66,7 @@ define([
                         <span className="subtitle">Status: </span>{this.getStatus(this.props.migration.content_migration.workflow_state)}                         
                     </div>
                     <div className="_row">
-                        <span className="subtitle">Courses copied: {number_processed} of {total_copy} </span>                         
+                        <span className="subtitle">Courses processed: {number_processed} of {total_copy} </span>                         
                     </div>
                     <br/>
                   </div>  

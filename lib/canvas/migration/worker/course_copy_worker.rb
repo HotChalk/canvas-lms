@@ -70,7 +70,7 @@ class Canvas::Migration::Worker::CourseCopyWorker < Canvas::Migration::Worker::B
             cm.update_import_progress(100)
 
             cm.reload
-            if cm.migration_settings[:migration_source_id]
+            if cm.migration_settings[:migration_source_id].present?
               cms = ContentMigration.find(cm.migration_settings[:migration_source_id])
               index = cms.migration_settings[:results].index{|m| m[:content_migration_id] == cm.id}
               result_migration = cms.migration_settings[:results].fetch(index)
