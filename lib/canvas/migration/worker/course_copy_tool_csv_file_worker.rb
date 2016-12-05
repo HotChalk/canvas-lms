@@ -22,13 +22,20 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
 
     cm.shard.activate do
       begin
+        cm.workflow_state = :exporting
+        cm.save
         csv_data = cm.migration_settings[:csv_data]
+        cm.migration_settings[:total_copy] = csv_data.length
+        cm.migration_settings[:number_processed] = 0
+        cm.save
         csv_data.each do |row|
           result = process_csv_row(row, cm)
           cm.migration_settings[:results] << result
-        end
-        cm.workflow_state = :exporting
-        cm.save
+          if result[:workflow_state] == :failed
+            cm.migration_settings[:number_processed] += 1
+          end
+          cm.save
+        end                
       rescue => e
         cm.fail_with_error!(e)
         raise e
@@ -59,7 +66,7 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
         date_shift_options[:new_start_date] = target.start_at.to_s
       end
 
-      settings = {:source_course_id => master.id}
+      settings = {:source_course_id => master.id, :migration_source_id => cm.id}
       params = {:migration_type => 'course_copy_importer', :date_shift_options => date_shift_options, :settings => settings}      
       migration = create_migration(master, target, params, cm.user)
       result.merge!({:workflow_state => :queued, :content_migration_id => migration.id, :completion => 0, :created_at => migration.created_at, :updated_at => migration.updated_at})
