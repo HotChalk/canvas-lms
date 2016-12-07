@@ -3192,7 +3192,7 @@ class Course < ActiveRecord::Base
     cutoff_time = Time.now
 
     # search only among unpublished courses
-    Course.find_each(:conditions => {:workflow_state => ['claimed', 'created']}) do |course|
+    Course.where(:workflow_state => ['claimed', 'created']).each do |course|
       needs_publishing = false
 
       # if a course's start date is in the past, and it does not have a conclude date or the conclude date is in the

@@ -434,7 +434,7 @@ Canvas::Plugin.register('live_events', nil, {
 })
 require_dependency 'canvas/plugins/address_book'
 require_dependency 'canvas/migration/worker/course_copy_tool_csv_file_worker'
-Canvas::Plugin.register 'course_copy_tool_csv_importer', {
+Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
     :name => lambda { I18n.t :copy_tool_csv_file_name, 'Course Copy Tool' },
     :display_name => lambda { I18n.t :copy_tool_csv_file_display, 'Copy Tool Import' },
     :author => 'Hotchalk',
@@ -449,8 +449,8 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', {
         :required_settings => [:source_folder_id],
         :valid_contexts => %w(Account)
     },
-    :settings_partial => 'plugins/course_copy_tool_csv_file'
-    # :hide_from_users => true   
+    :settings_partial => 'plugins/course_copy_tool_csv_file',
+    :hide_from_users => true
 }
 require_dependency 'canvas/migration/worker/course_copy_groups_worker'
 Canvas::Plugin.register 'course_group_copy', :export_system, {
