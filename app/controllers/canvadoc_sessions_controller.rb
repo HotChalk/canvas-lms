@@ -56,11 +56,7 @@ class CanvadocSessionsController < ApplicationController
         attachment.touch(:viewed_at)
       end
 
-      if url.nil?
-        render :text => "Document is currently unavailable. Please try again later."
-      else
-        redirect_to url
-      end
+      redirect_to url
     else
       render :text => "Not found", :status => :not_found
     end
