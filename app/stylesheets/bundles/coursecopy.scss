@@ -130,3 +130,49 @@ a.clickable:hover { text-decoration:none; }
 .well{
 	 padding: 10px 0px 10px 0px;
 }
+
+.pagination-ctl{
+	background-color: #D9EDF7;
+	width: 100%;
+    height: 34px;
+}
+
+.items_page{
+	float: left;
+    margin-right: 20px;
+    margin-top: 5px;
+    color: #337ab7;
+    padding-left: 10px;
+}
+
+.pagination{
+	list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.pagination > li > a, .pagination > li > span {
+    position: relative;
+    float: left;
+    padding: 6px 12px;
+    margin-left: -1px;
+    line-height: 1.42857143;
+    color: #337ab7;
+    text-decoration: none;
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+.pagination > .active > a, .pagination > .active > span, .pagination > .active > a:hover, .pagination > .active > span:hover, .pagination > .active > a:focus, .pagination > .active > span:focus {
+    z-index: 2;
+    color: #fff;
+    cursor: default;
+    background-color: #337ab7;
+    border-color: #337ab7;
+}
+
+.pagination > li > a:hover, .pagination > li > span:hover, .pagination > li > a:focus, .pagination > li > span:focus {
+    color: #23527c;
+    background-color: #eee;
+    border-color: #ddd;
+}
