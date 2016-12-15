@@ -9,8 +9,8 @@ define([
       return url;
     },   
     render(){            
-      var created_at = $.dateString(this.props.progress.created_at, {format: 'medium'}) + " " + $.timeString(this.props.progress.created_at);
-      var updated_at = $.dateString(this.props.progress.updated_at, {format: 'medium'}) + " " + $.timeString(this.props.progress.updated_at);
+      var created_at = $.dateString(this.props.progress.created_at, {format: 'medium'}) + " " + $.timeString(this.props.progress.created_at,{format: 'Long'});
+      var updated_at = $.dateString(this.props.progress.updated_at, {format: 'medium'}) + " " + $.timeString(this.props.progress.updated_at,{format: 'Long'});
       
       return(        
         <div className="_row well">
