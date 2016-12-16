@@ -103,7 +103,7 @@ define([
             });
             li.data('context_type', type);
             li.data('context_id', id);
-            li.append(title).append($("<div class='links'><a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screen-reader-text'>Delete</span></a></div>"));
+            li.append(title).append($("<div class='links'><a class='no-hover delete_page_link' title='Delete Page Link'><i class='icon-end standalone-icon'></i><span class='screenreader-only'>Delete</span></a></div>"));
             $("#nav_dynamic_list").append(li);
           }
         };
