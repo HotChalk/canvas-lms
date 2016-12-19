@@ -5,12 +5,11 @@ define [
   'react'
   'react-dom'
   'jsx/files/BreadcrumbCollapsedContainer'
-  'compiled/react/shared/utils/withReactElement'
   '../modules/customPropTypes'
-], (I18n, $, _, React, ReactDOM, BreadcrumbCollapsedContainerComponent, withReactElement, customPropTypes) ->
+], (I18n, $, _, React, ReactDOM, BreadcrumbCollapsedContainerComponent, customPropTypes) ->
 
   MAX_CRUMB_WIDTH = 500
-  MIN_CRUMB_WIDTH = if window.ENV.use_new_styles then 80 else 40
+  MIN_CRUMB_WIDTH = 80
 
   BreadcrumbCollapsedContainer =   BreadcrumbCollapsedContainerComponent
 
@@ -48,10 +47,8 @@ define [
       $a = $oldCrumbs.find('li').eq(1).find('a')
       contextUrl = $a.attr('href')
       contextName = $a.text()
-      if (ENV.use_new_styles)
-        $('.ic-app-nav-toggle-and-crumbs').remove()
-      else
-        $oldCrumbs.remove()
+      $('.ic-app-nav-toggle-and-crumbs').remove()
+
       @setState({homeName, contextUrl, contextName, heightOfOneBreadcrumb})
 
     handleResize: ->

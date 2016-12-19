@@ -258,7 +258,7 @@ class CommunicationChannel < ActiveRecord::Base
   def send_otp!(code)
     m = self.messages.temp_record
     m.to = self.path
-    m.body = t :body, "Your HotChalk Ember verification code is %{verification_code}", :verification_code => code
+    m.body = t :body, "Your Canvas verification code is %{verification_code}", :verification_code => code
     Mailer.create_message(m).deliver rescue nil # omg! just ignore delivery failures
   end
 
@@ -288,7 +288,7 @@ class CommunicationChannel < ActiveRecord::Base
   }
 
   def self.by_path_condition(path)
-    Arel::Nodes::NamedFunction.new('lower', [CANVAS_RAILS4_0 ? path : Arel::Nodes.build_quoted(path)])
+    Arel::Nodes::NamedFunction.new('lower', [Arel::Nodes.build_quoted(path)])
   end
 
   scope :by_path, ->(path) { where(by_path_condition(arel_table[:path]).eq(by_path_condition(path))) }

@@ -21,9 +21,9 @@ require 'nokogiri'
 module Api
   module Html
     class Content
-      def self.process_incoming(html)
+      def self.process_incoming(html, host: nil, port: nil)
         return html unless html.present?
-        content = self.new(html)
+        content = self.new(html, host: host, port: port)
         # shortcut html documents that definitely don't have anything we're interested in
         return html unless content.might_need_modification?
 
@@ -37,12 +37,17 @@ module Api
 
       attr_reader :html
 
-      def initialize(html_string, account = nil, include_mobile: false)
-        @account, @html, @include_mobile = account, html_string, include_mobile
+      def initialize(html_string, account = nil, include_mobile: false, host: nil, port: nil)
+        @account = account
+        @html = html_string
+        @include_mobile = include_mobile
+        @host = host
+        @port = port
       end
 
       def might_need_modification?
-        !!(html =~ %r{verifier=|['"]/files|instructure_inline_media_comment})
+        !!(html =~ %r{verifier=|['"]/files|instructure_inline_media_comment}) ||
+          !!(@host && html.include?(@host))
       end
 
       # Take incoming html from a user or similar and modify it for safe storage and display
@@ -95,9 +100,7 @@ module Api
 
       def add_css_and_js_overrides
         return parsed_html unless @include_mobile
-        return parsed_html unless @account &&
-          @account.root_account.feature_enabled?(:use_new_styles) &&
-          @account.effective_brand_config
+        return parsed_html unless @account && @account.effective_brand_config
 
         overrides = @account.effective_brand_config.css_and_js_overrides
         self.class.add_overrides_to_html(parsed_html, overrides)
@@ -133,7 +136,7 @@ module Api
       end
 
       def corrected_link(link)
-        Html::Link.new(link).to_corrected_s
+        Html::Link.new(link, host: @host, port: @port).to_corrected_s
       end
 
       def parsed_html

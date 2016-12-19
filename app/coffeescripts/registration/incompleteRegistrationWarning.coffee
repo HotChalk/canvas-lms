@@ -7,7 +7,7 @@ define [
     $(template(email: ENV.USER_EMAIL)).
       appendTo($('body')).
       dialog
-        title: I18n.t('welcome_to_canvas', 'Welcome to HotChalk Ember!')
+        title: I18n.t('welcome_to_canvas', 'Welcome to Canvas!')
         width: 400
         resizable: false
         buttons: [

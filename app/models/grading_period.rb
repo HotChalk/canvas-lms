@@ -24,15 +24,19 @@ class GradingPeriod < ActiveRecord::Base
   belongs_to :grading_period_group, inverse_of: :grading_periods
   has_many :grading_period_grades, dependent: :destroy
 
-  validates :title, :start_date, :end_date, :grading_period_group_id, presence: true
+  validates :title, :start_date, :end_date, :close_date, :grading_period_group_id, presence: true
   validate :start_date_is_before_end_date
-  validate :close_date_is_not_before_end_date
+  validate :close_date_is_on_or_after_end_date
   validate :not_overlapping, unless: :skip_not_overlapping_validator?
 
+  before_validation :adjust_close_date_for_course_period
   before_validation :ensure_close_date
 
   scope :current, -> do
-    where("start_date <= :now AND end_date >= :now", now: Time.zone.now)
+    period_table = GradingPeriod.arel_table
+    now = Time.zone.now
+    where(period_table[:start_date].lteq(now)).
+      where(period_table[:end_date].gt(now))
   end
 
   scope :grading_periods_by, ->(context_with_ids) do
@@ -46,6 +50,21 @@ class GradingPeriod < ActiveRecord::Base
           grading_period_group.grants_right?(user, permission)
       end
       can permission
+    end
+  end
+
+  def self.date_in_closed_grading_period?(course:, date:, periods: nil)
+    period = self.for_date_in_course(date: date, course: course, periods: periods)
+    period.present? && period.closed?
+  end
+
+  def self.for_date_in_course(date:, course:, periods: nil)
+    periods ||= self.for(course)
+
+    if date.nil?
+      return periods.sort_by(&:end_date).last
+    else
+      periods.detect { |p| p.in_date_range?(date) }
     end
   end
 
@@ -90,7 +109,7 @@ class GradingPeriod < ActiveRecord::Base
   end
 
   def in_date_range?(date)
-    start_date <= date && end_date >= date
+    start_date <= date && date < end_date
   end
 
   def last?
@@ -103,6 +122,10 @@ class GradingPeriod < ActiveRecord::Base
     @last_period == self
   end
   alias_method :is_last, :last?
+
+  def closed?
+    Time.zone.now > close_date
+  end
 
   def overlapping?
     overlaps.active.exists?
@@ -125,7 +148,7 @@ class GradingPeriod < ActiveRecord::Base
 
   def as_json_with_user_permissions(user)
     as_json(
-      only: [:id, :title, :start_date, :end_date],
+      only: [:id, :title, :start_date, :end_date, :close_date],
       permissions: { user: user },
       methods: :is_last
     ).fetch(:grading_period)
@@ -157,6 +180,7 @@ class GradingPeriod < ActiveRecord::Base
     grading_periods = self.class.where(
       grading_period_group_id: grading_period_group_id
     )
+
     if new_record?
       grading_periods
     else
@@ -166,18 +190,21 @@ class GradingPeriod < ActiveRecord::Base
 
   def start_date_is_before_end_date
     if start_date && end_date && end_date < start_date
-      errors.add(:end_date, t('errors.invalid_grading_period_end_date',
-                              'Grading period end date precedes start date'))
+      errors.add(:end_date, t('must be after start date'))
     end
   end
 
-  def ensure_close_date
-    self.close_date = self.end_date
+  def adjust_close_date_for_course_period
+    self.close_date = end_date if grading_period_group.present? && course_group?
   end
 
-  def close_date_is_not_before_end_date
-    if close_date && end_date && close_date < end_date
-      errors.add(:close_date, t('Grading period close date precedes end date'))
+  def ensure_close_date
+    self.close_date ||= end_date
+  end
+
+  def close_date_is_on_or_after_end_date
+    if close_date.present? && end_date.present? && close_date < end_date
+      errors.add(:close_date, t('must be on or after end date'))
     end
   end
 end

@@ -68,7 +68,7 @@ class RoleOverride < ActiveRecord::Base
   # RoleOverridesController#add_role
   Permissions.register({
       :manage_wiki => {
-        :label => lambda { t('permissions.manage_wiki', "Manage wiki (add / edit / delete pages)") },
+        :label => lambda { t("Manage (add / edit / delete) pages") },
         :available_to => [
           'TaEnrollment',
           'TeacherEnrollment',
@@ -826,6 +826,11 @@ class RoleOverride < ActiveRecord::Base
         :true_for => %w(AccountAdmin),
         :available_to => %w(AccountAdmin AccountMembership),
         :account_allows => lambda {|a| a.mfa_settings != :disabled}
+      },
+      :lti_add_edit => {
+        :label => -> { t('LTI add and edit') },
+        :true_for => %w(TeacherEnrollment TaEnrollment DesignerEnrollment AccountAdmin),
+        :available_to => %w(TeacherEnrollment TaEnrollment DesignerEnrollment AccountAdmin AccountMembership)
       }
     })
 
@@ -994,7 +999,7 @@ class RoleOverride < ActiveRecord::Base
           generated_permission[:enabled] = override.enabled? ? override.applies_to : nil
         end
       end
-      hit_role_context ||= (role_context && override.context_id == role_context.id && override.context_type == 'Account')
+      hit_role_context ||= (role_context.is_a?(Account) && override.has_asset?(role_context))
 
       break if override.locked?
       break if generated_permission[:enabled] && hit_role_context

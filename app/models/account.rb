@@ -20,12 +20,7 @@ require 'atom'
 
 class Account < ActiveRecord::Base
   include Context
-  attr_accessible :name, :turnitin_account_id, :turnitin_shared_secret,
-    :turnitin_host, :turnitin_comments, :turnitin_pledge, :turnitin_originality,
-    :default_time_zone, :parent_account, :settings, :default_storage_quota,
-    :default_storage_quota_mb, :storage_quota, :ip_filters, :default_locale,
-    :account_programs,
-    :default_user_storage_quota_mb, :default_group_storage_quota_mb, :integration_id, :brand_config_md5
+  strong_params
 
   INSTANCE_GUID_SUFFIX = 'canvas-lms'
   HELP_LINK_DEFAULT = 'https://embersupport.zendesk.com'
@@ -161,9 +156,7 @@ class Account < ActiveRecord::Base
   add_setting :sis_default_grade_export, :boolean => true, :default => false, :inheritable => true
 
   add_setting :global_includes, :root_only => true, :boolean => true, :default => false
-  add_setting :global_javascript, :condition => :allow_global_includes
-  add_setting :global_stylesheet, :condition => :allow_global_includes
-  add_setting :sub_account_includes, :condition => :use_new_styles_or_allow_global_includes, :boolean => true, :default => false
+  add_setting :sub_account_includes, :boolean => true, :default => false
   add_setting :error_reporting, :hash => true, :values => [:action, :email, :url, :subject_param, :body_param], :root_only => true
 
   # Help link settings
@@ -202,7 +195,6 @@ class Account < ActiveRecord::Base
   add_setting :resources_links, :condition => :enable_resources_link
   add_setting :syllabus_rename
   add_setting :disable_course_setup_checklist_access, :boolean => true
-  add_setting :enable_manage_groups2, :boolean => true, :root_only => true, :default => true
   add_setting :mfa_settings, :root_only => true
   add_setting :admins_can_change_passwords, :boolean => true, :root_only => true, :default => false
   add_setting :admins_can_view_notifications, :boolean => true, :root_only => true, :default => false
@@ -230,10 +222,6 @@ class Account < ActiveRecord::Base
   add_setting :app_center_access_token
 
   add_setting :strict_sis_check, :boolean => true, :root_only => true, :default => false
-
-  def use_new_styles_or_allow_global_includes?
-    feature_enabled?(:use_new_styles) || allow_global_includes?
-  end
 
   def settings=(hash)
     if hash.is_a?(Hash)
@@ -271,26 +259,17 @@ class Account < ActiveRecord::Base
   end
 
   def product_name
-    settings[:product_name] || t("#product_name", "HotChalk Ember")
+    settings[:product_name] || t("#product_name", "Canvas")
   end
 
   def allow_global_includes?
     if root_account?
       global_includes?
     else
-      root_account.try(:sub_account_includes?)
+      root_account.try(:sub_account_includes?) && root_account.try(:allow_global_includes?)
     end
   end
 
-  def global_includes_hash
-    includes = {}
-    if allow_global_includes?
-      includes = {}
-      includes[:js] = settings[:global_javascript] if settings[:global_javascript].present?
-      includes[:css] = settings[:global_stylesheet] if settings[:global_stylesheet].present?
-    end
-    includes.present? ? includes : nil
-  end
 
   def mfa_settings
     settings[:mfa_settings].try(:to_sym) || :disabled
@@ -1075,6 +1054,9 @@ class Account < ActiveRecord::Base
     # any user with an admin enrollment in one of the courses can read
     given { |user| user && self.courses.where(:id => user.enrollments.admin.pluck(:course_id)).exists? }
     can :read
+
+    given { |user| self.grants_right?(user, :lti_add_edit)}
+    can :create_tool_manually
   end
 
   alias_method :destroy_permanently!, :destroy
@@ -1431,8 +1413,6 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_AUTHENTICATION, :label => t('#account.tab_authentication', "Authentication"), :css_class => 'authentication', :href => :account_authentication_providers_path } if root_account? && manage_settings
       tabs << { :id => TAB_PLUGINS, :label => t("#account.tab_plugins", "Plugins"), :css_class => "plugins", :href => :plugins_path, :no_args => true } if root_account? && self.grants_right?(user, :manage_site_settings)
       tabs << { :id => TAB_JOBS, :label => t("#account.tab_jobs", "Jobs"), :css_class => "jobs", :href => :jobs_path, :no_args => true } if root_account? && self.grants_right?(user, :view_jobs)
-      tabs << { :id => TAB_BRAND_CONFIGS, :label => t('#account.tab_brand_configs', "Themes"), :css_class => 'brand_configs', :href => :account_brand_configs_path } if manage_settings && (root_account.feature_enabled?(:use_new_styles) || root_account.feature_enabled?(:k12)) && branding_allowed?
-      tabs << { :id => TAB_DEVELOPER_KEYS, :label => t("#account.tab_developer_keys", "Developer Keys"), :css_class => "developer_keys", :href => :developer_keys_path, :no_args => true } if root_account? && self.grants_right?(user, :manage_developer_keys)
     else
       tabs = []
       if feature_enabled?(:course_user_search)
@@ -1450,11 +1430,11 @@ class Account < ActiveRecord::Base
       tabs << { :id => TAB_GRADING_STANDARDS, :label => t('#account.tab_grading_standards', "Grading"), :css_class => 'grading_standards', :href => :account_grading_standards_path } if user && self.grants_right?(user, :manage_grades)
       tabs << { :id => TAB_QUESTION_BANKS, :label => t('#account.tab_question_banks', "Question Banks"), :css_class => 'question_banks', :href => :account_question_banks_path } if user && self.grants_right?(user, :manage_assignments)
       tabs << { :id => TAB_SUB_ACCOUNTS, :label => t('#account.tab_sub_accounts', "Sub-Accounts"), :css_class => 'sub_accounts', :href => :account_sub_accounts_path } if manage_settings
-      
+
       if valid_plugin?('course_copy_tool_csv_importer')
         tabs << { :id => TAB_COURSE_COPY, :label => t('#account.tab_course_copy', "Course Copy"), :css_class => 'course_copy', :href => :account_course_copy_index_path } if manage_settings
       end
-      
+
       tabs << { :id => TAB_RESOURCES, :label => t('#account.tab_resources', "Resources"), :css_class => 'resources', :href => :account_resources_path } if manage_settings
       tabs << { :id => TAB_FACULTY_JOURNAL, :label => t('#account.tab_faculty_journal', "Faculty Journal"), :css_class => 'faculty_journal', :href => :account_user_notes_path} if self.enable_user_notes && user && self.grants_right?(user, :manage_user_notes)
       tabs << { :id => TAB_TERMS, :label => t('#account.tab_terms', "Terms"), :css_class => 'terms', :href => :account_terms_path } if self.root_account? && manage_settings
@@ -1463,9 +1443,11 @@ class Account < ActiveRecord::Base
         tabs << { id: TAB_SIS_IMPORT, label: t('#account.tab_sis_import', "SIS Import"),
                   css_class: 'sis_import', href: :account_sis_import_path }
       end
-      tabs << { :id => TAB_BRAND_CONFIGS, :label => t('#account.tab_brand_configs', "Themes"), :css_class => 'brand_configs', :href => :account_brand_configs_path } if manage_settings && (root_account.feature_enabled?(:use_new_styles) || root_account.feature_enabled?(:k12)) && branding_allowed?
-      tabs << { :id => TAB_DEVELOPER_KEYS, :label => t("#account.tab_developer_keys", "Developer Keys"), :css_class => "developer_keys", :href => :account_developer_keys_path, account_id: root_account.id } if root_account? && root_account.grants_right?(user, :manage_developer_keys)
     end
+
+    tabs << { :id => TAB_BRAND_CONFIGS, :label => t('#account.tab_brand_configs', "Themes"), :css_class => 'brand_configs', :href => :account_brand_configs_path } if manage_settings && branding_allowed?
+    tabs << { :id => TAB_DEVELOPER_KEYS, :label => t("#account.tab_developer_keys", "Developer Keys"), :css_class => "developer_keys", :href => :account_developer_keys_path, account_id: root_account.id } if root_account? && self.grants_right?(user, :manage_developer_keys)
+
     tabs += external_tool_tabs(opts)
     tabs += Lti::MessageHandler.lti_apps_tabs(self, [Lti::ResourcePlacement::ACCOUNT_NAVIGATION], opts)
     tabs << { :id => TAB_ADMIN_TOOLS, :label => t('#account.tab_admin_tools', "Admin Tools"), :css_class => 'admin_tools', :href => :account_admin_tools_path } if can_see_admin_tools_tab?(user)
@@ -1511,10 +1493,10 @@ class Account < ActiveRecord::Base
       end
     end
 
-    if settings[:new_custom_help_links] && (feature_enabled?(:use_new_styles) || feature_enabled?(:k12))
-      links || Canvas::Help.default_links
+    if settings[:new_custom_help_links]
+      links || Account::HelpLinks.default_links
     else
-      Canvas::Help.default_links + (links || [])
+      Account::HelpLinks.default_links + (links || [])
     end
   end
 
@@ -1664,10 +1646,6 @@ class Account < ActiveRecord::Base
   scope :processing_sis_batch, -> { where("accounts.current_sis_batch_id IS NOT NULL").order(:updated_at) }
   scope :name_like, lambda { |name| where(wildcard('accounts.name', name)) }
   scope :active, -> { where("accounts.workflow_state<>'deleted'") }
-
-  def canvas_network_enabled?
-    false
-  end
 
   def change_root_account_setting!(setting_name, new_value)
     root_account.settings[setting_name] = new_value

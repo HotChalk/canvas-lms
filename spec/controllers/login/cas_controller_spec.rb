@@ -142,7 +142,7 @@ describe Login::CasController do
       get 'new', :ticket => 'ST-abcd'
       expect(response).to redirect_to(login_url)
       expect(session[:cas_session]).to be_nil
-      expect(flash[:delegated_message]).to match(/HotChalk Ember doesn't have an account for user/)
+      expect(flash[:delegated_message]).to match(/Canvas doesn't have an account for user/)
       expect(session[:sentinel]).to be_nil
     end
 
@@ -154,7 +154,7 @@ describe Login::CasController do
       get 'new', :ticket => 'ST-abcd'
       expect(response).to redirect_to(login_url)
       expect(session[:cas_session]).to be_nil
-      expect(flash[:delegated_message]).to match(/HotChalk Ember doesn't have an account for user/)
+      expect(flash[:delegated_message]).to match(/Canvas doesn't have an account for user/)
     end
 
     it "uses the unknown_user_url from the aac" do

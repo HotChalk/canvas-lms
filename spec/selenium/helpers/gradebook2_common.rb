@@ -3,11 +3,8 @@ require File.expand_path(File.dirname(__FILE__) + '/../common')
 module Gradebook2Common
   shared_context 'gradebook_components' do
     let(:gradebook_settings_cog) { f('#gradebook_settings') }
-    let(:group_weights_menu) { f('[aria-controls="assignment_group_weights_dialog"]') }
     let(:show_notes) { fj('li a:contains("Show Notes Column")') }
-    let(:set_group_weights) { fj('li a:contains("Set Group Weights")') }
     let(:save_button) { fj('button span:contains("Save")') }
-    let(:group_weighting_scheme) { f('#group_weighting_scheme') }
     let(:hide_notes) { f(".hide") }
   end
   shared_context 'reusable_course' do
@@ -203,7 +200,7 @@ module Gradebook2Common
     @student_1_total_treating_ungraded_as_zeros = "18.75%"
     @student_2_total_treating_ungraded_as_zeros = "12.5%"
     @student_3_total_treating_ungraded_as_zeros = "12.5%"
-    @default_password = "qwerty"
+    @default_password = "qwertyuiop"
   end
 
   def assignment_setup(opts={})
@@ -317,56 +314,5 @@ module Gradebook2Common
 
   def get_group_points
     ff('div.assignment-points-possible')
-  end
-
-  def check_group_points(expected_weight_text)
-    2..3.each do |i|
-      expect(get_group_points[i].text).to eq expected_weight_text[i-2] + ' of grade'
-    end
-  end
-
-  def set_group_weight(assignment_group, weight_number, enable_scheme: false)
-    f('#gradebook_settings').click
-    f('[aria-controls="assignment_group_weights_dialog"]').click
-
-    dialog = f('#assignment_group_weights_dialog')
-    expect(dialog).to be_displayed
-
-    if enable_scheme
-      group_check = dialog.find_element(:id, 'group_weighting_scheme')
-      group_check.click
-    end
-    expect(is_checked('#group_weighting_scheme')).to be_truthy
-    group_weight_input = f("#assignment_group_#{assignment_group.id}_weight")
-    set_value(group_weight_input, "")
-    set_value(group_weight_input, weight_number)
-    fj('.ui-button:contains("Save")').click
-    wait_for_ajaximations
-    expect(@course.reload.group_weighting_scheme).to eq 'percent'
-  end
-
-  def disable_group_weight
-    f('#gradebook_settings').click
-    f('[aria-controls="assignment_group_weights_dialog"]').click
-
-    dialog = f('#assignment_group_weights_dialog')
-    expect(dialog).to be_displayed
-
-    group_check = dialog.find_element(:id, 'group_weighting_scheme')
-    group_check.click
-    expect(is_checked('#group_weighting_scheme')).to be_falsey
-    fj('.ui-button:contains("Save")').click
-    refresh_page
-  end
-
-  def validate_group_weight_text(assignment_groups, weight_numbers)
-    assignment_groups.each_with_index do |ag, i|
-      heading = fj(".slick-column-name:contains('#{ag.name}') .assignment-points-possible")
-      expect(heading).to include_text("#{weight_numbers[i]}% of grade")
-    end
-  end
-
-  def validate_group_weight(assignment_group, weight_number)
-    expect(assignment_group.reload.group_weight).to eq weight_number
   end
 end

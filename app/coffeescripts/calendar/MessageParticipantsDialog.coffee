@@ -9,7 +9,7 @@ define [
   class MessageParticipantsDialog
     constructor: (@opts) ->
       if @opts.timeslot
-        @recipients = _(@opts.timeslot.child_events).map (e) -> e.user or e.group
+        @recipients = @opts.timeslot.child_events.map (e) -> e.user or e.group
         participantType = if @recipients[0].short_name == undefined then 'Group' else 'User'
 
         @$form = $(messageParticipantsTemplate participant_type: participantType)
@@ -83,7 +83,9 @@ define [
       data = @$form.getFormData()
       return unless data['recipients[]'] and data['body']
 
-      data['bulk_message'] = true if data['recipients[]'].length > ENV.CALENDAR.MAX_GROUP_CONVERSATION_SIZE
+      if data['recipients[]'].length > ENV.CALENDAR.MAX_GROUP_CONVERSATION_SIZE
+        data['group_conversation'] = true
+        data['bulk_message'] = true
 
       if @group
         data['tags'] = @group.context_codes

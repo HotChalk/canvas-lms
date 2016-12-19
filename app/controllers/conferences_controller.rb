@@ -183,9 +183,8 @@ class ConferencesController < ApplicationController
     }
     log_asset_access([ "conferences", @context ], "conferences", "other")
     if @context.is_a? Course
-      enrollments = @context.typical_current_enrollments.eager_load(:user).where.not(user_id: @current_user.id).order(User.sortable_name_order_by_clause).to_a
-      Canvas::Builders::EnrollmentDateBuilder.preload_state(enrollments)
-      @users = enrollments.select(&:active?).map(&:user).uniq
+      @users = User.where(:id => @context.typical_current_enrollments.active_by_date.where.not(:user_id => @current_user).select(:user_id)).
+        order(User.sortable_name_order_by_clause).to_a
     else
       @users = @context.users.where("users.id<>?", @current_user).order(User.sortable_name_order_by_clause).to_a.uniq
     end
@@ -267,7 +266,7 @@ class ConferencesController < ApplicationController
   def join
     if authorized_action(@conference, @current_user, :join)
       unless @conference.valid_config?
-        flash[:error] = t(:type_disabled_error, "This type of conference is no longer enabled for this HotChalk Ember site")
+        flash[:error] = t(:type_disabled_error, "This type of conference is no longer enabled for this Canvas site")
         redirect_to named_context_url(@context, :context_conferences_url)
         return
       end
@@ -349,7 +348,7 @@ class ConferencesController < ApplicationController
 
   def require_config
     unless WebConference.config
-      flash[:error] = t('#conferences.disabled_error', "Web conferencing has not been enabled for this HotChalk Ember site")
+      flash[:error] = t('#conferences.disabled_error', "Web conferencing has not been enabled for this Canvas site")
       redirect_to named_context_url(@context, :context_url)
     end
   end

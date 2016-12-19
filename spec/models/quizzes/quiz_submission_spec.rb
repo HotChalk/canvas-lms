@@ -288,6 +288,31 @@ describe Quizzes::QuizSubmission do
 
         expect(quiz_submission.events.where(event_type: event_type).count).to eq 1
       end
+
+      context 'with cant_go_back true' do
+        it 'does not allow changing the response for a question that was previously read' do
+          question = @quiz.quiz_questions.create!({ question_data: true_false_question_data })
+          @quiz.one_question_at_a_time = true
+          @quiz.cant_go_back = true
+          @quiz.publish!
+
+          true_answer = question.question_data['answers'].find { |answer| answer['text'] == 'True' }
+          false_answer = question.question_data['answers'].find { |answer| answer['text'] == 'False' }
+          quiz_submission = @quiz.generate_submission(user)
+          quiz_submission.backup_submission_data({
+            "question_#{question.id}" => true_answer['id'],
+            :"_question_#{question.id}_read" => true
+          })
+          quiz_submission.reload
+
+          quiz_submission.backup_submission_data({
+            "question_#{question.id}" => false_answer['id']
+          })
+          quiz_submission.reload
+
+          expect(quiz_submission.submission_data["question_#{question.id}"]).to eq true_answer['id']
+        end
+      end
     end
 
     it "should not allowed grading on an already-graded submission" do
@@ -564,15 +589,27 @@ describe Quizzes::QuizSubmission do
         expect(@quiz_submission.submission.workflow_state).to eql 'pending_review'
       end
 
-      it "should mark a submission as complete once an essay question has been graded" do
+      def grade_question(score)
         @quiz_submission.update_scores({
           'context_id' => @course.id,
           'override_scores' => true,
           'context_type' => 'Course',
           'submission_version_number' => '1',
-          "question_score_#{@questions[0].id}" => '1'
+          "question_score_#{@questions[0].id}" => "#{score}"
         })
+      end
+
+      it "should mark a submission as complete once an essay question has been graded" do
+        grade_question(1)
         expect(@quiz_submission.submission.workflow_state).to eql 'graded'
+      end
+
+      it "recomputes grades when a quiz submission is graded (even if the score doesn't change)" do
+        enrollment = @quiz_submission.user.enrollments.first
+        expect(enrollment.computed_current_score).to eq nil
+        grade_question(0)
+        enrollment.reload
+        expect(enrollment.computed_current_score).to eq 0
       end
 
       it "should increment the assignment needs_grading_count for pending_review state" do

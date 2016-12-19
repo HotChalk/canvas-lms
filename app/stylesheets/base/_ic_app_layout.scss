@@ -14,8 +14,6 @@
   padding-left: $ic-sp*2;
 }
 
-
-@if $use_new_styles {
 $ic-left-side-width: $ic-sp*15;
 
 ::-webkit-scrollbar {
@@ -86,8 +84,6 @@ body:not(.course-menu-expanded) {
   }
 }
 
-
-
 .ic-app-footer {
   box-sizing: border-box;
   padding: $ic-sp 0;
@@ -122,11 +118,6 @@ body:not(.course-menu-expanded) {
   min-height: 100vh;
 }
 
-.ic-app-container {
-  box-sizing: border-box;
-  min-height: 100vh;
-}
-
 .ic-app-main-layout-vertical {
   box-sizing: border-box;
   min-height: 100vh;
@@ -134,6 +125,14 @@ body:not(.course-menu-expanded) {
   body:not(.ic-no-flex-layout):not(.embedded) & {
     display: flex;
     flex-direction: column;
+  }
+
+  body:not(.no-headers) & {
+    margin-left: $ic-header-primary-width - 30;
+  }
+
+  body:not(.no-headers).primary-nav-expanded & {
+    margin-left: $ic-header-primary-width;
   }
 }
 
@@ -202,6 +201,10 @@ body:not(.course-menu-expanded) {
     opacity: 1;
     transform: translate3d(0,0,0);
   }
+  // account for the course term showing in the left-hand sub-nav
+  #section-tabs-header-subtitle {
+    padding: 0 0 $ic-sp $ic-sp;
+  }
 }
 
 .ic-app-nav-toggle-and-crumbs {
@@ -227,4 +230,3 @@ body:not(.course-menu-expanded) {
   align-items: center;
   box-sizing: border-box;
 }
-}//end @if $use_new_styles

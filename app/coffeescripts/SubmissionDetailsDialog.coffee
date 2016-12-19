@@ -14,7 +14,7 @@ define [
   'jquery.instructure_misc_plugins'
   'vendor/jquery.scrollTo'
   'vendor/jquery.ba-tinypubsub'
-], ($, submissionDetailsDialog, I18n, GradebookHelpers, {extractDataFor}, OutlierScoreHelper) ->
+], ($, submissionDetailsDialog, I18n, GradebookHelpers, {extractDataForTurnitin}, OutlierScoreHelper) ->
 
   class SubmissionDetailsDialog
     constructor: (@assignment, @student, @options) ->
@@ -23,12 +23,9 @@ define [
       else
         null
 
-      isInPastGradingPeriodAndNotAdmin = ((assignment) ->
-        GradebookHelpers.gradeIsLocked(assignment, ENV)
-      )(@assignment)
-
       @url = @options.change_grade_url.replace(":assignment", @assignment.id).replace(":submission", @student.id)
-      @submission = $.extend {}, @student["assignment_#{@assignment.id}"],
+      submission = @student["assignment_#{@assignment.id}"]
+      @submission = $.extend {}, submission,
         label: "student_grading_#{@assignment.id}"
         inputName: 'submission[posted_grade]'
         assignment: @assignment
@@ -36,7 +33,7 @@ define [
         loading: true
         showPointsPossible: (@assignment.points_possible || @assignment.points_possible == '0') && @assignment.grading_type != "gpa_scale"
         shouldShowExcusedOption: true
-        isInPastGradingPeriodAndNotAdmin: isInPastGradingPeriodAndNotAdmin
+        isInPastGradingPeriodAndNotAdmin: submission.gradeLocked
       @submission["assignment_grading_type_is_#{@assignment.grading_type}"] = true
       @submission.grade = "EX" if @submission.excused
       @$el = $('<div class="use-css-transitions-for-show-hide" style="padding:0;"/>')
@@ -92,9 +89,9 @@ define [
           comment.url = "#{@options.context_url}/users/#{comment.author_id}"
           urlPrefix = "#{location.protocol}//#{location.host}"
           comment.image_url = "#{urlPrefix}/images/users/#{comment.author_id}"
-        submission.turnitin = extractDataFor(submission, "submission_#{submission.id}", @options.context_url)
+        submission.turnitin = extractDataForTurnitin(submission, "submission_#{submission.id}", @options.context_url)
         for attachment in submission.attachments || []
-          attachment.turnitin = extractDataFor(submission, "attachment_#{attachment.id}", @options.context_url)
+          attachment.turnitin = extractDataForTurnitin(submission, "attachment_#{attachment.id}", @options.context_url)
       @submission.grade = "EX" if @submission.excused
       @dialog.html(submissionDetailsDialog(@submission))
       @dialog.find('select').trigger('change')

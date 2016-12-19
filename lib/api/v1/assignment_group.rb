@@ -50,6 +50,9 @@ module Api::V1::AssignmentGroup
         Assignment.preload_context_module_tags(assignments) # running this again is fine
       end
 
+      hash['has_assignment_due_in_closed_grading_period'] =
+        group.has_assignment_due_in_closed_grading_period?
+
       hash['assignments'] = assignments.map { |a|
         overrides = opts[:overrides].select{|override| override.assignment_id == a.id } unless opts[:overrides].nil?
         a.context = group.context
@@ -63,6 +66,7 @@ module Api::V1::AssignmentGroup
           assignment_visibilities: opts[:assignment_visibilities].try(:[], a.id),
           exclude_response_fields: opts[:exclude_response_fields],
           overrides: overrides,
+          include_overrides: opts[:include_overrides],
           needs_grading_course_proxy: needs_grading_course_proxy,
           submission: includes.include?('submission') ? opts[:submissions][a.id] : nil
         )
@@ -73,16 +77,14 @@ module Api::V1::AssignmentGroup
   end
 
   def update_assignment_group(assignment_group, params)
-    return nil unless params.is_a?(Hash)
+    return nil unless params.is_a?(ActionController::Parameters)
 
-    update_params = params.slice(*API_ALLOWED_ASSIGNMENT_GROUP_INPUT_FIELDS)
+    update_params = params.permit(*API_ALLOWED_ASSIGNMENT_GROUP_INPUT_FIELDS)
 
-    if rules = update_params.delete('rules')
+    if rules = params.delete('rules')
       assignment_group.rules_hash = rules
     end
 
     assignment_group.attributes = update_params
-
-    assignment_group.save
   end
 end

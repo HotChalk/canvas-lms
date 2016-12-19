@@ -104,7 +104,7 @@ describe 'login' do
       get '/login/cas', ticket: 'ST-abcd'
       expect(response).to redirect_to(login_url)
       get login_url
-      expect(flash[:delegated_message]).to match(/HotChalk Ember doesn't have an account for user/)
+      expect(flash[:delegated_message]).to match(/Canvas doesn't have an account for user/)
     end
 
     it "should redirect to a custom url if the user CAS account doesn't exist" do
@@ -258,13 +258,13 @@ describe 'login' do
   end
 
   it "should redirect back for jobs controller" do
-    user_with_pseudonym(:password => 'qwerty', :active_all => 1)
+    user_with_pseudonym(:password => 'qwertyuiop', :active_all => 1)
     Account.site_admin.account_users.create!(user: @user)
 
     get jobs_url
     expect(response).to redirect_to login_url
 
-    post canvas_login_url, pseudonym_session: { unique_id: @pseudonym.unique_id, password: 'qwerty' }
+    post canvas_login_url, pseudonym_session: { unique_id: @pseudonym.unique_id, password: 'qwertyuiop' }
     expect(response).to redirect_to jobs_url
   end
 end

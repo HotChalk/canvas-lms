@@ -1,9 +1,5 @@
 @import "base/environment";
 
-@if $use_new_styles == false {
-  #wrapper-container { min-width: 1150px; }
-}
-
 .scheduler-content {
   padding: 1em;
   background-color: $bodyBackground;
@@ -221,6 +217,8 @@
   float: left;
   background-image: url(/images/jqueryui/icon_sprite.png);
   background-position: (-16px) -80px;
+  border: none;
+  background-color: transparent;
 }
 
 .ag-sections-expanded {
@@ -336,4 +334,8 @@
       }
     }
   }
+}
+
+.scheduler-event-details-footer {
+    display: none;
 }

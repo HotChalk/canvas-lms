@@ -1,10 +1,6 @@
 {{#if collection.length}}
 
-{{#if ENV.use_new_styles}}
   <table class="roster ic-Table ic-Table--hover-row ic-Table--condensed ic-Table--striped">
-{{else}}
-  <table class="roster table table-hover table-striped table-condensed table-vertically-center">
-{{/if}}
     <thead>
       <tr>
         <th scope="col"><span class="screenreader-only">Profile Picture</span></th>
@@ -42,7 +38,7 @@
       {{#if canViewSisIdColumn}}
           <li>{{#t}}SIS ID{{/t}}</li>
       {{/if}}
-      <li>{{#t "canvas_user_id"}}HotChalk Ember User ID{{/t}}</li>
+      <li>{{#t "canvas_user_id"}}Canvas User ID{{/t}}</li>
     </ul>
   </div>
   {{else}}

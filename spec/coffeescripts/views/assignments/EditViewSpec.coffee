@@ -18,9 +18,12 @@ define [
   AssignmentGroupSelector, DueDateOverrideView, EditView,
   GradingTypeSelector, GroupCategorySelector, PeerReviewsSelector, fakeENV, userSettings) ->
 
+  s_params = 'asdf32.asdf31.asdf2'
+
   editView = (assignmentOpts = {}) ->
     defaultAssignmentOpts =
       name: 'Test Assignment'
+      secure_params: s_params
       assignment_overrides: []
 
     assignmentOpts = _.extend {}, assignmentOpts, defaultAssignmentOpts
@@ -51,7 +54,7 @@ define [
           model: dueDateList
           views: {}
 
-    @stub(app, 'scrollSidebar')
+    app.enableCheckbox = () -> {}
     app.render()
 
   module 'EditView',
@@ -69,6 +72,12 @@ define [
   test 'renders', ->
     view = @editView()
     equal view.$('#assignment_name').val(), 'Test Assignment'
+
+  test 'rejects missing group set for group assignment', ->
+    view = @editView()
+    data = { group_category_id: 'blank' }
+    errors = view.validateBeforeSave(data, [])
+    equal errors['newGroupCategory'][0]['message'], 'Please create a group set'
 
   test 'rejects a letter for points_possible', ->
     view = @editView()
@@ -126,6 +135,13 @@ define [
 
     errors = view.validateBeforeSave({}, [])
     ok !errors["name"]
+
+  test "renders a hidden secure_params field", ->
+    view = @editView()
+    secure_params = view.$('#secure_params')
+
+    equal secure_params.attr('type'), 'hidden'
+    equal secure_params.val(), s_params
 
   test 'does show error message on assignment point change with submissions', ->
     view = @editView has_submitted_submissions: true
@@ -201,6 +217,25 @@ define [
     ok view.$("[type=checkbox][name=moderated_grading]").prop("checked")
     ok view.$("[type=checkbox][name=moderated_grading]").prop("disabled")
     equal view.$('[type=hidden][name=moderated_grading]').attr('value'), '1'
+
+  test 'routes to discussion details normally', ->
+    view = @editView html_url: 'http://foo'
+    equal view.locationAfterSave({}), 'http://foo'
+
+  test 'routes to return_to', ->
+    view = @editView html_url: 'http://foo'
+    equal view.locationAfterSave({ return_to: 'http://bar' }), 'http://bar'
+
+  test 'cancels to env normally', ->
+    ENV.CANCEL_TO = 'http://foo'
+    view = @editView()
+    equal view.locationAfterCancel({}), 'http://foo'
+
+  test 'cancels to return_to', ->
+    ENV.CANCEL_TO = 'http://foo'
+    view = @editView()
+    equal view.locationAfterCancel({ return_to: 'http://bar' }), 'http://bar'
+
 
   module 'EditView: group category locked',
     setup: ->
@@ -358,3 +393,39 @@ define [
       mockSuper.verify()
       ok stub.calledOnce
       resolved()
+
+  test 'focuses in conditional release editor if conditional save validation fails', ->
+    view = @editView()
+    focusOnError = @stub(view.conditionalReleaseEditor, 'focusOnError')
+    view.showErrors({ conditional_release: 'foo' })
+    ok focusOnError.called
+
+  module 'Editview: Intra-Group Peer Review toggle',
+    setup: ->
+      fakeENV.setup()
+    teardown: ->
+      fakeENV.teardown()
+    editView: ->
+      editView.apply(this, arguments)
+
+  test 'only appears for group assignments', ->
+    @stub(userSettings, 'contextGet').returns {
+      peer_reviews: "1",
+      group_category_id: 1,
+      automatic_peer_reviews: "1"
+    }
+    view = @editView()
+    view.$el.appendTo $('#fixtures')
+    ok view.$('#intra_group_peer_reviews').is(":visible")
+
+  test 'does not appear when reviews are being assigned manually', ->
+    @stub(userSettings, 'contextGet').returns {peer_reviews: "1", group_category_id: 1}
+    view = @editView()
+    view.$el.appendTo $('#fixtures')
+    ok !view.$('#intra_group_peer_reviews').is(":visible")
+
+  test 'toggle does not appear when there is no group', ->
+    @stub(userSettings, 'contextGet').returns {peer_reviews: "1"}
+    view = @editView()
+    view.$el.appendTo $('#fixtures')
+    ok !view.$('#intra_group_peer_reviews').is(":visible")

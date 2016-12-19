@@ -809,8 +809,11 @@ class ConversationsController < ApplicationController
         message_ids = db_ids
 
         # sanity check: can the user see the included messages?
-        unless ConversationMessageParticipant.where(:conversation_message_id => message_ids,
-            :user_id => @current_user.id).count == message_ids.count
+        found_count = 0
+        Shard.partition_by_shard(message_ids) do |shard_message_ids|
+          found_count += ConversationMessageParticipant.where(:conversation_message_id => shard_message_ids, :user_id => @current_user).count
+        end
+        unless found_count == message_ids.count
           return render_error('included_messages', 'not a participant')
         end
       end
@@ -1016,10 +1019,10 @@ class ConversationsController < ApplicationController
     multiple = conversations.is_a?(Enumerable) || conversations.is_a?(ActiveRecord::Relation)
     conversations = [conversations] unless multiple
     result = Hash.new(false)
-    visible_conversations = @current_user.shard.activate do
-        @conversations_scope.select(:conversation_id).where(:conversation_id => conversations.map(&:conversation_id)).to_a
-      end
-    visible_conversations.each { |c| result[c.conversation_id] = true }
+    visible_conversation_ids = @current_user.shard.activate do
+      @conversations_scope.where(:conversation_id => conversations.map(&:conversation_id)).pluck(:conversation_id)
+    end
+    visible_conversation_ids.each { |c_id| result[Shard.relative_id_for(c_id, @current_user.shard, Shard.current)] = true }
     if !multiple
       result[conversations.first.conversation_id]
     else
@@ -1046,7 +1049,7 @@ class ConversationsController < ApplicationController
     users, contexts = AddressBook.partition_recipients(params[:recipients])
     if context
       user_ids = users.map{ |user| Shard.global_id_for(user) }.to_set
-      is_admin = context.grants_right?(@sender, :read_as_admin)
+      is_admin = context.grants_right?(@current_user, :read_as_admin)
       known = @current_user.address_book.
         known_in_context(context.asset_string, is_admin).
         select{ |user| user_ids.include?(user.global_id) }
@@ -1106,11 +1109,6 @@ class ConversationsController < ApplicationController
       media_comment.save
       media_comment
     end
-  end
-
-  # Obsolete. Forced to false until we go through and clean it up thoroughly
-  def interleave_submissions
-    false
   end
 
   def include_private_conversation_enrollments

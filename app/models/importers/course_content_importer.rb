@@ -124,6 +124,18 @@ module Importers
       Importers::WikiPageImporter.process_migration_course_outline(data, migration)
       Importers::CalendarEventImporter.process_migration(data, migration)
 
+      # import groups extra process
+      source_aux = migration.source_course || (migration.migration_settings[:source_course_id].present? && Course.find(migration.migration_settings[:source_course_id]))
+      if source_aux
+        groups_aux = source_aux.groups.active
+        group_categories_aux = source_aux.group_categories.active
+        data_aux = {
+            :groups => groups_aux || [],
+            :group_categories => group_categories_aux || []
+        }
+        Importers::GroupImporter.import_groups_extra(data_aux, migration)
+      end
+
       everything_selected = !migration.copy_options || migration.is_set?(migration.copy_options[:everything])
       if everything_selected || migration.is_set?(migration.copy_options[:all_course_settings])
         self.import_settings_from_migration(course, data, migration)
@@ -188,6 +200,7 @@ module Importers
             event.reload
             event.start_at = shift_date(event.start_at, shift_options)
             event.end_at = shift_date(event.end_at, shift_options)
+            event.all_day_date = shift_date(event.all_day_date.to_datetime, shift_options).to_date if event.all_day_date
             event.save_without_broadcasting
           end
 
@@ -241,6 +254,9 @@ module Importers
 
     def self.import_settings_from_migration(course, data, migration)
       return unless data[:course]
+      # get the external urls
+      course_aux = migration[:migration_settings][:source_course_id].present? && Course.find(migration[:migration_settings][:source_course_id])
+      data[:course][:dynamic_tab_configuration] = course_aux[:dynamic_tab_configuration] if course_aux.present?
       settings = data[:course]
       if settings[:tab_configuration] && settings[:tab_configuration].is_a?(Array)
         tab_config = []
@@ -291,6 +307,8 @@ module Importers
       if settings[:lock_all_announcements]
         Announcement.lock_from_course(course)
       end
+      # set the external urls
+      course.dynamic_tab_configuration = settings[:dynamic_tab_configuration] if settings[:dynamic_tab_configuration]
     end
 
     def self.shift_date_options(course, options={})

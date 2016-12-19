@@ -38,7 +38,7 @@ class ContentMigration < ActiveRecord::Base
   DATE_FORMAT = "%m/%d/%Y"
 
   attr_accessible :context, :migration_settings, :user, :source_course, :copy_options, :migration_type, :initiated_source
-  attr_accessor :imported_migration_items, :outcome_to_id_map, :attachment_path_id_lookup, :attachment_path_id_lookup_lower
+  attr_accessor :imported_migration_items, :outcome_to_id_map, :attachment_path_id_lookup, :attachment_path_id_lookup_lower, :last_module_position
 
   workflow do
     state :created
@@ -319,6 +319,8 @@ class ContentMigration < ActiveRecord::Base
     return if blocked_by_current_migration?(plugin, retry_count, expires_at)
 
     set_default_settings
+    self.save if self.changed?
+
     plugin ||= Canvas::Plugin.find(migration_type)
     if plugin
       queue_opts = {:priority => Delayed::LOW_PRIORITY, :max_attempts => 1,

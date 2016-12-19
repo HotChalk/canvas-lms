@@ -362,6 +362,26 @@ Canvas::Plugin.register('pandapub', nil, {
   :settings_partial => 'plugins/panda_pub_settings',
   :validator => 'PandaPubValidator'
 })
+Canvas::Plugin.register('vericite', nil, {
+  :name => lambda{ t :name, 'VeriCite' },
+  :description => lambda{ t :description, 'Plagiarism detection service.' },
+  :author => 'VeriCite',
+  :author_website => 'http://www.vericite.com',
+  :version => '1.0.0',
+  :settings => {
+    :account_id => nil,
+    :shared_secret => nil,
+    :host => 'api.vericite.com',
+    :comments => nil,
+    :pledge => nil,
+    :release_to_students => 'immediate',
+    :exclude_quotes => true,
+    :exclude_self_plag => true,
+    :store_in_index => true,
+    :show_preliminary_score => false,
+  },
+  :settings_partial => 'plugins/vericite_settings'
+})
 Canvas::Plugins::TicketingSystem.register!
 Canvas::Plugin.register('live_events', nil, {
   :name => lambda{ t :name, 'Live Events' },
@@ -422,14 +442,30 @@ Canvas::Plugin.register 'course_copy_tool_csv_importer', :export_system, {
     :description => lambda { I18n.t :csv_file_description, 'Migration plugin for copy multiple course to course, using csv file loaded with master ids and target ids.' },
     :version => '1.0.0',
     :select_text => lambda { I18n.t :csv_file_file_description, "Hotchalk Course Copy Tool" },
-    # :sort_order => 2,
     :settings => {
         :worker => 'CourseCopyToolCsvFileWorker',
         :requires_file_upload => true,
-        :no_selective_import => true,
-        # :required_options_validator => Canvas::Migration::Validators::CourseCopyToolZipImporterValidator,
+        :no_selective_import => true,        
         :required_settings => [:source_folder_id],
         :valid_contexts => %w(Account)
     },
-    :settings_partial => 'plugins/course_copy_tool_csv_file'    
+    :settings_partial => 'plugins/course_copy_tool_csv_file',
+    :hide_from_users => true
+}
+require_dependency 'canvas/migration/worker/course_copy_groups_worker'
+Canvas::Plugin.register 'course_group_copy', :export_system, {
+    :name => lambda { I18n.t :group_copy_name, 'Course Group Copy' },
+    :display_name => lambda { I18n.t :group_copy_display, 'Course Groups Copy Importer' },
+    :author => 'Hotchalk',
+    :author_website => 'http://www.hotchalk.com',
+    :description => lambda { I18n.t :group_copy_description, 'Import Groups from a source course to a target course.' },
+    :version => '1.0.0',
+    :select_text => lambda { I18n.t :group_copy_select_text, "Hotchalk Import Course Groups" },
+    # :sort_order => 1,
+    :settings => {
+        :worker => 'CourseCopyGroupsWorker',
+        :requires_file_upload => false,
+        :no_selective_import => true,        
+        :valid_contexts => %w(Course)
+    }    
 }

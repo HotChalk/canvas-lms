@@ -3,12 +3,9 @@ require File.expand_path(File.dirname(__FILE__) + '/common')
 describe "help dialog" do
   include_context "in-process server selenium tests"
 
-  before do
-    Account.default.enable_feature! :use_new_styles
-  end
-
   context "no user logged in" do
     it "should work with no logged in user" do
+      skip('HC: footer removed')
       Setting.set('show_feedback_link', 'true')
       get("/login")
       f('#footer .help_dialog_trigger').click
@@ -17,6 +14,7 @@ describe "help dialog" do
     end
 
     it "should no longer show a browser warning for IE" do
+      skip('HC: footer removed')
       Setting.set('show_feedback_link', 'true')
       get("/login")
       driver.execute_script("window.INST.browser = {ie: true, version: 8}")
@@ -125,6 +123,32 @@ describe "help dialog" do
       wait_for_ajaximations
       expect(f("#help-dialog")).to be_displayed
       expect(f("#help-dialog a[href='#create_ticket']")).to be_displayed
+    end
+  end
+
+  context "customization link" do
+    before :each do
+      user_logged_in(:active_all => true)
+      Setting.set('show_feedback_link', 'true')
+    end
+
+    it "should show the link to root account admins" do
+      Account.default.account_users.create!(:user => @user)
+      get "/"
+      wait_for_ajaximations
+      f('#global_nav_help_link').click
+      wait_for_ajaximations
+      expect(ff("#help_tray .ic-NavMenu-list-item__link").last).to include_text("Customize this menu")
+    end
+
+    it "should not show the link to sub account admins" do
+      sub = Account.default.sub_accounts.create!
+      sub.account_users.create!(:user => @user)
+      get "/"
+      wait_for_ajaximations
+      f('#global_nav_help_link').click
+      wait_for_ajaximations
+      expect(ff("#help_tray .ic-NavMenu-list-item__link").last).to_not include_text("Customize this menu")
     end
   end
 end

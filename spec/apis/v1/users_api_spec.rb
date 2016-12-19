@@ -1092,6 +1092,22 @@ describe "Users API", type: :request do
         expect(user.time_zone.name).to eql 'Tijuana'
       end
 
+      it "should be able to update email alone" do
+        enable_cache do
+          @student.email
+
+          Timecop.freeze(5.seconds.from_now) do
+            new_email = "bloop@shoop.whoop"
+            json = api_call(:put, @path, @path_options, {
+              :user => {:email => new_email}
+            })
+            expect(json['email']).to eq new_email
+            user = User.find(json['id'])
+            expect(user.email).to eq new_email
+          end
+        end
+      end
+
       it "should catch invalid dates" do
         birthday = Time.now
         json = api_call(:put, @path, @path_options, {
@@ -1672,6 +1688,12 @@ describe "Users API", type: :request do
       @course.assignments.first.submit_homework @student, :submission_type => "online_text_entry"
       json = api_call(:get, @path, @params)
       expect(json.length).to eql 1
+    end
+
+    it "should not return assignments that don't expect a submission" do
+      ungraded = @course.assignments.create! due_at: 2.days.ago, workflow_state: 'published', submission_types: 'not_graded'
+      json = api_call(:get, @path, @params)
+      expect(json.map { |a| a['id'] }).not_to include ungraded.id
     end
   end
 end
