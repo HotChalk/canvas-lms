@@ -75,10 +75,13 @@
     border-color: #ccc;
 }
 .s_table{
-	display:table;
+    display:table;
 }
 .s_table_cell{
-	display:table-cell;
+    display:table-cell;
+}
+.menu_buttons{
+    float: left;
 }
 .csvinputfile {
 	width: 0.1px;
