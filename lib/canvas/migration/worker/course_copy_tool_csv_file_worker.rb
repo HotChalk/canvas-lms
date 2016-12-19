@@ -36,6 +36,11 @@ class Canvas::Migration::Worker::CourseCopyToolCsvFileWorker < Canvas::Migration
           end
           cm.save
         end                
+        if cm.migration_settings[:total_copy] == cm.migration_settings[:number_processed]
+          cm.workflow_state = :exported 
+          cm.update_import_progress(100)
+        end
+        cm.save!
       rescue => e
         cm.fail_with_error!(e)
         raise e
