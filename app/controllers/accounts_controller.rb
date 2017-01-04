@@ -177,7 +177,7 @@ class AccountsController < ApplicationController
         return redirect_to account_settings_url(@account) if @account.site_admin? || !@account.grants_right?(@current_user, :read_course_list)
         js_env(:ACCOUNT_COURSES_PATH => account_courses_path(@account, :format => :json))
         load_course_right_side
-        @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses,
+        @courses = @account.fast_all_courses(:term => @term, :limit => @maximum_courses_im_gonna_show, :hide_enrollmentless_courses => @hide_enrollmentless_courses, :order => sort_order,
                                              :states => @states, :item_type => @item_type, :date_type => @date_type,
                                              :from_date => @from_date, :to_date => @to_date,
                                              :department_id => @department_id, :program_id => @program_id,
@@ -809,6 +809,32 @@ class AccountsController < ApplicationController
     associated_courses = associated_courses.for_term(@term) if @term
     @associated_courses_count = associated_courses.count
     @hide_enrollmentless_courses = params[:hide_enrollmentless_courses] == "1"
+    @courses_sort_orders = [
+      {
+        key: "name_asc",
+        label: -> { t("A - Z") },
+        col: Course.best_unicode_collation_key("courses.name"),
+        direction: "ASC"
+      },
+      {
+        key: "name_desc",
+        label: -> { t("Z - A") },
+        col: Course.best_unicode_collation_key("courses.name"),
+        direction: "DESC"
+      },
+      {
+        key: "created_at_desc",
+        label: -> { t("Newest - Oldest") },
+        col: "courses.created_at",
+        direction: "DESC"
+      },
+      {
+        key: "created_at_asc",
+        label: -> { t("Oldest - Newest") },
+        col: "courses.created_at",
+        direction: "ASC"
+      }
+    ].freeze
     @department_id = params[:department_id] if params[:department_id].present?
     @program_id = params[:program_id] if params[:program_id].present?
     @course_format = params[:course_format] if params[:course_format].present?
@@ -1094,5 +1120,14 @@ class AccountsController < ApplicationController
     # i'm doing this instead of normal strong_params because we do too much hackery to the weak params, especially in plugins
     # and it breaks when we enforce inherited weak parameters (because we're not actually editing request.parameters anymore)
     ActionController::Parameters.new(params).require(:account).permit(*permitted_account_attributes)
+  end
+
+  def sort_order
+    load_course_right_side unless @courses_sort_orders.present?
+    order = @courses_sort_orders.find do |ord|
+      ord[:key] == params[:courses_sort_order]
+    end
+
+    order && "#{order[:col]} #{order[:direction]}"
   end
 end
