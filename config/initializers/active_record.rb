@@ -780,7 +780,7 @@ ActiveRecord::Relation.class_eval do
     raise ArgumentError unless args.length == 1
 
     column = args.first.first
-    values = args.first.last
+    values = Array(args.first.last)
     original_length = values.length
     values = values.compact
 
@@ -1094,6 +1094,13 @@ class ActiveRecord::Migration
     def has_postgres_proc?(procname)
       connection.select_value("SELECT COUNT(*) FROM pg_proc WHERE proname='#{procname}'").to_i != 0
     end
+
+    if CANVAS_RAILS4_2
+      def [](version)
+        raise ArgumentError unless version == 4.2
+        self
+      end
+    end
   end
 
   def connection
@@ -1315,7 +1322,11 @@ ActiveRecord::Associations::Builder::BelongsTo.singleton_class.prepend(SkipTouch
 
 module ReadonlyCloning
   def calculate_changes_from_defaults
-    super unless @readonly_clone # no reason to do this if we're creating a readonly clone - can take a long time with serialized columns
+    if @readonly_clone
+      @changed_attributes = @changed_attributes.dup if @changed_attributes # otherwise changes to the clone will dirty the original
+    else
+      super # no reason to do this if we're creating a readonly clone - can take a long time with serialized columns
+    end
   end
 end
 ActiveRecord::Base.prepend(ReadonlyCloning)
