@@ -78,7 +78,10 @@ class Course < ActiveRecord::Base
                   :course_format,
                   :time_zone,
                   :account_program,
-                  :organize_epub_by_content_type
+                  :organize_epub_by_content_type,
+                  :show_announcements_on_home_page,
+                  :home_page_announcement_limit,
+                  :enable_offline_web_export
 
   time_zone_attribute :time_zone
   def time_zone
@@ -712,6 +715,12 @@ class Course < ActiveRecord::Base
   scope :unpublished, -> { where(workflow_state: %w(created claimed)) }
 
   scope :deleted, -> { where(:workflow_state => 'deleted') }
+
+  scope :master_courses, -> { joins(:master_course_templates).where.not(MasterCourses::MasterTemplate.table_name => {:workflow_state => 'deleted'}) }
+
+  def potential_collaborators
+    current_users
+  end
 
   set_broadcast_policy do |p|
     p.dispatch :grade_weight_changed
@@ -1464,10 +1473,15 @@ class Course < ActiveRecord::Base
   # Public: Return true if the end date for a course (or its term, if the course doesn't have one) has passed.
   #
   # Returns boolean or nil.
-  def soft_concluded?
+  def soft_concluded?(enrollment_type = nil)
     now = Time.now
     return end_at < now if end_at && restrict_enrollments_to_course_dates
-    enrollment_term.end_at && enrollment_term.end_at < now
+    if enrollment_type
+      override = enrollment_term.enrollment_dates_overrides.where(enrollment_type: enrollment_type).first
+      end_at = override.end_at if override
+    end
+    end_at ||= enrollment_term.end_at
+    end_at && end_at < now
   end
 
   def soft_conclude!
@@ -1475,8 +1489,8 @@ class Course < ActiveRecord::Base
     self.restrict_enrollments_to_course_dates = true
   end
 
-  def concluded?
-    completed? || soft_concluded?
+  def concluded?(enrollment_type = nil)
+    completed? || soft_concluded?(enrollment_type)
   end
 
   def account_chain(include_site_admin: false)
@@ -1524,6 +1538,10 @@ class Course < ActiveRecord::Base
     @teacherless_course ||= Rails.cache.fetch(['teacherless_course', self].cache_key) do
       !self.sis_source_id && self.teacher_enrollments.empty?
     end
+  end
+
+  def allow_web_export_download?
+    root_account.enable_offline_web_export? && self.enable_offline_web_export?
   end
 
   def grade_publishing_status_translation(status, message)
@@ -2174,7 +2192,8 @@ class Course < ActiveRecord::Base
 
         if !ce || ce.export_object?(file)
           begin
-            new_file = file.clone_for(self, nil, :overwrite => true)
+            migration_id = ce && ce.create_key(file)
+            new_file = file.clone_for(self, nil, :overwrite => true, :migration_id => migration_id)
             cm.add_attachment_path(file.full_display_path.gsub(/\A#{root_folder_name}/, ''), new_file.migration_id)
             new_folder_id = merge_mapped_id(file.folder)
 
@@ -2241,7 +2260,8 @@ class Course < ActiveRecord::Base
       :is_public_to_auth_users, :restrict_enrollments_to_course_dates,
       :restrict_student_past_view, :restrict_student_future_view,
       :allow_student_discussion_topics, :allow_student_discussion_editing, :lock_all_announcements,
-      :organize_epub_by_content_type]
+      :organize_epub_by_content_type, :show_announcements_on_home_page,
+      :home_page_announcement_limit, :enable_offline_web_export ]
   end
 
   def set_course_dates_if_blank(shift_options)
@@ -2884,7 +2904,7 @@ class Course < ActiveRecord::Base
   add_setting :allow_student_discussion_topics, :boolean => true, :default => true
   add_setting :allow_student_discussion_editing, :boolean => true, :default => true
   add_setting :show_total_grade_as_points, :boolean => true, :default => false
-  add_setting :lock_all_announcements, :boolean => true, :default => false
+  add_setting :lock_all_announcements, :boolean => true, :default => false, :inherited => true
   add_setting :large_roster, :boolean => true, :default => lambda { |c| c.root_account.large_course_rosters? }
   add_setting :public_syllabus, :boolean => true, :default => false
   add_setting :public_syllabus_to_auth, :boolean => true, :default => false
@@ -2892,6 +2912,7 @@ class Course < ActiveRecord::Base
   add_setting :image_id
   add_setting :image_url
   add_setting :organize_epub_by_content_type, :boolean => true, :default => false
+  add_setting :enable_offline_web_export, :boolean => true, :default => lambda { |c| c.root_account.enable_offline_web_export? }
   add_setting :is_public_to_auth_users, :boolean => true, :default => false
 
   add_setting :restrict_student_future_view, :boolean => true, :inherited => true
@@ -3207,6 +3228,10 @@ class Course < ActiveRecord::Base
     @nickname = nickname_for(user, nil)
   end
 
+  def any_assignment_in_closed_grading_period?
+    effective_due_dates.any_in_closed_grading_period?
+  end
+
   # HOTCHALK: automatically publish courses based on start date (and term start date)
   # (this should be run in a delayed job)
   def self.auto_publish
@@ -3225,7 +3250,7 @@ class Course < ActiveRecord::Base
       # if a course belongs to a term that is currently active, the course should be published
       if course.enrollment_term && course.enrollment_term.start_at
         needs_publishing ||= ((course.enrollment_term.start_at < cutoff_time) &&
-            (course.enrollment_term.end_at.nil? || course.enrollment_term.end_at > cutoff_time))
+          (course.enrollment_term.end_at.nil? || course.enrollment_term.end_at > cutoff_time))
       end
 
       if needs_publishing
@@ -3248,5 +3273,11 @@ class Course < ActiveRecord::Base
       return acc && acc.settings[:syllabus_rename]
     end
     nil
+  end
+
+  private
+
+  def effective_due_dates
+    @effective_due_dates ||= EffectiveDueDates.for_course(self)
   end
 end

@@ -39,6 +39,7 @@ define [
 
       $.subscribe 'Calendar/saveVisibleContextListAndClear', @saveAndClear
       $.subscribe 'Calendar/restoreVisibleContextList', @restoreList
+      $.subscribe 'Calendar/ensureCourseVisible', @ensureCourseVisible
 
     saveAndClear: () =>
       if !@savedContexts
@@ -51,6 +52,10 @@ define [
         @contexts = @savedContexts
         @savedContexts = null
         @notifyOnChange()
+
+    ensureCourseVisible: (context) =>
+      if $.inArray(context, @contexts) < 0
+        @toggle(context)
 
     toggle: (context) ->
       index = $.inArray context, @contexts
