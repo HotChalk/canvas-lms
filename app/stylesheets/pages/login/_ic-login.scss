@@ -318,13 +318,7 @@ body.body--login-confirmation {
   width: 200px; height: 57px;  
   background-position: 50%;
   background-repeat: no-repeat;
-  background-size: contain;
-  @if variable_exists($ic-brand-Login-logo) {
-    background-image: $ic-brand-Login-logo;
-  }
-  @else {
-    background-image: $ic-app-Login-logo-default;
-  }  
+  background-size: contain;    
 }
 
 .ic-Login-confirmation__content {
