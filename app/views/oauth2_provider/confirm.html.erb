@@ -7,8 +7,8 @@
 %>
 
 <div id="modal-box" class="ic-Login-confirmation">
-  <header class="ic-Login-confirmation__header">
-    <%= image_tag("login/canvas-logo@2x.png", :class => "ic-Login-confirmation__logo", :alt => t("HotChalk Ember")) %>
+  <header class="ic-Login-confirmation__header ic-Login-confirmation__header-custom">
+    <div class="ic-Login-confirmation__logo-custom"></div>    
   </header>
   <div class="ic-Login-confirmation__content">
     <%= render("confirm_form") %>
