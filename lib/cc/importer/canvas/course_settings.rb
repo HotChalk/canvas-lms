@@ -64,9 +64,9 @@ module CC::Importer::Canvas
        'allow_student_forum_attachments', 'allow_student_organized_groups', 'lock_all_announcements',
        'open_enrollment', 'allow_wiki_comments',
        'self_enrollment', 'hide_final_grade', 'grading_standard_enabled',
-       'hide_distribution_graphs', 'allow_student_discussion_topics','allow_student_discussion_editing', 
-       'is_public_to_auth_users', 'restrict_student_past_view', 'restrict_student_future_view', 
-       'restrict_enrollments_to_course_dates'].each do |bool_val|
+       'hide_distribution_graphs', 'allow_student_discussion_topics',
+       'is_public_to_auth_users', 'restrict_student_past_view', 'restrict_student_future_view', 'restrict_enrollments_to_course_dates',
+       'allow_student_discussion_editing', 'show_announcements_on_home_page', 'home_page_announcement_limit'].each do |bool_val|
         val = get_bool_val(doc, bool_val)
         course[bool_val] = val unless val.nil?
       end

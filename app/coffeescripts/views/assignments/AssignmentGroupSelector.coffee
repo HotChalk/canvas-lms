@@ -47,6 +47,7 @@ define [
       assignmentGroupId: @parentModel.assignmentGroupId()
       frozenAttributes: @parentModel.frozenAttributes()
       nested: @nested
+      inClosedGradingPeriod: @parentModel.inClosedGradingPeriod()
 
     fieldSelectors:
       assignmentGroupSelector: '#assignment_group_id'
