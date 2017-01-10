@@ -31,6 +31,7 @@ $ic-Login-border-radius: 5px;
 $modal_box_width: 623px;
 $modal_box_padding: 20px;
 $ic-Login-confirmation-bgd: #34444f;
+$ic-app-Login-logo-default: url("/images/login/canvas-logo@2x.svg") !default;
 
 ////////////////////////////////////////
 // New Login Styles
@@ -305,8 +306,25 @@ body.body--login-confirmation {
   padding: $ic-sp*1.5;
 }
 
+.ic-Login-confirmation__header-custom{
+  background-color: #fff;
+}
+
 .ic-Login-confirmation__logo {
   width: 140px; height: 57px;
+}
+
+.ic-Login-confirmation__logo-custom {
+  width: 200px; height: 57px;  
+  background-position: 50%;
+  background-repeat: no-repeat;
+  background-size: contain;
+  @if variable_exists($ic-brand-Login-logo) {
+    background-image: $ic-brand-Login-logo;
+  }
+  @else {
+    background-image: $ic-app-Login-logo-default;
+  }  
 }
 
 .ic-Login-confirmation__content {
