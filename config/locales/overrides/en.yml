@@ -290,7 +290,7 @@ en:
     conversation_created:
       email:
         html:
-          reply_to_conversation_message: "You can reply to this message in HotChalk Ember by replying directly to this email."
+          reply_to_conversation_message: "Please log into Ember and reply directly to this conversation. Replies via this email will not reach the intended recipient."
           subject: "%{user_name}, you just sent a message in HotChalk Ember."
         subject: "%{user_name}, you just sent a message in HotChalk Ember."
       summary:
@@ -301,7 +301,7 @@ en:
     conversation_message:
       email:
         html:
-          reply_to_conversation_message: "You can reply to this message in HotChalk Ember by replying directly to this email."
+          reply_to_conversation_message: "Please log into Ember and reply directly to this conversation. Replies via this email will not reach the intended recipient."
           subject: "%{user_name} just sent you a message in HotChalk Ember."
         subject: "%{user_name} just sent you a message in HotChalk Ember."
       summary:
@@ -600,7 +600,7 @@ en:
         one: "This HotChalk Ember installation is only for testing, and will reset every week."
         other: "This HotChalk Ember installation is only for testing, and will reset every %{count} weeks."
   welcome_to_the_canvas_theme_editor_73091d1: "Welcome to the HotChalk Ember Theme Editor"
-  you_can_reply_to_this_message_in_canvas_by_replyin_fa33638d: "You can reply to this message in HotChalk Ember by replying directly to this email, or by clicking this link: %{link}."
+  you_can_reply_to_this_message_in_canvas_by_replyin_fa33638d: "Please log into Ember and reply directly to this conversation (Replies via this email will not reach the intended recipient), or by clicking this link: %{link}."
   you_just_sent_a_message_in_canvas_86b4945c: "You just sent a message in HotChalk Ember"
   you_re_editing_your_canvas_theme_apply_or_cancel_c_1633384e: "You're editing your HotChalk Ember Theme! Apply or cancel changes from within the *Theme Editor*."
   you_re_editing_your_canvas_theme_the_changes_have__c0ae1bd1: "You're editing your HotChalk Ember Theme! The changes have not been applied yet."

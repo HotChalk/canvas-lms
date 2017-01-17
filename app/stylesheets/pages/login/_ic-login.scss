@@ -31,7 +31,7 @@ $ic-Login-border-radius: 5px;
 $modal_box_width: 623px;
 $modal_box_padding: 20px;
 $ic-Login-confirmation-bgd: #34444f;
-$ic-app-Login-logo-default: url("/images/login/canvas-logo@2x.svg") !default;
+$ic-app-Login-logo-default: url("/images/login/canvas-logo@2x.png") !default;
 
 ////////////////////////////////////////
 // New Login Styles
@@ -323,13 +323,7 @@ body.body--login-confirmation {
   width: 200px; height: 57px;  
   background-position: 50%;
   background-repeat: no-repeat;
-  background-size: contain;
-  @if variable_exists($ic-brand-Login-logo) {
-    background-image: $ic-brand-Login-logo;
-  }
-  @else {
-    background-image: $ic-app-Login-logo-default;
-  }  
+  background-size: contain;    
 }
 
 .ic-Login-confirmation__content {
