@@ -25,7 +25,7 @@ class ResourcesController < ApplicationController
             @context.errors.add(:url) unless url.present? && uri?(url)
           end
         end
-        if @context.errors.empty? && @context.update_attributes(@context.settings)
+        if @context.errors.empty? && @context.save
           format.html { redirect_to account_resources_links_index_url(@context) }
           format.json { render :json => @context }
         else
