@@ -5,6 +5,7 @@ development:
   enable_inspectlet: false
   enable_qa_header: false
   enable_feedbackify: false
+  enable_migration_header: false
 
 test:
   enable_google_analytics: false
@@ -12,6 +13,7 @@ test:
   enable_inspectlet: false
   enable_qa_header: false
   enable_feedbackify: false
+  enable_migration_header: false
 
 production:
   enable_google_analytics: false
@@ -19,3 +21,4 @@ production:
   enable_inspectlet: false
   enable_qa_header: false
   enable_feedbackify: false
+  enable_migration_header: false

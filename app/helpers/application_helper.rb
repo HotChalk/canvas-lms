@@ -1107,6 +1107,12 @@ module ApplicationHelper
     @external_web_tools_config['enable_qa_header']
   end
 
+  def include_migration_header
+    @external_web_tools_config ||= ConfigFile.load('external_web_tools')
+    @external_web_tools_config['enable_migration_header'] &&
+      Setting.get('migration_header_html', nil)
+  end
+
   def context_syllabus_name(context)
     context.try(:syllabus_label) if context
   end

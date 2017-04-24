@@ -61,6 +61,9 @@
   <% if @current_user.nil? && include_qa_header %>
     <div id="qa-message"><%= t("This is a testing environment. If you are a student or instructor please click %{prod_link}.", :prod_link => link_to(t('here'), "https://hotchalkember.com")) %></div>
   <% end %>
+  <% if @current_user.nil? && include_migration_header %>
+    <div id="qa-message"><%= raw Setting.get('migration_header_html', nil) %></div>
+  <% end %>
 
   <div id="instructure_ajax_error_box">
     <div style="text-align: right; background-color: #fff;"><a href="#" class="close_instructure_ajax_error_box_link"><%= t('links.close', 'Close') %></a></div>
