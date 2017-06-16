@@ -41,11 +41,12 @@ class DomainValidator
 
   attr_accessor :domain_regex, :issues, :visited_urls
 
-  def initialize(search_domain, replace_domain, debug)
-    domain_regex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}$/
+  def initialize(search_domain, replace_domain, replace_protocol, debug)
+    domain_regex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(\/.*)?$/
     raise "Invalid domain name!" unless domain_regex.match(search_domain) && (replace_domain.blank? || domain_regex.match(replace_domain))
     @search_domain = search_domain
     @replace_domain = replace_domain
+    @replace_protocol = replace_protocol
     @debug = debug
     @domain_regex = %r{\w+:?(\/\/|%2F%2F)#{Regexp.quote(@search_domain)}}
     @issues = []
@@ -76,7 +77,11 @@ class DomainValidator
       old_value = ActiveRecord::Base.connection.select_value("SELECT #{attr.to_s} FROM #{model_class.quoted_table_name} WHERE #{model_class.primary_key.to_s} = #{id}")
       next unless old_value.present?
       if @replace_domain.present?
-        new_value = old_value.gsub(/(?<prefix>(\/\/|%2F%2F))#{Regexp.quote(@search_domain)}/, ('\k<prefix>' + @replace_domain))
+        if @replace_protocol.present?
+          new_value = old_value.gsub(/(http|https)\:\/\/#{Regexp.quote(@search_domain)}/, (@replace_protocol + '://' + @replace_domain))
+        else
+          new_value = old_value.gsub(/(?<prefix>(\/\/|%2F%2F))#{Regexp.quote(@search_domain)}/, ('\k<prefix>' + @replace_domain))
+        end
         next unless new_value != old_value
         Rails.logger.info "[DOMAIN-VALIDATOR] Replacing #{model_class.name}(#{id}).#{attr.to_s}:\n#{Diffy::Diff.new(old_value + "\n", new_value + "\n", :diff => '-U 0')}" if @debug
         begin
