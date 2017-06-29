@@ -86,7 +86,7 @@ class DomainValidator
         Rails.logger.info "[DOMAIN-VALIDATOR] Replacing #{model_class.name}(#{id}).#{attr.to_s}:\n#{Diffy::Diff.new(old_value + "\n", new_value + "\n", :diff => '-U 0')}" if @debug
         begin
           model_class.transaction do
-            model_class.where(model_class.primary_key => id).update_all(attr => new_value)
+            model_class.where(model_class.primary_key => id).update_all("#{attr} = #{ActiveRecord::Base.connection.quote(new_value)}")
           end
         rescue Exception => e
           Rails.logger.error "[DOMAIN-VALIDATOR] Domain replacement failed: #{e.inspect}"
