@@ -39,12 +39,12 @@ class ContentSearch
 
   def search_assessment_questions(account)
     # AssessmentQuestion => [:question_data]
-    account.assessment_questions.where("question_data LIKE ?", "%#{@search_text}%").each do |item|
+    account.assessment_questions.where("question_data LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
       url = ""
       output_hit(item, :question_data, url)
     end
     account.courses.active.each do |course|
-      course.assessment_questions.where("question_data LIKE ?", "%#{@search_text}%").each do |item|
+      course.assessment_questions.where("question_data LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/question_banks/#{item.assessment_question_bank_id}"
         output_hit(item, :question_data, url)
       end
@@ -54,11 +54,11 @@ class ContentSearch
   def search_assignments(account)
     # Assignment => [:title, :description]
     account.courses.active.each do |course|
-      course.active_assignments.where("title LIKE ?", "%#{@search_text}%").each do |item|
+      course.active_assignments.where("title LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/assignments/#{item.id}"
         output_hit(item, :title, url)
       end
-      course.active_assignments.where("description LIKE ?", "%#{@search_text}%").each do |item|
+      course.active_assignments.where("description LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/assignments/#{item.id}"
         output_hit(item, :description, url)
       end
@@ -69,15 +69,15 @@ class ContentSearch
     # ContentTag => [:title, :url, :comments]
     account.courses.active.each do |course|
       course.active_context_modules.each do |context_module|
-        context_module.content_tags.not_deleted.where("title LIKE ?", "%#{@search_text}%").each do |item|
+        context_module.content_tags.not_deleted.where("title LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
           url = "/courses/#{course.id}/modules"
           output_hit(item, :title, url)
         end
-        context_module.content_tags.not_deleted.where("url LIKE ?", "%#{@search_text}%").each do |item|
+        context_module.content_tags.not_deleted.where("url LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
           url = "/courses/#{course.id}/modules"
           output_hit(item, :url, url)
         end
-        context_module.content_tags.not_deleted.where("comments LIKE ?", "%#{@search_text}%").each do |item|
+        context_module.content_tags.not_deleted.where("comments LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
           url = "/courses/#{course.id}/modules"
           output_hit(item, :comments, url)
         end
@@ -87,7 +87,7 @@ class ContentSearch
 
   def search_courses(account)
     # Course => [:syllabus_body]
-    account.courses.active.where("syllabus_body LIKE ?", "%#{@search_text}%").each do |item|
+    account.courses.active.where("syllabus_body LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
       url = "/courses/#{item.id}/assignments/syllabus"
       output_hit(item, :syllabus_body, url)
     end
@@ -96,7 +96,7 @@ class ContentSearch
   def search_discussion_topics(account)
     # DiscussionTopic => [:message]
     account.courses.active.each do |course|
-      course.active_discussion_topics.where("message LIKE ?", "%#{@search_text}%").each do |item|
+      course.active_discussion_topics.where("message LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/discussion_topics/#{item.id}"
         output_hit(item, :message, url)
       end
@@ -106,11 +106,11 @@ class ContentSearch
   def search_quizzes(account)
     # Quizzes::Quiz => [:description, :quiz_data]
     account.courses.active.each do |course|
-      course.active_quizzes.where("description LIKE ?", "%#{@search_text}%").each do |item|
+      course.active_quizzes.where("description LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/quizzes/#{item.id}"
         output_hit(item, :description, url)
       end
-      course.active_quizzes.where("quiz_data LIKE ?", "%#{@search_text}%").each do |item|
+      course.active_quizzes.where("quiz_data LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/quizzes/#{item.id}"
         output_hit(item, :quiz_data, url)
       end
@@ -120,7 +120,7 @@ class ContentSearch
   def search_quiz_questions(account)
     # Quizzes::QuizQuestion => [:question_data]
     account.courses.active.each do |course|
-      course.quiz_questions.where("question_data LIKE ?", "%#{@search_text}%").each do |item|
+      course.quiz_questions.where("question_data LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/quizzes/#{item.quiz.id}"
         output_hit(item, :question_data, url)
       end
@@ -130,11 +130,11 @@ class ContentSearch
   def search_wiki_pages(account)
     # WikiPage => [:body, :title]
     account.courses.active.each do |course|
-      course.wiki_pages.not_deleted.where("body LIKE ?", "%#{@search_text}%").each do |item|
+      course.wiki_pages.not_deleted.where("body LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/pages/#{item.url}"
         output_hit(item, :body, url)
       end
-      course.wiki_pages.not_deleted.where("title LIKE ?", "%#{@search_text}%").each do |item|
+      course.wiki_pages.not_deleted.where("title LIKE #{ActiveRecord::Base.connection.quote('%' + @search_text + '%')}").each do |item|
         url = "/courses/#{course.id}/pages/#{item.url}"
         output_hit(item, :title, url)
       end
